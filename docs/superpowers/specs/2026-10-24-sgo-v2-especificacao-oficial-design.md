@@ -338,6 +338,9 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 
 O protótipo é a referência de **estrutura de navegação e padrão visual** da F1 em diante: azul institucional `#1F3864`/`#2E75B6`, cabeçalho com unidade e perfil, menu lateral por módulo → grupo → funcionalidade, busca de funcionalidade, telas CRUD com grade, formulário, confirmação e aviso. O que ele define e o que é corrigido:
 
+**Marca neutra (decisão do PO, 24/10/2026):** o nome "CTCEA" não aparece em lugar nenhum do sistema: telas, e-mails, relatórios, PDFs, mensagens, seed, código e nomes de banco. O sistema se apresenta como **SGO 2.0 – Sistema de Gestão Orçamentária**. Nome da instituição e logotipo, quando um relatório oficial exigir, vêm de **parâmetro da organização** (`org.nome_exibicao`, `org.logotipo`), vazios por padrão. Esta especificação pode citar a CTCEA. Teste automatizado no CI: busca case-insensitive por "ctcea" em `src/`, `prisma/`, `worker/` e nas seeds falha o build.
+- Dado de origem: a conta 4.1.1.8.005 do plano oficial se chama "Provisão p/plano de invest. e desenv. CTCEA". A carga grava a descrição **sem a sigla** **[PROVISÓRIA]**; confirmar com a GFIN se a conta será renomeada na origem (GAP-CAD-005).
+
 **Mantido como padrão**
 - **Contexto de unidade** no cabeçalho: cada Termo de Parceria é uma unidade, e a **Administração Central** aparece como unidade consolidada. O seletor só lista as unidades a que o usuário tem acesso, e trocar de unidade recarrega a tela com o filtro dessa unidade no servidor.
 - **Menu por permissão** (RN0027/RN0030): o menu só mostra módulos e funcionalidades ativos e permitidos, e a busca respeita o mesmo filtro.
@@ -438,6 +441,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CC-006 | CAD | Natureza do CC (Finalístico/Apoio/Administrativo/Gestão) usada no protótipo não está na minuta de CC | Não bloqueia (campo opcional) | DIREX/GFIN |
 | GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
 | GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
+| GAP-CAD-005 | CAD | Descrição da conta 4.1.1.8.005 contém a sigla CTCEA, vedada nas telas (6.7) | Não bloqueia (carga remove a sigla) | Wellington |
 | GAP-CAD-003 | CAD | O plano de contas não tem conta de **ISS** nem de impostos sobre a proposta; não se sabe se o imposto da proposta é lançado em conta | F3 (junto com GAP-CAD-001) | Wellington |
 | GAP-ORC-001 | ORC | RN0433 × RN0434 (Transferência para Provisões) e fórmulas de Saldo Final/Parcial do UC04.12 (Cat. #9) | **UC04.12 em F5** | Wellington |
 | GAP-ORC-002 | ORC | 22 regras citadas e não definidas (RN0225, RN0262, RN0291, RN0430…) (Cat. #19) | Os UCs afetados em F5 | PO |
