@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 24/10/2026 (frente A, sessão de especificação e planejamento).
+Última atualização: 24/10/2026 (frente A, rodada de revisão da spec → versão 1.1).
 
 ---
 
@@ -17,7 +17,7 @@
 | PO / BA | Fabiano Garcia. Responder sempre em **português do Brasil** |
 | Fonte de requisitos | **Somente** a pasta `especificacao/` (EPs, plano de contas, plano de CC). O repositório `sistemaSgo` é só referência técnica |
 | Stack | Monólito modular Next.js + TypeScript strict, PostgreSQL 16 + Prisma, decimal.js (Half-Even, NUMERIC(15,2)), pg-boss, Zod, Tailwind/shadcn, TanStack, ExcelJS, Vitest/Testcontainers/Playwright (spec §4) |
-| Hospedagem | VPS Hostinger srv2039095 (2 vCPU, 8 GB, 96 GB) com Easypanel + Traefik (80/443); Easypanel na porta 3000. Projetos `sgo-hml` e `sgo-prod` (app, worker, db sem porta pública) |
+| Hospedagem | VPS Hostinger srv2039095 (2 vCPU, 8 GB, 96 GB, **sem swap** até a US-122) com Easypanel + Traefik (80/443); Easypanel na porta 3000. Projetos `sgo-hml` e `sgo-prod` (app, worker, db sem porta pública). **O dev das duas frentes roda na mesma VPS** (D12), com mitigações obrigatórias |
 | Deploy | GitHub Actions → GHCR → webhook do Easypanel. Backup: pgBackRest PITR para storage externo + dump diário + snapshot + teste de restauração mensal |
 | Projeto no GitHub | "SGO 2.0 – Roadmap": https://github.com/users/fabianojp06/projects/4 |
 
@@ -31,6 +31,7 @@
 6. **Segredos:** a `ANTHROPIC_API_KEY` e as credenciais de prod ficam só nas variáveis do Easypanel. Nunca no repositório nem em `.env` de dev.
 7. **Commits** terminam com os trailers de coautoria da sessão e com `Frente: A` ou `Frente: B` (spec §12.4).
 8. **Duas frentes:** cada pasta tem um dono (spec §12.3). Não alterar código da outra frente sem a label `toca-outra-frente`.
+9. **Dev na VPS de produção (D12):** nunca acessar contêineres, redes, volumes ou variáveis de `sgo-prod`/`sgo-hml` (`docker exec`, `docker cp`, `docker compose`, `psql`). Os hooks bloqueiam; exceção só com pedido explícito do PO.
 
 ## 3. Decisões principais (detalhe na spec)
 
@@ -46,6 +47,12 @@
 | Adm. Central | Menu próprio; exercícios anuais (UC04.17); pessoal pelo MotorCustoPosicao com encargo de 51%; base zero; receitas = rateio dos TPs (confirmado × previsto); teto padrão = rateio líquido confirmado; ISS a definir (GAP-ORC-007) | §6.6, §6.7 |
 | IA | Infra na F0 (porta `ProvedorIA`, adaptador Anthropic `claude-opus-5-5`, flags desligadas). Catálogo IA-01 a IA-18. O número oficial nunca vem da IA | §4.4, §6.8 |
 | Processo | Duas contas do Claude Code em duas frentes, com dono por pasta, contratos, fila de migrations e CI de fronteira | §12 |
+| Primeiro plano | Trilha 2027 (41 histórias), não a F0 + F1 completas | §3.3 |
+| Dev × produção | Dev na mesma VPS, com swap, prioridade da produção, earlyoom, limites, hooks e alerta; gatilho de revisão | D12, §4.3 |
+| Custo de pessoal | Motor único `MotorCustoPessoal` (módulo `cad`): base + férias 1/3 + 13º, encargo de 51% sobre o total, benefícios; proposta e Adm. Central [PROVISÓRIA, Wellington] | C33, §6.4 |
+| Cargo na trilha | Texto livre na planilha e na importação; vínculo com C&S depois de 30/11 | C34 |
+| Receita na transição | Rateio digitado pela GFIN (`MANUAL_TRANSICAO`), substituído pelo do TP quando ele for oficializado | C35, §6.6 |
+| Aprovação da Adm. Central | GFIN envia; perfil **Diretoria Executiva (DIREX)** aprova ou rejeita | C36, §11.3 |
 
 ## 4. Orçamento 2027 da Adm. Central: trilha híbrida (prioridade máxima)
 
@@ -54,21 +61,21 @@
   1. os gestores lançam na **planilha-modelo** `docs/modelos/orcamento-adm-central-2027-modelo-v1.0.xlsx` (US-120, layout `ADMC-ORC v1.0`);
   2. o sistema importa a planilha (US-121), recalcula pelo motor oficial e a revisão e a aprovação acontecem nele.
 - **Plano B:** se o sistema atrasar, a aprovação de 30/11 é feita sobre a planilha, e o sistema a importa depois como orçamento oficial.
-- **Recorte:** 40 histórias com a label `trilha-2027`, 376 h (452 h com contingência). A frente A tem 23 histórias (196 h) e a frente B tem 17 (180 h).
-- **Previsão do cronograma:** a trilha termina por volta de **09/12/2026** a 40 h/semana por frente, e de **24/11/2026** a 60 h/semana por frente.
+- **Recorte:** 41 histórias com a label `trilha-2027`, 384 h (461 h com contingência). A frente A tem 23 histórias (196 h) e a frente B tem 18 (188 h), incluindo a US-122 (mitigações de D12), que é a primeira da frente B.
+- **Previsão do cronograma:** a trilha termina por volta de **11/12/2026** a 40 h/semana por frente, e de **27/11/2026** a 60 h/semana por frente.
 - **Antes de distribuir a planilha:** a GRH precisa preencher os benefícios em Premissas; a GFIN precisa confirmar reajuste, data-base e IPCA (GAP-ORC-003). A lista de CCs é a minuta e pode mudar.
 
 ## 5. Estado atual (24/10/2026)
 
 **Repositório (`main` em `8355614`)**
-- Spec oficial completa, com a §12 (duas frentes). Status: aguardando a aprovação final do PO.
-- Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 121 histórias (US-001 a US-121), 22 épicos e releases R0 a R9. Total de 1286 h (1548 h com contingência). O gerador fica em `docs/backlog/fonte/`.
+- Spec oficial **versão 1.1** (rodada de revisão R1–R15 com o PO). Status: aguardando a aprovação final do PO.
+- Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 122 histórias (US-001 a US-122), 22 épicos e releases R0 a R9. Total de 1294 h (1557 h com contingência). O gerador fica em `docs/backlog/fonte/`.
 - Planilha-modelo do orçamento 2027, com o gerador em `docs/modelos/fonte/`.
 - Scripts de sincronização com o GitHub em `docs/backlog/fonte/github/`.
 - **Ainda não existe código da aplicação.** A primeira história é a US-001.
 
 **GitHub**
-- 143 issues: 22 épicos (#1–#22) e 121 histórias (#23–#143), ligadas como sub-issues, com dependências nativas ("blocked by").
+- Issues: 22 épicos (#1–#22) e 122 histórias (#23–#143 e a US-122 em #145), ligadas como sub-issues, com dependências nativas ("blocked by"). O PR #144 (memória) usou o número seguinte.
 - Labels:
   - tipo, prioridade, tamanho, modo e épico;
   - `trilha-2027`, `frente:A`/`frente:B` e `bloqueada-por-gap`;
@@ -102,7 +109,8 @@
 - [ ] Aprovar a spec. Depois disso, a frente A escreve o plano da F0 + F1 (writing-plans) e começa pela US-001.
 - [ ] Criar no projeto as visões **Quadro** e **Backlog**.
 - [ ] Priorizar o catálogo de IA (GAP-IA-001).
-- [ ] Decidir o go-live: domínio, storage do backup externo (GAP-INF-001) e provedor SMTP.
+- [ ] **Até ~05/11/2026:** domínio, storage do backup externo e provedor SMTP (GAP-INF-001), que bloqueiam as US-014/015 da trilha.
+- [ ] **Até ~16/11/2026:** aprovação dos CCs pela DIREX (GAP-CC-001), para a carga em prod.
 - [ ] Planilha-modelo: obter os benefícios com a GRH e confirmar as premissas com a GFIN, antes de distribuir aos gestores.
 - [ ] ISS sobre o rateio (GAP-ORC-007): "definirei depois".
 
@@ -122,6 +130,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 24/10/2026 | A | Rodada de revisão da spec (v1.1): D12 dev na VPS com mitigações e US-122; trilha 2027 como primeiro plano; C33–C36 (motor único, cargo texto livre, receita de transição, aprovador DIREX); prazos dos GAPs |
 | 24/10/2026 | A | Revisão da especificação e spec oficial; plano de contas e CC de 5 níveis; protótipos de telas e do orçamento da Adm. Central; infra de IA e catálogo; backlog (121 histórias); trilha híbrida do orçamento 2027; planilha-modelo; processo de duas frentes (spec §12); publicação no GitHub (issues, milestones, projeto); push da spec para a `main` e proteção da `main`; criação desta memória |
 
 ## 9. Como atualizar este arquivo

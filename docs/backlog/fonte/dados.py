@@ -117,7 +117,7 @@ S = [
  ["Login de não administrador recusado com aviso de manutenção"],"US-026, US-036","—","S"),
 # ---------------- EP05 Administração
 ("US-034","EP05","Como sistema, quero a seed idempotente com módulos, funcionalidades, perfis padrão e administrador inicial, para instalar o sistema do zero.","Must","M","UC02.27; RN_SEED; spec 11.3",
- ["7 perfis padrão aprovados (11.3)","Rodar duas vezes não muda nada"],"US-004","—","S"),
+ ["8 perfis padrão aprovados (11.3), incluindo Diretoria Executiva (C36)","Rodar duas vezes não muda nada"],"US-004","—","S"),
 ("US-035","EP05","Como administrador, quero ativar e desativar módulos e funcionalidades, para controlar o que está disponível.","Must","P","UC02.05/06; RN0033/0034/0043",
  ["Desativar módulo desativa as funcionalidades e desconecta usuários","Ativar módulo não ativa funcionalidades automaticamente"],"US-034","—","S"),
 ("US-036","EP05","Como administrador, quero ativar e desativar o sistema com motivo, desconectando os usuários com contagem, para fazer manutenção programada.","Must","M","UC02.01; UC02.15–UC02.17; REQ0087",
@@ -152,8 +152,8 @@ S = [
  ["Fonte Ativa: Mínimo, Máximo, Total, Salário Real ou Salário Definido","Periculosidade 30% ou insalubridade 10/20/40% sobre o SMN","Salários criptografados e mascarados por perfil (D10)"],"US-021","—","S"),
 ("US-050","EP07","Como analista GRH, quero a Tabela Mestre de Benefícios, para que propostas e o orçamento da Adm. Central usem os mesmos valores.","Must","M","UC03.28; RN_CAR_06/07; C8",
  ["Sobrescrita com auditoria e origem registrada","Nunca altera snapshot oficializado"],"US-049","—","U"),
-("US-051","EP07","Como sistema, quero o MotorCustoPosicao (massa, férias + 1/3, 13º, encargo 51%, benefícios), para que o custo de pessoal seja calculado num só lugar.","Must","G","RN_CAR_17; spec 6.4, 6.6",
- ["Encargo 51% = INSS 38 + FGTS 8 + PIS 1 + 3,8 + 0,2, parametrizado","Componentes lançados nas contas analíticas (tabela componente → conta)","Testes com valores conferidos à mão"],"US-005, US-049, US-050","GAP-CAR-005 (contas)","S"),
+("US-051","EP07","Como sistema, quero o MotorCustoPessoal único (base, férias + 1/3, 13º, encargo 51%, benefícios) para a proposta e a Adm. Central, para que o custo de pessoal seja calculado num só lugar.","Must","G","RN_CAR_17; spec 6.4, 6.6, C33",
+ ["Encargo 51% = INSS 38 + FGTS 8 + PIS 1 + 3,8 + 0,2, parametrizado, sobre base + férias + 13º (C33)","Componentes lançados nas contas analíticas (tabela componente → conta)","Testes com valores conferidos à mão"],"US-005, US-049, US-050","GAP-CAR-005 (contas)","S"),
 # ---------------- EP08 Parâmetros
 ("US-052","EP08","Como GFIN, quero cadastrar impostos e alíquotas com vigência, para que propostas e relatórios usem a alíquota certa.","Must","M","UC03.01; RN_TAX_03",
  ["Vigência por competência","Alíquota congelada no snapshot"],"US-021","—","U"),
@@ -173,9 +173,9 @@ S = [
 ("US-059","EP09","Como GFIN, quero o teto do exercício com semáforo e o resultado (receita − despesas), para fechar o orçamento dentro da receita.","Must","M","spec 6.6",
  ["Teto padrão = rateio líquido confirmado (teto manual antes da F3)","Teto maior que a receita exige justificativa","Faixas 70/85/95"],"US-058","—","S"),
 ("US-060","EP09","Como GFIN, quero a aba de receitas com o rateio de cada TP no exercício (confirmado e previsto) e o ISS, para saber quanto a Adm. Central vai receber.","Must","G","RN0270; UC03.03; spec 6.6",
- ["Base = subtotal de despesas, % por TP, mês a mês","Previsto separado, fora do saldo e do teto","ISS mostra \"a definir\" até o GAP-ORC-007","Rateio por TP digitado na Adm. Central até existir a proposta no sistema (US-073 passa a alimentar depois)"],"US-055","GAP-ORC-007 (ISS)","S"),
+ ["Base = subtotal de despesas, % por TP, mês a mês","Previsto separado, fora do saldo e do teto","ISS mostra \"a definir\" até o GAP-ORC-007","Rateio digitado pela GFIN com origem MANUAL_TRANSICAO, auditado e com selo na tela (C35)","Ao oficializar o TP no sistema, o rateio calculado substitui o digitado nos meses abertos (US-073)"],"US-055","GAP-ORC-007 (ISS)","S"),
 ("US-061","EP09","Como GFIN, quero enviar o orçamento da Adm. Central para aprovação e oficializá-lo com snapshot, para formalizar o orçamento do ano.","Must","M","UC04.17; spec 6.2",
- ["Ciclo Rascunho → Em Elaboração → Em Aprovação → Oficializado","Snapshot imutável na oficialização","Na trilha 2027: aprovação em uma etapa (GFIN envia, Diretoria aprova); roteamento por alçada (US-042) depois"],"US-059, US-038","GAP-ORC-004 (alçada)","S"),
+ ["Ciclo Rascunho → Em Elaboração → Em Aprovação → Oficializado","Snapshot imutável na oficialização","GFIN envia; perfil Diretoria Executiva (DIREX) aprova ou rejeita, rejeição com justificativa ≥ 15 caracteres (C36)","Na trilha 2027, uma etapa; roteamento por alçada (US-042) depois"],"US-059, US-038","GAP-ORC-004 (teto)","S"),
 # ---------------- EP10 IA onda 1
 ("US-062","EP10","Como usuário, quero que o sistema sugira a conta e o CC pela descrição do gasto, para lançar na conta certa.","Should","M","IA-01",
  ["3 sugestões com motivo; a pessoa escolhe","Avaliação em hml com acerto mínimo antes de ligar"],"US-019, US-057","GAP-IA-001 (priorização)","S"),
@@ -280,11 +280,13 @@ S = [
  ["Abas Instruções, Pessoal, Pacotes base zero e Receitas","Listas validadas só com contas analíticas e CCs analíticos das planilhas oficiais","Sem nome da instituição; versão do layout na planilha","É o plano B: se o sistema atrasar, a aprovação de 30/11 é feita sobre ela"],"—","—","S"),
 ("US-121","EP09","Como GFIN, quero importar a planilha-modelo para o exercício 2027 com validação linha a linha, para revisar e aprovar no sistema o que os gestores lançaram.","Must","M","spec 6.6; UC04.17",
  ["Relatório de erros por linha; nada é gravado se houver erro","Reimportar substitui o lote do mesmo CC (idempotente)","Custo de pessoal recalculado pelo MotorCustoPosicao, nunca copiado da planilha","Carga registrada no Histórico de Operações"],"US-120, US-055, US-051, US-043, US-046","—","S"),
+("US-122","EP01","Como PO, quero as mitigações da convivência do dev com a produção na mesma VPS (swap, prioridade de memória da produção, earlyoom, limites, bloqueio de acesso e alerta), para que o desenvolvimento nunca derrube nem toque a produção.","Must","M","spec 4.3, D12, 11.5",
+ ["Swap de 8 GB e swappiness baixo","Contêineres de prod com reserva de memória e oom_score_adj negativo; dev e testes com mem_limit e oom_score_adj positivo","earlyoom preferindo processos de dev e evitando o postgres de prod","Hooks das duas contas bloqueiam docker exec/cp/compose e psql em sgo-prod e sgo-hml","Alerta quando a memória disponível < 1 GB","Teste: pico simulado de dev não afeta a produção"],"—","—","S"),
 ]
 
 # Trilha orçamento 2027 (modelo híbrido): sistema em produção para importar, revisar e aprovar até 30/11/2026
 TRILHA_2027 = {"US-" + i for i in """001 002 003 004 005 006 008 009 010 012 013 014 015 016 021 025 026 030 031 032 034 038
-043 044 046 049 050 051 053 055 058 059 060 061 115 116 117 119 120 121""".split()}
+043 044 046 049 050 051 053 055 058 059 060 061 115 116 117 119 120 121 122""".split()}
 
 # Frentes de desenvolvimento (duas contas do Claude Code) — spec §12.
 # A frente de uma história é a dona do código que ela altera (spec §12.3): definida pelo épico, nunca pela "primeira livre".

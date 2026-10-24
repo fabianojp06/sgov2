@@ -13,12 +13,15 @@ REPO = g["REPO"]
 for rid, nome, _ in P["releases"]:
     api("PATCH", f"repos/{REPO}/milestones/{E['ms'][rid]}", due_on=P["rel_fim"][rid] + "T23:59:59Z")
 print("milestones ok")
+FORCAR = set(filter(None, os.environ.get("FORCAR", "").split(",")))   # histórias com texto alterado em dados.py
 for r in P["stories"]:
-    o = old[r["id"]]
-    if (o["frente"], o["inicio"], o["fim"], o["ordem"]) == (r["frente"], r["inicio"], r["fim"], r["ordem"]):
+    o = old.get(r["id"])
+    if o is None:
+        continue                                                     # história nova: publicar.py já criou com o corpo certo
+    if r["id"] not in FORCAR and (o["frente"], o["inicio"], o["fim"], o["ordem"]) == (r["frente"], r["inicio"], r["fim"], r["ordem"]):
         continue
     a = ["issue", "edit", str(E["us"][r["id"]]), "--repo", REPO, "--body-file", "-"]
-    if o["frente"] != r["frente"]:
+    if o["frente"] != r["frente"]:  # troca de frente
         a += ["--add-label", f"frente:{r['frente']}", "--remove-label", f"frente:{o['frente']}"]
     gh(*a, inp=corpo(r, links=True)); time.sleep(0.8)
 print("issues ok")

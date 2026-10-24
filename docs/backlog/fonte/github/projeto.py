@@ -94,6 +94,8 @@ for k, e in eps.items():
           "Horas": e["horas"], "Ordem": e["ordem"], "Início": e["inicio"], "Fim": e["fim"]}
     ups += [(it[k], c, v) for c, v in vs.items()]
 done = PR.setdefault("ups_feitos", 0)
+if os.environ.get("SO_ITENS"):  # só adiciona itens novos; os campos ficam para atualizar.py / ajuste pontual
+    done = len(ups)
 for i in range(done, len(ups), 10):
     lote = ups[i:i + 10]
     m = "mutation{%s}" % " ".join(f'u{k}:updateProjectV2ItemFieldValue(input:{{projectId:{J(PR["id"])},itemId:{J(iid)},fieldId:{J(F[c]["id"])},value:{val(c, v)}}}){{clientMutationId}}'

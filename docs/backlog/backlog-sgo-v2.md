@@ -19,7 +19,7 @@
 
 | Release | Escopo | Fase da spec | Histórias | Horas (histórias) | Horas *Must* | Horas em Ultracode | Horas com contingência (+20%) | Horas do PO |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| R0 | Fundação técnica | F0 | 20 | 152 | 146 | 0 | 183 | 39 |
+| R0 | Fundação técnica | F0 | 21 | 160 | 154 | 0 | 192 | 40 |
 | R1 | Geral, Autenticação e Administração | F1 | 22 | 186 | 174 | 0 | 224 | 44 |
 | R2 | Cadastros-base | F2 | 12 | 112 | 92 | 56 | 135 | 33 |
 | R3 | Orçamento da Administração Central + IA onda 1 (parte) | F3A | 12 | 112 | 92 | 0 | 135 | 33 |
@@ -29,7 +29,7 @@
 | R7 | Relatórios, Book, Consolidado + IA onda 3 | F6 | 13 | 192 | 88 | 56 | 231 | 45 |
 | R8 | Integrações Senior/Rubi/RVS | F7 | 6 | 88 | 0 | 0 | 106 | 30 |
 | R9 | Go-live e operação | — | 5 | 64 | 48 | 32 | 77 | 26 |
-| **Total** | | | **121** | **1286** | **904** | **240** | **1548** | **356** |
+| **Total** | | | **122** | **1294** | **912** | **240** | **1557** | **357** |
 
 *Horas do PO* = 15% das horas de desenvolvimento (aprovar planos, tirar dúvidas, revisar entregas) + 16 h de homologação com usuários-chave por release.
 
@@ -39,7 +39,7 @@ O ritmo depende de quanto tempo por semana há para conduzir as sessões, revisa
 
 | Cenário | Ritmo (horas de desenvolvimento por semana) | Sistema completo (R0–R9) | Trilha 2027 (seção 3.1) |
 | --- | --- | --- | --- |
-| Conservador: só sessões, PO em meio período | 25 h | 62 semanas (~15 meses) | 19 semanas (~5 meses) |
+| Conservador: só sessões, PO em meio período | 25 h | 63 semanas (~15 meses) | 19 semanas (~5 meses) |
 | Recomendado: sessões no núcleo + Ultracode nos lotes | 40 h | 39 semanas (~10 meses) | 12 semanas (~3 meses) |
 | Intensivo: Ultracode amplo, PO dedicado | 60 h | 26 semanas (~7 meses) | 8 semanas (~2 meses) |
 
@@ -48,12 +48,12 @@ O ritmo depende de quanto tempo por semana há para conduzir as sessões, revisa
 Decisão do PO em 24/10/2026: o orçamento 2027 da Administração Central deve estar **lançado e aprovado até 30/11/2026**, no modelo híbrido:
 
 1. Os gestores lançam na **planilha-modelo** (US-120), que tem o mesmo layout da importação do sistema.
-2. O sistema entra em produção com o recorte mínimo, **importa a planilha** (US-121), recalcula o pessoal pelo MotorCustoPosicao e a revisão e a aprovação acontecem nele.
+2. O sistema entra em produção com o recorte mínimo, **importa a planilha** (US-121), recalcula o pessoal pelo MotorCustoPessoal e a revisão e a aprovação acontecem nele.
 3. **Plano B:** se o sistema não estiver em produção a tempo, a aprovação de 30/11 é feita sobre a planilha, e o sistema a importa como orçamento oficial de 2027 assim que entrar no ar. A execução de 2027 roda no sistema de qualquer forma.
 
-Recorte da trilha: 40 histórias, 376 h (452 h com contingência), marcadas com o label `trilha-2027`. As telas de lançamento de posições e pacotes (US-056/057), o isolamento por TP (US-007), as alçadas configuráveis (US-042), a sessão única, os perfis configuráveis e a IA ficam para depois de 30/11.
+Recorte da trilha: 41 histórias, 384 h (461 h com contingência), marcadas com o label `trilha-2027`. As telas de lançamento de posições e pacotes (US-056/057), o isolamento por TP (US-007), as alçadas configuráveis (US-042), a sessão única, os perfis configuráveis e a IA ficam para depois de 30/11.
 
-**Duas frentes em paralelo** (duas contas do Claude Code): cada história vai para a frente dona do código (spec §12). O caminho crítico da trilha tem só 96 h, então o prazo depende da vazão. Pelo cronograma (`fonte/cronograma.py`), com 40 h/semana por frente a trilha termina por volta de **09/12/2026**; com 60 h/semana por frente, por volta de **24/11/2026**. Por isso o plano B da planilha é obrigatório.
+**Duas frentes em paralelo** (duas contas do Claude Code): cada história vai para a frente dona do código (spec §12). O caminho crítico da trilha tem só 96 h, então o prazo depende da vazão. Pelo cronograma (`fonte/cronograma.py`), com 40 h/semana por frente a trilha termina por volta de **11/12/2026**; com 60 h/semana por frente, por volta de **27/11/2026**. Por isso o plano B da planilha é obrigatório.
 
 ## 4. Estratégia de execução e economia de tokens
 
@@ -61,7 +61,7 @@ Recorte da trilha: 40 histórias, 376 h (452 h com contingência), marcadas com 
 
 | Usar | Onde | Por quê |
 | --- | --- | --- |
-| **Sessão única** (superpowers: plano → TDD por tarefa → revisão) | Núcleo crítico: fundação, dinheiro, auditoria, isolamento por TP, login, motores de cálculo, workflows, IA (1046 h) | Exige raciocínio encadeado e contexto contínuo. Dividir entre agentes gera retrabalho, e retrabalho é o maior desperdício de tokens |
+| **Sessão única** (superpowers: plano → TDD por tarefa → revisão) | Núcleo crítico: fundação, dinheiro, auditoria, isolamento por TP, login, motores de cálculo, workflows, IA (1054 h) | Exige raciocínio encadeado e contexto contínuo. Dividir entre agentes gera retrabalho, e retrabalho é o maior desperdício de tokens |
 | **Ultracode** | Lotes sobre um padrão já pronto: cadastros, relatórios UC05.x, demonstrativos, testes de segurança, manual (240 h) | Muitas peças independentes e parecidas. O paralelismo reduz o prazo, e a verificação cruzada pega erro de padrão cedo |
 
 **Regras para economizar tokens em qualquer modo**
@@ -84,7 +84,7 @@ Recorte da trilha: 40 histórias, 376 h (452 h com contingência), marcadas com 
 
 ## 6. Backlog priorizado
 
-### R0 — Fundação técnica (20 histórias, 152 h)
+### R0 — Fundação técnica (21 histórias, 160 h)
 
 #### EP00 — Fundação técnica (94 h)
 
@@ -216,7 +216,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.7 · Depende de: US-001</sub>
 
-#### EP01 — Infraestrutura VPS, CI/CD e proteção de dados (40 h)
+#### EP01 — Infraestrutura VPS, CI/CD e proteção de dados (48 h)
 
 **US-013** · Ordem 13 · Must · M (8 h) · Sessão
 
@@ -262,7 +262,21 @@ Critérios de aceite:
 
 <sub>Referências: spec 4.3 · Depende de: —</sub>
 
-**US-017** · Ordem 19 · Should · P (4 h) · Sessão
+**US-122** · Ordem 19 · Must · M (8 h) · Sessão
+
+Como PO, quero as mitigações da convivência do dev com a produção na mesma VPS (swap, prioridade de memória da produção, earlyoom, limites, bloqueio de acesso e alerta), para que o desenvolvimento nunca derrube nem toque a produção.
+
+Critérios de aceite:
+- Swap de 8 GB e swappiness baixo
+- Contêineres de prod com reserva de memória e oom_score_adj negativo; dev e testes com mem_limit e oom_score_adj positivo
+- earlyoom preferindo processos de dev e evitando o postgres de prod
+- Hooks das duas contas bloqueiam docker exec/cp/compose e psql em sgo-prod e sgo-hml
+- Alerta quando a memória disponível < 1 GB
+- Teste: pico simulado de dev não afeta a produção
+
+<sub>Referências: spec 4.3, D12, 11.5 · Depende de: —</sub>
+
+**US-017** · Ordem 20 · Should · P (4 h) · Sessão
 
 Como time, quero logs estruturados, healthcheck e alerta de indisponibilidade, para saber quando o sistema cai antes do usuário.
 
@@ -296,7 +310,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 4.4 · Depende de: US-018</sub>
 
-**US-020** · Ordem 20 · Could · XS (2 h) · Sessão
+**US-020** · Ordem 21 · Could · XS (2 h) · Sessão
 
 Como time, quero a extensão pgvector instalada e a porta `ProvedorEmbeddings` definida, para a busca semântica futura.
 
@@ -310,7 +324,7 @@ Critérios de aceite:
 
 #### EP03 — Módulo Geral (componentes-base) (40 h)
 
-**US-021** · Ordem 21 · Must · G (16 h) · Sessão
+**US-021** · Ordem 22 · Must · G (16 h) · Sessão
 
 Como usuário, quero listagens e Tree Grids virtualizadas com filtros retidos na sessão, para trabalhar com milhares de linhas sem travar.
 
@@ -321,7 +335,7 @@ Critérios de aceite:
 
 <sub>Referências: UC0–UC0.06; RNF_DES_002 · Depende de: US-001</sub>
 
-**US-022** · Ordem 22 · Must · M (8 h) · Sessão
+**US-022** · Ordem 23 · Must · M (8 h) · Sessão
 
 Como usuário, quero formulários que não percam o que digitei quando há erro, para não refazer o trabalho.
 
@@ -332,7 +346,7 @@ Critérios de aceite:
 
 <sub>Referências: [TRAVA O ERRO] · Depende de: US-021</sub>
 
-**US-023** · Ordem 23 · Must · P (4 h) · Sessão
+**US-023** · Ordem 24 · Must · P (4 h) · Sessão
 
 Como usuário, quero um modal de exclusão que mostre os impeditivos, para entender por que algo não pode ser excluído.
 
@@ -342,7 +356,7 @@ Critérios de aceite:
 
 <sub>Referências: EP083 · Depende de: US-022</sub>
 
-**US-024** · Ordem 24 · Must · M (8 h) · Sessão
+**US-024** · Ordem 25 · Must · M (8 h) · Sessão
 
 Como usuário, quero exportar listagens em XLSX, PDF e CSV com cabeçalho de filtros e marca d'água, para ter documentos rastreáveis.
 
@@ -353,7 +367,7 @@ Critérios de aceite:
 
 <sub>Referências: RN0011; RN_WATERMARK; RNF_IMP_001 · Depende de: US-010, US-021</sub>
 
-**US-025** · Ordem 25 · Must · P (4 h) · Sessão
+**US-025** · Ordem 26 · Must · P (4 h) · Sessão
 
 Como sistema, quero enviar e-mails por modelo padrão via fila e SMTP externo, para que senhas e avisos cheguem com segurança.
 
@@ -365,7 +379,7 @@ Critérios de aceite:
 
 #### EP04 — Autenticação e Tela Principal (66 h)
 
-**US-026** · Ordem 26 · Must · G (16 h) · Sessão
+**US-026** · Ordem 27 · Must · G (16 h) · Sessão
 
 Como usuário, quero entrar com login e senha, com mensagem genérica em caso de erro, para acessar o sistema com segurança.
 
@@ -377,7 +391,7 @@ Critérios de aceite:
 
 <sub>Referências: UC01.01–UC01.02; RN0015–RN0018; RN0518 · Depende de: US-006, US-008</sub>
 
-**US-027** · Ordem 27 · Must · M (8 h) · Sessão
+**US-027** · Ordem 28 · Must · M (8 h) · Sessão
 
 Como administrador, quero que a conta seja bloqueada após o limite de tentativas, com aviso na última, para proteger contra ataques de senha.
 
@@ -388,7 +402,7 @@ Critérios de aceite:
 
 <sub>Referências: UC01.03; RN0017; RN0024; RN0520 · Depende de: US-026 · **GAP:** GAP-AUT-002 (valores)</sub>
 
-**US-028** · Ordem 28 · Must · M (8 h) · Sessão
+**US-028** · Ordem 29 · Must · M (8 h) · Sessão
 
 Como usuário, quero sessão única, com aviso na estação anterior quando entro em outra, para evitar uso indevido da minha conta.
 
@@ -398,7 +412,7 @@ Critérios de aceite:
 
 <sub>Referências: RN0519; SessaoUsuario · Depende de: US-026</sub>
 
-**US-029** · Ordem 29 · Must · M (8 h) · Sessão
+**US-029** · Ordem 30 · Must · M (8 h) · Sessão
 
 Como usuário, quero recuperar a senha por e-mail com resposta uniforme e senha temporária, para voltar a acessar sem revelar se o login existe.
 
@@ -409,7 +423,7 @@ Critérios de aceite:
 
 <sub>Referências: RN0516–RN0517; C21 · Depende de: US-025, US-026</sub>
 
-**US-030** · Ordem 30 · Must · P (4 h) · Sessão
+**US-030** · Ordem 31 · Must · P (4 h) · Sessão
 
 Como usuário, quero trocar minha senha (obrigatoriamente no primeiro acesso), para manter minha conta segura.
 
@@ -419,7 +433,7 @@ Critérios de aceite:
 
 <sub>Referências: REQ0039; UC02.19 · Depende de: US-026 · **GAP:** GAP-AUT-002</sub>
 
-**US-031** · Ordem 31 · Must · G (16 h) · Sessão
+**US-031** · Ordem 32 · Must · G (16 h) · Sessão
 
 Como usuário, quero a tela principal com menu só do que tenho permissão, seletor de TP e ajuda contextual, para encontrar o que preciso.
 
@@ -431,7 +445,7 @@ Critérios de aceite:
 
 <sub>Referências: UC01.04; RN0027/0030/0031/0032; RN0521; spec 6.7 · Depende de: US-021, US-026</sub>
 
-**US-032** · Ordem 32 · Must · XS (2 h) · Sessão
+**US-032** · Ordem 33 · Must · XS (2 h) · Sessão
 
 Como usuário, quero sair do sistema com confirmação e limpeza dos dados no navegador, para não deixar sessão aberta.
 
@@ -441,7 +455,7 @@ Critérios de aceite:
 
 <sub>Referências: RNF0010 · Depende de: US-026</sub>
 
-**US-033** · Ordem 33 · Must · P (4 h) · Sessão
+**US-033** · Ordem 34 · Must · P (4 h) · Sessão
 
 Como administrador, quero que, em modo manutenção, só administradores entrem, para fazer manutenção sem usuários conectados.
 
@@ -452,17 +466,17 @@ Critérios de aceite:
 
 #### EP05 — Administração (80 h)
 
-**US-034** · Ordem 34 · Must · M (8 h) · Sessão
+**US-034** · Ordem 35 · Must · M (8 h) · Sessão
 
 Como sistema, quero a seed idempotente com módulos, funcionalidades, perfis padrão e administrador inicial, para instalar o sistema do zero.
 
 Critérios de aceite:
-- 7 perfis padrão aprovados (11.3)
+- 8 perfis padrão aprovados (11.3), incluindo Diretoria Executiva (C36)
 - Rodar duas vezes não muda nada
 
 <sub>Referências: UC02.27; RN_SEED; spec 11.3 · Depende de: US-004</sub>
 
-**US-035** · Ordem 35 · Must · P (4 h) · Sessão
+**US-035** · Ordem 36 · Must · P (4 h) · Sessão
 
 Como administrador, quero ativar e desativar módulos e funcionalidades, para controlar o que está disponível.
 
@@ -472,7 +486,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.05/06; RN0033/0034/0043 · Depende de: US-034</sub>
 
-**US-036** · Ordem 36 · Must · M (8 h) · Sessão
+**US-036** · Ordem 37 · Must · M (8 h) · Sessão
 
 Como administrador, quero ativar e desativar o sistema com motivo, desconectando os usuários com contagem, para fazer manutenção programada.
 
@@ -483,7 +497,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.01; UC02.15–UC02.17; REQ0087 · Depende de: US-028</sub>
 
-**US-037** · Ordem 37 · Must · G (16 h) · Sessão
+**US-037** · Ordem 38 · Must · G (16 h) · Sessão
 
 Como administrador, quero cadastrar perfis e permissões (com nome único e ao menos uma funcionalidade), para definir o que cada grupo pode fazer.
 
@@ -494,7 +508,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.07–UC02.10; UC02.25/26; RN0068; RN0072 · Depende de: US-034 · **GAP:** GAP-ADM-001 (ajuste fino)</sub>
 
-**US-038** · Ordem 38 · Must · G (16 h) · Sessão
+**US-038** · Ordem 39 · Must · G (16 h) · Sessão
 
 Como administrador, quero cadastrar usuários com login imutável, senha gerada pelo sistema e acesso por TP, para dar acesso só ao necessário.
 
@@ -506,7 +520,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.11–UC02.14; UC02.18; RN0059/0065/0066/0071/0079; C25 · Depende de: US-025, US-034</sub>
 
-**US-040** · Ordem 39 · Must · M (8 h) · Sessão
+**US-040** · Ordem 40 · Must · M (8 h) · Sessão
 
 Como auditor, quero consultar o Histórico de Operações nos níveis Simples e Avançado, só com imprimir e exportar, para auditar o sistema.
 
@@ -516,7 +530,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.21–UC02.24; REQ00103 · Depende de: US-006, US-024</sub>
 
-**US-042** · Ordem 40 · Must · M (8 h) · Sessão
+**US-042** · Ordem 41 · Must · M (8 h) · Sessão
 
 Como administrador, quero cadastrar as alçadas de aprovação (titular e substituto por fluxo e escopo), para que as aprovações sejam roteadas automaticamente.
 
@@ -527,7 +541,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.28 (spec 11.4); RN_ALC_005 · Depende de: US-038 · **GAP:** GAP-APR-001 (aditivo/ajuste/remanejamento)</sub>
 
-**US-039** · Ordem 41 · Should · M (8 h) · Sessão
+**US-039** · Ordem 42 · Should · M (8 h) · Sessão
 
 Como administrador, quero exceções de permissão por usuário, para tratar casos especiais sem criar um perfil novo.
 
@@ -537,7 +551,7 @@ Critérios de aceite:
 
 <sub>Referências: UC02.21–UC02.24 · Depende de: US-038</sub>
 
-**US-041** · Ordem 42 · Should · P (4 h) · Sessão
+**US-041** · Ordem 43 · Should · P (4 h) · Sessão
 
 Como administrador, quero configurar as notificações de desempenho das contas, para que os gestores sejam avisados dos limites.
 
@@ -551,7 +565,7 @@ Critérios de aceite:
 
 #### EP06 — Estrutura financeira (plano de contas e centros de custo) (40 h)
 
-**US-043** · Ordem 43 · Must · G (16 h) · Sessão
+**US-043** · Ordem 44 · Must · G (16 h) · Sessão
 
 Como GFIN, quero importar o plano de contas de 5 níveis por planilha .xlsx com validação, para ter a estrutura oficial no sistema.
 
@@ -563,7 +577,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.00; D7; spec 6.1 · Depende de: US-009, US-021</sub>
 
-**US-044** · Ordem 44 · Must · P (4 h) · Sessão
+**US-044** · Ordem 45 · Must · P (4 h) · Sessão
 
 Como usuário, quero consultar o plano de contas em árvore, só leitura, para encontrar contas rapidamente.
 
@@ -573,7 +587,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.00; RN_PLA_001; C27 · Depende de: US-043</sub>
 
-**US-046** · Ordem 45 · Must · M (8 h) · Ultracode
+**US-046** · Ordem 46 · Must · M (8 h) · Ultracode
 
 Como GFIN, quero importar e consultar os centros de custo de 5 níveis por planilha, para orçar por área.
 
@@ -584,7 +598,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.1a · Depende de: US-043 · **GAP:** GAP-CC-001/002/003</sub>
 
-**US-045** · Ordem 52 · Should · P (4 h) · Sessão
+**US-045** · Ordem 53 · Should · P (4 h) · Sessão
 
 Como GFIN, quero parametrizar a natureza (OPEX/CAPEX) e as faixas do semáforo por conta analítica, para orientar os relatórios.
 
@@ -594,7 +608,7 @@ Critérios de aceite:
 
 <sub>Referências: RF_PLA_REQ_003; RN_PLA_006; C7 · Depende de: US-044</sub>
 
-**US-047** · Ordem 53 · Should · M (8 h) · Ultracode
+**US-047** · Ordem 54 · Should · M (8 h) · Ultracode
 
 Como GFIN, quero cadastrar agrupadores de contas (N:N com analíticas) para relatórios, para agrupar contas sem mexer no plano.
 
@@ -606,7 +620,7 @@ Critérios de aceite:
 
 #### EP07 — Pessoal-base (estrutura funcional, cargos, benefícios) (48 h)
 
-**US-048** · Ordem 46 · Must · M (8 h) · Ultracode
+**US-048** · Ordem 47 · Must · M (8 h) · Ultracode
 
 Como analista GRH, quero manter a estrutura funcional em árvore, para refletir a organização dos setores.
 
@@ -616,7 +630,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.18; C2 · Depende de: US-021</sub>
 
-**US-049** · Ordem 47 · Must · G (16 h) · Sessão
+**US-049** · Ordem 48 · Must · G (16 h) · Sessão
 
 Como analista GRH, quero manter cargos e salários (faixa, nível, Fonte Ativa, adicionais) e a tabela salarial, para calcular o custo de pessoal.
 
@@ -627,7 +641,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.19 V4; RN_CAR_*; C20 · Depende de: US-021</sub>
 
-**US-050** · Ordem 48 · Must · M (8 h) · Ultracode
+**US-050** · Ordem 49 · Must · M (8 h) · Ultracode
 
 Como analista GRH, quero a Tabela Mestre de Benefícios, para que propostas e o orçamento da Adm. Central usem os mesmos valores.
 
@@ -637,20 +651,20 @@ Critérios de aceite:
 
 <sub>Referências: UC03.28; RN_CAR_06/07; C8 · Depende de: US-049</sub>
 
-**US-051** · Ordem 49 · Must · G (16 h) · Sessão
+**US-051** · Ordem 50 · Must · G (16 h) · Sessão
 
-Como sistema, quero o MotorCustoPosicao (massa, férias + 1/3, 13º, encargo 51%, benefícios), para que o custo de pessoal seja calculado num só lugar.
+Como sistema, quero o MotorCustoPessoal único (base, férias + 1/3, 13º, encargo 51%, benefícios) para a proposta e a Adm. Central, para que o custo de pessoal seja calculado num só lugar.
 
 Critérios de aceite:
-- Encargo 51% = INSS 38 + FGTS 8 + PIS 1 + 3,8 + 0,2, parametrizado
+- Encargo 51% = INSS 38 + FGTS 8 + PIS 1 + 3,8 + 0,2, parametrizado, sobre base + férias + 13º (C33)
 - Componentes lançados nas contas analíticas (tabela componente → conta)
 - Testes com valores conferidos à mão
 
-<sub>Referências: RN_CAR_17; spec 6.4, 6.6 · Depende de: US-005, US-049, US-050 · **GAP:** GAP-CAR-005 (contas)</sub>
+<sub>Referências: RN_CAR_17; spec 6.4, 6.6, C33 · Depende de: US-005, US-049, US-050 · **GAP:** GAP-CAR-005 (contas)</sub>
 
 #### EP08 — Parâmetros e Central de Cálculos (24 h)
 
-**US-052** · Ordem 50 · Must · M (8 h) · Ultracode
+**US-052** · Ordem 51 · Must · M (8 h) · Ultracode
 
 Como GFIN, quero cadastrar impostos e alíquotas com vigência, para que propostas e relatórios usem a alíquota certa.
 
@@ -660,7 +674,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.01; RN_TAX_03 · Depende de: US-021</sub>
 
-**US-053** · Ordem 51 · Must · M (8 h) · Ultracode
+**US-053** · Ordem 52 · Must · M (8 h) · Ultracode
 
 Como GFIN, quero manter parâmetros gerais (SMN, premissas de reajuste, data-base, IPCA, semáforo, encargos), para ajustar o sistema sem programar.
 
@@ -670,7 +684,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.6; GAP-ORC-003 · Depende de: US-021 · **GAP:** GAP-ORC-003 (valores)</sub>
 
-**US-054** · Ordem 54 · Could · M (8 h) · Ultracode
+**US-054** · Ordem 55 · Could · M (8 h) · Ultracode
 
 Como GFIN, quero cadastrar as regras de totalização parametrizadas, para definir totais especiais dos relatórios.
 
@@ -684,7 +698,7 @@ Critérios de aceite:
 
 #### EP09 — Orçamento da Administração Central (92 h)
 
-**US-055** · Ordem 55 · Must · M (8 h) · Sessão
+**US-055** · Ordem 56 · Must · M (8 h) · Sessão
 
 Como GFIN, quero criar o exercício do ano seguinte (em branco ou copiando o anterior), para elaborar o orçamento de 2027 enquanto 2026 está em execução.
 
@@ -695,7 +709,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.17; spec 6.6 · Depende de: US-053</sub>
 
-**US-056** · Ordem 56 · Must · G (16 h) · Sessão
+**US-056** · Ordem 57 · Must · G (16 h) · Sessão
 
 Como gestor de diretoria, quero lançar posições de pessoal nos CCs da minha diretoria, com prévia do custo, para orçar minha equipe.
 
@@ -706,7 +720,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.17; spec 6.6 · Depende de: US-051, US-055</sub>
 
-**US-057** · Ordem 57 · Must · G (16 h) · Sessão
+**US-057** · Ordem 58 · Must · G (16 h) · Sessão
 
 Como gestor de diretoria, quero lançar pacotes base zero (conta, justificativa, prioridade, distribuição), para orçar as demais despesas.
 
@@ -717,7 +731,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.17 · Depende de: US-055, US-046</sub>
 
-**US-058** · Ordem 58 · Must · M (8 h) · Sessão
+**US-058** · Ordem 59 · Must · M (8 h) · Sessão
 
 Como GFIN, quero a visão por centro de custo com árvore, série mês a mês e linhas CC × conta, para consolidar o orçamento.
 
@@ -727,7 +741,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.17; RN_TOT_01 · Depende de: US-121</sub>
 
-**US-059** · Ordem 59 · Must · M (8 h) · Sessão
+**US-059** · Ordem 60 · Must · M (8 h) · Sessão
 
 Como GFIN, quero o teto do exercício com semáforo e o resultado (receita − despesas), para fechar o orçamento dentro da receita.
 
@@ -738,7 +752,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.6 · Depende de: US-058</sub>
 
-**US-060** · Ordem 60 · Must · G (16 h) · Sessão
+**US-060** · Ordem 61 · Must · G (16 h) · Sessão
 
 Como GFIN, quero a aba de receitas com o rateio de cada TP no exercício (confirmado e previsto) e o ISS, para saber quanto a Adm. Central vai receber.
 
@@ -746,22 +760,24 @@ Critérios de aceite:
 - Base = subtotal de despesas, % por TP, mês a mês
 - Previsto separado, fora do saldo e do teto
 - ISS mostra "a definir" até o GAP-ORC-007
-- Rateio por TP digitado na Adm. Central até existir a proposta no sistema (US-073 passa a alimentar depois)
+- Rateio digitado pela GFIN com origem MANUAL_TRANSICAO, auditado e com selo na tela (C35)
+- Ao oficializar o TP no sistema, o rateio calculado substitui o digitado nos meses abertos (US-073)
 
 <sub>Referências: RN0270; UC03.03; spec 6.6 · Depende de: US-055 · **GAP:** GAP-ORC-007 (ISS)</sub>
 
-**US-061** · Ordem 61 · Must · M (8 h) · Sessão
+**US-061** · Ordem 62 · Must · M (8 h) · Sessão
 
 Como GFIN, quero enviar o orçamento da Adm. Central para aprovação e oficializá-lo com snapshot, para formalizar o orçamento do ano.
 
 Critérios de aceite:
 - Ciclo Rascunho → Em Elaboração → Em Aprovação → Oficializado
 - Snapshot imutável na oficialização
-- Na trilha 2027: aprovação em uma etapa (GFIN envia, Diretoria aprova); roteamento por alçada (US-042) depois
+- GFIN envia; perfil Diretoria Executiva (DIREX) aprova ou rejeita, rejeição com justificativa ≥ 15 caracteres (C36)
+- Na trilha 2027, uma etapa; roteamento por alçada (US-042) depois
 
-<sub>Referências: UC04.17; spec 6.2 · Depende de: US-059, US-038 · **GAP:** GAP-ORC-004 (alçada)</sub>
+<sub>Referências: UC04.17; spec 6.2 · Depende de: US-059, US-038 · **GAP:** GAP-ORC-004 (teto)</sub>
 
-**US-120** · Ordem 62 · Must · P (4 h) · Sessão
+**US-120** · Ordem 63 · Must · P (4 h) · Sessão
 
 Como GFIN, quero a planilha-modelo do orçamento 2027 da Adm. Central (pessoal, pacotes base zero e receitas), com o mesmo layout da importação do sistema, para que os gestores lancem enquanto o sistema é construído.
 
@@ -773,7 +789,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.6; UC04.17 · Depende de: —</sub>
 
-**US-121** · Ordem 63 · Must · M (8 h) · Sessão
+**US-121** · Ordem 64 · Must · M (8 h) · Sessão
 
 Como GFIN, quero importar a planilha-modelo para o exercício 2027 com validação linha a linha, para revisar e aprovar no sistema o que os gestores lançaram.
 
@@ -787,7 +803,7 @@ Critérios de aceite:
 
 #### EP10 — IA onda 1 (20 h)
 
-**US-062** · Ordem 64 · Should · M (8 h) · Sessão
+**US-062** · Ordem 65 · Should · M (8 h) · Sessão
 
 Como usuário, quero que o sistema sugira a conta e o CC pela descrição do gasto, para lançar na conta certa.
 
@@ -797,7 +813,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-01 · Depende de: US-019, US-057 · **GAP:** GAP-IA-001 (priorização)</sub>
 
-**US-063** · Ordem 65 · Should · P (4 h) · Sessão
+**US-063** · Ordem 66 · Should · P (4 h) · Sessão
 
 Como gestor, quero ajuda para redigir a justificativa do pacote base zero e sugerir a prioridade, para defender melhor o orçamento.
 
@@ -807,7 +823,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-02 · Depende de: US-019, US-057 · **GAP:** GAP-IA-001</sub>
 
-**US-064** · Ordem 66 · Should · M (8 h) · Sessão
+**US-064** · Ordem 67 · Should · M (8 h) · Sessão
 
 Como GFIN, quero um revisor de consistência antes de enviar o orçamento, para reduzir idas e voltas na aprovação.
 
@@ -821,7 +837,7 @@ Critérios de aceite:
 
 #### EP11 — Proposta, versões e capa do TP (48 h)
 
-**US-065** · Ordem 67 · Must · G (16 h) · Sessão
+**US-065** · Ordem 68 · Must · G (16 h) · Sessão
 
 Como orçamentista, quero criar a proposta de TP (capa, categoria, vigência, CC), para iniciar o orçamento de um novo Termo de Parceria.
 
@@ -831,7 +847,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.04–UC03.07; RF_TP_001; RN_TP_001 · Depende de: US-046, US-031 · **GAP:** GAP-CC-004 (CC por TP)</sub>
 
-**US-066** · Ordem 68 · Must · M (8 h) · Sessão
+**US-066** · Ordem 69 · Must · M (8 h) · Sessão
 
 Como orçamentista, quero versionar e duplicar propostas, para revisar sem perder o histórico e reaproveitar propostas.
 
@@ -841,7 +857,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.08–UC03.09; RN_DUP_001–008 · Depende de: US-065</sub>
 
-**US-067** · Ordem 69 · Must · M (8 h) · Ultracode
+**US-067** · Ordem 70 · Must · M (8 h) · Ultracode
 
 Como orçamentista, quero cadastrar as metas da proposta, para vincular despesas às entregas.
 
@@ -850,7 +866,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.14–UC03.17 · Depende de: US-065</sub>
 
-**US-068** · Ordem 76 · Should · M (8 h) · Ultracode
+**US-068** · Ordem 77 · Should · M (8 h) · Ultracode
 
 Como orçamentista, quero a pré-visualização da proposta, para revisar tudo antes de enviar.
 
@@ -860,7 +876,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.38 · Depende de: US-071</sub>
 
-**US-069** · Ordem 79 · Could · M (8 h) · Sessão
+**US-069** · Ordem 80 · Could · M (8 h) · Sessão
 
 Como orçamentista, quero que o sistema leia o PDF do contrato e pré-preencha a capa, para digitar menos.
 
@@ -872,7 +888,7 @@ Critérios de aceite:
 
 #### EP12 — Pessoal, viagens e bens na proposta (48 h)
 
-**US-070** · Ordem 70 · Must · GG (24 h) · Sessão
+**US-070** · Ordem 71 · Must · GG (24 h) · Sessão
 
 Como orçamentista, quero lançar quantidade de empregados por cargo, meta e competência, e os empregados (inclusive "A CONTRATAR"), para orçar o pessoal do TP.
 
@@ -882,7 +898,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.20–UC03.27; RN0243; RN_WA05 · Depende de: US-051, US-065</sub>
 
-**US-071** · Ordem 71 · Must · G (16 h) · Ultracode
+**US-071** · Ordem 72 · Must · G (16 h) · Ultracode
 
 Como orçamentista, quero cadastrar viagens (pessoas, dias, passagem, diária, transporte) com teto da conta e painel por categoria, para orçar deslocamentos.
 
@@ -893,7 +909,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.29–UC03.33; Viagens V3; RN_VIA_01–05; C6; C19 · Depende de: US-067 · **GAP:** GAP-VIA-001/002/003</sub>
 
-**US-072** · Ordem 72 · Must · M (8 h) · Ultracode
+**US-072** · Ordem 73 · Must · M (8 h) · Ultracode
 
 Como orçamentista, quero cadastrar bens, serviços e equipamentos (CAPEX) em contas analíticas do nível 5, para orçar investimentos.
 
@@ -905,7 +921,7 @@ Critérios de aceite:
 
 #### EP13 — Totalizadores, rateio/ISS e cronograma (64 h)
 
-**US-073** · Ordem 73 · Must · G (16 h) · Sessão
+**US-073** · Ordem 74 · Must · G (16 h) · Sessão
 
 Como orçamentista, quero a grade de rateio e ISS (taxa da Adm. Central) por competência, para calcular o que vai para a Adm. Central.
 
@@ -916,7 +932,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.03; RN_RAT_01–07; RN0270 · Depende de: US-065 · **GAP:** GAP-CAD-001 / GAP-ORC-007 (ISS)</sub>
 
-**US-074** · Ordem 74 · Must · M (8 h) · Sessão
+**US-074** · Ordem 75 · Must · M (8 h) · Sessão
 
 Como orçamentista, quero os totalizadores da proposta (somente leitura, com semáforo por linha), para ver os totais por conta.
 
@@ -926,7 +942,7 @@ Critérios de aceite:
 
 <sub>Referências: UC03.02; RN_TOT_01–04 · Depende de: US-009, US-070</sub>
 
-**US-075** · Ordem 75 · Must · G (16 h) · Sessão
+**US-075** · Ordem 76 · Must · G (16 h) · Sessão
 
 Como orçamentista, quero o cronograma de desembolso e a previsão de despesas, para planejar os repasses.
 
@@ -936,7 +952,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.01; UC04.06; RN_RAT_05 · Depende de: US-074</sub>
 
-**US-076** · Ordem 77 · Should · M (8 h) · Ultracode
+**US-076** · Ordem 78 · Should · M (8 h) · Ultracode
 
 Como orçamentista, quero premissas e aplicações de reajuste por conta e ano, para projetar a vigência.
 
@@ -946,7 +962,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.02 · Depende de: US-075</sub>
 
-**US-077** · Ordem 78 · Should · G (16 h) · Ultracode
+**US-077** · Ordem 79 · Should · G (16 h) · Ultracode
 
 Como orçamentista, quero os demonstrativos de recursos, contratações previstas e estimativa de viagens, para montar o programa de trabalho.
 
@@ -960,7 +976,7 @@ Critérios de aceite:
 
 #### EP14 — Workflows de aprovação (88 h)
 
-**US-078** · Ordem 80 · Must · G (16 h) · Sessão
+**US-078** · Ordem 81 · Must · G (16 h) · Sessão
 
 Como aprovador, quero uma caixa de entrada com as pendências roteadas pela alçada, para aprovar ou rejeitar com justificativa.
 
@@ -971,7 +987,7 @@ Critérios de aceite:
 
 <sub>Referências: UC6.00–UC6.02; RF_APR_REQ_005 · Depende de: US-042</sub>
 
-**US-079** · Ordem 81 · Must · G (16 h) · Sessão
+**US-079** · Ordem 82 · Must · G (16 h) · Sessão
 
 Como orçamentista, quero enviar a proposta para oficialização (WA01), com validação das matrizes, para formalizar o TP.
 
@@ -981,7 +997,7 @@ Critérios de aceite:
 
 <sub>Referências: UC6.00; RN_WA01_* · Depende de: US-078, US-075</sub>
 
-**US-080** · Ordem 82 · Must · M (8 h) · Sessão
+**US-080** · Ordem 83 · Must · M (8 h) · Sessão
 
 Como analista GRH, quero enviar o lote de pessoal para homologação (WA05), para validar o dimensionamento.
 
@@ -991,7 +1007,7 @@ Critérios de aceite:
 
 <sub>Referências: UC6.01; RN_WA05_* · Depende de: US-078, US-070</sub>
 
-**US-081** · Ordem 83 · Must · M (8 h) · Sessão
+**US-081** · Ordem 84 · Must · M (8 h) · Sessão
 
 Como operador de viagens, quero solicitar a validação das viagens (WA02), para formalizar a estimativa.
 
@@ -1001,7 +1017,7 @@ Critérios de aceite:
 
 <sub>Referências: UC6.02; RN_WA02_* · Depende de: US-078, US-071</sub>
 
-**US-082** · Ordem 84 · Must · GG (24 h) · Sessão
+**US-082** · Ordem 85 · Must · GG (24 h) · Sessão
 
 Como orçamentista, quero elaborar termo aditivo e termo de ajuste com seus fluxos de aprovação, para alterar TPs oficializados.
 
@@ -1011,7 +1027,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.10; UC03.13; C3 (WA03) · Depende de: US-079 · **GAP:** GAP-APR-001</sub>
 
-**US-083** · Ordem 85 · Should · M (8 h) · Ultracode
+**US-083** · Ordem 86 · Should · M (8 h) · Ultracode
 
 Como orçamentista, quero solicitar remanejamento entre contas com aprovação, para ajustar o orçamento sem novo aditivo.
 
@@ -1021,7 +1037,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.09 · Depende de: US-078 · **GAP:** GAP-APR-001</sub>
 
-**US-084** · Ordem 86 · Should · M (8 h) · Sessão
+**US-084** · Ordem 87 · Should · M (8 h) · Sessão
 
 Como aprovador, quero um resumo com o que mudou desde a última versão e o impacto no total, no teto e no rateio, para decidir mais rápido.
 
@@ -1035,7 +1051,7 @@ Critérios de aceite:
 
 #### EP15 — Execução orçamentária e realizado (72 h)
 
-**US-085** · Ordem 87 · Must · GG (24 h) · Sessão
+**US-085** · Ordem 88 · Must · GG (24 h) · Sessão
 
 Como GFIN, quero carregar o realizado por TP × conta × competência (arquivo ou integração), para comparar com o orçado.
 
@@ -1046,7 +1062,7 @@ Critérios de aceite:
 
 <sub>Referências: OxR V2 Integração 2; RN_OXR_001–013 · Depende de: US-043, US-079 · **GAP:** GAP-PGD-006/009 (formato)</sub>
 
-**US-086** · Ordem 88 · Must · G (16 h) · Sessão
+**US-086** · Ordem 89 · Must · G (16 h) · Sessão
 
 Como gestor, quero o demonstrativo de execução orçamentária com desvio e % de realização, para acompanhar o TP.
 
@@ -1056,7 +1072,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.07; RN0314 · Depende de: US-085</sub>
 
-**US-087** · Ordem 89 · Must · M (8 h) · Ultracode
+**US-087** · Ordem 90 · Must · M (8 h) · Ultracode
 
 Como gestor, quero o demonstrativo orçamentário analítico com filtros combinados, para analisar por conta, CC e natureza.
 
@@ -1065,7 +1081,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.08; RF_DA_003; RN_DA_003 · Depende de: US-085</sub>
 
-**US-088** · Ordem 90 · Must · G (16 h) · Ultracode
+**US-088** · Ordem 91 · Must · G (16 h) · Ultracode
 
 Como GFIN, quero os demonstrativos de provisões e de aplicações financeiras, para controlar saldos e rendimentos.
 
@@ -1075,7 +1091,7 @@ Critérios de aceite:
 
 <sub>Referências: UC04.11; UC04.12; RN0360 · Depende de: US-085 · **GAP:** GAP-ORC-001 (RN0433/0434)</sub>
 
-**US-089** · Ordem 91 · Must · M (8 h) · Sessão
+**US-089** · Ordem 92 · Must · M (8 h) · Sessão
 
 Como GFIN, quero o realizado da Administração Central por CC, para acompanhar o orçamento do exercício.
 
@@ -1087,7 +1103,7 @@ Critérios de aceite:
 
 #### EP16 — IA onda 2 (60 h)
 
-**US-090** · Ordem 92 · Should · M (8 h) · Sessão
+**US-090** · Ordem 93 · Should · M (8 h) · Sessão
 
 Como gestor, quero a explicação do desvio orçado × realizado em texto, para entender o porquê sem montar planilha.
 
@@ -1097,7 +1113,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-09 · Depende de: US-086 · **GAP:** GAP-IA-001</sub>
 
-**US-091** · Ordem 93 · Should · G (16 h) · Sessão
+**US-091** · Ordem 94 · Should · G (16 h) · Sessão
 
 Como GFIN, quero a previsão de fechamento do ano com as contas em risco de estouro, para agir antes.
 
@@ -1107,7 +1123,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-10 · Depende de: US-086 · **GAP:** GAP-IA-001</sub>
 
-**US-092** · Ordem 94 · Should · M (8 h) · Sessão
+**US-092** · Ordem 95 · Should · M (8 h) · Sessão
 
 Como gestor, quero um alerta semanal por e-mail com os pontos de atenção do que é meu, para não depender de abrir o sistema.
 
@@ -1117,7 +1133,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-11 · Depende de: US-086, US-025 · **GAP:** GAP-IA-001</sub>
 
-**US-093** · Ordem 95 · Should · M (8 h) · Sessão
+**US-093** · Ordem 96 · Should · M (8 h) · Sessão
 
 Como GFIN, quero ver onde o saldo provisionado está abaixo do necessário, para evitar surpresa no fechamento.
 
@@ -1127,7 +1143,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-08 · Depende de: US-088 · **GAP:** GAP-IA-001</sub>
 
-**US-094** · Ordem 96 · Could · P (4 h) · Sessão
+**US-094** · Ordem 97 · Could · P (4 h) · Sessão
 
 Como GFIN, quero sugestão de correspondência para contas e CCs desconhecidos vindos do Senior, para destravar a integração.
 
@@ -1136,7 +1152,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-12 · Depende de: US-085 · **GAP:** GAP-IA-001</sub>
 
-**US-095** · Ordem 97 · Could · G (16 h) · Sessão
+**US-095** · Ordem 98 · Could · G (16 h) · Sessão
 
 Como GFIN, quero simular cenários e propostas de corte para caber no teto, para decidir em reunião.
 
@@ -1150,7 +1166,7 @@ Critérios de aceite:
 
 #### EP17 — Relatórios e Book (72 h)
 
-**US-096** · Ordem 98 · Must · G (16 h) · Ultracode
+**US-096** · Ordem 99 · Must · G (16 h) · Ultracode
 
 Como gestor, quero os relatórios financeiros (receitas e despesas sintético e analítico, despesas analítico), para prestar contas do TP.
 
@@ -1160,7 +1176,7 @@ Critérios de aceite:
 
 <sub>Referências: UC05.01; UC05.02; UC05.11 · Depende de: US-085</sub>
 
-**US-097** · Ordem 99 · Must · G (16 h) · Ultracode
+**US-097** · Ordem 100 · Must · G (16 h) · Ultracode
 
 Como gestor, quero os relatórios de viagens (I e II) e de aquisições, para prestar contas dessas despesas.
 
@@ -1169,7 +1185,7 @@ Critérios de aceite:
 
 <sub>Referências: UC05.03; UC05.07; UC05.04 · Depende de: US-085 · **GAP:** GAP-INT-013 (RVS)</sub>
 
-**US-098** · Ordem 100 · Must · G (16 h) · Ultracode
+**US-098** · Ordem 101 · Must · G (16 h) · Ultracode
 
 Como analista GRH, quero os relatórios de pessoal (salários, distribuição, férias, Adm. Central custeada), para prestar contas da folha.
 
@@ -1178,7 +1194,7 @@ Critérios de aceite:
 
 <sub>Referências: UC05.05; UC05.06; UC05.09; UC05.10 · Depende de: US-085</sub>
 
-**US-100** · Ordem 101 · Must · G (16 h) · Sessão
+**US-100** · Ordem 102 · Must · G (16 h) · Sessão
 
 Como GFIN, quero emitir o Book mensal em lote, para entregar a prestação de contas completa.
 
@@ -1188,7 +1204,7 @@ Critérios de aceite:
 
 <sub>Referências: UC05.12; RN0449 · Depende de: US-096, US-097, US-098 · **GAP:** GAP-REL-001</sub>
 
-**US-099** · Ordem 104 · Should · M (8 h) · Ultracode
+**US-099** · Ordem 105 · Should · M (8 h) · Ultracode
 
 Como gestor, quero o relatório de execução física (produtos previstos × realizados), para acompanhar as entregas.
 
@@ -1199,7 +1215,7 @@ Critérios de aceite:
 
 #### EP18 — Administração Central: consolidado e rateio (24 h)
 
-**US-101** · Ordem 102 · Must · M (8 h) · Sessão
+**US-101** · Ordem 103 · Must · M (8 h) · Sessão
 
 Como diretor, quero o consolidado de todos os TPs (orçado, realizado, %), com acesso por permissão própria, para ter a visão do portfólio.
 
@@ -1209,7 +1225,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.7 · Depende de: US-086</sub>
 
-**US-102** · Ordem 103 · Must · G (16 h) · Sessão
+**US-102** · Ordem 104 · Must · G (16 h) · Sessão
 
 Como GFIN, quero o rateio da Administração Central distribuído entre os TPs, para apropriar os custos centrais.
 
@@ -1220,7 +1236,7 @@ Critérios de aceite:
 
 #### EP19 — IA onda 3 (96 h)
 
-**US-103** · Ordem 105 · Should · GG (24 h) · Sessão
+**US-103** · Ordem 106 · Should · GG (24 h) · Sessão
 
 Como GFIN, quero o rascunho do relatório executivo mensal (indicadores, gráficos, riscos e recomendações) em PDF e PPTX, para apresentar aos diretores e gerentes.
 
@@ -1230,7 +1246,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-14 · Depende de: US-101, US-019 · **GAP:** GAP-IA-001</sub>
 
-**US-104** · Ordem 106 · Should · GG (24 h) · Sessão
+**US-104** · Ordem 107 · Should · GG (24 h) · Sessão
 
 Como diretor, quero perguntar ao SGO em linguagem comum e receber o número com fonte e link, para não depender de quem domina os relatórios.
 
@@ -1240,7 +1256,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-16 · Depende de: US-096, US-019 · **GAP:** GAP-IA-001</sub>
 
-**US-105** · Ordem 107 · Could · G (16 h) · Sessão
+**US-105** · Ordem 108 · Could · G (16 h) · Sessão
 
 Como GFIN, quero o roteiro de apresentação para reunião de diretoria sobre um tema, para preparar reuniões com dados confiáveis.
 
@@ -1249,7 +1265,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-15 · Depende de: US-103 · **GAP:** GAP-IA-001</sub>
 
-**US-106** · Ordem 108 · Could · M (8 h) · Sessão
+**US-106** · Ordem 109 · Could · M (8 h) · Sessão
 
 Como diretor, quero o comparativo entre TPs com comentários sobre os pontos fora da curva, para avaliar o portfólio.
 
@@ -1258,7 +1274,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-17 · Depende de: US-101 · **GAP:** GAP-IA-001</sub>
 
-**US-107** · Ordem 109 · Could · M (8 h) · Sessão
+**US-107** · Ordem 110 · Could · M (8 h) · Sessão
 
 Como analista GRH, quero a análise do quadro de pessoal só com agregados, para apoiar decisões de dimensionamento.
 
@@ -1267,7 +1283,7 @@ Critérios de aceite:
 
 <sub>Referências: IA-07 · Depende de: US-070 · **GAP:** GAP-IA-001</sub>
 
-**US-108** · Ordem 110 · Could · G (16 h) · Sessão
+**US-108** · Ordem 111 · Could · G (16 h) · Sessão
 
 Como usuário, quero ajuda contextual "como faço..." com base no manual, para usar o sistema sem chamar o suporte.
 
@@ -1281,7 +1297,7 @@ Critérios de aceite:
 
 #### EP20 — Integrações (88 h)
 
-**US-109** · Ordem 111 · Should · G (16 h) · Sessão
+**US-109** · Ordem 112 · Should · G (16 h) · Sessão
 
 Como GFIN, quero a sincronização do plano de contas com o Senior (Integração 1), para não depender de planilha.
 
@@ -1291,7 +1307,7 @@ Critérios de aceite:
 
 <sub>Referências: Integração V4; OxR Integração 1 · Depende de: US-043 · **GAP:** GAP-INT-001</sub>
 
-**US-110** · Ordem 112 · Should · M (8 h) · Sessão
+**US-110** · Ordem 113 · Should · M (8 h) · Sessão
 
 Como GFIN, quero a sincronização dos centros de custo com o Senior, para manter os CCs atualizados.
 
@@ -1300,7 +1316,7 @@ Critérios de aceite:
 
 <sub>Referências: GAP-INT-014 · Depende de: US-046 · **GAP:** GAP-INT-014</sub>
 
-**US-111** · Ordem 113 · Should · G (16 h) · Sessão
+**US-111** · Ordem 114 · Should · G (16 h) · Sessão
 
 Como analista GRH, quero a sincronização de cargos, salários e estrutura funcional com o Rubi/Senior, para não digitar dados de RH.
 
@@ -1309,7 +1325,7 @@ Critérios de aceite:
 
 <sub>Referências: Integração V4 (Rubi) · Depende de: US-049 · **GAP:** GAP-INT-005</sub>
 
-**US-112** · Ordem 114 · Should · G (16 h) · Sessão
+**US-112** · Ordem 115 · Should · G (16 h) · Sessão
 
 Como GFIN, quero o realizado do Senior por integração (Integração 2), para não carregar arquivo todo mês.
 
@@ -1318,7 +1334,7 @@ Critérios de aceite:
 
 <sub>Referências: OxR Integração 2 · Depende de: US-085 · **GAP:** GAP-PGD-006/009</sub>
 
-**US-113** · Ordem 115 · Could · G (16 h) · Sessão
+**US-113** · Ordem 116 · Could · G (16 h) · Sessão
 
 Como operador de viagens, quero a integração com o RVS, para trazer as viagens realizadas.
 
@@ -1327,7 +1343,7 @@ Critérios de aceite:
 
 <sub>Referências: Integração V4 (RVS) · Depende de: US-097 · **GAP:** GAP-INT-013</sub>
 
-**US-114** · Ordem 116 · Could · G (16 h) · Sessão
+**US-114** · Ordem 117 · Could · G (16 h) · Sessão
 
 Como usuário, quero entrar com o login da intranet, para não ter mais uma senha.
 
@@ -1341,7 +1357,7 @@ Critérios de aceite:
 
 #### EP21 — Go-live e operação (64 h)
 
-**US-115** · Ordem 117 · Must · M (8 h) · Sessão
+**US-115** · Ordem 118 · Must · M (8 h) · Sessão
 
 Como PO, quero a carga inicial de produção (plano de contas, CCs aprovados, cargos, parâmetros, usuários), para começar a operar.
 
@@ -1351,7 +1367,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 6.1, 6.1a · Depende de: US-043, US-046, US-049 · **GAP:** GAP-CC-001</sub>
 
-**US-116** · Ordem 118 · Must · G (16 h) · Ultracode
+**US-116** · Ordem 119 · Must · G (16 h) · Ultracode
 
 Como PO, quero testes de carga e de segurança (OWASP, isolamento por TP, login), para entrar em produção com confiança.
 
@@ -1361,7 +1377,7 @@ Critérios de aceite:
 
 <sub>Referências: RNF gerais (spec 10.3) · Depende de: US-031</sub>
 
-**US-117** · Ordem 119 · Must · G (16 h) · Sessão
+**US-117** · Ordem 120 · Must · G (16 h) · Sessão
 
 Como usuário-chave, quero homologar cada release em hml com roteiro de testes, para aprovar o que vai para produção.
 
@@ -1371,7 +1387,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 11.6 · Depende de: —</sub>
 
-**US-119** · Ordem 120 · Must · M (8 h) · Sessão
+**US-119** · Ordem 121 · Must · M (8 h) · Sessão
 
 Como PO, quero o runbook de operação (deploy, rollback, restauração, incidentes), para operar sem depender de uma pessoa.
 
@@ -1381,7 +1397,7 @@ Critérios de aceite:
 
 <sub>Referências: spec 4.3, 11.5 · Depende de: US-015</sub>
 
-**US-118** · Ordem 121 · Should · G (16 h) · Ultracode
+**US-118** · Ordem 122 · Should · G (16 h) · Ultracode
 
 Como usuário, quero o manual do usuário e o treinamento por perfil, para usar o sistema desde o primeiro dia.
 
@@ -1419,7 +1435,7 @@ Critérios de aceite:
 | GAP-INT-014 | US-110 |
 | GAP-ORC-001 (RN0433/0434) | US-088 |
 | GAP-ORC-003 (valores) | US-053 |
-| GAP-ORC-004 (alçada) | US-061 |
+| GAP-ORC-004 (teto) | US-061 |
 | GAP-ORC-007 (ISS) | US-060 |
 | GAP-PGD-006/009 | US-089, US-112 |
 | GAP-PGD-006/009 (formato) | US-085 |
