@@ -1,0 +1,55 @@
+# Mapa de propriedade do código (spec §12.3), lido por scripts/frentes/verificar.ts.
+# Globs no formato picomatch, relativos à raiz do repositório.
+# Arquivo fora de todos os globs conta como compartilhado.
+# Onde a spec diz src/middleware.ts, vale src/proxy.ts (Next.js 16).
+
+frentes:
+  A:
+    - 'src/shared/{kernel,audit,unidade,authz,totalizer}/**'
+    - 'src/modules/{aut,adm,orc,apr}/**'
+    - 'prisma/schema/{aut,adm,orc,apr}.prisma'
+    - 'src/proxy.ts'
+    - 'src/app/\(sistema\)/{aut,adm,orc,apr}/**'
+    - 'e2e/{aut,adm,orc,apr}/**'
+  B:
+    - 'src/shared/ia/**'
+    - 'src/modules/{ger,cad,rel,int}/**'
+    - 'prisma/schema/{cad,rel,int}.prisma'
+    - 'worker/**'
+    - '.github/workflows/**'
+    - 'Dockerfile'
+    - 'docker/**'
+    - 'deploy/**'
+    - 'ops/**'
+    - 'e2e/seguranca/**'
+    - 'docs/modelos/**'
+    - 'docs/operacao/**'
+    - 'src/app/\(sistema\)/{ger,cad,rel,int}/**'
+    - 'e2e/{ger,cad,rel,int}/**'
+
+# Mudam só em PR exclusivo com a label "compartilhado" (spec §12.5).
+compartilhados:
+  - 'package.json'
+  - 'package-lock.json'
+  - 'tsconfig*.json'
+  - 'eslint.config.*'
+  - '.prettierrc*'
+  - 'prettier.config.*'
+  - 'next.config.*'
+  - 'CLAUDE.md'
+  - '.claude/**'
+  - 'prisma/schema/_base.prisma'
+  - 'src/app/layout.tsx'
+  - 'src/app/providers.tsx'
+  - 'src/app/providers/**'
+  - '.github/frentes.yml'
+  - 'docs/superpowers/**'
+
+# Livres para as duas frentes, sem PR exclusivo (spec §12.3 e §12.5, passo 7).
+livres:
+  - 'docs/memoria/**'
+  - 'docs/backlog/**'
+
+# Migrations: pertencem ao PR do módulo; a regra é uma por PR (spec §12.7).
+migrations:
+  - 'prisma/migrations/**'
