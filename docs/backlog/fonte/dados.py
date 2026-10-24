@@ -60,7 +60,7 @@ S = [
 ("US-007","EP00","Como usuário de um TP, quero ver só os dados dos TPs a que tenho acesso, mesmo que alguém chame a API direto, para que o isolamento seja garantido.","Must","G","spec 5 (C31)",
  ["`unidade_id` em toda tabela de dado de TP","Guarda `shared/authz` filtra pela unidade ativa","RLS com `app.unidades` bloqueia leitura e escrita fora da lista; teste de invasão via API"],"US-004","—","S"),
 ("US-008","EP00","Como time, quero a guarda RBAC obrigatória em toda Server Action e Route Handler, para que nenhuma tela ou API fique sem checagem de permissão.","Must","M","RBAC; RNF_SEG_001",
- ["Ação sem guarda falha no teste de arquitetura","Permissão negada retorna erro padronizado e é auditada"],"US-007","—","S"),
+ ["Ação sem guarda falha no teste de arquitetura","Permissão negada retorna erro padronizado e é auditada"],"US-004","—","S"),
 ("US-009","EP00","Como gestor financeiro, quero o núcleo do TotalizerService, para que todos os totais e sintéticas venham de um único motor de cálculo.","Must","G","OxR V2 §7; RN_TOT",
  ["Função pura: árvore + valores analíticos → sintéticos, totais e %","Testes com os critérios de aceite numéricos do OxR V2","Sintéticas nunca persistidas como dado vivo"],"US-005","—","S"),
 ("US-010","EP00","Como time, quero filas e jobs agendados com pg-boss no worker, para que e-mails, exportações grandes e cargas não travem as telas.","Must","M","spec 4.2",
@@ -112,7 +112,7 @@ S = [
 ("US-031","EP04","Como usuário, quero a tela principal com menu só do que tenho permissão, seletor de TP e ajuda contextual, para encontrar o que preciso.","Must","G","UC01.04; RN0027/0030/0031/0032; RN0521; spec 6.7",
  ["Menu por módulo → grupo → funcionalidade, filtrado por permissão","Seletor lista só os TPs do usuário e some quando há um só","Menu da Administração Central só para quem tem a permissão","Busca de funcionalidade respeita o filtro"],"US-021, US-026","—","S"),
 ("US-032","EP04","Como usuário, quero sair do sistema com confirmação e limpeza dos dados no navegador, para não deixar sessão aberta.","Must","XS","RNF0010",
- ["Sessão invalidada no servidor","Dados locais apagados"],"US-028","—","S"),
+ ["Sessão invalidada no servidor","Dados locais apagados"],"US-026","—","S"),
 ("US-033","EP04","Como administrador, quero que, em modo manutenção, só administradores entrem, para fazer manutenção sem usuários conectados.","Must","P","RN0023",
  ["Login de não administrador recusado com aviso de manutenção"],"US-026, US-036","—","S"),
 # ---------------- EP05 Administração
@@ -125,7 +125,7 @@ S = [
 ("US-037","EP05","Como administrador, quero cadastrar perfis e permissões (com nome único e ao menos uma funcionalidade), para definir o que cada grupo pode fazer.","Must","G","UC02.07–UC02.10; UC02.25/26; RN0068; RN0072",
  ["Nome único sem diferenciar maiúsculas","Marcar módulo marca todas as ações (A2)","Perfil com usuários não pode ser excluído"],"US-034","GAP-ADM-001 (ajuste fino)","S"),
 ("US-038","EP05","Como administrador, quero cadastrar usuários com login imutável, senha gerada pelo sistema e acesso por TP, para dar acesso só ao necessário.","Must","G","UC02.11–UC02.14; UC02.18; RN0059/0065/0066/0071/0079; C25",
- ["Login único e imutável","Senha gerada e enviada por e-mail; o administrador nunca digita senha","Lista de TPs permitidos e CC de escopo (Gestor de Diretoria)","Desbloquear zera o contador"],"US-025, US-037","—","S"),
+ ["Login único e imutável","Senha gerada e enviada por e-mail; o administrador nunca digita senha","Lista de TPs permitidos e CC de escopo (Gestor de Diretoria)","Desbloquear zera o contador"],"US-025, US-034","—","S"),
 ("US-039","EP05","Como administrador, quero exceções de permissão por usuário, para tratar casos especiais sem criar um perfil novo.","Should","M","UC02.21–UC02.24",
  ["Concessão ou retirada de funcionalidade por usuário","Exceção registrada no Histórico"],"US-038","—","S"),
 ("US-040","EP05","Como auditor, quero consultar o Histórico de Operações nos níveis Simples e Avançado, só com imprimir e exportar, para auditar o sistema.","Must","M","UC02.21–UC02.24; REQ00103",
@@ -149,7 +149,7 @@ S = [
 ("US-048","EP07","Como analista GRH, quero manter a estrutura funcional em árvore, para refletir a organização dos setores.","Must","M","UC03.18; C2",
  ["Árvore com setor superior","Vínculo de cargo 1:1 por setor (C&S V4)"],"US-021","—","U"),
 ("US-049","EP07","Como analista GRH, quero manter cargos e salários (faixa, nível, Fonte Ativa, adicionais) e a tabela salarial, para calcular o custo de pessoal.","Must","G","UC03.19 V4; RN_CAR_*; C20",
- ["Fonte Ativa: Mínimo, Máximo, Total, Salário Real ou Salário Definido","Periculosidade 30% ou insalubridade 10/20/40% sobre o SMN","Salários criptografados e mascarados por perfil (D10)"],"US-048","—","S"),
+ ["Fonte Ativa: Mínimo, Máximo, Total, Salário Real ou Salário Definido","Periculosidade 30% ou insalubridade 10/20/40% sobre o SMN","Salários criptografados e mascarados por perfil (D10)"],"US-021","—","S"),
 ("US-050","EP07","Como analista GRH, quero a Tabela Mestre de Benefícios, para que propostas e o orçamento da Adm. Central usem os mesmos valores.","Must","M","UC03.28; RN_CAR_06/07; C8",
  ["Sobrescrita com auditoria e origem registrada","Nunca altera snapshot oficializado"],"US-049","—","U"),
 ("US-051","EP07","Como sistema, quero o MotorCustoPosicao (massa, férias + 1/3, 13º, encargo 51%, benefícios), para que o custo de pessoal seja calculado num só lugar.","Must","G","RN_CAR_17; spec 6.4, 6.6",
@@ -169,13 +169,13 @@ S = [
 ("US-057","EP09","Como gestor de diretoria, quero lançar pacotes base zero (conta, justificativa, prioridade, distribuição), para orçar as demais despesas.","Must","G","UC04.17",
  ["Justificativa ≥ 10 caracteres; contas de pessoal fora da lista","Mensal (12 parcelas que fecham o anual) ou pontual","Correção opcional pelo IPCA do exercício"],"US-055, US-046","—","S"),
 ("US-058","EP09","Como GFIN, quero a visão por centro de custo com árvore, série mês a mês e linhas CC × conta, para consolidar o orçamento.","Must","M","UC04.17; RN_TOT_01",
- ["Sintéticos somados pelo TotalizerService","Origem de cada linha (pessoal / base zero)"],"US-056, US-057","—","S"),
+ ["Sintéticos somados pelo TotalizerService","Origem de cada linha (pessoal / base zero)"],"US-121","—","S"),
 ("US-059","EP09","Como GFIN, quero o teto do exercício com semáforo e o resultado (receita − despesas), para fechar o orçamento dentro da receita.","Must","M","spec 6.6",
  ["Teto padrão = rateio líquido confirmado (teto manual antes da F3)","Teto maior que a receita exige justificativa","Faixas 70/85/95"],"US-058","—","S"),
-("US-060","EP13","Como GFIN, quero a aba de receitas com o rateio de cada TP no exercício (confirmado e previsto) e o ISS, para saber quanto a Adm. Central vai receber.","Must","G","RN0270; UC03.03; spec 6.6",
- ["Base = subtotal de despesas, % por TP, mês a mês","Previsto separado, fora do saldo e do teto","ISS mostra \"a definir\" até o GAP-ORC-007"],"US-055, US-073","GAP-ORC-007 (ISS)","S"),
+("US-060","EP09","Como GFIN, quero a aba de receitas com o rateio de cada TP no exercício (confirmado e previsto) e o ISS, para saber quanto a Adm. Central vai receber.","Must","G","RN0270; UC03.03; spec 6.6",
+ ["Base = subtotal de despesas, % por TP, mês a mês","Previsto separado, fora do saldo e do teto","ISS mostra \"a definir\" até o GAP-ORC-007","Rateio por TP digitado na Adm. Central até existir a proposta no sistema (US-073 passa a alimentar depois)"],"US-055","GAP-ORC-007 (ISS)","S"),
 ("US-061","EP09","Como GFIN, quero enviar o orçamento da Adm. Central para aprovação e oficializá-lo com snapshot, para formalizar o orçamento do ano.","Must","M","UC04.17; spec 6.2",
- ["Ciclo Rascunho → Em Elaboração → Em Aprovação → Oficializado","Snapshot imutável na oficialização"],"US-059, US-042","GAP-ORC-004 (alçada)","S"),
+ ["Ciclo Rascunho → Em Elaboração → Em Aprovação → Oficializado","Snapshot imutável na oficialização","Na trilha 2027: aprovação em uma etapa (GFIN envia, Diretoria aprova); roteamento por alçada (US-042) depois"],"US-059, US-038","GAP-ORC-004 (alçada)","S"),
 # ---------------- EP10 IA onda 1
 ("US-062","EP10","Como usuário, quero que o sistema sugira a conta e o CC pela descrição do gasto, para lançar na conta certa.","Should","M","IA-01",
  ["3 sugestões com motivo; a pessoa escolhe","Avaliação em hml com acerto mínimo antes de ligar"],"US-019, US-057","GAP-IA-001 (priorização)","S"),
@@ -275,4 +275,18 @@ S = [
 ("US-117","EP21","Como usuário-chave, quero homologar cada release em hml com roteiro de testes, para aprovar o que vai para produção.","Must","G","spec 11.6",["Roteiro por release","Aceite registrado"],"—","—","S"),
 ("US-118","EP21","Como usuário, quero o manual do usuário e o treinamento por perfil, para usar o sistema desde o primeiro dia.","Should","G","—",["Manual por perfil, sem o nome da instituição","Material de treinamento"],"US-031","—","U"),
 ("US-119","EP21","Como PO, quero o runbook de operação (deploy, rollback, restauração, incidentes), para operar sem depender de uma pessoa.","Must","M","spec 4.3, 11.5",["Restauração testada documentada","Procedimento de rollback testado"],"US-015","—","S"),
+# ---------------- Trilha orçamento 2027 (modelo híbrido)
+("US-120","EP09","Como GFIN, quero a planilha-modelo do orçamento 2027 da Adm. Central (pessoal, pacotes base zero e receitas), com o mesmo layout da importação do sistema, para que os gestores lancem enquanto o sistema é construído.","Must","P","spec 6.6; UC04.17",
+ ["Abas Instruções, Pessoal, Pacotes base zero e Receitas","Listas validadas só com contas analíticas e CCs analíticos das planilhas oficiais","Sem nome da instituição; versão do layout na planilha","É o plano B: se o sistema atrasar, a aprovação de 30/11 é feita sobre ela"],"—","—","S"),
+("US-121","EP09","Como GFIN, quero importar a planilha-modelo para o exercício 2027 com validação linha a linha, para revisar e aprovar no sistema o que os gestores lançaram.","Must","M","spec 6.6; UC04.17",
+ ["Relatório de erros por linha; nada é gravado se houver erro","Reimportar substitui o lote do mesmo CC (idempotente)","Custo de pessoal recalculado pelo MotorCustoPosicao, nunca copiado da planilha","Carga registrada no Histórico de Operações"],"US-120, US-055, US-051, US-043, US-046","—","S"),
 ]
+
+# Trilha orçamento 2027 (modelo híbrido): sistema em produção para importar, revisar e aprovar até 30/11/2026
+TRILHA_2027 = {"US-" + i for i in """001 002 003 004 005 006 008 009 010 012 013 014 015 016 021 025 026 030 031 032 034 038
+043 044 046 049 050 051 053 055 058 059 060 061 115 116 117 119 120 121""".split()}
+
+# Frentes de desenvolvimento (duas contas do Claude Code). As histórias fixadas ficam sempre na mesma frente;
+# as demais vão para a primeira frente livre, respeitando as dependências (ver docs/backlog/fonte/cronograma.py).
+FIXA_A = {"US-" + i for i in "001 004 005 006 009 051 121 058 059 061".split()}
+FIXA_B = {"US-" + i for i in "013 014 015 016 017 119 120 116".split()}
