@@ -18,7 +18,7 @@ for s in d.S:
     sid, ep, hist, pri, tam, refs, crit, dep, gap, modo = s
     st[sid] = dict(id=sid, epico=ep, release=EP[ep][1], historia=hist, prioridade=pri, tamanho=tam, horas=d.H[tam],
                    modo=modo, refs=refs, criterios=crit, dep=re.findall(r"US-\d+", dep), gap=gap,
-                   trilha=sid in d.TRILHA_2027, fixa=("B" if sid in d.FIXA_B else "A" if sid in d.FIXA_A else None))
+                   trilha=sid in d.TRILHA_2027, fixa=next(f for f, eps in d.FRENTE_POR_EPICO.items() if ep in eps))
 ordem = sorted(st.values(), key=lambda r: (not r["trilha"], REL.index(r["release"]), PRI[r["prioridade"]], r["id"]))
 for i, r in enumerate(ordem, 1): r["ordem"] = i
 clock = {"A": 0.0, "B": 0.0}; fim = {}

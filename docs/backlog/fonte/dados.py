@@ -286,7 +286,9 @@ S = [
 TRILHA_2027 = {"US-" + i for i in """001 002 003 004 005 006 008 009 010 012 013 014 015 016 021 025 026 030 031 032 034 038
 043 044 046 049 050 051 053 055 058 059 060 061 115 116 117 119 120 121""".split()}
 
-# Frentes de desenvolvimento (duas contas do Claude Code). As histórias fixadas ficam sempre na mesma frente;
-# as demais vão para a primeira frente livre, respeitando as dependências (ver docs/backlog/fonte/cronograma.py).
-FIXA_A = {"US-" + i for i in "001 004 005 006 009 051 121 058 059 061".split()}
-FIXA_B = {"US-" + i for i in "013 014 015 016 017 119 120 116".split()}
+# Frentes de desenvolvimento (duas contas do Claude Code) — spec §12.
+# A frente de uma história é a dona do código que ela altera (spec §12.3): definida pelo épico, nunca pela "primeira livre".
+FRENTE_POR_EPICO = {
+    "A": ["EP00", "EP04", "EP05", "EP09", "EP10", "EP11", "EP12", "EP13", "EP14", "EP15", "EP16", "EP18"],
+    "B": ["EP01", "EP02", "EP03", "EP06", "EP07", "EP08", "EP17", "EP19", "EP20", "EP21"],
+}

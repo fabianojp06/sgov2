@@ -693,9 +693,142 @@ Todos os UCs listados em 11.2 com os fluxos principal, alternativos e de exceç�
 
 ---
 
-## 12. Próximos passos
+## 12. Processo de desenvolvimento em duas frentes
+
+Decisão do PO em 24/10/2026: o desenvolvimento usa **duas contas do Claude Code em paralelo**, chamadas **frente A** e **frente B**, para atender ao prazo da trilha do orçamento 2027 (backlog, seção 3.1). Esta seção é **normativa**: vale para todas as fases, e o `CLAUDE.md` do projeto (US-002) a resume para as duas contas.
+
+### 12.1 Princípios
+
+1. **Um dono por arquivo.** Cada pasta do repositório tem uma frente dona (12.3). Uma frente não altera código da outra, exceto pelo protocolo de 12.5.
+2. **O GitHub é a única fonte de verdade.** Quem faz o quê, em que estado está e o que foi decidido fica em issue, PR e projeto ("SGO 2.0 – Roadmap"). Nenhuma combinação existe só na conversa de uma sessão.
+3. **A frente de uma história é a dona do código que ela altera.** O campo *Frente* do projeto é derivado do épico (`docs/backlog/fonte/dados.py`, `FRENTE_POR_EPICO`), não de quem está livre.
+4. **Integração contínua em passos pequenos.** Branch curta, PR pequeno, merge frequente na `main`. Nenhuma branch vive mais de 3 dias úteis.
+5. **Contrato antes da implementação.** Quando uma frente consome algo da outra, a interface é publicada e mergeada primeiro (12.6).
+
+### 12.2 Papéis
+
+| Frente | Conta | Responsabilidade | Épicos |
+| --- | --- | --- | --- |
+| **A — Núcleo e domínio** | conta 1 (atual) | Kernel, auditoria, isolamento, autorização, totalizador, autenticação, administração, orçamento (Adm. Central e propostas), aprovações, execução | EP00, EP04, EP05, EP09–EP16, EP18 |
+| **B — Plataforma, cadastros e saídas** | conta 2 | Infra (VPS, CI/CD, backup), infraestrutura de IA, componentes de tela, cadastros (plano de contas, CC, pessoal-base, MotorCustoPosicao, parâmetros), relatórios, integrações, go-live | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
+| **PO** | — | Libera histórias, revisa e faz merge dos PRs, decide conflitos de fronteira, homologa | — |
+
+### 12.3 Mapa de propriedade do código
+
+O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido pelo CI (12.8).
+
+| Caminho | Dono |
+| --- | --- |
+| `src/shared/{kernel,audit,unidade,authz,totalizer}/` | A |
+| `src/modules/{aut,adm,orc,apr}/` e `prisma/schema/{aut,adm,orc,apr}.prisma` | A |
+| `src/middleware.ts` | A |
+| `src/shared/ia/` | B |
+| `src/modules/{ger,cad,rel,int}/` e `prisma/schema/{cad,rel,int}.prisma` | B |
+| `worker/` (entrypoint e agendador; os *handlers* ficam em `modules/<mod>/infrastructure/` e são do dono do módulo) | B |
+| `.github/workflows/`, `Dockerfile`, `docker/`, `deploy/`, `ops/` (backup, restauração, hardening) | B |
+| `e2e/seguranca/`, `docs/modelos/`, `docs/operacao/` | B |
+| `src/app/(sistema)/<modulo>/` (rotas) | dono do módulo |
+| `e2e/<modulo>/` (testes E2E) | dono do módulo |
+| **Compartilhados:** `package.json`, `package-lock.json`, `tsconfig*.json`, configuração de lint e formatação, `next.config.*`, `CLAUDE.md`, `.claude/`, `prisma/schema/_base.prisma` (datasource, generator, enums globais), `src/app/layout.tsx` e *providers*, `.github/frentes.yml`, `docs/superpowers/` | protocolo de 12.5 |
+
+**Período de fundação:** até o merge de US-001 (repositório) e US-004 (Prisma), só a frente A escreve no repositório. Nesse período, a frente B trabalha fora do código: endurecimento da VPS (US-016), ambientes do Easypanel (US-014) e planilha-modelo (US-120).
+
+**Itens transversais sem dono natural:**
+- O registro do menu é feito por módulo: cada `index.ts` exporta seus itens de menu, e a tela principal só agrega. Não existe arquivo central de menu editado pelas duas frentes.
+- A seed tem um arquivo por módulo (`modules/<mod>/infrastructure/seed.ts`), chamados por um orquestrador compartilhado que muda raramente.
+
+### 12.4 Ambientes isolados
+
+| Item | Frente A | Frente B |
+| --- | --- | --- |
+| Diretório (git worktree) | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` |
+| Configuração do Claude Code | padrão (`~/.claude`) | `CLAUDE_CONFIG_DIR=/root/.claude-frente-b` |
+| Docker Compose de dev | `COMPOSE_PROJECT_NAME=sgo-a`, banco 55432, app 3100, Mailpit 8125 | `COMPOSE_PROJECT_NAME=sgo-b`, banco 56432, app 3200, Mailpit 8225 |
+| Banco de dev e de teste | próprio (volume `sgo-a_*`) | próprio (volume `sgo-b_*`) |
+| `.env.local` | próprio, fora do git | próprio, fora do git |
+
+- A porta 3000 é do Easypanel e não é usada por nenhuma frente.
+- As duas contas usam o mesmo `CLAUDE.md` e os mesmos *hooks* (`.claude/settings.json` versionado), então as travas de banco de 11.5 valem igual para as duas.
+- Nenhuma das duas tem credencial de hml ou prod (11.5).
+- Cada commit leva o trailer `Frente: A` ou `Frente: B`, além dos trailers de coautoria.
+- Comandos de criação da worktree e de início de sessão: `docs/backlog/desenvolvimento-em-duas-frentes.md`.
+
+### 12.5 Fluxo de uma história
+
+1. **Pegar.** A frente escolhe no quadro a próxima história com *Frente* = a sua, *Status* = "A fazer" e dependências já na `main`. O limite é de **2 histórias "Em andamento" por frente**.
+2. **Travar.** Move para "Em andamento" e comenta na issue: `Iniciado pela frente X — branch us-NNN-slug`. Issue em andamento é intocável pela outra frente.
+3. **Branch.** `us-NNN-slug`, criada a partir da `main` recém-atualizada.
+4. **Desenvolver** com plano (writing-plans) e TDD. Atualizar a branch pela `main` (rebase) pelo menos uma vez por dia e sempre antes de abrir o PR.
+5. **PR.** Título `[US-NNN] …`, corpo com `Closes #n`, label `frente:X` e checklist dos critérios de aceite. O PR deve ser pequeno, idealmente até 400 linhas de código de produção; história maior vira PRs encadeados.
+6. **Merge** pelo PO, com CI verde (12.8), em *squash*. A issue vai para "Em homologação".
+7. **Passagem de sessão.** Ao encerrar a sessão com trabalho em aberto, a frente comenta na issue o que foi feito, o que falta e as decisões tomadas, para que qualquer sessão, de qualquer conta, retome dali.
+
+**Arquivos compartilhados** (12.3): mudam só num **PR exclusivo** (label `compartilhado`), pequeno, sem código de funcionalidade junto. O PO faz o merge no mesmo dia. A outra frente faz rebase logo depois. Dependência nova no `package.json` entra por esse PR, e o `package-lock.json` nunca é mesclado à mão: em conflito, é regerado com `npm install` sobre a `main`.
+
+**Tocar código da outra frente:** só com a label `toca-outra-frente`, uma justificativa no PR e aprovação do PO. Usar só para correção pequena e urgente; o resto vira issue para a frente dona.
+
+### 12.6 Contratos entre as frentes
+
+Quando uma frente precisa de algo da outra (exemplo: o orçamento, frente A, usa o `MotorCustoPosicao` e o plano de contas, frente B):
+
+1. A frente dona abre um **PR de contrato** com o `index.ts` do módulo: tipos, assinatura das funções e um **adaptador falso** para testes. Esse PR passa na frente de qualquer outro na fila de merge.
+2. Com o contrato na `main`, as duas frentes trabalham em paralelo: a dona implementa, e a consumidora programa contra o contrato, usando o falso nos testes.
+3. Mudança de contrato já mergeado exige issue com label `contrato`, avaliação de impacto pela frente consumidora e aprovação do PO. Mudança incompatível não entra sem atualizar os consumidores no mesmo PR.
+
+Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPosicao` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos.
+
+### 12.7 Banco de dados e migrations
+
+1. **Schema em arquivos por módulo** (`prisma/schema/*.prisma`, *multi-file schema* do Prisma). Cada frente só edita os arquivos dos seus módulos. Relação entre módulos de frentes diferentes é feita por ID, sem chave estrangeira cruzada, salvo decisão em ADR.
+2. **Uma migration por PR**, gerada só depois do rebase na `main`, com nome `AAAAMMDDHHMM_<modulo>_<descricao>`.
+3. **Fila de migrations.** O PO faz merge de **um PR com migration por vez**, com a label `migration`. Se outra migration entrou antes, a frente apaga a sua (ainda não mergeada), faz rebase e gera de novo. Migration mergeada nunca é editada.
+4. O CI aplica todas as migrations num banco efêmero e compara com o schema (`prisma migrate diff` contra o banco efêmero, nunca contra hml ou prod). Diferença reprova o PR.
+5. **Seeds idempotentes por módulo** (12.3). Rodar a seed duas vezes não muda nada (critério da F1).
+
+### 12.8 Verificações automáticas no CI
+
+Além do CI de 10.4:
+
+| Verificação | Reprova o PR quando |
+| --- | --- |
+| Fronteira de frente (`.github/frentes.yml`) | O PR altera arquivo de outra frente sem a label `toca-outra-frente`, ou altera arquivo compartilhado sem a label `compartilhado` |
+| PR compartilhado puro | Um PR `compartilhado` também mexe em código de funcionalidade |
+| Migration única | Há mais de uma migration nova no PR |
+| Vínculo com issue | Falta `Closes #n` ou a label `frente:X` |
+| Marca neutra (US-012) | Aparece "CTCEA" no código |
+
+Proteção da `main`: merge só por PR, com CI verde e branch atualizada (*require up to date*). Push direto e *force push* na `main` ficam bloqueados para as duas contas.
+
+### 12.9 Rotina do PO e ordem de merge
+
+| Momento | Ação |
+| --- | --- |
+| Início do dia | Conferir o quadro; liberar até 2 histórias por frente; resolver pedidos `toca-outra-frente` e `contrato` |
+| Ao longo do dia | Revisar PRs à medida que chegam |
+| Ordem de merge | 1º PRs `compartilhado` → 2º PRs de contrato → 3º PRs com `migration`, um por vez → 4º os demais |
+| Semanal | Homologar em hml o que entrou; rodar `cronograma.py` e atualizar as datas do projeto |
+
+### 12.10 Conflitos e contingência
+
+- **Conflito de git:** quem resolve é a frente do PR que chegou depois, sobre a `main` atualizada. Nunca se resolve conflito em arquivo da outra frente sem a label `toca-outra-frente`.
+- **Divergência de decisão** (regra de negócio, contrato, modelagem): registrar em issue com label `decisao`. O PO decide. Decisão estrutural vira ADR em `docs/adr/`.
+- **Uma conta parada** (limite de uso, indisponibilidade): o PO pode trocar o campo *Frente* de histórias "A fazer". A outra conta assume com a label `toca-outra-frente` em cada PR, e a propriedade do código não muda.
+- **Atraso na trilha 2027:** vale o plano B do backlog (seção 3.1). A aprovação de 30/11 é feita sobre a planilha-modelo, que é importada depois.
+
+### 12.11 Checklist de implantação do processo
+
+1. Push da branch de especificação para a `main` (liberação do PO).
+2. Proteção da `main` (12.8) e labels `compartilhado`, `toca-outra-frente`, `migration`, `contrato` e `decisao`.
+3. US-001 a US-004 pela frente A, incluindo `.github/frentes.yml`, `.claude/settings.json` com os *hooks* e o `CLAUDE.md` com o resumo desta seção.
+4. Criação da worktree e login da conta 2 (frente B).
+5. Primeiro PR de contrato de cada frente antes das histórias que dependem dele.
+
+---
+
+## 13. Próximos passos
 
 1. PO revisa este documento. Ajustes são feitos aqui mesmo, em nova versão.
 2. Plano de implementação da **F0 + F1** (`docs/superpowers/plans/`).
 3. Em paralelo, a pauta de refinamento com os SMEs usa a seção 9 e os itens [PROVISÓRIA] da seção 8 como agenda, com prioridade para GAP-APR-001, GAP-CAD-001, GAP-PGD-006/009 e GAP-INF-001.
 4. Cada fase seguinte (F2…F7) começa por uma spec curta da fase, baseada nos EPs e nas decisões aqui registradas.
+5. Implantar o processo de duas frentes (checklist de 12.11) antes da primeira história da frente B.

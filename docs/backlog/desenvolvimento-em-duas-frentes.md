@@ -1,62 +1,61 @@
-# SGO 2.0 — Desenvolvimento em duas frentes (duas contas do Claude Code)
+# SGO 2.0 — Guia operacional das duas frentes
 
-| Campo | Valor |
-| --- | --- |
-| Versão | 1.0 — 24/10/2026 |
-| Objetivo | Dobrar a vazão de desenvolvimento para a trilha do orçamento 2027 (meta 30/11/2026) sem conflito entre as frentes |
-| Cronograma | GitHub Project "SGO 2.0 – Roadmap", campo **Frente** (A/B), gerado por `docs/backlog/fonte/cronograma.py` |
+> As **regras** estão na spec, §12 (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`). Este guia traz só os comandos do dia a dia. Em caso de divergência, vale a spec.
 
-## 1. Por que duas frentes ajudam
-
-O caminho crítico da trilha 2027 é curto (96 h). O que segura o prazo é a vazão total (376 h, ou 452 h com contingência). Uma segunda conta dobra o limite de uso do Claude Code e permite dois trabalhos simultâneos. O gargalo passa a ser a revisão do PO.
-
-## 2. Divisão de responsabilidades
-
-| Frente | Conta | Foco | Histórias fixadas |
-| --- | --- | --- | --- |
-| **A — Núcleo e domínio** | conta atual | kernel (dinheiro, auditoria, totalizador), autenticação, motor de custo de pessoal, orçamento da Adm. Central | US-001, 004, 005, 006, 009, 051, 058, 059, 061, 121 |
-| **B — Infra, componentes e cargas** | segunda conta | VPS/CI/backup, componentes de tela, importações (plano de contas, CC, cargos, benefícios), planilha-modelo, testes de segurança | US-013, 014, 015, 016, 017, 116, 119, 120 |
-
-As demais histórias vão para a primeira frente livre, respeitando as dependências. O campo **Frente** do projeto mostra quem pega cada uma, e pode ser trocado à mão.
-
-**Primeira semana:** a frente B não depende do código para começar. Ela abre com a **planilha-modelo (US-120)**, que é urgente porque os gestores precisam dela já, com o endurecimento da VPS (US-016) e os ambientes do Easypanel (US-014). Enquanto isso, a frente A monta o repositório (US-001). Com o US-001 na `main`, as duas frentes seguem com o código.
-
-## 3. Como montar o ambiente da segunda conta
-
-Opção recomendada, na mesma VPS, com diretório e configuração separados:
+## 1. Montar o ambiente da frente B (uma vez)
 
 ```bash
-# uma vez
-git -C /root/sistemas/sgo worktree add /root/sistemas/sgo-b main
-# cada sessão da frente B
-cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude   # na primeira vez: /login com a segunda conta
+# worktree da frente B a partir da main atualizada
+git -C /root/sistemas/sgo fetch origin
+git -C /root/sistemas/sgo worktree add /root/sistemas/sgo-b origin/main
+git -C /root/sistemas/sgo config extensions.worktreeConfig true
+
+# primeira sessão da conta 2: fazer /login com a segunda conta
+cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude
 ```
 
-- `CLAUDE_CONFIG_DIR` separa login, histórico e memória das duas contas.
-- Cada worktree sobe o próprio Docker Compose com `COMPOSE_PROJECT_NAME` e portas próprias (A: banco 55432 e app 3100; B: banco 56432 e app 3200; a 3000 já é do Easypanel), para que os bancos de dev não se misturem.
-- Alternativa: a frente B roda no seu computador, com um clone do repositório. O efeito é o mesmo.
-- Cada conta é sua e de uso pessoal. Não compartilhe credenciais nem tokens entre elas.
+Atalho opcional no `~/.bashrc`:
 
-## 4. Regras para as frentes não colidirem
+```bash
+alias sgo-a='cd /root/sistemas/sgo && claude'
+alias sgo-b='cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude'
+```
 
-1. **Uma história = uma branch = um PR.** Branch `us-0NN-slug`, criada a partir da `main` atualizada. O PR fecha a issue (`Closes #n`).
-2. **Status "Em andamento" é a trava.** Antes de começar, a frente move a issue no quadro. A outra frente não pega issue em andamento.
-3. **Só começa história com as dependências já na `main`.**
-4. **Schema do Prisma em arquivos por módulo** (`prisma/schema/<modulo>.prisma`), para que as frentes editem arquivos diferentes.
-5. **Migrations:** uma por PR, gerada só depois de rebase na `main`. Se a outra frente fez merge de uma migration antes, a sua é apagada e gerada de novo; nunca se edita migration já aplicada.
-6. **Arquivos compartilhados** (`CLAUDE.md`, `shared/kernel`, `package.json`, componentes base) só mudam em PR próprio e pequeno, com merge rápido.
-7. **CI obrigatório verde e revisão do PO** antes do merge. A proteção da `main` exige PR.
-8. **Banco de produção:** só a frente B mexe na infraestrutura de prod, sempre seguindo a regra do `CLAUDE.md` (dizer se o comando escreve, apaga ou reseta, conferir `DATABASE_URL`/`SHADOW_DATABASE_URL`, nunca apontar shadow para prod).
+Cada worktree tem o próprio `.env.local` (fora do git) com as portas da §12.4:
 
-## 5. Rotina do PO
+| Variável | Frente A | Frente B |
+| --- | --- | --- |
+| `COMPOSE_PROJECT_NAME` | `sgo-a` | `sgo-b` |
+| `DB_PORT` | 55432 | 56432 |
+| `APP_PORT` | 3100 | 3200 |
+| `MAILPIT_PORT` | 8125 | 8225 |
 
-| Momento | O que fazer |
-| --- | --- |
-| Início do dia | Conferir o quadro e liberar 1 ou 2 histórias por frente |
-| Durante o dia | Revisar PRs à medida que chegam (CI já validou lint, testes e marca neutra) |
-| Fim do dia | Merge dos PRs aprovados, nesta ordem: arquivos compartilhados → migrations → resto |
-| Semanal | Homologação em hml do que entrou e ajuste das datas (rodar `cronograma.py` de novo) |
+## 2. Início de cada sessão (as duas frentes)
 
-## 6. Pré-requisito
+Mensagem inicial sugerida para o Claude Code:
 
-As frentes trabalham via GitHub, então o desenvolvimento só começa depois do push da branch de especificação para a `main` e da proteção da `main` (PR obrigatório e CI). O push depende da sua liberação.
+> Você é a **frente X** do SGO 2.0. Siga a spec §12. Pegue no projeto "SGO 2.0 – Roadmap" a próxima issue com Frente = X, Status = "A fazer" e dependências fechadas; mova para "Em andamento", comente na issue e trabalhe na branch `us-NNN-slug`.
+
+Comandos úteis:
+
+```bash
+gh issue list --repo fabianojp06/sgov2 --label frente:A --label trilha-2027 --state open   # fila da frente
+git fetch origin && git rebase origin/main                                                # atualizar a branch
+gh pr create --fill --label frente:A                                                      # abrir PR (corpo com Closes #n)
+```
+
+## 3. Encerramento de cada sessão
+
+Comentar na issue em andamento:
+
+```
+Passagem de sessão (frente X)
+- Feito: …
+- Falta: …
+- Decisões: …
+- Branch/PR: …
+```
+
+## 4. Divisão atual
+
+Pelo épico (spec §12.2; `docs/backlog/fonte/dados.py`, `FRENTE_POR_EPICO`). Na trilha 2027: frente A com 23 histórias (196 h) e frente B com 17 histórias (180 h). Pelo `cronograma.py`, a trilha termina por volta de 09/12/2026 a 40 h/semana por frente e de 24/11/2026 a 60 h/semana por frente.

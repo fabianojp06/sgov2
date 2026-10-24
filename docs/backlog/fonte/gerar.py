@@ -99,7 +99,7 @@ w("3. **Plano B:** se o sistema não estiver em produção a tempo, a aprovaçã
 w("")
 w(f"Recorte da trilha: {len(mvp_ids)} histórias, {mvp_h} h ({mvp_hc} h com contingência), marcadas com o label `trilha-2027`. As telas de lançamento de posições e pacotes (US-056/057), o isolamento por TP (US-007), as alçadas configuráveis (US-042), a sessão única, os perfis configuráveis e a IA ficam para depois de 30/11.")
 w("")
-w("**Duas frentes em paralelo** (duas contas do Claude Code): o caminho crítico da trilha tem só 96 h, então o prazo depende da vazão. Pelo cronograma (`fonte/cronograma.py`), com 40 h/semana por frente a trilha termina por volta de **11/12/2026**; com 60 h/semana por frente, por volta de **26/11/2026**. Por isso o plano B da planilha é obrigatório.")
+w("**Duas frentes em paralelo** (duas contas do Claude Code): cada história vai para a frente dona do código (spec §12). O caminho crítico da trilha tem só 96 h, então o prazo depende da vazão. Pelo cronograma (`fonte/cronograma.py`), com 40 h/semana por frente a trilha termina por volta de **09/12/2026**; com 60 h/semana por frente, por volta de **24/11/2026**. Por isso o plano B da planilha é obrigatório.")
 w("")
 w("## 4. Estratégia de execução e economia de tokens")
 w("")
