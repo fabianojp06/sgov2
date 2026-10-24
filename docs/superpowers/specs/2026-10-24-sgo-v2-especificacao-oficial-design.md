@@ -32,6 +32,8 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | Refazer o SGO do zero no `sgov2`, usando o `sistemaSgo` só como referência | Nenhum código do `sistemaSgo` é migrado; padrões e lições podem ser reaproveitados |
 | A pasta `especificacao` tem o documento de elicitação mais atual, com todas as regras e requisitos | O ZIP é a fonte primária. Onde ele não tem um módulo (Orçamentário, Relatórios), vale o Catálogo Consolidado de 08/10/2026 |
 | Revisar toda a especificação e seguir com as recomendações sem esperar aprovação intermediária | Conflitos foram decididos aqui. As decisões de negócio ficam marcadas [PROVISÓRIA] com o SME responsável |
+| Plano de contas, centros de custo e parte dos dados de RH virão por integração com o Senior; **neste sistema, as fontes são os arquivos .xlsx** de plano de contas e de centros de custo, ambos com 5 níveis | A carga por arquivo é a fonte oficial até a integração existir (D7); a integração entra depois, atrás da mesma porta, sem mudar o modelo |
+| Viagens segue a especificação; os perfis seguem a recomendação desta revisão | RN_VIA_03 sem alteração (C19); matriz 11.3 + Gestor de Diretoria aprovada pelo PO (C30) |
 | A base é a pasta `especificacao`; o `sistemaSgo` é só referência; anotações pessoais não entram | Nenhum arquivo fora de `especificacao/` é fonte de regra de negócio. As notas pessoais versionadas no `sgov2` foram ignoradas |
 | O sistema vai rodar na VPS Hostinger do PO | Hospedagem definida (seção 4.3); sai da lista de gaps a decisão “onde roda” |
 
@@ -232,14 +234,14 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 - Colunas da planilha → modelo: `Nível` → `nivel`; `Classificação` → `classificacao` (única por org); `Conta Superior` → `conta_pai_id`; `Descrição` → `descricao`; `Tipo` S/A → `tipo`; `Conta Reduzida` → `codigo_reduzido`. O código reduzido é **obrigatório e único nas analíticas** e é a chave de casamento com o Senior nas Integrações 1 e 2.
 - **Regras de integridade** (validadas na carga e no banco): nível ∈ 1..5; nº de segmentos da classificação = nível; o pai tem nível − 1; analítica ⇔ nível 5; sintética tem pelo menos um filho; analítica não tem filhos.
 - Onde os documentos dizem "Nível 7 / Nó Folha / N7", leia-se **conta analítica de nível 5**. O código identifica a analítica pelo `tipo`, e o limite de 5 níveis fica num parâmetro validado, não espalhado pelo código.
-- A planilha é a **carga inicial** do plano de contas em todos os ambientes (seed de dev/hml e primeira carga de prod), pelo mesmo *Bulk Loader* de D7.
+- A planilha é a **fonte do plano de contas** neste sistema em todos os ambientes (seed de dev/hml e carga de prod), pelo *Bulk Loader* de D7. A origem definitiva é o Senior (Integração 1), que entra depois atrás da mesma porta.
 - Somente contas **analíticas ativas** recebem valor (orçado, realizado, FKs de Cargos/Viagens/Bens/Rateios).
 - **Agrupadores de Contas** são entidades exclusivas do SGO (N:N com analíticas), usadas apenas em relatórios (RN_PLA_007–011). Não são contas sintéticas.
 - A entidade legada **SubConta não existe** no SGO 2.0.
 
 ### 6.1a Centros de Custo
 
-- Estrutura em **até 5 níveis**, definida pela planilha `especificacao/Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx`. A minuta usa hoje os níveis 1 a 4. O nível 5 fica disponível para desdobramentos futuros, sem mudança de código.
+- Estrutura em **5 níveis** (decisão do PO), definida pela planilha `especificacao/Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx`. A minuta preenche hoje os níveis 1 a 4; o nível 5 é válido e aceito na carga. A origem definitiva é o **Senior**, por integração futura; até lá, a planilha é a fonte (D7).
 - **Conteúdo da minuta** (validado): 35 centros de custo, sendo 8 sintéticos (agrupadores) e 27 analíticos. Não há pai ausente nem reduzido duplicado. Toda sintética tem filho, e nenhuma analítica tem filho.
 
 | Nível | Exemplo | Observação |
@@ -348,7 +350,7 @@ O protótipo é a referência de **estrutura de navegação e padrão visual** d
 - Administração › Parâmetros: **Alçadas de Aprovação** (UC02.28). O item "Notificações e Aprovações" (UC02.20) fica só com as notificações, e quem aprova passa para as alçadas (C5).
 - Cadastros › Viagens: o **painel analítico** do Viagens V3.
 
-**Correções em relação ao protótipo** (ver C26–C30): níveis do plano de contas, plano de contas sem CRUD, fórmula de viagens, mensagens de login e conjunto de perfis.
+**Correções em relação ao protótipo** (ver C26–C30): níveis do plano de contas, plano de contas sem CRUD, fórmula de viagens (igual à RN_VIA_03), mensagens de login e conjunto de perfis.
 
 ## 7. Decisões de arquitetura (ADRs resumidos)
 
@@ -360,7 +362,7 @@ O protótipo é a referência de **estrutura de navegação e padrão visual** d
 | D4 | Hierarquia de contas em **5 níveis**, conforme a planilha oficial (6.1); a analítica é identificada pelo `tipo` | Fixar 7 níveis como nos EPs | A planilha `Plano_de_Contas_5_Niveis_CTCEA.xlsx` define a estrutura; os "7 níveis" dos EPs ficaram desatualizados |
 | D5 | `NUMERIC(15,2)` para dinheiro; `NUMERIC(9,4)` para taxas | `numeric(18,2)` (glossário de Cadastros) | Diretriz canônica, confirmada no OxR V2. 15,2 comporta até R$ 9,9 trilhões |
 | D6 | Filas e jobs no PostgreSQL (`pg-boss`) + padrão *outbox* para e-mail e notificação | Redis/BullMQ; serviço externo | Sem infraestrutura nova. O *outbox* garante que a notificação só sai se a transação comitou (RNF0012, RNF_EML_001) |
-| D7 | Carga do Plano Financeiro por **arquivo (CSV/XLSX)** atrás da mesma porta da Integração 1 | Esperar o contrato do Senior | O GAP-INT-001 não tem prazo. O *Bulk Loader* já é requisito (RNF_DES_003: 10.000 linhas em menos de 30 s). Quando a API sair, troca-se só o adaptador |
+| D7 | **Arquivos .xlsx são a fonte** do plano de contas e dos centros de custo (ambos com 5 níveis) neste sistema, atrás da porta `FonteEstruturaFinanceira`. O adaptador Senior (Integração 1, e os dados de RH do Rubi/Senior) entra depois, sem mudar o modelo | Esperar o contrato do Senior | Decisão do PO. O GAP-INT-001 não tem prazo. O *Bulk Loader* já é requisito (RNF_DES_003: 10.000 linhas em menos de 30 s). Recarga do mesmo arquivo é idempotente: casa por `codigo_reduzido`, atualiza descrição/status e nunca apaga conta ou CC com valor (inativa, soft delete) |
 | D8 | Imagem Docker na VPS Hostinger via Easypanel; PostgreSQL 16 próprio com PITR para storage externo | Vercel/serverless; Supabase/Neon gerenciado | Definido pelo PO: o sistema roda na VPS. O worker é de longa duração. Banco na mesma VPS elimina latência e custo, e a proteção vem do PITR externo (4.3) |
 | D9 | Somente leitura de dados do ERP **imposta no banco** (privilégios por papel), não só na UI | Só validação de aplicação | Diretrizes ORIGEM BLINDADA e TRAVA O ERRO pedem bloqueio "a nível de banco e de endpoint" (Integração V4 §3.8) |
 | D10 | Salários: criptografia em repouso pelo armazenamento + mascaramento por perfil. **[PROVISÓRIA]** criptografia AES-256 por coluna só se a auditoria exigir | Criptografia por coluna desde o início | Por coluna impede agregação e ordenação no banco (o TotalizerService soma salários). Validar com a Auditoria/DAF se o requisito é por coluna |
@@ -391,7 +393,7 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C16 | UC03.09 "Criar Nova Versão" descreve a validação RH/GAD (Cat. #27) | O versionamento passa a ser UC03.09 (nova revisão da mesma Proposta). A validação RH vira WA05 e a de viagens vira WA02 (Aprovações V2) | Fechado. Redação do UC03.09 a corrigir |
 | C17 | Códigos repetidos com textos diferentes (Cat. #22–#24) | Convenção nova `<MOD>-<TIPO>-<NNN>` (ex.: `AUT-RN-015`), atribuída quando o módulo entra em fase. A tabela de correspondência com o código antigo fica em `docs/rastreabilidade/`. Os testes citam os dois códigos | Fechado |
 | C18 | Glossário do EP085 define o RUBI como sistema de viagens | Errado: Rubi = RH/Folha (Integração V4) | Corrigir o EP085 |
-| C19 | Viagens V3: campo "Custo Unitário de Transporte" existe, mas a fórmula RN_VIA_03 não o inclui | Custo estimado = passagem + diárias + **(Qtd pessoas × transporte)** **[PROVISÓRIA]**; o painel já mostra o Transporte como componente (REQ_VIA_005) | André |
+| C19 | Viagens V3: campo "Custo Unitário de Transporte" existe, mas a fórmula RN_VIA_03 não o inclui | **Segue a especificação** (decisão do PO): custo estimado = (pessoas × passagem) + (pessoas × média de dias × diária), exatamente a RN_VIA_03. O transporte é registrado e exibido como categoria própria no painel (REQ_VIA_005), sem entrar no custo estimado da linha | Fechado |
 | C20 | C&S V4: campo "Salário Definido" não aparece entre as opções de Fonte Ativa (Mín/Máx/Total/Real) | Incluir "Salário Definido" como 5ª opção de Fonte Ativa **[PROVISÓRIA]** | GRH |
 | C22 | O protótipo do UC04.17 usa o "Plano Financeiro grupo 1.9" (ex.: 1.9.11.001 Salários, reduzida 1.712) × plano oficial de 5 níveis (4.1.1.1.001 Salários, reduzida 900) | **Plano oficial de 5 níveis.** Comparação: 142 de 161 contas do protótipo batem por grupo e sequência (1.9.11→4.1.1.1 … 1.9.16→4.1.1.6); 4 têm descrição diferente; 15 não existem no plano oficial (GAP-CAD-004) | Fechado |
 | C23 | Encargos do protótipo (36,8% + incidência sobre férias/13º) × C&S V4 (51%, RN_CAR_17) | **C&S V4**, como parâmetro único usado tanto na proposta quanto no orçamento da Adm. Central | Fechado (protótipo tem valores fictícios) |
@@ -399,9 +401,9 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C25 | Protótipo: o perfil "Gestor de diretoria" lança só na sua diretoria, mas os EPs de Administração não têm vínculo de usuário com CC | Novo campo "CC de escopo" no cadastro de usuário (UC02) e novo perfil padrão "Gestor de Diretoria" na matriz 11.3 **[PROVISÓRIA]** | PO |
 | C26 | Protótipo de telas: plano de contas "até 7 níveis / analítica nível 7", campos "Subconta (N7)" em Viagens e Bens; exemplos da planilha ACAP DECEA II | **5 níveis**, analítica no nível 5 (D4); o termo "Subconta" sai das telas (6.1: SubConta não existe); exemplos vêm do plano oficial | Fechado |
 | C27 | Protótipo: Plano de Contas com Novo/Alterar/Excluir × ORIGEM BLINDADA (RN_PLA_001: estrutura só muda no Senior) | Tela de plano de contas **sem** inclusão, edição de estrutura ou exclusão: só consulta em árvore, **Sincronizar** (Integração 1), **Importar arquivo** (D7) e parametrização local (natureza OPEX/CAPEX, faixas do semáforo, RF_PLA_REQ_003). Vale o mesmo para Centros de Custo | Fechado |
-| C28 | Protótipo: custo da viagem = (pessoas × passagem) + (pessoas × dias × diária), sem transporte | Vale C19: soma também (pessoas × transporte). O teto vem do Total da Conta e a rejeição acima do teto é mantida | André |
+| C28 | Protótipo: custo da viagem = (pessoas × passagem) + (pessoas × dias × diária) | Igual à RN_VIA_03; mantido (C19). O teto vem do Total da Conta e a rejeição acima do teto é mantida | Fechado |
 | C29 | Protótipo de login: "Usuário ou senha inválidos. Tentativa 1 de 3"; mensagem própria de bloqueio após 3 erros; senha nova com ≥ 6 caracteres | EP084 prevalece: mensagem **genérica** "Login ou senha inválidos", sem contagem (RN0015), com aviso **só na última tentativa** (UC01.02 A5); limite de tentativas e regras de senha são **parâmetros** (RN0024, GAP-AUT-002), sem valor fixo na tela; o rótulo do campo é "Login" | Fechado |
-| C30 | Protótipo: 5 perfis (Administrador, Gestor, Analista orçamentário, Aprovador GFIN, Consulta), e "Gestor" com acesso a quase tudo × matriz provisória de 6 perfis (11.3) | Vale a 11.3 mais o perfil **Gestor de Diretoria** (C25). "Consulta" corresponde a Auditor. O seletor de perfil do protótipo é ferramenta de demonstração e **não existe** no sistema: o perfil vem do usuário logado | PO |
+| C30 | Protótipo: 5 perfis (Administrador, Gestor, Analista orçamentário, Aprovador GFIN, Consulta), e "Gestor" com acesso a quase tudo × matriz provisória de 6 perfis (11.3) | Vale a 11.3 mais o perfil **Gestor de Diretoria** (C25). "Consulta" corresponde a Auditor. O seletor de perfil do protótipo é ferramenta de demonstração e **não existe** no sistema: o perfil vem do usuário logado | Fechado (aprovado pelo PO) |
 | C21 | Esqueci minha senha / Gerar senha enviam a senha em texto no e-mail (REQ0077, RN0517) | Mantido (é requisito), com mitigação: senha **temporária de uso único**, troca obrigatória no 1º acesso (REQ0039) e **expiração em 24 h** (parametrizável) **[PROVISÓRIA]** | TI/Segurança |
 
 ---
@@ -415,11 +417,12 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-INF-001 | Infra | Hospedagem definida (VPS Hostinger). Falta: domínio/subdomínios, provedor do storage externo de backup e provedor SMTP | Go-live de F1 (não o desenvolvimento) | PO |
 | GAP-AUT-001 | AUT | "Login unificado com a intranet NodeJS" (EP084 V5, objetivo): protocolo (OIDC/SAML/cookie compartilhado), quem é dono da senha, como ficam bloqueio e manutenção | Só o adaptador de SSO; F1 entrega login próprio | TI CTCEA |
 | GAP-AUT-002 | AUT | Seções 3.6 (Pendências P01–P14) e 3.7 (correspondência de IDs) estão no sumário do EP084 V5, mas não no conteúdo. P02, P05, P07, P09, P10, P11 e P14 são citadas nos fluxos | Não bloqueia; valores ficam parametrizáveis | PO |
-| GAP-ADM-001 | ADM | Matriz de permissões dos 6 perfis padrão (C12) | Não bloqueia; vale a matriz provisória §11.3 | Adriana (DAF) |
+| GAP-ADM-001 | ADM | Conjunto de perfis aprovado pelo PO (§11.3: 6 perfis + Gestor de Diretoria). Falta só o ajuste fino das permissões por funcionalidade, que será validado em hml | Não bloqueia | Adriana (DAF) |
 | GAP-ADM-002 | ADM | UC02.28 Gestão de Alçadas a redigir no EP085 (C5) | Não bloqueia F1; conteúdo mínimo em §11.4 | PO |
 | GAP-APR-001 | APR | Alçadas de Aditivo, Termo de Ajuste e Remanejamento (C3) | **F4** | Adriana (DAF) |
 | GAP-INT-001 | INT | Contrato da API Senior (Plano Financeiro) | Não bloqueia F2 (D7) | TI Senior |
-| GAP-INT-005 | INT | Contrato da API Rubi (cargos/salários) | F7; até lá, carga por arquivo, como em D7 | TI Senior/Rubi |
+| GAP-INT-005 | INT | Contrato da API Rubi/Senior para os dados de RH (cargos, salários, estrutura funcional) | F7; até lá, carga por arquivo, como em D7 | TI Senior/Rubi |
+| GAP-INT-014 | INT | Integração dos **Centros de Custo** com o Senior não aparece na Integração V4 (só plano de contas, Rubi e RVS) | Não bloqueia (planilha é a fonte, D7) | TI Senior |
 | GAP-INT-013 | INT | RVS no MVP ou na v1.1 | F7; fallback = preenchimento manual | Giovanne |
 | GAP-PGD-006/009 | ORC | Payload e granularidade do realizado por conta/período | **F5 (Integração 2)** | André / Wellington / TI Senior |
 | GAP-PGD-013 | ORC | Orçado zero com realizado (OxR RN_OXR_012) | Não bloqueia; exibe "Sem orçamento" | Wellington |
@@ -522,7 +525,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 - UC02.27 Seed idempotente.
 - **UC02.28 Alçadas** (§11.4).
 
-### 11.3 Matriz provisória dos perfis padrão (seed — C12)
+### 11.3 Matriz dos perfis padrão (seed — C12, C30; aprovada pelo PO em 24/10/2026)
 
 | Perfil | Acesso mínimo |
 | --- | --- |
