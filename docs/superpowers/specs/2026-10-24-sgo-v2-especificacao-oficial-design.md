@@ -60,6 +60,7 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | 8 | Orçado × Realizado | V2 (out/2026) | Lido. Integrações 1 e 2 do Plano Financeiro |
 | 9 | Integração SGO × Senior/Rubi/RVS | V4 (out/2026) | Lido. Contratos de API apenas propostos |
 | 10 | Catálogo Consolidado de RF/RNF/RN | 08/10/2026 | Lido integralmente (1.103 itens, 31 inconsistências) |
+| 11 | `Plano_de_Contas_5_Niveis_CTCEA.xlsx` | out/2026 | Lido e validado (6.1). **Define o plano de contas: 5 níveis.** Prevalece sobre os "7 níveis" citados nos outros documentos |
 | — | Módulo Orçamentário (EP48/26) e Relatórios | Fora do ZIP | Valem as seções 6 e 7 do Catálogo (fonte: Minuta Orçamentário V2) |
 
 ### 2.2 Regra de precedência
@@ -213,8 +214,21 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 
 ### 6.1 Hierarquia de contas (Plano Financeiro)
 
-- O SGO orça sobre o **Plano Financeiro** recebido do Senior (Integração 1 do OxR V2), em 7 níveis conforme a Integração V4.
-- **Profundidade genérica**: a árvore é uma lista de adjacência (`conta_pai_id`) com `nivel` e `tipo ∈ {SINTETICA, ANALITICA}` vindos do ERP. Os documentos fixam 7 níveis, e o 7º é a conta analítica ("Nível 7 / Nó Folha"). O código trata "Nível 7" como **conta analítica**, sem fixar o número 7: o Senior é a fonte da estrutura, e uma mudança na estrutura do ERP não exige mudar código.
+- O SGO orça sobre o **Plano Financeiro** recebido do Senior (Integração 1 do OxR V2). A estrutura está **definida em 5 níveis** pela planilha `especificacao/Plano_de_Contas_5_Niveis_CTCEA.xlsx`.
+- **Conteúdo da planilha** (validado): 174 contas, todas no grupo 4 – Despesas; 12 sintéticas (S) nos níveis 1–4 e 162 analíticas (A), todas no nível 5. Sem pai ausente, sem código duplicado, sem divergência entre tipo e nível.
+
+| Nível | Máscara | Exemplo | Tipo |
+| --- | --- | --- | --- |
+| 1 | `9` | 4 DESPESAS | Sintética |
+| 2 | `9.9` | 4.1 DESPESAS OPERACIONAIS | Sintética |
+| 3 | `9.9.9` | 4.1.1 DESPESAS DE SERVIÇOS | Sintética |
+| 4 | `9.9.9.9` | 4.1.1.1 DESPESAS DE PESSOAL … 4.1.1.9 PROJETOS (9 grupos) | Sintética |
+| 5 | `9.9.9.9.999` | 4.1.1.1.001 Salários (reduzida 900) | **Analítica** |
+
+- Colunas da planilha → modelo: `Nível` → `nivel`; `Classificação` → `classificacao` (única por org); `Conta Superior` → `conta_pai_id`; `Descrição` → `descricao`; `Tipo` S/A → `tipo`; `Conta Reduzida` → `codigo_reduzido`. O código reduzido é **obrigatório e único nas analíticas** e é a chave de casamento com o Senior nas Integrações 1 e 2.
+- **Regras de integridade** (validadas na carga e no banco): nível ∈ 1..5; nº de segmentos da classificação = nível; o pai tem nível − 1; analítica ⇔ nível 5; sintética tem pelo menos um filho; analítica não tem filhos.
+- Onde os documentos dizem "Nível 7 / Nó Folha / N7", leia-se **conta analítica de nível 5**. O código identifica a analítica pelo `tipo`, e o limite de 5 níveis fica num parâmetro validado, não espalhado pelo código.
+- A planilha é a **carga inicial** do plano de contas em todos os ambientes (seed de dev/hml e primeira carga de prod), pelo mesmo *Bulk Loader* de D7.
 - Somente contas **analíticas ativas** recebem valor (orçado, realizado, FKs de Cargos/Viagens/Bens/Rateios).
 - **Agrupadores de Contas** são entidades exclusivas do SGO (N:N com analíticas), usadas apenas em relatórios (RN_PLA_007–011). Não são contas sintéticas.
 - A entidade legada **SubConta não existe** no SGO 2.0.
@@ -267,7 +281,7 @@ Conforme o OxR V2: `OrcadoContaMes` (digitado no SGO, por versão), `RealizadoCo
 | D1 | Monólito modular Next.js com módulos isolados por fronteira lint | Backend separado (NestJS) | Um time pequeno ganha velocidade; um único deploy na VPS; a extração fica possível pelos `index.ts` |
 | D2 | **Autenticação própria** (Argon2id + sessão em banco), atrás de uma porta `ProvedorIdentidade` | Clerk (usado no `sistemaSgo`); NextAuth | O EP084 V5 exige comportamento que conflita com um IdP terceiro: contador e bloqueio próprios antes de verificar a senha (RN0018), modo manutenção (RN0023), senha gerada pelo sistema e enviada por e-mail (UC02.18), troca obrigatória (REQ0039), sessão única com aviso à estação anterior (RN0519), desconexão forçada com contagem (REQ0087) e hash fictício contra *timing* (RNF0005). O híbrido Clerk + banco próprio dividia a fonte da verdade. A porta permite plugar o login da intranet (GAP-AUT-001) sem reescrever |
 | D3 | Sessão por **token opaco** (cookie `httpOnly`, `Secure`, `SameSite=Lax`) com registro em `SessaoUsuario` | JWT sem estado (citado no glossário do EP085) | Invalidação imediata é requisito (logoff ≤400 ms, sessão única, desconexão forçada, desativação de módulo desconecta usuários); JWT sem estado não revoga. O UID da sessão segue a RN0062 para auditoria |
-| D4 | Hierarquia de contas com profundidade genérica (6.1) | Fixar 7 níveis | Docs dizem 7; o ERP é a fonte da estrutura e do tipo da conta |
+| D4 | Hierarquia de contas em **5 níveis**, conforme a planilha oficial (6.1); a analítica é identificada pelo `tipo` | Fixar 7 níveis como nos EPs | A planilha `Plano_de_Contas_5_Niveis_CTCEA.xlsx` define a estrutura; os "7 níveis" dos EPs ficaram desatualizados |
 | D5 | `NUMERIC(15,2)` para dinheiro; `NUMERIC(9,4)` para taxas | `numeric(18,2)` (glossário de Cadastros) | Diretriz canônica, confirmada no OxR V2. 15,2 comporta até R$ 9,9 trilhões |
 | D6 | Filas e jobs no PostgreSQL (`pg-boss`) + padrão *outbox* para e-mail e notificação | Redis/BullMQ; serviço externo | Sem infraestrutura nova. O *outbox* garante que a notificação só sai se a transação comitou (RNF0012, RNF_EML_001) |
 | D7 | Carga do Plano Financeiro por **arquivo (CSV/XLSX)** atrás da mesma porta da Integração 1 | Esperar o contrato do Senior | O GAP-INT-001 não tem prazo. O *Bulk Loader* já é requisito (RNF_DES_003: 10.000 linhas em menos de 30 s). Quando a API sair, troca-se só o adaptador |
@@ -293,7 +307,7 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C8 | Benefícios: V5 só alerta × C&S V4 sobrescreve (Cat. #8) | **C&S V4**: a Tabela Mestre sobrescreve com auditoria e origem registrada (RN_CAR_06/07); nunca altera snapshots oficializados | Fechado |
 | C9 | Precisão 18,2 × 15,2 (Cat. #10) | `NUMERIC(15,2)` (D5) | Fechado |
 | C10 | Encargo Social sem fórmula (Cat. #13, GAP-CAR-004) | **Resolvido pelo C&S V4**: 51% (RN_CAR_17), parametrizado e versionado | Fechado. Conferência: confirmar com o Wellington se o "INSS Patronal 38%" já inclui RAT e terceiros |
-| C11 | Docs usam "Nível 7" como sinônimo de conta analítica | 7 níveis, como nos docs; o código identifica a analítica pelo tipo vindo do ERP (D4) | Fechado |
+| C11 | EPs, Integração V4 e Catálogo falam em 7 níveis × planilha oficial com 5 níveis | **5 níveis** (planilha). "N7" nos docs = analítica de nível 5 (D4) | Atualizar os EPs na próxima revisão |
 | C12 | Seis perfis padrão citados sem lista (UC02.27, Cat. #15) | Seed provisório com os seis atores dos documentos: **Administrador, Orçamentista, Gestor Financeiro (GFIN), Analista GRH, Operador de Viagens (SCOR/GAD), Auditor**. Matriz mínima em §11.3 | [PROVISÓRIA] GAP-ADM-001, Adriana |
 | C13 | Critérios de senha não descritos (RN0039, Cat. #16) | Política **parametrizada**, com padrão mínimo de 12 caracteres, maiúscula, minúscula e dígito; bloqueio das últimas 5 senhas; senha diferente do login | [PROVISÓRIA] TI/Segurança CTCEA |
 | C14 | UC02.02/UC02.04 inexistentes; UC02.03 vazio (Cat. #17) | Módulos e funcionalidades só por **seed** (RN_SEED_001). UC02.03 removido. Referências a UC02.04 apontam para UC02.05 | Fechado |
@@ -326,7 +340,8 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-PGD-013 | ORC | Orçado zero com realizado (OxR RN_OXR_012) | Não bloqueia; exibe "Sem orçamento" | Wellington |
 | GAP-CAD-001 | CAD | Fórmula do ISS (RN_RAT_02 termina em "conforme a expressão matemática:") | **Cálculo de ISS em F3** | Wellington |
 | GAP-CAD-002 | CAD | RN0457 truncada ("homologada via."); RN_VIA_05 valida um período que não tem campo | F3 (pontual) | André |
-| GAP-CAR-005 | CAD | Contas do Senior para Obrigações e Riscos Trabalhistas | Não bloqueia | Wellington |
+| GAP-CAR-005 | CAD | Contas para Obrigações e Riscos Trabalhistas do Encargo Social. Candidatas no plano: 4.1.1.8.003 Provisão para Passivo de Obrigações Trabalhistas (2011) e 4.1.1.8.004 Provisão para Passivo de Riscos Trabalhistas (2012) **[PROVISÓRIA]** | Não bloqueia | Wellington |
+| GAP-CAD-003 | CAD | O plano de contas não tem conta de **ISS** nem de impostos sobre a proposta; não se sabe se o imposto da proposta é lançado em conta | F3 (junto com GAP-CAD-001) | Wellington |
 | GAP-ORC-001 | ORC | RN0433 × RN0434 (Transferência para Provisões) e fórmulas de Saldo Final/Parcial do UC04.12 (Cat. #9) | **UC04.12 em F5** | Wellington |
 | GAP-ORC-002 | ORC | 22 regras citadas e não definidas (RN0225, RN0262, RN0291, RN0430…) (Cat. #19) | Os UCs afetados em F5 | PO |
 | GAP-REL-001 | REL | Book (UC05.12) sem requisitos; regra de rateio da Adm. Central (RN0270) é só um lembrete (Cat. #14) | **F6** | PO / Wellington |
