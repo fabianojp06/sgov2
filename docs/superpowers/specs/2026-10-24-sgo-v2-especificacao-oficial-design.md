@@ -141,6 +141,7 @@ src/
     unidade/             # contexto da unidade (TP) do usuário + RLS
     totalizer/           # TotalizerService (motor puro de agregação)
     authz/               # guarda RBAC usada por toda Server Action/Route Handler
+    ia/                  # porta ProvedorIA + adaptador Anthropic, registro de chamadas, limites (4.4)
   app/                   # rotas Next.js (App Router), finas: só chamam casos de uso
 worker/                  # processo separado: filas, jobs agendados, e-mail, exportações grandes
 ```
@@ -164,6 +165,7 @@ Regras de fronteira (checadas por lint, com `eslint-plugin-boundaries` ou equiva
 | Fila e jobs | `pg-boss` (fila sobre o próprio PostgreSQL) | Sem Redis; e-mail, notificações, exportações >5.000 linhas, jobs agendados |
 | Senha | Argon2id (`@node-rs/argon2`) | RNF0004 |
 | Exportação | ExcelJS (XLSX), gerador PDF server-side | PDF conforme ISO 32000-1 (RNF_IMP_001) |
+| IA | `@anthropic-ai/sdk` (TypeScript) atrás da porta `ProvedorIA`; modelo padrão `claude-opus-5-5` | Seção 4.4. Infra pronta na F0; nenhuma funcionalidade usa IA até o caso de uso ser especificado |
 | Testes | Vitest (domínio e integração), Testcontainers/PostgreSQL real, Playwright (E2E) | Seção 10 |
 | Empacotamento | Imagem Docker única (app + worker com entrypoints distintos) | Roda na VPS via Easypanel; portável para outra infra se preciso |
 | Hospedagem | VPS Hostinger (Ubuntu, 2 vCPU, 8 GB RAM, 96 GB disco) com Easypanel + Traefik já instalados | Seção 4.3 |
@@ -197,6 +199,29 @@ Serviços por ambiente no Easypanel: `app` (Next.js, `node server.js`, saída *s
 O worker é um processo de longa duração; por isso o desenho não depende de plataforma *serverless*.
 
 ---
+
+### 4.4 Infraestrutura para API de IA (decisão do PO, 24/10/2026)
+
+O sistema nasce **preparado para consumir API de IA**, mas nenhum caso de uso de IA está especificado ainda (GAP-IA-001). A F0 entrega só a infraestrutura, testada com um provedor falso; cada funcionalidade com IA entra depois com spec própria.
+
+**Componentes (`shared/ia`)**
+- **Porta `ProvedorIA`** (independente de fornecedor): `gerarTexto`, `gerarEstruturado(schemaZod)` (resposta validada contra um schema) e `gerarStream` (para telas de conversa). Os módulos só importam a porta.
+- **Adaptador Anthropic** com o SDK oficial `@anthropic-ai/sdk`. Modelo padrão `claude-opus-5-5`, com *adaptive thinking* e `effort` configurável por caso de uso. Saída estruturada via `output_config.format`/`messages.parse()` com o schema Zod. *Prompt caching* no prefixo estável (instruções do sistema e definições de ferramentas). *Streaming* para respostas longas. Tratamento de `stop_reason` (`refusal`, `max_tokens`) antes de ler o conteúdo, com o *fallback* do lado do servidor habilitado. Erros tipados: 429/5xx/rede com nova tentativa e espera; 400/401 sem nova tentativa.
+- **Adaptador falso** para testes e para dev sem chave: respostas determinísticas, sem rede.
+- **Catálogo de casos de uso de IA** (`ia_caso_uso`): código, modelo, effort, `max_tokens`, instrução do sistema versionada, schema de saída, ativo/inativo. Trocar o modelo de um caso de uso é configuração, não código.
+
+**Execução**
+- Chamadas curtas e interativas: Route Handler com *streaming*, com tempo limite.
+- Chamadas longas ou em lote: **job no worker (pg-boss)**, com o resultado gravado e o usuário notificado. Nada de IA bloqueia uma transação de negócio.
+
+**Governança (valem para todo caso de uso)**
+- **IA sugere, não grava.** Nenhuma resposta de IA altera dado oficial diretamente (ORIGEM BLINDADA). Toda sugestão aceita passa pelo caso de uso normal (validação, RBAC, Log Delta), com a marca `origem = sugestao_ia` no Histórico.
+- **Minimização de dados (LGPD):** cada caso de uso declara os campos que envia. Salários individuais, CPF, e-mails e credenciais **nunca** são enviados por padrão; agregados e códigos de conta, sim. O envio é montado no servidor, nunca a partir do navegador.
+- **Registro de chamadas** (`ia_chamada`, append-only): caso de uso, usuário, unidade, modelo, tokens de entrada/saída/cache, custo estimado, latência, `stop_reason`, sucesso/erro, hash da entrada. O texto completo só é guardado se o caso de uso pedir, com retenção de 90 dias.
+- **Limites:** por usuário (chamadas por minuto) e **teto mensal de custo** por caso de uso e global. Ao atingir o teto, as funcionalidades de IA são desligadas com aviso, e o resto do sistema segue normal.
+- **Liga/desliga:** *feature flag* por caso de uso e uma chave geral (`ia.habilitada`), desligados por padrão. Permissão RBAC própria por caso de uso.
+- **Segredos:** `ANTHROPIC_API_KEY` só nas variáveis do Easypanel (hml e prod com chaves separadas), nunca no repositório nem em `.env` de dev. A VPS só faz chamadas de saída para a API.
+- **Busca semântica futura:** extensão `pgvector` instalada no PostgreSQL 16 desde a F0, sem uso. O provedor de *embeddings* fica atrás de uma porta própria (`ProvedorEmbeddings`) e será escolhido quando houver caso de uso (GAP-IA-002).
 
 ## 5. Diretrizes transversais → mecanismo técnico
 
@@ -398,6 +423,7 @@ O protótipo é a referência de **estrutura de navegação e padrão visual** d
 | D8 | Imagem Docker na VPS Hostinger via Easypanel; PostgreSQL 16 próprio com PITR para storage externo | Vercel/serverless; Supabase/Neon gerenciado | Definido pelo PO: o sistema roda na VPS. O worker é de longa duração. Banco na mesma VPS elimina latência e custo, e a proteção vem do PITR externo (4.3) |
 | D9 | Somente leitura de dados do ERP **imposta no banco** (privilégios por papel), não só na UI | Só validação de aplicação | Diretrizes ORIGEM BLINDADA e TRAVA O ERRO pedem bloqueio "a nível de banco e de endpoint" (Integração V4 §3.8) |
 | D10 | Salários: criptografia em repouso pelo armazenamento + mascaramento por perfil. **[PROVISÓRIA]** criptografia AES-256 por coluna só se a auditoria exigir | Criptografia por coluna desde o início | Por coluna impede agregação e ordenação no banco (o TotalizerService soma salários). Validar com a Auditoria/DAF se o requisito é por coluna |
+| D11 | Infra de IA na F0: porta `ProvedorIA` + adaptador Anthropic (`@anthropic-ai/sdk`, `claude-opus-5-5`), jobs no worker, registro de chamadas, tetos de custo e *feature flags* (4.4) | Integrar IA só quando surgir o primeiro caso de uso; chamar a API direto dos módulos | Pedido do PO. Pôr a porta, os limites e o registro no começo evita que cada funcionalidade invente o seu, e a porta permite trocar de provedor |
 
 ---
 
@@ -474,6 +500,8 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
 | GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
 | GAP-CAD-005 | CAD | Descrição da conta 4.1.1.8.005 contém a sigla CTCEA, vedada nas telas (6.7) | Não bloqueia (carga remove a sigla) | Wellington |
+| GAP-IA-001 | IA | Quais funcionalidades usarão IA (ex.: assistente de justificativa no base zero, resumo de variação orçado × realizado, consulta em linguagem natural aos relatórios) | Não bloqueia (infra pronta na F0) | PO |
+| GAP-IA-002 | IA | Provedor de *embeddings* para busca semântica | Só quando houver caso de uso de busca | PO / TI |
 | GAP-CAD-003 | CAD | O plano de contas não tem conta de **ISS** nem de impostos sobre a proposta; não se sabe se o imposto da proposta é lançado em conta | F3 (junto com GAP-CAD-001) | Wellington |
 | GAP-ORC-001 | ORC | RN0433 × RN0434 (Transferência para Provisões) e fórmulas de Saldo Final/Parcial do UC04.12 (Cat. #9) | **UC04.12 em F5** | Wellington |
 | GAP-ORC-002 | ORC | 22 regras citadas e não definidas (RN0225, RN0262, RN0291, RN0430…) (Cat. #19) | Os UCs afetados em F5 | PO |
@@ -522,6 +550,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 4. `shared/kernel`: `Dinheiro` (Half-Even), `Percentual`, `Competencia` (Mmm/AA, RN0302), `Resultado`, erros de domínio.
 5. `shared/audit`: `HistoricoOperacao` append-only (trigger + privilégios) e `auditar(tx, …)`.
 6. `shared/unidade` e `shared/authz` (guarda obrigatória, com unidade ativa).
+6a. `shared/ia` (4.4): porta `ProvedorIA`, adaptadores Anthropic e falso, tabelas `ia_caso_uso` e `ia_chamada`, limites, *feature flags* desligadas e extensão `pgvector`. Teste de contrato com o adaptador falso; teste de integração real só manual, em hml.
 7. `shared/totalizer`: núcleo puro (árvore + valores analíticos → sintéticos e totais), com testes dos AC do OxR.
 8. Worker com `pg-boss` + *outbox* de e-mail (adaptador SMTP; em dev, Mailpit).
 9. CI (10.4) e **política de banco de produção** (11.5).
