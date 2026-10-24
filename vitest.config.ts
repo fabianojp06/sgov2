@@ -29,7 +29,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'arquitetura',
-          include: ['tests/arquitetura/**/*.test.ts'],
+          include: ['tests/arquitetura/**/*.test.ts', '.claude/hooks/**/*.test.mjs'],
           testTimeout: 60_000,
         },
       },
