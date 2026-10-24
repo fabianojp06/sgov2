@@ -1,0 +1,7 @@
+[Unit]
+Description=SGO — prioridade de memória por contêiner (D12)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sgo-ajustar-oom

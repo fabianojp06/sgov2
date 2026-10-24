@@ -1,0 +1,9 @@
+# SGO 2.0 — US-016. Tolerante enquanto o PO entra por senha; endurecer (maxretry 5, bantime 1h) depois do login por chave.
+[sshd]
+enabled  = true
+backend  = systemd
+maxretry = 8
+findtime = 10m
+bantime  = 30m
+# Ubuntu 24.04: a unit é ssh.service (o padrão do fail2ban procura sshd.service e não acharia nada).
+journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd
