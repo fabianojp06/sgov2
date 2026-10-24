@@ -61,6 +61,7 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | 9 | Integração SGO × Senior/Rubi/RVS | V4 (out/2026) | Lido. Contratos de API apenas propostos |
 | 10 | Catálogo Consolidado de RF/RNF/RN | 08/10/2026 | Lido integralmente (1.103 itens, 31 inconsistências) |
 | 11 | `Plano_de_Contas_5_Niveis_CTCEA.xlsx` | out/2026 | Lido e validado (6.1). **Define o plano de contas: 5 níveis.** Prevalece sobre os "7 níveis" citados nos outros documentos |
+| 12 | `Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx` | 23/10/2026 (minuta) | Lido e validado (6.1a). **Centro de custo com 5 níveis.** Minuta pendente de aprovação da DIREX |
 | — | Módulo Orçamentário (EP48/26) e Relatórios | Fora do ZIP | Valem as seções 6 e 7 do Catálogo (fonte: Minuta Orçamentário V2) |
 
 ### 2.2 Regra de precedência
@@ -99,7 +100,7 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 | --- | --- | --- | --- |
 | **F0** | Fundação técnica: repositório, CI/CD para a VPS, ambientes, banco, backup, auditoria, multi-tenant, dinheiro, TotalizerService (núcleo), filas | — | Destino do backup externo (GAP-INF-001), não bloqueia o desenvolvimento |
 | **F1** | GER + AUT + ADM (inclui Alçadas UC02.28 e perfis padrão) | F0 | GAP-ADM-001 (matriz de perfis), não bloqueia: vale a matriz provisória |
-| **F2** | Cadastros-base: Plano Financeiro (Integração 1 + carga por arquivo), Agrupadores, Estrutura Funcional, Cargos e Salários, Tabela Salarial, Parâmetros (alíquotas, SMN, benefícios-mestre, semáforo) | F1 | GAP-INT-001 (contrato Senior), contornado pela carga por arquivo |
+| **F2** | Cadastros-base: Plano Financeiro (Integração 1 + carga por arquivo), Centros de Custo (carga por arquivo), Agrupadores, Estrutura Funcional, Cargos e Salários, Tabela Salarial, Parâmetros (alíquotas, SMN, benefícios-mestre, semáforo) | F1 | GAP-INT-001 (contrato Senior), contornado pela carga por arquivo |
 | **F3** | Proposta/TP: capa, versões, duplicação, metas, quantitativos, empregados e benefícios, viagens, bens CAPEX, impostos, rateio/ISS, totalizadores | F2 | GAP-CAD-001 (fórmula do ISS) bloqueia só o cálculo do ISS |
 | **F4** | Aprovações WA01/WA05/WA02 + Termo Aditivo + Termo de Ajuste + Remanejamento | F3 | Alçada de Aditivo, Ajuste e Remanejamento (GAP-APR-001) |
 | **F5** | Execução orçamentária: Cronograma de Desembolso, Premissas/Reajustes, Recursos, Contratações Previstas, Orçado×Realizado (Integração 2), Provisões, Aplicações Financeiras | F4 | GAP-PGD-006/009 (payload do realizado), GAP-ORC-001 (RN0433/0434) |
@@ -233,6 +234,27 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 - **Agrupadores de Contas** são entidades exclusivas do SGO (N:N com analíticas), usadas apenas em relatórios (RN_PLA_007–011). Não são contas sintéticas.
 - A entidade legada **SubConta não existe** no SGO 2.0.
 
+### 6.1a Centros de Custo
+
+- Estrutura em **até 5 níveis**, definida pela planilha `especificacao/Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx`. A minuta usa hoje os níveis 1 a 4. O nível 5 fica disponível para desdobramentos futuros, sem mudança de código.
+- **Conteúdo da minuta** (validado): 35 centros de custo, sendo 8 sintéticos (agrupadores) e 27 analíticos. Não há pai ausente nem reduzido duplicado. Toda sintética tem filho, e nenhuma analítica tem filho.
+
+| Nível | Exemplo | Observação |
+| --- | --- | --- |
+| 1 | 4 DIREX (14.180) | Raiz, sintético |
+| 2 | 4.1 Diretoria de Estudos e Projetos – DEP; 4.4 Suporte Administrativo | Diretorias (sintéticas); 4.4 é analítico |
+| 3 | 4.1.0 Gabinete da DEP; 4.1.1 Setor de TI; 4.1.2 Gerência de Implantação… | Gabinetes, setores e gerências |
+| 4 | 4.1.2.10 Gestão da Gerência…; 4.1.2.11 Área de Gerenciamento de Programa e Projetos | Setores das gerências |
+| 5 | — | Reservado |
+
+- **Diferença em relação ao plano de contas:** no CC, a conta **analítica pode estar em qualquer nível** de 2 a 5 (ex.: 4.4 no nível 2, 4.1.1 no nível 3). Somente CC **analítico** (coluna "Aceita lançamento" = S) recebe orçamento ou lançamento.
+- Colunas da planilha → modelo: `Classificação` → `classificacao` (única por org); `Código reduzido` → `codigo_reduzido` (único; chave com o Sapiens/Senior); `Descrição sugerida` → `descricao` (a original fica em `descricao_original` até a decisão de grafia da DIREX/GFIN); `Nível` → `nivel`; `Classificação pai` → `cc_pai_id`; `Tipo` → `tipo`; `Aceita lançamento` → `aceita_lancamento` (precisa ser igual a `tipo = ANALITICO`). A coluna "Observação" não é importada.
+- **Regras de integridade** (validadas na carga e no banco): nível ∈ 1..5; nº de segmentos = nível; pai com nível − 1; sintético tem filho; analítico não tem filho; `aceita_lancamento ⇔ analítico`. A máscara **não** fixa a quantidade de dígitos por segmento, porque a minuta usa 1 dígito no nível 3 e 2 no nível 4 (GAP-CC-002).
+- **Regra R3 da minuta (CC de gestão):** toda diretoria e toda gerência sintética tem **exatamente um** CC analítico de gestão (sufixo `.0` no nível 3 e `.10` no nível 4). Ele recebe o custo do titular, da assessoria direta, das viagens e diárias da chefia e da capacitação da equipe de gestão. Custos compartilhados da sede vão para 4.4 Suporte Administrativo. O SGO marca o CC de gestão com o atributo `de_gestao` e valida a regra na carga, com **aviso** (não bloqueia enquanto a minuta não for aprovada).
+- **Classificação ≠ conta:** a classificação do CC começa em "4", assim como o plano de contas, mas são entidades distintas e sem chave em comum. Nas telas, o CC é sempre mostrado com o reduzido para não confundir.
+- **Uso no orçamento:** a Proposta/TP exige um Centro de Custo (RF_TP_001), único entre os projetos ativos (RN_TP_001). Os filtros e consolidações por CC (RF_EO_003, RF_DA_003, RN_DA_003) usam a árvore, e o CC sintético soma os filhos pelo TotalizerService.
+- **Carga:** em dev e hml, a minuta entra na seed. Em **prod**, a carga só acontece depois da aprovação da DIREX (GAP-CC-001), pelo mesmo *Bulk Loader* de D7.
+
 ### 6.2 Proposta, Termo de Parceria e versões
 
 Vocabulário fixado:
@@ -341,6 +363,11 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CAD-001 | CAD | Fórmula do ISS (RN_RAT_02 termina em "conforme a expressão matemática:") | **Cálculo de ISS em F3** | Wellington |
 | GAP-CAD-002 | CAD | RN0457 truncada ("homologada via."); RN_VIA_05 valida um período que não tem campo | F3 (pontual) | André |
 | GAP-CAR-005 | CAD | Contas para Obrigações e Riscos Trabalhistas do Encargo Social. Candidatas no plano: 4.1.1.8.003 Provisão para Passivo de Obrigações Trabalhistas (2011) e 4.1.1.8.004 Provisão para Passivo de Riscos Trabalhistas (2012) **[PROVISÓRIA]** | Não bloqueia | Wellington |
+| GAP-CC-001 | CAD | Aprovação final do plano de CC pela DIREX | Carga em **prod** (não o desenvolvimento) | DIREX |
+| GAP-CC-002 | CAD | Máscara do CC: nível 3 com 1 dígito e nível 4 com 2 dígitos (ex.: 4.1.2.11) | Não bloqueia (máscara não fixa dígitos) | DIREX/GFIN |
+| GAP-CC-003 | CAD | Reduzido 14.300 ausente; 14.460 fora de sequência; reduzidos 14.470–14.530 ainda são sugestão (a GFIN confirma no Sapiens) | Carga em prod | GFIN |
+| GAP-CC-004 | CAD | A minuta cobre só a estrutura 4 (áreas internas). TPs/projetos terão CC próprio? Isso afeta RF_TP_001/RN_TP_001, que exigem CC único por TP ativo | **F3** | DIREX/GFIN |
+| GAP-CC-005 | CAD | A DIREX (nível 1) terá CC de gestão próprio (ex.: 4.0 Gabinete da DIREX) ou seus custos ficam em 4.4? | Não bloqueia | DIREX |
 | GAP-CAD-003 | CAD | O plano de contas não tem conta de **ISS** nem de impostos sobre a proposta; não se sabe se o imposto da proposta é lançado em conta | F3 (junto com GAP-CAD-001) | Wellington |
 | GAP-ORC-001 | ORC | RN0433 × RN0434 (Transferência para Provisões) e fórmulas de Saldo Final/Parcial do UC04.12 (Cat. #9) | **UC04.12 em F5** | Wellington |
 | GAP-ORC-002 | ORC | 22 regras citadas e não definidas (RN0225, RN0262, RN0291, RN0430…) (Cat. #19) | Os UCs afetados em F5 | PO |
