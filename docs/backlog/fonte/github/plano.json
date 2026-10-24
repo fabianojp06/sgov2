@@ -1,0 +1,3511 @@
+{
+ "stories": [
+  {
+   "id": "US-001",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero o repositório Next.js + TypeScript strict com a estrutura de módulos e lint de fronteiras, para que cada módulo só se comunique pela API pública do outro.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.1",
+   "criterios": [
+    "`src/modules/<mod>/{domain,application,infrastructure,ui}` e `shared/*` criados",
+    "Lint falha se `domain/` importar fora do módulo ou se `app/` acessar Prisma",
+    "`npm run lint`, `typecheck`, `test` e `build` verdes"
+   ],
+   "dep": [],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 1,
+   "frente": "A",
+   "ini_d": 0.0,
+   "fim_d": 1.2,
+   "inicio": "2026-10-26",
+   "fim": "2026-10-27"
+  },
+  {
+   "id": "US-002",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero o `CLAUDE.md` do projeto e os bloqueios automáticos (hooks), para que nenhum comando destrutivo atinja o banco de produção.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "spec 11.5",
+   "criterios": [
+    "Hook recusa `prisma migrate reset`, `db push` e `migrate diff` fora do banco de dev",
+    "Hook avisa se surgir \"CTCEA\" no código",
+    "`CLAUDE.md` com stack, comandos, regras de banco, marca neutra e \"IA sugere, não grava\""
+   ],
+   "dep": [
+    "US-001"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 2,
+   "frente": "A",
+   "ini_d": 1.2,
+   "fim_d": 1.7999999999999998,
+   "inicio": "2026-10-27",
+   "fim": "2026-10-27"
+  },
+  {
+   "id": "US-003",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como desenvolvedor, quero um Docker Compose de dev (PostgreSQL 16 + app + worker), para subir o ambiente com um comando.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "spec 4.3",
+   "criterios": [
+    "`docker compose up` sobe banco, app e worker",
+    "Seed de dev roda sem erro e é idempotente",
+    "Nenhuma credencial de prod no repositório"
+   ],
+   "dep": [
+    "US-001"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 3,
+   "frente": "A",
+   "ini_d": 1.7999999999999998,
+   "fim_d": 2.4,
+   "inicio": "2026-10-27",
+   "fim": "2026-10-28"
+  },
+  {
+   "id": "US-004",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero Prisma com migrations e papéis de banco separados (`sgo_app` sem BYPASSRLS, `sgo_sync`, `sgo_migrator`), para que a aplicação nunca tenha mais poder do que precisa.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 5, 11.1",
+   "criterios": [
+    "Migrations versionadas e aplicadas só por `migrate deploy`",
+    "App conecta com `sgo_app`; migration com `sgo_migrator`",
+    "`shadowDatabaseUrl` aponta só para banco efêmero"
+   ],
+   "dep": [
+    "US-003"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 4,
+   "frente": "A",
+   "ini_d": 2.4,
+   "fim_d": 3.5999999999999996,
+   "inicio": "2026-10-28",
+   "fim": "2026-10-29"
+  },
+  {
+   "id": "US-005",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como gestor financeiro, quero que todo valor em dinheiro use decimal com Half-Even e NUMERIC(15,2), para que não haja erro de centavos.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 5; Catálogo diretriz",
+   "criterios": [
+    "`Dinheiro`, `Percentual` e `Competencia` no `shared/kernel` com testes de propriedade",
+    "Uso de `number` para dinheiro barrado por lint",
+    "Soma de 12 parcelas fecha com o anual (diferença vai para dezembro)"
+   ],
+   "dep": [
+    "US-001"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 5,
+   "frente": "A",
+   "ini_d": 3.5999999999999996,
+   "fim_d": 4.8,
+   "inicio": "2026-10-29",
+   "fim": "2026-10-30"
+  },
+  {
+   "id": "US-006",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como auditor, quero o Histórico de Operações append-only gravado na mesma transação da operação, para que nenhuma alteração fique sem rastro.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "Log Delta; RN0089–RN0103",
+   "criterios": [
+    "`auditar(tx, evento)` grava antes/depois/delta em JSONB",
+    "UPDATE/DELETE no histórico são recusados pelo banco",
+    "Falha ao auditar desfaz a operação inteira"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 6,
+   "frente": "A",
+   "ini_d": 4.8,
+   "fim_d": 6.0,
+   "inicio": "2026-10-30",
+   "fim": "2026-11-03"
+  },
+  {
+   "id": "US-008",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero a guarda RBAC obrigatória em toda Server Action e Route Handler, para que nenhuma tela ou API fique sem checagem de permissão.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "RBAC; RNF_SEG_001",
+   "criterios": [
+    "Ação sem guarda falha no teste de arquitetura",
+    "Permissão negada retorna erro padronizado e é auditada"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 7,
+   "frente": "A",
+   "ini_d": 6.0,
+   "fim_d": 7.2,
+   "inicio": "2026-11-04",
+   "fim": "2026-11-05"
+  },
+  {
+   "id": "US-009",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como gestor financeiro, quero o núcleo do TotalizerService, para que todos os totais e sintéticas venham de um único motor de cálculo.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "OxR V2 §7; RN_TOT",
+   "criterios": [
+    "Função pura: árvore + valores analíticos → sintéticos, totais e %",
+    "Testes com os critérios de aceite numéricos do OxR V2",
+    "Sintéticas nunca persistidas como dado vivo"
+   ],
+   "dep": [
+    "US-005"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 8,
+   "frente": "A",
+   "ini_d": 7.2,
+   "fim_d": 9.6,
+   "inicio": "2026-11-05",
+   "fim": "2026-11-09"
+  },
+  {
+   "id": "US-010",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero filas e jobs agendados com pg-boss no worker, para que e-mails, exportações grandes e cargas não travem as telas.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.2",
+   "criterios": [
+    "Worker com entrypoint próprio e reprocessamento com espera",
+    "Job com falha fica visível e reprocessável",
+    "Teste de integração com PostgreSQL real"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 9,
+   "frente": "A",
+   "ini_d": 9.6,
+   "fim_d": 10.799999999999999,
+   "inicio": "2026-11-09",
+   "fim": "2026-11-10"
+  },
+  {
+   "id": "US-012",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero o teste automático de marca neutra, para que o nome \"CTCEA\" nunca apareça no sistema.",
+   "prioridade": "Must",
+   "tamanho": "XS",
+   "horas": 2,
+   "modo": "S",
+   "refs": "spec 6.7",
+   "criterios": [
+    "Busca por \"ctcea\" em `src/`, `prisma/`, `worker/` e seeds falha o build"
+   ],
+   "dep": [
+    "US-001"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 10,
+   "frente": "A",
+   "ini_d": 10.799999999999999,
+   "fim_d": 11.1,
+   "inicio": "2026-11-10",
+   "fim": "2026-11-11"
+  },
+  {
+   "id": "US-013",
+   "epico": "EP01",
+   "release": "R0",
+   "historia": "Como time, quero o pipeline GitHub Actions (lint, testes, build da imagem, GHCR, webhook do Easypanel), para que todo deploy seja automático e reproduzível.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.3",
+   "criterios": [
+    "Push na `main` publica imagem e faz deploy em hml",
+    "Tag de release faz deploy em prod",
+    "Migration com falha impede a subida da versão nova"
+   ],
+   "dep": [
+    "US-003"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 11,
+   "frente": "B",
+   "ini_d": 3.5999999999999996,
+   "fim_d": 4.8,
+   "inicio": "2026-10-29",
+   "fim": "2026-10-30"
+  },
+  {
+   "id": "US-014",
+   "epico": "EP01",
+   "release": "R0",
+   "historia": "Como PO, quero os ambientes `sgo-hml` e `sgo-prod` no Easypanel com HTTPS e banco sem porta pública, para homologar e operar com segurança.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.3",
+   "criterios": [
+    "App acessível só por HTTPS via Traefik",
+    "PostgreSQL de cada ambiente só na rede interna do Docker",
+    "Variáveis de prod só no Easypanel"
+   ],
+   "dep": [
+    "US-013"
+   ],
+   "gap": "GAP-INF-001 (domínio)",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 12,
+   "frente": "B",
+   "ini_d": 4.8,
+   "fim_d": 6.0,
+   "inicio": "2026-10-30",
+   "fim": "2026-11-03"
+  },
+  {
+   "id": "US-015",
+   "epico": "EP01",
+   "release": "R0",
+   "historia": "Como PO, quero backup com recuperação ponto a ponto para um storage fora da VPS, dump diário e teste de restauração mensal, para nunca mais perder dados.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "spec 4.3, 11.5",
+   "criterios": [
+    "pgBackRest com WAL contínuo para B2/R2, retenção 30 dias",
+    "Dump diário com retenção 90 dias",
+    "Primeira restauração em banco descartável registrada"
+   ],
+   "dep": [
+    "US-014"
+   ],
+   "gap": "GAP-INF-001 (storage)",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 13,
+   "frente": "B",
+   "ini_d": 6.0,
+   "fim_d": 8.4,
+   "inicio": "2026-11-04",
+   "fim": "2026-11-06"
+  },
+  {
+   "id": "US-016",
+   "epico": "EP01",
+   "release": "R0",
+   "historia": "Como PO, quero a VPS endurecida (SSH só por chave, firewall 22/80/443, fail2ban, atualizações, Easypanel atrás de HTTPS), para reduzir o risco de invasão.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "spec 4.3",
+   "criterios": [
+    "Porta 3000 fechada ou atrás de HTTPS",
+    "Login por senha no SSH desabilitado",
+    "Snapshot da Hostinger antes de cada deploy com migration"
+   ],
+   "dep": [],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 14,
+   "frente": "B",
+   "ini_d": 0.0,
+   "fim_d": 0.6,
+   "inicio": "2026-10-26",
+   "fim": "2026-10-26"
+  },
+  {
+   "id": "US-021",
+   "epico": "EP03",
+   "release": "R1",
+   "historia": "Como usuário, quero listagens e Tree Grids virtualizadas com filtros retidos na sessão, para trabalhar com milhares de linhas sem travar.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC0–UC0.06; RNF_DES_002",
+   "criterios": [
+    "5.000 linhas com rolagem fluida",
+    "Filtros mantidos ao voltar para a tela (RNF0005)",
+    "Componente único reutilizado por todos os módulos"
+   ],
+   "dep": [
+    "US-001"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 15,
+   "frente": "B",
+   "ini_d": 1.2,
+   "fim_d": 3.5999999999999996,
+   "inicio": "2026-10-27",
+   "fim": "2026-10-29"
+  },
+  {
+   "id": "US-025",
+   "epico": "EP03",
+   "release": "R1",
+   "historia": "Como sistema, quero enviar e-mails por modelo padrão via fila e SMTP externo, para que senhas e avisos cheguem com segurança.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "UC0.06",
+   "criterios": [
+    "Envio pelo worker com nova tentativa",
+    "Modelos versionados, sem o nome da instituição fixo"
+   ],
+   "dep": [
+    "US-010"
+   ],
+   "gap": "GAP-INF-001 (SMTP)",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 16,
+   "frente": "B",
+   "ini_d": 12.0,
+   "fim_d": 12.6,
+   "inicio": "2026-11-12",
+   "fim": "2026-11-12"
+  },
+  {
+   "id": "US-026",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como usuário, quero entrar com login e senha, com mensagem genérica em caso de erro, para acessar o sistema com segurança.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC01.01–UC01.02; RN0015–RN0018; RN0518",
+   "criterios": [
+    "Login sem diferenciar maiúsculas/minúsculas",
+    "Ordem: manutenção → existência → status → bloqueio → senha",
+    "Hash fictício para login inexistente (sem diferença de tempo)",
+    "Argon2id"
+   ],
+   "dep": [
+    "US-006",
+    "US-008"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 17,
+   "frente": "A",
+   "ini_d": 11.1,
+   "fim_d": 13.5,
+   "inicio": "2026-11-11",
+   "fim": "2026-11-13"
+  },
+  {
+   "id": "US-030",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como usuário, quero trocar minha senha (obrigatoriamente no primeiro acesso), para manter minha conta segura.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "REQ0039; UC02.19",
+   "criterios": [
+    "Regras de complexidade vindas dos parâmetros",
+    "Troca registrada no Histórico"
+   ],
+   "dep": [
+    "US-026"
+   ],
+   "gap": "GAP-AUT-002",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 18,
+   "frente": "A",
+   "ini_d": 13.5,
+   "fim_d": 14.1,
+   "inicio": "2026-11-13",
+   "fim": "2026-11-16"
+  },
+  {
+   "id": "US-031",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como usuário, quero a tela principal com menu só do que tenho permissão, seletor de TP e ajuda contextual, para encontrar o que preciso.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC01.04; RN0027/0030/0031/0032; RN0521; spec 6.7",
+   "criterios": [
+    "Menu por módulo → grupo → funcionalidade, filtrado por permissão",
+    "Seletor lista só os TPs do usuário e some quando há um só",
+    "Menu da Administração Central só para quem tem a permissão",
+    "Busca de funcionalidade respeita o filtro"
+   ],
+   "dep": [
+    "US-021",
+    "US-026"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 19,
+   "frente": "A",
+   "ini_d": 14.1,
+   "fim_d": 16.5,
+   "inicio": "2026-11-16",
+   "fim": "2026-11-18"
+  },
+  {
+   "id": "US-032",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como usuário, quero sair do sistema com confirmação e limpeza dos dados no navegador, para não deixar sessão aberta.",
+   "prioridade": "Must",
+   "tamanho": "XS",
+   "horas": 2,
+   "modo": "S",
+   "refs": "RNF0010",
+   "criterios": [
+    "Sessão invalidada no servidor",
+    "Dados locais apagados"
+   ],
+   "dep": [
+    "US-026"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 20,
+   "frente": "A",
+   "ini_d": 16.5,
+   "fim_d": 16.8,
+   "inicio": "2026-11-18",
+   "fim": "2026-11-18"
+  },
+  {
+   "id": "US-034",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como sistema, quero a seed idempotente com módulos, funcionalidades, perfis padrão e administrador inicial, para instalar o sistema do zero.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC02.27; RN_SEED; spec 11.3",
+   "criterios": [
+    "7 perfis padrão aprovados (11.3)",
+    "Rodar duas vezes não muda nada"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 21,
+   "frente": "A",
+   "ini_d": 16.8,
+   "fim_d": 18.0,
+   "inicio": "2026-11-18",
+   "fim": "2026-11-19"
+  },
+  {
+   "id": "US-038",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero cadastrar usuários com login imutável, senha gerada pelo sistema e acesso por TP, para dar acesso só ao necessário.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC02.11–UC02.14; UC02.18; RN0059/0065/0066/0071/0079; C25",
+   "criterios": [
+    "Login único e imutável",
+    "Senha gerada e enviada por e-mail; o administrador nunca digita senha",
+    "Lista de TPs permitidos e CC de escopo (Gestor de Diretoria)",
+    "Desbloquear zera o contador"
+   ],
+   "dep": [
+    "US-025",
+    "US-034"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 22,
+   "frente": "A",
+   "ini_d": 18.0,
+   "fim_d": 20.4,
+   "inicio": "2026-11-23",
+   "fim": "2026-11-25"
+  },
+  {
+   "id": "US-043",
+   "epico": "EP06",
+   "release": "R2",
+   "historia": "Como GFIN, quero importar o plano de contas de 5 níveis por planilha .xlsx com validação, para ter a estrutura oficial no sistema.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC03.00; D7; spec 6.1",
+   "criterios": [
+    "Valida 5 níveis, pai existente, analítica só no nível 5, reduzido único",
+    "Recarga idempotente por código reduzido; nunca apaga conta com valor",
+    "10.000 linhas em menos de 30 s (RNF_DES_003)",
+    "Descrição da 4.1.1.8.005 gravada sem a sigla (GAP-CAD-005)"
+   ],
+   "dep": [
+    "US-009",
+    "US-021"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 23,
+   "frente": "B",
+   "ini_d": 9.6,
+   "fim_d": 12.0,
+   "inicio": "2026-11-09",
+   "fim": "2026-11-11"
+  },
+  {
+   "id": "US-044",
+   "epico": "EP06",
+   "release": "R2",
+   "historia": "Como usuário, quero consultar o plano de contas em árvore, só leitura, para encontrar contas rapidamente.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "UC03.00; RN_PLA_001; C27",
+   "criterios": [
+    "Sem incluir, alterar estrutura ou excluir",
+    "Busca por código, reduzido e descrição"
+   ],
+   "dep": [
+    "US-043"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 24,
+   "frente": "B",
+   "ini_d": 12.6,
+   "fim_d": 13.2,
+   "inicio": "2026-11-12",
+   "fim": "2026-11-13"
+  },
+  {
+   "id": "US-046",
+   "epico": "EP06",
+   "release": "R2",
+   "historia": "Como GFIN, quero importar e consultar os centros de custo de 5 níveis por planilha, para orçar por área.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "spec 6.1a",
+   "criterios": [
+    "Valida níveis, pai, sintético com filho e reduzido único",
+    "Avisa se faltar CC de gestão (regra R3)",
+    "Carga em prod só após aprovação da DIREX"
+   ],
+   "dep": [
+    "US-043"
+   ],
+   "gap": "GAP-CC-001/002/003",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 25,
+   "frente": "B",
+   "ini_d": 13.2,
+   "fim_d": 14.399999999999999,
+   "inicio": "2026-11-13",
+   "fim": "2026-11-16"
+  },
+  {
+   "id": "US-049",
+   "epico": "EP07",
+   "release": "R2",
+   "historia": "Como analista GRH, quero manter cargos e salários (faixa, nível, Fonte Ativa, adicionais) e a tabela salarial, para calcular o custo de pessoal.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC03.19 V4; RN_CAR_*; C20",
+   "criterios": [
+    "Fonte Ativa: Mínimo, Máximo, Total, Salário Real ou Salário Definido",
+    "Periculosidade 30% ou insalubridade 10/20/40% sobre o SMN",
+    "Salários criptografados e mascarados por perfil (D10)"
+   ],
+   "dep": [
+    "US-021"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 26,
+   "frente": "B",
+   "ini_d": 14.399999999999999,
+   "fim_d": 16.799999999999997,
+   "inicio": "2026-11-16",
+   "fim": "2026-11-18"
+  },
+  {
+   "id": "US-050",
+   "epico": "EP07",
+   "release": "R2",
+   "historia": "Como analista GRH, quero a Tabela Mestre de Benefícios, para que propostas e o orçamento da Adm. Central usem os mesmos valores.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.28; RN_CAR_06/07; C8",
+   "criterios": [
+    "Sobrescrita com auditoria e origem registrada",
+    "Nunca altera snapshot oficializado"
+   ],
+   "dep": [
+    "US-049"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 27,
+   "frente": "B",
+   "ini_d": 16.799999999999997,
+   "fim_d": 17.999999999999996,
+   "inicio": "2026-11-18",
+   "fim": "2026-11-19"
+  },
+  {
+   "id": "US-051",
+   "epico": "EP07",
+   "release": "R2",
+   "historia": "Como sistema, quero o MotorCustoPosicao (massa, férias + 1/3, 13º, encargo 51%, benefícios), para que o custo de pessoal seja calculado num só lugar.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "RN_CAR_17; spec 6.4, 6.6",
+   "criterios": [
+    "Encargo 51% = INSS 38 + FGTS 8 + PIS 1 + 3,8 + 0,2, parametrizado",
+    "Componentes lançados nas contas analíticas (tabela componente → conta)",
+    "Testes com valores conferidos à mão"
+   ],
+   "dep": [
+    "US-005",
+    "US-049",
+    "US-050"
+   ],
+   "gap": "GAP-CAR-005 (contas)",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 28,
+   "frente": "B",
+   "ini_d": 17.999999999999996,
+   "fim_d": 20.399999999999995,
+   "inicio": "2026-11-19",
+   "fim": "2026-11-25"
+  },
+  {
+   "id": "US-053",
+   "epico": "EP08",
+   "release": "R2",
+   "historia": "Como GFIN, quero manter parâmetros gerais (SMN, premissas de reajuste, data-base, IPCA, semáforo, encargos), para ajustar o sistema sem programar.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "spec 6.6; GAP-ORC-003",
+   "criterios": [
+    "Parâmetros por exercício",
+    "Alteração auditada"
+   ],
+   "dep": [
+    "US-021"
+   ],
+   "gap": "GAP-ORC-003 (valores)",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 29,
+   "frente": "B",
+   "ini_d": 20.399999999999995,
+   "fim_d": 21.599999999999994,
+   "inicio": "2026-11-25",
+   "fim": "2026-11-26"
+  },
+  {
+   "id": "US-055",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero criar o exercício do ano seguinte (em branco ou copiando o anterior), para elaborar o orçamento de 2027 enquanto 2026 está em execução.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC04.17; spec 6.6",
+   "criterios": [
+    "Um exercício por ano; vários convivem",
+    "Cópia traz posições e pacotes com as premissas do novo ano",
+    "Seletor de exercício no topo"
+   ],
+   "dep": [
+    "US-053"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 30,
+   "frente": "A",
+   "ini_d": 21.599999999999994,
+   "fim_d": 22.799999999999994,
+   "inicio": "2026-11-26",
+   "fim": "2026-11-27"
+  },
+  {
+   "id": "US-058",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero a visão por centro de custo com árvore, série mês a mês e linhas CC × conta, para consolidar o orçamento.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC04.17; RN_TOT_01",
+   "criterios": [
+    "Sintéticos somados pelo TotalizerService",
+    "Origem de cada linha (pessoal / base zero)"
+   ],
+   "dep": [
+    "US-121"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 31,
+   "frente": "A",
+   "ini_d": 26.999999999999993,
+   "fim_d": 28.199999999999992,
+   "inicio": "2026-12-03",
+   "fim": "2026-12-07"
+  },
+  {
+   "id": "US-059",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero o teto do exercício com semáforo e o resultado (receita − despesas), para fechar o orçamento dentro da receita.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 6.6",
+   "criterios": [
+    "Teto padrão = rateio líquido confirmado (teto manual antes da F3)",
+    "Teto maior que a receita exige justificativa",
+    "Faixas 70/85/95"
+   ],
+   "dep": [
+    "US-058"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 32,
+   "frente": "A",
+   "ini_d": 28.199999999999992,
+   "fim_d": 29.39999999999999,
+   "inicio": "2026-12-07",
+   "fim": "2026-12-08"
+  },
+  {
+   "id": "US-060",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero a aba de receitas com o rateio de cada TP no exercício (confirmado e previsto) e o ISS, para saber quanto a Adm. Central vai receber.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "RN0270; UC03.03; spec 6.6",
+   "criterios": [
+    "Base = subtotal de despesas, % por TP, mês a mês",
+    "Previsto separado, fora do saldo e do teto",
+    "ISS mostra \"a definir\" até o GAP-ORC-007",
+    "Rateio por TP digitado na Adm. Central até existir a proposta no sistema (US-073 passa a alimentar depois)"
+   ],
+   "dep": [
+    "US-055"
+   ],
+   "gap": "GAP-ORC-007 (ISS)",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 33,
+   "frente": "A",
+   "ini_d": 22.799999999999994,
+   "fim_d": 25.199999999999992,
+   "inicio": "2026-11-27",
+   "fim": "2026-12-02"
+  },
+  {
+   "id": "US-061",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero enviar o orçamento da Adm. Central para aprovação e oficializá-lo com snapshot, para formalizar o orçamento do ano.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC04.17; spec 6.2",
+   "criterios": [
+    "Ciclo Rascunho → Em Elaboração → Em Aprovação → Oficializado",
+    "Snapshot imutável na oficialização",
+    "Na trilha 2027: aprovação em uma etapa (GFIN envia, Diretoria aprova); roteamento por alçada (US-042) depois"
+   ],
+   "dep": [
+    "US-059",
+    "US-038"
+   ],
+   "gap": "GAP-ORC-004 (alçada)",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 34,
+   "frente": "A",
+   "ini_d": 29.39999999999999,
+   "fim_d": 30.59999999999999,
+   "inicio": "2026-12-08",
+   "fim": "2026-12-09"
+  },
+  {
+   "id": "US-120",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero a planilha-modelo do orçamento 2027 da Adm. Central (pessoal, pacotes base zero e receitas), com o mesmo layout da importação do sistema, para que os gestores lancem enquanto o sistema é construído.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "spec 6.6; UC04.17",
+   "criterios": [
+    "Abas Instruções, Pessoal, Pacotes base zero e Receitas",
+    "Listas validadas só com contas analíticas e CCs analíticos das planilhas oficiais",
+    "Sem nome da instituição; versão do layout na planilha",
+    "É o plano B: se o sistema atrasar, a aprovação de 30/11 é feita sobre ela"
+   ],
+   "dep": [],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 35,
+   "frente": "A",
+   "ini_d": 25.199999999999992,
+   "fim_d": 25.799999999999994,
+   "inicio": "2026-12-02",
+   "fim": "2026-12-02"
+  },
+  {
+   "id": "US-121",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como GFIN, quero importar a planilha-modelo para o exercício 2027 com validação linha a linha, para revisar e aprovar no sistema o que os gestores lançaram.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 6.6; UC04.17",
+   "criterios": [
+    "Relatório de erros por linha; nada é gravado se houver erro",
+    "Reimportar substitui o lote do mesmo CC (idempotente)",
+    "Custo de pessoal recalculado pelo MotorCustoPosicao, nunca copiado da planilha",
+    "Carga registrada no Histórico de Operações"
+   ],
+   "dep": [
+    "US-120",
+    "US-055",
+    "US-051",
+    "US-043",
+    "US-046"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "A",
+   "ordem": 36,
+   "frente": "A",
+   "ini_d": 25.799999999999994,
+   "fim_d": 26.999999999999993,
+   "inicio": "2026-12-02",
+   "fim": "2026-12-03"
+  },
+  {
+   "id": "US-115",
+   "epico": "EP21",
+   "release": "R9",
+   "historia": "Como PO, quero a carga inicial de produção (plano de contas, CCs aprovados, cargos, parâmetros, usuários), para começar a operar.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 6.1, 6.1a",
+   "criterios": [
+    "Carga validada em hml antes",
+    "Conferência dos totais com a GFIN"
+   ],
+   "dep": [
+    "US-043",
+    "US-046",
+    "US-049"
+   ],
+   "gap": "GAP-CC-001",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 37,
+   "frente": "B",
+   "ini_d": 21.599999999999994,
+   "fim_d": 22.799999999999994,
+   "inicio": "2026-11-26",
+   "fim": "2026-11-27"
+  },
+  {
+   "id": "US-116",
+   "epico": "EP21",
+   "release": "R9",
+   "historia": "Como PO, quero testes de carga e de segurança (OWASP, isolamento por TP, login), para entrar em produção com confiança.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "RNF gerais (spec 10.3)",
+   "criterios": [
+    "Metas de desempenho da 10.3 atendidas",
+    "Sem achado crítico ou alto em aberto"
+   ],
+   "dep": [
+    "US-031"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 38,
+   "frente": "B",
+   "ini_d": 22.799999999999994,
+   "fim_d": 25.199999999999992,
+   "inicio": "2026-11-27",
+   "fim": "2026-12-02"
+  },
+  {
+   "id": "US-117",
+   "epico": "EP21",
+   "release": "R9",
+   "historia": "Como usuário-chave, quero homologar cada release em hml com roteiro de testes, para aprovar o que vai para produção.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "spec 11.6",
+   "criterios": [
+    "Roteiro por release",
+    "Aceite registrado"
+   ],
+   "dep": [],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 39,
+   "frente": "B",
+   "ini_d": 25.199999999999992,
+   "fim_d": 27.59999999999999,
+   "inicio": "2026-12-02",
+   "fim": "2026-12-04"
+  },
+  {
+   "id": "US-119",
+   "epico": "EP21",
+   "release": "R9",
+   "historia": "Como PO, quero o runbook de operação (deploy, rollback, restauração, incidentes), para operar sem depender de uma pessoa.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.3, 11.5",
+   "criterios": [
+    "Restauração testada documentada",
+    "Procedimento de rollback testado"
+   ],
+   "dep": [
+    "US-015"
+   ],
+   "gap": "—",
+   "trilha": true,
+   "fixa": "B",
+   "ordem": 40,
+   "frente": "B",
+   "ini_d": 27.59999999999999,
+   "fim_d": 28.79999999999999,
+   "inicio": "2026-12-04",
+   "fim": "2026-12-07"
+  },
+  {
+   "id": "US-007",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como usuário de um TP, quero ver só os dados dos TPs a que tenho acesso, mesmo que alguém chame a API direto, para que o isolamento seja garantido.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "spec 5 (C31)",
+   "criterios": [
+    "`unidade_id` em toda tabela de dado de TP",
+    "Guarda `shared/authz` filtra pela unidade ativa",
+    "RLS com `app.unidades` bloqueia leitura e escrita fora da lista; teste de invasão via API"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 41,
+   "frente": "A",
+   "ini_d": 30.59999999999999,
+   "fim_d": 33.79999999999999,
+   "inicio": "2026-12-09",
+   "fim": "2026-12-14"
+  },
+  {
+   "id": "US-011",
+   "epico": "EP00",
+   "release": "R0",
+   "historia": "Como time, quero controle de concorrência otimista (versão) e advisory locks, para que dois usuários não sobrescrevam o trabalho um do outro.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "Catálogo diretriz; RNF0011",
+   "criterios": [
+    "Gravação com versão desatualizada é recusada com mensagem clara",
+    "Lock por recurso nas operações de sincronismo"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 42,
+   "frente": "A",
+   "ini_d": 33.79999999999999,
+   "fim_d": 34.59999999999999,
+   "inicio": "2026-12-14",
+   "fim": "2026-12-15"
+  },
+  {
+   "id": "US-018",
+   "epico": "EP02",
+   "release": "R0",
+   "historia": "Como time, quero a porta `ProvedorIA` com os adaptadores Anthropic e falso, para que qualquer funcionalidade de IA use um ponto único e testável.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.4",
+   "criterios": [
+    "`gerarTexto`, `gerarEstruturado(schemaZod)` e `gerarStream`",
+    "Adaptador Anthropic com SDK oficial, `claude-opus-5-5`, tratamento de `refusal`/`max_tokens` e novas tentativas",
+    "Testes de contrato com o adaptador falso, sem rede"
+   ],
+   "dep": [
+    "US-001"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 43,
+   "frente": "B",
+   "ini_d": 28.79999999999999,
+   "fim_d": 30.39999999999999,
+   "inicio": "2026-12-07",
+   "fim": "2026-12-09"
+  },
+  {
+   "id": "US-019",
+   "epico": "EP02",
+   "release": "R0",
+   "historia": "Como PO, quero o cadastro de casos de uso de IA, o registro de chamadas, os tetos de custo e as chaves liga/desliga, para controlar uso, custo e risco da IA.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 4.4",
+   "criterios": [
+    "Tabelas `ia_caso_uso` e `ia_chamada` (append-only)",
+    "Teto mensal desliga só a IA, com aviso",
+    "Tudo desligado por padrão; permissão RBAC por caso de uso"
+   ],
+   "dep": [
+    "US-018"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 44,
+   "frente": "B",
+   "ini_d": 30.39999999999999,
+   "fim_d": 31.999999999999993,
+   "inicio": "2026-12-09",
+   "fim": "2026-12-10"
+  },
+  {
+   "id": "US-017",
+   "epico": "EP01",
+   "release": "R0",
+   "historia": "Como time, quero logs estruturados, healthcheck e alerta de indisponibilidade, para saber quando o sistema cai antes do usuário.",
+   "prioridade": "Should",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "—",
+   "criterios": [
+    "Endpoint de saúde verificando banco e worker",
+    "Alerta por e-mail quando o healthcheck falha"
+   ],
+   "dep": [
+    "US-014"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 45,
+   "frente": "B",
+   "ini_d": 31.999999999999993,
+   "fim_d": 32.79999999999999,
+   "inicio": "2026-12-10",
+   "fim": "2026-12-11"
+  },
+  {
+   "id": "US-020",
+   "epico": "EP02",
+   "release": "R0",
+   "historia": "Como time, quero a extensão pgvector instalada e a porta `ProvedorEmbeddings` definida, para a busca semântica futura.",
+   "prioridade": "Could",
+   "tamanho": "XS",
+   "horas": 2,
+   "modo": "S",
+   "refs": "spec 4.4",
+   "criterios": [
+    "Extensão criada por migration",
+    "Porta sem implementação real"
+   ],
+   "dep": [
+    "US-004"
+   ],
+   "gap": "GAP-IA-002",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 46,
+   "frente": "B",
+   "ini_d": 32.79999999999999,
+   "fim_d": 33.19999999999999,
+   "inicio": "2026-12-11",
+   "fim": "2026-12-14"
+  },
+  {
+   "id": "US-022",
+   "epico": "EP03",
+   "release": "R1",
+   "historia": "Como usuário, quero formulários que não percam o que digitei quando há erro, para não refazer o trabalho.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "[TRAVA O ERRO]",
+   "criterios": [
+    "Erros por campo vindos do servidor",
+    "Formulário só fecha em sucesso",
+    "Estado nunca salvo em localStorage (RNF0002)"
+   ],
+   "dep": [
+    "US-021"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 47,
+   "frente": "B",
+   "ini_d": 33.19999999999999,
+   "fim_d": 34.79999999999999,
+   "inicio": "2026-12-14",
+   "fim": "2026-12-15"
+  },
+  {
+   "id": "US-023",
+   "epico": "EP03",
+   "release": "R1",
+   "historia": "Como usuário, quero um modal de exclusão que mostre os impeditivos, para entender por que algo não pode ser excluído.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "EP083",
+   "criterios": [
+    "Lista de vínculos que impedem a exclusão",
+    "Exclusão lógica (soft delete) com auditoria"
+   ],
+   "dep": [
+    "US-022"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 48,
+   "frente": "B",
+   "ini_d": 34.79999999999999,
+   "fim_d": 35.59999999999999,
+   "inicio": "2026-12-15",
+   "fim": "2026-12-16"
+  },
+  {
+   "id": "US-024",
+   "epico": "EP03",
+   "release": "R1",
+   "historia": "Como usuário, quero exportar listagens em XLSX, PDF e CSV com cabeçalho de filtros e marca d'água, para ter documentos rastreáveis.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "RN0011; RN_WATERMARK; RNF_IMP_001",
+   "criterios": [
+    "Até 5.000 linhas na hora; acima disso, por job e aviso",
+    "Marca d'água com operador e Traceability ID",
+    "Exportação registrada no Histórico"
+   ],
+   "dep": [
+    "US-010",
+    "US-021"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 49,
+   "frente": "B",
+   "ini_d": 35.59999999999999,
+   "fim_d": 37.19999999999999,
+   "inicio": "2026-12-16",
+   "fim": "2026-12-18"
+  },
+  {
+   "id": "US-027",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como administrador, quero que a conta seja bloqueada após o limite de tentativas, com aviso na última, para proteger contra ataques de senha.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC01.03; RN0017; RN0024; RN0520",
+   "criterios": [
+    "Contador global por usuário com `FOR UPDATE`",
+    "Limite e limiar de alerta são parâmetros",
+    "Bloqueio na mesma transação do incremento; administrador é notificado"
+   ],
+   "dep": [
+    "US-026"
+   ],
+   "gap": "GAP-AUT-002 (valores)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 50,
+   "frente": "A",
+   "ini_d": 34.59999999999999,
+   "fim_d": 36.19999999999999,
+   "inicio": "2026-12-15",
+   "fim": "2026-12-17"
+  },
+  {
+   "id": "US-028",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como usuário, quero sessão única, com aviso na estação anterior quando entro em outra, para evitar uso indevido da minha conta.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "RN0519; SessaoUsuario",
+   "criterios": [
+    "Nova sessão encerra a anterior com aviso",
+    "Sessão em banco com expiração (token opaco)"
+   ],
+   "dep": [
+    "US-026"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 51,
+   "frente": "A",
+   "ini_d": 36.19999999999999,
+   "fim_d": 37.79999999999999,
+   "inicio": "2026-12-17",
+   "fim": "2026-12-18"
+  },
+  {
+   "id": "US-029",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como usuário, quero recuperar a senha por e-mail com resposta uniforme e senha temporária, para voltar a acessar sem revelar se o login existe.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "RN0516–RN0517; C21",
+   "criterios": [
+    "Mesma resposta para login existente e inexistente",
+    "Senha temporária de uso único, expira em 24 h",
+    "Troca obrigatória no primeiro acesso"
+   ],
+   "dep": [
+    "US-025",
+    "US-026"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 52,
+   "frente": "A",
+   "ini_d": 37.79999999999999,
+   "fim_d": 39.39999999999999,
+   "inicio": "2026-12-18",
+   "fim": "2026-12-22"
+  },
+  {
+   "id": "US-033",
+   "epico": "EP04",
+   "release": "R1",
+   "historia": "Como administrador, quero que, em modo manutenção, só administradores entrem, para fazer manutenção sem usuários conectados.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "RN0023",
+   "criterios": [
+    "Login de não administrador recusado com aviso de manutenção"
+   ],
+   "dep": [
+    "US-026",
+    "US-036"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 53,
+   "frente": "A",
+   "ini_d": 41.79999999999999,
+   "fim_d": 42.59999999999999,
+   "inicio": "2026-12-28",
+   "fim": "2026-12-29"
+  },
+  {
+   "id": "US-035",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero ativar e desativar módulos e funcionalidades, para controlar o que está disponível.",
+   "prioridade": "Must",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "UC02.05/06; RN0033/0034/0043",
+   "criterios": [
+    "Desativar módulo desativa as funcionalidades e desconecta usuários",
+    "Ativar módulo não ativa funcionalidades automaticamente"
+   ],
+   "dep": [
+    "US-034"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 54,
+   "frente": "A",
+   "ini_d": 39.39999999999999,
+   "fim_d": 40.19999999999999,
+   "inicio": "2026-12-22",
+   "fim": "2026-12-23"
+  },
+  {
+   "id": "US-036",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero ativar e desativar o sistema com motivo, desconectando os usuários com contagem, para fazer manutenção programada.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC02.01; UC02.15–UC02.17; REQ0087",
+   "criterios": [
+    "Motivo obrigatório",
+    "Usuários conectados avisados e desconectados com contagem",
+    "Histórico de ativações"
+   ],
+   "dep": [
+    "US-028"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 55,
+   "frente": "A",
+   "ini_d": 40.19999999999999,
+   "fim_d": 41.79999999999999,
+   "inicio": "2026-12-23",
+   "fim": "2026-12-28"
+  },
+  {
+   "id": "US-037",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero cadastrar perfis e permissões (com nome único e ao menos uma funcionalidade), para definir o que cada grupo pode fazer.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC02.07–UC02.10; UC02.25/26; RN0068; RN0072",
+   "criterios": [
+    "Nome único sem diferenciar maiúsculas",
+    "Marcar módulo marca todas as ações (A2)",
+    "Perfil com usuários não pode ser excluído"
+   ],
+   "dep": [
+    "US-034"
+   ],
+   "gap": "GAP-ADM-001 (ajuste fino)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 56,
+   "frente": "A",
+   "ini_d": 42.59999999999999,
+   "fim_d": 45.79999999999999,
+   "inicio": "2026-12-29",
+   "fim": "2027-01-05"
+  },
+  {
+   "id": "US-040",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como auditor, quero consultar o Histórico de Operações nos níveis Simples e Avançado, só com imprimir e exportar, para auditar o sistema.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC02.21–UC02.24; REQ00103",
+   "criterios": [
+    "Filtros por usuário, funcionalidade, período e tipo",
+    "Sem incluir, alterar ou excluir"
+   ],
+   "dep": [
+    "US-006",
+    "US-024"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 57,
+   "frente": "A",
+   "ini_d": 45.79999999999999,
+   "fim_d": 47.39999999999999,
+   "inicio": "2027-01-05",
+   "fim": "2027-01-07"
+  },
+  {
+   "id": "US-042",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero cadastrar as alçadas de aprovação (titular e substituto por fluxo e escopo), para que as aprovações sejam roteadas automaticamente.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC02.28 (spec 11.4); RN_ALC_005",
+   "criterios": [
+    "Titular e substituto obrigatórios e diferentes",
+    "Substituto assume quando o titular está inativo",
+    "Soft delete preserva o histórico"
+   ],
+   "dep": [
+    "US-038"
+   ],
+   "gap": "GAP-APR-001 (aditivo/ajuste/remanejamento)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 58,
+   "frente": "A",
+   "ini_d": 47.39999999999999,
+   "fim_d": 48.99999999999999,
+   "inicio": "2027-01-07",
+   "fim": "2027-01-08"
+  },
+  {
+   "id": "US-039",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero exceções de permissão por usuário, para tratar casos especiais sem criar um perfil novo.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC02.21–UC02.24",
+   "criterios": [
+    "Concessão ou retirada de funcionalidade por usuário",
+    "Exceção registrada no Histórico"
+   ],
+   "dep": [
+    "US-038"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 59,
+   "frente": "A",
+   "ini_d": 48.99999999999999,
+   "fim_d": 50.599999999999994,
+   "inicio": "2027-01-08",
+   "fim": "2027-01-12"
+  },
+  {
+   "id": "US-041",
+   "epico": "EP05",
+   "release": "R1",
+   "historia": "Como administrador, quero configurar as notificações de desempenho das contas, para que os gestores sejam avisados dos limites.",
+   "prioridade": "Should",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "UC02.20",
+   "criterios": [
+    "Destinatário por conta, limite (%) e frequência",
+    "Envio pelo worker"
+   ],
+   "dep": [
+    "US-025"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 60,
+   "frente": "A",
+   "ini_d": 50.599999999999994,
+   "fim_d": 51.39999999999999,
+   "inicio": "2027-01-12",
+   "fim": "2027-01-13"
+  },
+  {
+   "id": "US-048",
+   "epico": "EP07",
+   "release": "R2",
+   "historia": "Como analista GRH, quero manter a estrutura funcional em árvore, para refletir a organização dos setores.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.18; C2",
+   "criterios": [
+    "Árvore com setor superior",
+    "Vínculo de cargo 1:1 por setor (C&S V4)"
+   ],
+   "dep": [
+    "US-021"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 61,
+   "frente": "B",
+   "ini_d": 37.19999999999999,
+   "fim_d": 38.79999999999999,
+   "inicio": "2026-12-18",
+   "fim": "2026-12-21"
+  },
+  {
+   "id": "US-052",
+   "epico": "EP08",
+   "release": "R2",
+   "historia": "Como GFIN, quero cadastrar impostos e alíquotas com vigência, para que propostas e relatórios usem a alíquota certa.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.01; RN_TAX_03",
+   "criterios": [
+    "Vigência por competência",
+    "Alíquota congelada no snapshot"
+   ],
+   "dep": [
+    "US-021"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 62,
+   "frente": "B",
+   "ini_d": 38.79999999999999,
+   "fim_d": 40.39999999999999,
+   "inicio": "2026-12-21",
+   "fim": "2026-12-23"
+  },
+  {
+   "id": "US-045",
+   "epico": "EP06",
+   "release": "R2",
+   "historia": "Como GFIN, quero parametrizar a natureza (OPEX/CAPEX) e as faixas do semáforo por conta analítica, para orientar os relatórios.",
+   "prioridade": "Should",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "RF_PLA_REQ_003; RN_PLA_006; C7",
+   "criterios": [
+    "Só parâmetros locais; a estrutura não muda",
+    "Faixas padrão 70/85/95"
+   ],
+   "dep": [
+    "US-044"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 63,
+   "frente": "B",
+   "ini_d": 40.39999999999999,
+   "fim_d": 41.19999999999999,
+   "inicio": "2026-12-23",
+   "fim": "2026-12-28"
+  },
+  {
+   "id": "US-047",
+   "epico": "EP06",
+   "release": "R2",
+   "historia": "Como GFIN, quero cadastrar agrupadores de contas (N:N com analíticas) para relatórios, para agrupar contas sem mexer no plano.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "RN_PLA_007–011",
+   "criterios": [
+    "Agrupador não é conta sintética",
+    "Usado só nos relatórios"
+   ],
+   "dep": [
+    "US-044"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 64,
+   "frente": "B",
+   "ini_d": 41.19999999999999,
+   "fim_d": 42.79999999999999,
+   "inicio": "2026-12-28",
+   "fim": "2026-12-29"
+  },
+  {
+   "id": "US-054",
+   "epico": "EP08",
+   "release": "R2",
+   "historia": "Como GFIN, quero cadastrar as regras de totalização parametrizadas, para definir totais especiais dos relatórios.",
+   "prioridade": "Could",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.02",
+   "criterios": [
+    "Regra usa o TotalizerService",
+    "Somente leitura nos totalizadores da proposta (RN_TOT_01)"
+   ],
+   "dep": [
+    "US-009"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 65,
+   "frente": "B",
+   "ini_d": 42.79999999999999,
+   "fim_d": 44.39999999999999,
+   "inicio": "2026-12-29",
+   "fim": "2027-01-04"
+  },
+  {
+   "id": "US-056",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como gestor de diretoria, quero lançar posições de pessoal nos CCs da minha diretoria, com prévia do custo, para orçar minha equipe.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC04.17; spec 6.6",
+   "criterios": [
+    "Cargo do cadastro de C&S, salário pela Fonte Ativa (editável com log)",
+    "Prévia: massa, férias + 13º, encargos, benefícios, anual",
+    "Validação no servidor do escopo da diretoria"
+   ],
+   "dep": [
+    "US-051",
+    "US-055"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 66,
+   "frente": "A",
+   "ini_d": 51.39999999999999,
+   "fim_d": 54.599999999999994,
+   "inicio": "2027-01-13",
+   "fim": "2027-01-18"
+  },
+  {
+   "id": "US-057",
+   "epico": "EP09",
+   "release": "R3",
+   "historia": "Como gestor de diretoria, quero lançar pacotes base zero (conta, justificativa, prioridade, distribuição), para orçar as demais despesas.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC04.17",
+   "criterios": [
+    "Justificativa ≥ 10 caracteres; contas de pessoal fora da lista",
+    "Mensal (12 parcelas que fecham o anual) ou pontual",
+    "Correção opcional pelo IPCA do exercício"
+   ],
+   "dep": [
+    "US-055",
+    "US-046"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 67,
+   "frente": "A",
+   "ini_d": 54.599999999999994,
+   "fim_d": 57.8,
+   "inicio": "2027-01-18",
+   "fim": "2027-01-21"
+  },
+  {
+   "id": "US-062",
+   "epico": "EP10",
+   "release": "R3",
+   "historia": "Como usuário, quero que o sistema sugira a conta e o CC pela descrição do gasto, para lançar na conta certa.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-01",
+   "criterios": [
+    "3 sugestões com motivo; a pessoa escolhe",
+    "Avaliação em hml com acerto mínimo antes de ligar"
+   ],
+   "dep": [
+    "US-019",
+    "US-057"
+   ],
+   "gap": "GAP-IA-001 (priorização)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 68,
+   "frente": "A",
+   "ini_d": 57.8,
+   "fim_d": 59.4,
+   "inicio": "2027-01-21",
+   "fim": "2027-01-25"
+  },
+  {
+   "id": "US-063",
+   "epico": "EP10",
+   "release": "R3",
+   "historia": "Como gestor, quero ajuda para redigir a justificativa do pacote base zero e sugerir a prioridade, para defender melhor o orçamento.",
+   "prioridade": "Should",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "IA-02",
+   "criterios": [
+    "Texto sugerido editável; nada gravado sem aceite",
+    "Selo \"Gerado com IA – revisar\""
+   ],
+   "dep": [
+    "US-019",
+    "US-057"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 69,
+   "frente": "A",
+   "ini_d": 59.4,
+   "fim_d": 60.199999999999996,
+   "inicio": "2027-01-25",
+   "fim": "2027-01-26"
+  },
+  {
+   "id": "US-064",
+   "epico": "EP10",
+   "release": "R3",
+   "historia": "Como GFIN, quero um revisor de consistência antes de enviar o orçamento, para reduzir idas e voltas na aprovação.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-03",
+   "criterios": [
+    "Lista de achados com link para a linha",
+    "Usa ferramentas somente leitura com RBAC"
+   ],
+   "dep": [
+    "US-019",
+    "US-061"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 70,
+   "frente": "A",
+   "ini_d": 60.199999999999996,
+   "fim_d": 61.8,
+   "inicio": "2027-01-26",
+   "fim": "2027-01-27"
+  },
+  {
+   "id": "US-065",
+   "epico": "EP11",
+   "release": "R4",
+   "historia": "Como orçamentista, quero criar a proposta de TP (capa, categoria, vigência, CC), para iniciar o orçamento de um novo Termo de Parceria.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC03.04–UC03.07; RF_TP_001; RN_TP_001",
+   "criterios": [
+    "Valor global sempre calculado (ORIGEM BLINDADA)",
+    "CC único entre projetos ativos"
+   ],
+   "dep": [
+    "US-046",
+    "US-031"
+   ],
+   "gap": "GAP-CC-004 (CC por TP)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 71,
+   "frente": "A",
+   "ini_d": 61.8,
+   "fim_d": 65.0,
+   "inicio": "2027-01-27",
+   "fim": "2027-02-01"
+  },
+  {
+   "id": "US-066",
+   "epico": "EP11",
+   "release": "R4",
+   "historia": "Como orçamentista, quero versionar e duplicar propostas, para revisar sem perder o histórico e reaproveitar propostas.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC03.08–UC03.09; RN_DUP_001–008",
+   "criterios": [
+    "Versionar = nova revisão da mesma proposta; duplicar = proposta nova em Rascunho",
+    "Oficializado/Em Aprovação só leitura"
+   ],
+   "dep": [
+    "US-065"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 72,
+   "frente": "A",
+   "ini_d": 65.0,
+   "fim_d": 66.6,
+   "inicio": "2027-02-02",
+   "fim": "2027-02-03"
+  },
+  {
+   "id": "US-067",
+   "epico": "EP11",
+   "release": "R4",
+   "historia": "Como orçamentista, quero cadastrar as metas da proposta, para vincular despesas às entregas.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.14–UC03.17",
+   "criterios": [
+    "Toda despesa logística exige meta (RN_VIA_04)"
+   ],
+   "dep": [
+    "US-065"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 73,
+   "frente": "A",
+   "ini_d": 66.6,
+   "fim_d": 68.19999999999999,
+   "inicio": "2027-02-03",
+   "fim": "2027-02-05"
+  },
+  {
+   "id": "US-070",
+   "epico": "EP12",
+   "release": "R4",
+   "historia": "Como orçamentista, quero lançar quantidade de empregados por cargo, meta e competência, e os empregados (inclusive \"A CONTRATAR\"), para orçar o pessoal do TP.",
+   "prioridade": "Must",
+   "tamanho": "GG",
+   "horas": 24,
+   "modo": "S",
+   "refs": "UC03.20–UC03.27; RN0243; RN_WA05",
+   "criterios": [
+    "Custo pelo MotorCustoPosicao",
+    "Finalizar lançamentos envia o lote ao WA05"
+   ],
+   "dep": [
+    "US-051",
+    "US-065"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 74,
+   "frente": "A",
+   "ini_d": 68.19999999999999,
+   "fim_d": 72.99999999999999,
+   "inicio": "2027-02-05",
+   "fim": "2027-02-15"
+  },
+  {
+   "id": "US-071",
+   "epico": "EP12",
+   "release": "R4",
+   "historia": "Como orçamentista, quero cadastrar viagens (pessoas, dias, passagem, diária, transporte) com teto da conta e painel por categoria, para orçar deslocamentos.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "UC03.29–UC03.33; Viagens V3; RN_VIA_01–05; C6; C19",
+   "criterios": [
+    "Custo = RN_VIA_03 (sem transporte); transporte exibido no painel",
+    "Rejeição acima do teto da conta",
+    "Editar, copiar e excluir"
+   ],
+   "dep": [
+    "US-067"
+   ],
+   "gap": "GAP-VIA-001/002/003",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 75,
+   "frente": "A",
+   "ini_d": 72.99999999999999,
+   "fim_d": 76.19999999999999,
+   "inicio": "2027-02-15",
+   "fim": "2027-02-19"
+  },
+  {
+   "id": "US-072",
+   "epico": "EP12",
+   "release": "R4",
+   "historia": "Como orçamentista, quero cadastrar bens, serviços e equipamentos (CAPEX) em contas analíticas do nível 5, para orçar investimentos.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.34–UC03.36 (≡ UC04.13–16)",
+   "criterios": [
+    "Valor total = quantidade × unitário (RN0157)",
+    "Soft delete quando há snapshot"
+   ],
+   "dep": [
+    "US-065"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 76,
+   "frente": "A",
+   "ini_d": 76.19999999999999,
+   "fim_d": 77.79999999999998,
+   "inicio": "2027-02-19",
+   "fim": "2027-02-22"
+  },
+  {
+   "id": "US-073",
+   "epico": "EP13",
+   "release": "R4",
+   "historia": "Como orçamentista, quero a grade de rateio e ISS (taxa da Adm. Central) por competência, para calcular o que vai para a Adm. Central.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC03.03; RN_RAT_01–07; RN0270",
+   "criterios": [
+    "Base = conta sintética mandante (subtotal de despesas)",
+    "Replicar é ação explícita (C1)",
+    "Congela na oficialização"
+   ],
+   "dep": [
+    "US-065"
+   ],
+   "gap": "GAP-CAD-001 / GAP-ORC-007 (ISS)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 77,
+   "frente": "A",
+   "ini_d": 77.79999999999998,
+   "fim_d": 80.99999999999999,
+   "inicio": "2027-02-22",
+   "fim": "2027-02-25"
+  },
+  {
+   "id": "US-074",
+   "epico": "EP13",
+   "release": "R4",
+   "historia": "Como orçamentista, quero os totalizadores da proposta (somente leitura, com semáforo por linha), para ver os totais por conta.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC03.02; RN_TOT_01–04",
+   "criterios": [
+    "Sem botão de edição",
+    "Recalculado pelo TotalizerService"
+   ],
+   "dep": [
+    "US-009",
+    "US-070"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 78,
+   "frente": "A",
+   "ini_d": 80.99999999999999,
+   "fim_d": 82.59999999999998,
+   "inicio": "2027-02-25",
+   "fim": "2027-03-01"
+  },
+  {
+   "id": "US-075",
+   "epico": "EP13",
+   "release": "R4",
+   "historia": "Como orçamentista, quero o cronograma de desembolso e a previsão de despesas, para planejar os repasses.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC04.01; UC04.06; RN_RAT_05",
+   "criterios": [
+    "Recalculado ao salvar as abas que o afetam",
+    "Descrições geradas pelo servidor"
+   ],
+   "dep": [
+    "US-074"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 79,
+   "frente": "A",
+   "ini_d": 82.59999999999998,
+   "fim_d": 85.79999999999998,
+   "inicio": "2027-03-01",
+   "fim": "2027-03-04"
+  },
+  {
+   "id": "US-068",
+   "epico": "EP11",
+   "release": "R4",
+   "historia": "Como orçamentista, quero a pré-visualização da proposta, para revisar tudo antes de enviar.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC03.38",
+   "criterios": [
+    "Documento com todas as seções e totais",
+    "Disponível em Rascunho"
+   ],
+   "dep": [
+    "US-071"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 80,
+   "frente": "A",
+   "ini_d": 85.79999999999998,
+   "fim_d": 87.39999999999998,
+   "inicio": "2027-03-04",
+   "fim": "2027-03-08"
+  },
+  {
+   "id": "US-076",
+   "epico": "EP13",
+   "release": "R4",
+   "historia": "Como orçamentista, quero premissas e aplicações de reajuste por conta e ano, para projetar a vigência.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC04.02",
+   "criterios": [
+    "Dois blocos de premissas",
+    "Reflete no cronograma"
+   ],
+   "dep": [
+    "US-075"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 81,
+   "frente": "A",
+   "ini_d": 87.39999999999998,
+   "fim_d": 88.99999999999997,
+   "inicio": "2027-03-08",
+   "fim": "2027-03-09"
+  },
+  {
+   "id": "US-077",
+   "epico": "EP13",
+   "release": "R4",
+   "historia": "Como orçamentista, quero os demonstrativos de recursos, contratações previstas e estimativa de viagens, para montar o programa de trabalho.",
+   "prioridade": "Should",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "UC04.03–UC04.05",
+   "criterios": [
+    "Recursos só para TP oficializado (RN_RE_005)",
+    "Filtros obrigatórios por TP"
+   ],
+   "dep": [
+    "US-075"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 82,
+   "frente": "A",
+   "ini_d": 88.99999999999997,
+   "fim_d": 92.19999999999997,
+   "inicio": "2027-03-09",
+   "fim": "2027-03-15"
+  },
+  {
+   "id": "US-069",
+   "epico": "EP11",
+   "release": "R4",
+   "historia": "Como orçamentista, quero que o sistema leia o PDF do contrato e pré-preencha a capa, para digitar menos.",
+   "prioridade": "Could",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-06",
+   "criterios": [
+    "Campos sugeridos para confirmação",
+    "Nada gravado sem aceite"
+   ],
+   "dep": [
+    "US-019",
+    "US-065"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 83,
+   "frente": "A",
+   "ini_d": 92.19999999999997,
+   "fim_d": 93.79999999999997,
+   "inicio": "2027-03-15",
+   "fim": "2027-03-16"
+  },
+  {
+   "id": "US-078",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como aprovador, quero uma caixa de entrada com as pendências roteadas pela alçada, para aprovar ou rejeitar com justificativa.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC6.00–UC6.02; RF_APR_REQ_005",
+   "criterios": [
+    "Rejeição exige ≥ 15 caracteres",
+    "Titular não homologa o que submeteu (RN_WA02_006)",
+    "Badges por situação"
+   ],
+   "dep": [
+    "US-042"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 84,
+   "frente": "A",
+   "ini_d": 93.79999999999997,
+   "fim_d": 96.99999999999997,
+   "inicio": "2027-03-16",
+   "fim": "2027-03-19"
+  },
+  {
+   "id": "US-079",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como orçamentista, quero enviar a proposta para oficialização (WA01), com validação das matrizes, para formalizar o TP.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC6.00; RN_WA01_*",
+   "criterios": [
+    "Submissão exige 100% das células",
+    "Aprovar gera snapshot; rejeitar volta para Em Elaboração"
+   ],
+   "dep": [
+    "US-078",
+    "US-075"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 85,
+   "frente": "A",
+   "ini_d": 96.99999999999997,
+   "fim_d": 100.19999999999997,
+   "inicio": "2027-03-19",
+   "fim": "2027-03-25"
+  },
+  {
+   "id": "US-080",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como analista GRH, quero enviar o lote de pessoal para homologação (WA05), para validar o dimensionamento.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC6.01; RN_WA05_*",
+   "criterios": [
+    "Telas de pessoal só leitura durante a homologação",
+    "Homologar propaga a folha ao cronograma"
+   ],
+   "dep": [
+    "US-078",
+    "US-070"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 86,
+   "frente": "A",
+   "ini_d": 100.19999999999997,
+   "fim_d": 101.79999999999997,
+   "inicio": "2027-03-25",
+   "fim": "2027-03-29"
+  },
+  {
+   "id": "US-081",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como operador de viagens, quero solicitar a validação das viagens (WA02), para formalizar a estimativa.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "UC6.02; RN_WA02_*",
+   "criterios": [
+    "Segregação de funções",
+    "Bloqueio se conta pendente de sincronismo"
+   ],
+   "dep": [
+    "US-078",
+    "US-071"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 87,
+   "frente": "A",
+   "ini_d": 101.79999999999997,
+   "fim_d": 103.39999999999996,
+   "inicio": "2027-03-29",
+   "fim": "2027-03-31"
+  },
+  {
+   "id": "US-082",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como orçamentista, quero elaborar termo aditivo e termo de ajuste com seus fluxos de aprovação, para alterar TPs oficializados.",
+   "prioridade": "Must",
+   "tamanho": "GG",
+   "horas": 24,
+   "modo": "S",
+   "refs": "UC04.10; UC03.13; C3 (WA03)",
+   "criterios": [
+    "Rascunho retido se o usuário sair (RN0378)",
+    "Oficializar recalcula o rateio na Adm. Central"
+   ],
+   "dep": [
+    "US-079"
+   ],
+   "gap": "GAP-APR-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 88,
+   "frente": "A",
+   "ini_d": 103.39999999999996,
+   "fim_d": 108.19999999999996,
+   "inicio": "2027-03-31",
+   "fim": "2027-04-07"
+  },
+  {
+   "id": "US-083",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como orçamentista, quero solicitar remanejamento entre contas com aprovação, para ajustar o orçamento sem novo aditivo.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC04.09",
+   "criterios": [
+    "Aprovadores pela alçada",
+    "Histórico do remanejamento"
+   ],
+   "dep": [
+    "US-078"
+   ],
+   "gap": "GAP-APR-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 89,
+   "frente": "A",
+   "ini_d": 108.19999999999996,
+   "fim_d": 109.79999999999995,
+   "inicio": "2027-04-07",
+   "fim": "2027-04-08"
+  },
+  {
+   "id": "US-084",
+   "epico": "EP14",
+   "release": "R5",
+   "historia": "Como aprovador, quero um resumo com o que mudou desde a última versão e o impacto no total, no teto e no rateio, para decidir mais rápido.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-13",
+   "criterios": [
+    "Diferença entre snapshots calculada pelo sistema",
+    "Ajuda opcional para redigir a recusa"
+   ],
+   "dep": [
+    "US-019",
+    "US-078"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 90,
+   "frente": "A",
+   "ini_d": 109.79999999999995,
+   "fim_d": 111.39999999999995,
+   "inicio": "2027-04-08",
+   "fim": "2027-04-12"
+  },
+  {
+   "id": "US-085",
+   "epico": "EP15",
+   "release": "R6",
+   "historia": "Como GFIN, quero carregar o realizado por TP × conta × competência (arquivo ou integração), para comparar com o orçado.",
+   "prioridade": "Must",
+   "tamanho": "GG",
+   "horas": 24,
+   "modo": "S",
+   "refs": "OxR V2 Integração 2; RN_OXR_001–013",
+   "criterios": [
+    "Mês aberto: a carga substitui",
+    "Mês fechado: imutável; diferença vira ajuste no mês aberto seguinte",
+    "Conta desconhecida vira pendência"
+   ],
+   "dep": [
+    "US-043",
+    "US-079"
+   ],
+   "gap": "GAP-PGD-006/009 (formato)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 91,
+   "frente": "A",
+   "ini_d": 111.39999999999995,
+   "fim_d": 116.19999999999995,
+   "inicio": "2027-04-12",
+   "fim": "2027-04-19"
+  },
+  {
+   "id": "US-086",
+   "epico": "EP15",
+   "release": "R6",
+   "historia": "Como gestor, quero o demonstrativo de execução orçamentária com desvio e % de realização, para acompanhar o TP.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC04.07; RN0314",
+   "criterios": [
+    "Acima de 100% em vermelho e negrito",
+    "Remanejamento a partir da tela"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 92,
+   "frente": "A",
+   "ini_d": 116.19999999999995,
+   "fim_d": 119.39999999999995,
+   "inicio": "2027-04-19",
+   "fim": "2027-04-23"
+  },
+  {
+   "id": "US-087",
+   "epico": "EP15",
+   "release": "R6",
+   "historia": "Como gestor, quero o demonstrativo orçamentário analítico com filtros combinados, para analisar por conta, CC e natureza.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC04.08; RF_DA_003; RN_DA_003",
+   "criterios": [
+    "CC vazio consolida e mostra \"Todos\""
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 93,
+   "frente": "A",
+   "ini_d": 119.39999999999995,
+   "fim_d": 120.99999999999994,
+   "inicio": "2027-04-23",
+   "fim": "2027-04-26"
+  },
+  {
+   "id": "US-088",
+   "epico": "EP15",
+   "release": "R6",
+   "historia": "Como GFIN, quero os demonstrativos de provisões e de aplicações financeiras, para controlar saldos e rendimentos.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "UC04.11; UC04.12; RN0360",
+   "criterios": [
+    "Edição só no mês corrente e futuros",
+    "Exige TP oficializado"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "GAP-ORC-001 (RN0433/0434)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 94,
+   "frente": "A",
+   "ini_d": 120.99999999999994,
+   "fim_d": 124.19999999999995,
+   "inicio": "2027-04-26",
+   "fim": "2027-04-30"
+  },
+  {
+   "id": "US-089",
+   "epico": "EP15",
+   "release": "R6",
+   "historia": "Como GFIN, quero o realizado da Administração Central por CC, para acompanhar o orçamento do exercício.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 6.6",
+   "criterios": [
+    "Orçado × realizado por CC e conta",
+    "Realizado só leitura"
+   ],
+   "dep": [
+    "US-085",
+    "US-061"
+   ],
+   "gap": "GAP-PGD-006/009",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 95,
+   "frente": "A",
+   "ini_d": 124.19999999999995,
+   "fim_d": 125.79999999999994,
+   "inicio": "2027-04-30",
+   "fim": "2027-05-03"
+  },
+  {
+   "id": "US-090",
+   "epico": "EP16",
+   "release": "R6",
+   "historia": "Como gestor, quero a explicação do desvio orçado × realizado em texto, para entender o porquê sem montar planilha.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-09",
+   "criterios": [
+    "Cita meses, contas e ajustes",
+    "Números das ferramentas, não da IA"
+   ],
+   "dep": [
+    "US-086"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 96,
+   "frente": "A",
+   "ini_d": 125.79999999999994,
+   "fim_d": 127.39999999999993,
+   "inicio": "2027-05-03",
+   "fim": "2027-05-05"
+  },
+  {
+   "id": "US-091",
+   "epico": "EP16",
+   "release": "R6",
+   "historia": "Como GFIN, quero a previsão de fechamento do ano com as contas em risco de estouro, para agir antes.",
+   "prioridade": "Should",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "IA-10",
+   "criterios": [
+    "Projeção pelo motor determinístico",
+    "IA destaca o mês do estouro"
+   ],
+   "dep": [
+    "US-086"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 97,
+   "frente": "A",
+   "ini_d": 127.39999999999993,
+   "fim_d": 130.59999999999994,
+   "inicio": "2027-05-05",
+   "fim": "2027-05-10"
+  },
+  {
+   "id": "US-092",
+   "epico": "EP16",
+   "release": "R6",
+   "historia": "Como gestor, quero um alerta semanal por e-mail com os pontos de atenção do que é meu, para não depender de abrir o sistema.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-11",
+   "criterios": [
+    "Job no worker",
+    "Só dados do escopo do gestor"
+   ],
+   "dep": [
+    "US-086",
+    "US-025"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 98,
+   "frente": "A",
+   "ini_d": 130.59999999999994,
+   "fim_d": 132.19999999999993,
+   "inicio": "2027-05-10",
+   "fim": "2027-05-12"
+  },
+  {
+   "id": "US-093",
+   "epico": "EP16",
+   "release": "R6",
+   "historia": "Como GFIN, quero ver onde o saldo provisionado está abaixo do necessário, para evitar surpresa no fechamento.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-08",
+   "criterios": [
+    "Necessidade calculada pelo motor",
+    "IA explica a diferença"
+   ],
+   "dep": [
+    "US-088"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 99,
+   "frente": "A",
+   "ini_d": 132.19999999999993,
+   "fim_d": 133.79999999999993,
+   "inicio": "2027-05-12",
+   "fim": "2027-05-13"
+  },
+  {
+   "id": "US-094",
+   "epico": "EP16",
+   "release": "R6",
+   "historia": "Como GFIN, quero sugestão de correspondência para contas e CCs desconhecidos vindos do Senior, para destravar a integração.",
+   "prioridade": "Could",
+   "tamanho": "P",
+   "horas": 4,
+   "modo": "S",
+   "refs": "IA-12",
+   "criterios": [
+    "Sugestão confirmada por pessoa"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 100,
+   "frente": "A",
+   "ini_d": 133.79999999999993,
+   "fim_d": 134.59999999999994,
+   "inicio": "2027-05-13",
+   "fim": "2027-05-14"
+  },
+  {
+   "id": "US-095",
+   "epico": "EP16",
+   "release": "R6",
+   "historia": "Como GFIN, quero simular cenários e propostas de corte para caber no teto, para decidir em reunião.",
+   "prioridade": "Could",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "IA-04; IA-05",
+   "criterios": [
+    "Cenário isolado; só vira orçamento pelo fluxo normal",
+    "Cortes por algoritmo determinístico"
+   ],
+   "dep": [
+    "US-059"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 101,
+   "frente": "A",
+   "ini_d": 134.59999999999994,
+   "fim_d": 137.79999999999993,
+   "inicio": "2027-05-14",
+   "fim": "2027-05-19"
+  },
+  {
+   "id": "US-096",
+   "epico": "EP17",
+   "release": "R7",
+   "historia": "Como gestor, quero os relatórios financeiros (receitas e despesas sintético e analítico, despesas analítico), para prestar contas do TP.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "UC05.01; UC05.02; UC05.11",
+   "criterios": [
+    "Exportação XLSX/PDF com marca d'água",
+    "Filtros por TP e período"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 102,
+   "frente": "B",
+   "ini_d": 116.19999999999995,
+   "fim_d": 119.39999999999995,
+   "inicio": "2027-04-19",
+   "fim": "2027-04-23"
+  },
+  {
+   "id": "US-097",
+   "epico": "EP17",
+   "release": "R7",
+   "historia": "Como gestor, quero os relatórios de viagens (I e II) e de aquisições, para prestar contas dessas despesas.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "UC05.03; UC05.07; UC05.04",
+   "criterios": [
+    "Mesmo padrão de relatório"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "GAP-INT-013 (RVS)",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 103,
+   "frente": "B",
+   "ini_d": 119.39999999999995,
+   "fim_d": 122.59999999999995,
+   "inicio": "2027-04-23",
+   "fim": "2027-04-28"
+  },
+  {
+   "id": "US-098",
+   "epico": "EP17",
+   "release": "R7",
+   "historia": "Como analista GRH, quero os relatórios de pessoal (salários, distribuição, férias, Adm. Central custeada), para prestar contas da folha.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "UC05.05; UC05.06; UC05.09; UC05.10",
+   "criterios": [
+    "Mascaramento de salários por perfil"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 104,
+   "frente": "B",
+   "ini_d": 122.59999999999995,
+   "fim_d": 125.79999999999995,
+   "inicio": "2027-04-28",
+   "fim": "2027-05-03"
+  },
+  {
+   "id": "US-100",
+   "epico": "EP17",
+   "release": "R7",
+   "historia": "Como GFIN, quero emitir o Book mensal em lote, para entregar a prestação de contas completa.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "UC05.12; RN0449",
+   "criterios": [
+    "Só relatórios da categoria book",
+    "Geração em job"
+   ],
+   "dep": [
+    "US-096",
+    "US-097",
+    "US-098"
+   ],
+   "gap": "GAP-REL-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 105,
+   "frente": "B",
+   "ini_d": 125.79999999999995,
+   "fim_d": 128.99999999999994,
+   "inicio": "2027-05-03",
+   "fim": "2027-05-06"
+  },
+  {
+   "id": "US-101",
+   "epico": "EP18",
+   "release": "R7",
+   "historia": "Como diretor, quero o consolidado de todos os TPs (orçado, realizado, %), com acesso por permissão própria, para ter a visão do portfólio.",
+   "prioridade": "Must",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "spec 6.7",
+   "criterios": [
+    "Único lugar com vários TPs juntos",
+    "Acesso auditado"
+   ],
+   "dep": [
+    "US-086"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 106,
+   "frente": "A",
+   "ini_d": 137.79999999999993,
+   "fim_d": 139.39999999999992,
+   "inicio": "2027-05-19",
+   "fim": "2027-05-21"
+  },
+  {
+   "id": "US-102",
+   "epico": "EP18",
+   "release": "R7",
+   "historia": "Como GFIN, quero o rateio da Administração Central distribuído entre os TPs, para apropriar os custos centrais.",
+   "prioridade": "Must",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "RN0270; REQ0277/0278",
+   "criterios": [
+    "Regra a definir"
+   ],
+   "dep": [
+    "US-101",
+    "US-089"
+   ],
+   "gap": "GAP-REL-001 (regra de rateio)",
+   "trilha": false,
+   "fixa": "A",
+   "ordem": 107,
+   "frente": "A",
+   "ini_d": 139.39999999999992,
+   "fim_d": 142.5999999999999,
+   "inicio": "2027-05-21",
+   "fim": "2027-05-26"
+  },
+  {
+   "id": "US-099",
+   "epico": "EP17",
+   "release": "R7",
+   "historia": "Como gestor, quero o relatório de execução física (produtos previstos × realizados), para acompanhar as entregas.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "U",
+   "refs": "UC05.08",
+   "criterios": [
+    "Filtros por código e carta"
+   ],
+   "dep": [
+    "US-067"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 108,
+   "frente": "B",
+   "ini_d": 68.19999999999999,
+   "fim_d": 69.79999999999998,
+   "inicio": "2027-02-05",
+   "fim": "2027-02-10"
+  },
+  {
+   "id": "US-103",
+   "epico": "EP19",
+   "release": "R7",
+   "historia": "Como GFIN, quero o rascunho do relatório executivo mensal (indicadores, gráficos, riscos e recomendações) em PDF e PPTX, para apresentar aos diretores e gerentes.",
+   "prioridade": "Should",
+   "tamanho": "GG",
+   "horas": 24,
+   "modo": "S",
+   "refs": "IA-14",
+   "criterios": [
+    "Gráficos gerados pelo sistema",
+    "GFIN revisa e aprova antes de distribuir"
+   ],
+   "dep": [
+    "US-101",
+    "US-019"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 109,
+   "frente": "B",
+   "ini_d": 140.19999999999993,
+   "fim_d": 144.99999999999994,
+   "inicio": "2027-05-24",
+   "fim": "2027-05-31"
+  },
+  {
+   "id": "US-104",
+   "epico": "EP19",
+   "release": "R7",
+   "historia": "Como diretor, quero perguntar ao SGO em linguagem comum e receber o número com fonte e link, para não depender de quem domina os relatórios.",
+   "prioridade": "Should",
+   "tamanho": "GG",
+   "horas": 24,
+   "modo": "S",
+   "refs": "IA-16",
+   "criterios": [
+    "Ferramentas somente leitura com RBAC e TP",
+    "Resposta cita a fonte"
+   ],
+   "dep": [
+    "US-096",
+    "US-019"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 110,
+   "frente": "B",
+   "ini_d": 128.99999999999994,
+   "fim_d": 133.79999999999995,
+   "inicio": "2027-05-06",
+   "fim": "2027-05-13"
+  },
+  {
+   "id": "US-105",
+   "epico": "EP19",
+   "release": "R7",
+   "historia": "Como GFIN, quero o roteiro de apresentação para reunião de diretoria sobre um tema, para preparar reuniões com dados confiáveis.",
+   "prioridade": "Could",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "IA-15",
+   "criterios": [
+    "Slides a partir dos dados consolidados"
+   ],
+   "dep": [
+    "US-103"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 111,
+   "frente": "B",
+   "ini_d": 144.99999999999994,
+   "fim_d": 148.19999999999993,
+   "inicio": "2027-05-31",
+   "fim": "2027-06-04"
+  },
+  {
+   "id": "US-106",
+   "epico": "EP19",
+   "release": "R7",
+   "historia": "Como diretor, quero o comparativo entre TPs com comentários sobre os pontos fora da curva, para avaliar o portfólio.",
+   "prioridade": "Could",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-17",
+   "criterios": [
+    "Só no menu da Adm. Central"
+   ],
+   "dep": [
+    "US-101"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 112,
+   "frente": "B",
+   "ini_d": 148.19999999999993,
+   "fim_d": 149.79999999999993,
+   "inicio": "2027-06-04",
+   "fim": "2027-06-07"
+  },
+  {
+   "id": "US-107",
+   "epico": "EP19",
+   "release": "R7",
+   "historia": "Como analista GRH, quero a análise do quadro de pessoal só com agregados, para apoiar decisões de dimensionamento.",
+   "prioridade": "Could",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "IA-07",
+   "criterios": [
+    "Nunca envia nomes nem salários individuais"
+   ],
+   "dep": [
+    "US-070"
+   ],
+   "gap": "GAP-IA-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 113,
+   "frente": "B",
+   "ini_d": 72.99999999999999,
+   "fim_d": 74.59999999999998,
+   "inicio": "2027-02-15",
+   "fim": "2027-02-17"
+  },
+  {
+   "id": "US-108",
+   "epico": "EP19",
+   "release": "R7",
+   "historia": "Como usuário, quero ajuda contextual \"como faço...\" com base no manual, para usar o sistema sem chamar o suporte.",
+   "prioridade": "Could",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "IA-18",
+   "criterios": [
+    "Cita o trecho do manual",
+    "Base: regras do sistema; o manual (US-118) é incorporado quando estiver pronto"
+   ],
+   "dep": [
+    "US-020"
+   ],
+   "gap": "GAP-IA-002",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 114,
+   "frente": "B",
+   "ini_d": 44.39999999999999,
+   "fim_d": 47.599999999999994,
+   "inicio": "2027-01-04",
+   "fim": "2027-01-07"
+  },
+  {
+   "id": "US-109",
+   "epico": "EP20",
+   "release": "R8",
+   "historia": "Como GFIN, quero a sincronização do plano de contas com o Senior (Integração 1), para não depender de planilha.",
+   "prioridade": "Should",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "Integração V4; OxR Integração 1",
+   "criterios": [
+    "Mesmo modelo da carga por arquivo (troca só o adaptador)",
+    "Lock pessimista no sincronismo; timeout 10 s"
+   ],
+   "dep": [
+    "US-043"
+   ],
+   "gap": "GAP-INT-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 115,
+   "frente": "B",
+   "ini_d": 47.599999999999994,
+   "fim_d": 50.8,
+   "inicio": "2027-01-07",
+   "fim": "2027-01-12"
+  },
+  {
+   "id": "US-110",
+   "epico": "EP20",
+   "release": "R8",
+   "historia": "Como GFIN, quero a sincronização dos centros de custo com o Senior, para manter os CCs atualizados.",
+   "prioridade": "Should",
+   "tamanho": "M",
+   "horas": 8,
+   "modo": "S",
+   "refs": "GAP-INT-014",
+   "criterios": [
+    "Mesmo modelo da carga por arquivo"
+   ],
+   "dep": [
+    "US-046"
+   ],
+   "gap": "GAP-INT-014",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 116,
+   "frente": "B",
+   "ini_d": 50.8,
+   "fim_d": 52.4,
+   "inicio": "2027-01-12",
+   "fim": "2027-01-14"
+  },
+  {
+   "id": "US-111",
+   "epico": "EP20",
+   "release": "R8",
+   "historia": "Como analista GRH, quero a sincronização de cargos, salários e estrutura funcional com o Rubi/Senior, para não digitar dados de RH.",
+   "prioridade": "Should",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "Integração V4 (Rubi)",
+   "criterios": [
+    "Dados sincronizados só leitura no SGO"
+   ],
+   "dep": [
+    "US-049"
+   ],
+   "gap": "GAP-INT-005",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 117,
+   "frente": "B",
+   "ini_d": 52.4,
+   "fim_d": 55.6,
+   "inicio": "2027-01-14",
+   "fim": "2027-01-19"
+  },
+  {
+   "id": "US-112",
+   "epico": "EP20",
+   "release": "R8",
+   "historia": "Como GFIN, quero o realizado do Senior por integração (Integração 2), para não carregar arquivo todo mês.",
+   "prioridade": "Should",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "OxR Integração 2",
+   "criterios": [
+    "Mesmas regras de mês aberto/fechado"
+   ],
+   "dep": [
+    "US-085"
+   ],
+   "gap": "GAP-PGD-006/009",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 118,
+   "frente": "B",
+   "ini_d": 133.79999999999995,
+   "fim_d": 136.99999999999994,
+   "inicio": "2027-05-13",
+   "fim": "2027-05-18"
+  },
+  {
+   "id": "US-113",
+   "epico": "EP20",
+   "release": "R8",
+   "historia": "Como operador de viagens, quero a integração com o RVS, para trazer as viagens realizadas.",
+   "prioridade": "Could",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "Integração V4 (RVS)",
+   "criterios": [
+    "Fallback manual mantido"
+   ],
+   "dep": [
+    "US-097"
+   ],
+   "gap": "GAP-INT-013",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 119,
+   "frente": "B",
+   "ini_d": 136.99999999999994,
+   "fim_d": 140.19999999999993,
+   "inicio": "2027-05-18",
+   "fim": "2027-05-24"
+  },
+  {
+   "id": "US-114",
+   "epico": "EP20",
+   "release": "R8",
+   "historia": "Como usuário, quero entrar com o login da intranet, para não ter mais uma senha.",
+   "prioridade": "Could",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "S",
+   "refs": "EP084 V5 objetivo; D2",
+   "criterios": [
+    "Novo adaptador da porta ProvedorIdentidade",
+    "Bloqueio e manutenção continuam valendo"
+   ],
+   "dep": [
+    "US-026"
+   ],
+   "gap": "GAP-AUT-001",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 120,
+   "frente": "B",
+   "ini_d": 55.6,
+   "fim_d": 58.800000000000004,
+   "inicio": "2027-01-19",
+   "fim": "2027-01-22"
+  },
+  {
+   "id": "US-118",
+   "epico": "EP21",
+   "release": "R9",
+   "historia": "Como usuário, quero o manual do usuário e o treinamento por perfil, para usar o sistema desde o primeiro dia.",
+   "prioridade": "Should",
+   "tamanho": "G",
+   "horas": 16,
+   "modo": "U",
+   "refs": "—",
+   "criterios": [
+    "Manual por perfil, sem o nome da instituição",
+    "Material de treinamento"
+   ],
+   "dep": [
+    "US-031"
+   ],
+   "gap": "—",
+   "trilha": false,
+   "fixa": "B",
+   "ordem": 121,
+   "frente": "B",
+   "ini_d": 58.800000000000004,
+   "fim_d": 62.00000000000001,
+   "inicio": "2027-01-22",
+   "fim": "2027-01-27"
+  }
+ ],
+ "releases": [
+  [
+   "R0",
+   "Fundação técnica",
+   "F0"
+  ],
+  [
+   "R1",
+   "Geral, Autenticação e Administração",
+   "F1"
+  ],
+  [
+   "R2",
+   "Cadastros-base",
+   "F2"
+  ],
+  [
+   "R3",
+   "Orçamento da Administração Central + IA onda 1 (parte)",
+   "F3A"
+  ],
+  [
+   "R4",
+   "Propostas / Termos de Parceria",
+   "F3"
+  ],
+  [
+   "R5",
+   "Aprovações + IA-13",
+   "F4"
+  ],
+  [
+   "R6",
+   "Execução orçamentária e Orçado × Realizado + IA onda 2",
+   "F5"
+  ],
+  [
+   "R7",
+   "Relatórios, Book, Consolidado + IA onda 3",
+   "F6"
+  ],
+  [
+   "R8",
+   "Integrações Senior/Rubi/RVS",
+   "F7"
+  ],
+  [
+   "R9",
+   "Go-live e operação",
+   "—"
+  ]
+ ],
+ "epicos": [
+  [
+   "EP00",
+   "R0",
+   "Fundação técnica"
+  ],
+  [
+   "EP01",
+   "R0",
+   "Infraestrutura VPS, CI/CD e proteção de dados"
+  ],
+  [
+   "EP02",
+   "R0",
+   "Infraestrutura de IA"
+  ],
+  [
+   "EP03",
+   "R1",
+   "Módulo Geral (componentes-base)"
+  ],
+  [
+   "EP04",
+   "R1",
+   "Autenticação e Tela Principal"
+  ],
+  [
+   "EP05",
+   "R1",
+   "Administração"
+  ],
+  [
+   "EP06",
+   "R2",
+   "Estrutura financeira (plano de contas e centros de custo)"
+  ],
+  [
+   "EP07",
+   "R2",
+   "Pessoal-base (estrutura funcional, cargos, benefícios)"
+  ],
+  [
+   "EP08",
+   "R2",
+   "Parâmetros e Central de Cálculos"
+  ],
+  [
+   "EP09",
+   "R3",
+   "Orçamento da Administração Central"
+  ],
+  [
+   "EP10",
+   "R3",
+   "IA onda 1"
+  ],
+  [
+   "EP11",
+   "R4",
+   "Proposta, versões e capa do TP"
+  ],
+  [
+   "EP12",
+   "R4",
+   "Pessoal, viagens e bens na proposta"
+  ],
+  [
+   "EP13",
+   "R4",
+   "Totalizadores, rateio/ISS e cronograma"
+  ],
+  [
+   "EP14",
+   "R5",
+   "Workflows de aprovação"
+  ],
+  [
+   "EP15",
+   "R6",
+   "Execução orçamentária e realizado"
+  ],
+  [
+   "EP16",
+   "R6",
+   "IA onda 2"
+  ],
+  [
+   "EP17",
+   "R7",
+   "Relatórios e Book"
+  ],
+  [
+   "EP18",
+   "R7",
+   "Administração Central: consolidado e rateio"
+  ],
+  [
+   "EP19",
+   "R7",
+   "IA onda 3"
+  ],
+  [
+   "EP20",
+   "R8",
+   "Integrações"
+  ],
+  [
+   "EP21",
+   "R9",
+   "Go-live e operação"
+  ]
+ ],
+ "rel_fim": {
+  "R0": "2026-12-15",
+  "R1": "2027-01-13",
+  "R2": "2027-01-04",
+  "R3": "2027-01-27",
+  "R4": "2027-03-16",
+  "R5": "2027-04-12",
+  "R6": "2027-05-19",
+  "R7": "2027-06-07",
+  "R8": "2027-05-24",
+  "R9": "2027-01-27"
+ },
+ "trilha_fim": "2026-12-09"
+}

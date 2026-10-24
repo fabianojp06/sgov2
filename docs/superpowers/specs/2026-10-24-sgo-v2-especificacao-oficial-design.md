@@ -730,6 +730,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 | `src/app/(sistema)/<modulo>/` (rotas) | dono do módulo |
 | `e2e/<modulo>/` (testes E2E) | dono do módulo |
 | **Compartilhados:** `package.json`, `package-lock.json`, `tsconfig*.json`, configuração de lint e formatação, `next.config.*`, `CLAUDE.md`, `.claude/`, `prisma/schema/_base.prisma` (datasource, generator, enums globais), `src/app/layout.tsx` e *providers*, `.github/frentes.yml`, `docs/superpowers/` | protocolo de 12.5 |
+| `docs/memoria/memoria-do-projeto.md` (memória compartilhada entre as contas) | as duas frentes, só acrescentando as próprias linhas; não precisa de PR exclusivo (12.5, passo 7) |
 
 **Período de fundação:** até o merge de US-001 (repositório) e US-004 (Prisma), só a frente A escreve no repositório. Nesse período, a frente B trabalha fora do código: endurecimento da VPS (US-016), ambientes do Easypanel (US-014) e planilha-modelo (US-120).
 
@@ -761,7 +762,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 4. **Desenvolver** com plano (writing-plans) e TDD. Atualizar a branch pela `main` (rebase) pelo menos uma vez por dia e sempre antes de abrir o PR.
 5. **PR.** Título `[US-NNN] …`, corpo com `Closes #n`, label `frente:X` e checklist dos critérios de aceite. O PR deve ser pequeno, idealmente até 400 linhas de código de produção; história maior vira PRs encadeados.
 6. **Merge** pelo PO, com CI verde (12.8), em *squash*. A issue vai para "Em homologação".
-7. **Passagem de sessão.** Ao encerrar a sessão com trabalho em aberto, a frente comenta na issue o que foi feito, o que falta e as decisões tomadas, para que qualquer sessão, de qualquer conta, retome dali.
+7. **Passagem de sessão.** Ao encerrar a sessão com trabalho em aberto, a frente comenta na issue o que foi feito, o que falta e as decisões tomadas, para que qualquer sessão, de qualquer conta, retome dali. No início de toda sessão, a frente lê `docs/memoria/memoria-do-projeto.md`. Ao fim, atualiza o estado, as pendências e o diário desse arquivo, no PR da história ou num PR próprio.
 
 **Arquivos compartilhados** (12.3): mudam só num **PR exclusivo** (label `compartilhado`), pequeno, sem código de funcionalidade junto. O PO faz o merge no mesmo dia. A outra frente faz rebase logo depois. Dependência nova no `package.json` entra por esse PR, e o `package-lock.json` nunca é mesclado à mão: em conflito, é regerado com `npm install` sobre a `main`.
 
