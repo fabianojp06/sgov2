@@ -351,6 +351,7 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 - **Aditivo e Termo de Ajuste:** a oficialização de um aditivo recalcula o rateio dos meses afetados no exercício aberto. Exercício oficializado não muda; a diferença aparece como ajuste.
 - **Resultado do exercício:** Rateio líquido confirmado − (Pessoal + encargos + Base zero) = superávit ou déficit, mês a mês e no ano.
 - **Teto:** o padrão é o **rateio líquido confirmado** do exercício. O GFIN pode fixar um teto menor, nunca maior sem justificativa registrada. O semáforo (70/85/95) compara o orçado com esse teto (decisão do PO).
+- Até o GAP-ORC-007 ser definido, a coluna de ISS mostra "a definir" e o rateio líquido é igual ao rateio.
 - Dependência: a aba de receitas só tem dados quando a F3 (Proposta, Rateio/ISS) existe. Até lá, a F3A funciona só com despesas e teto manual.
 
 **Atributo novo no CC:** natureza (Finalístico · Apoio · Administrativo · Gestão), usada para ordenar e agrupar. A minuta de CC não tem essa coluna (GAP-CC-006).
@@ -469,7 +470,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CC-005 | CAD | A DIREX (nível 1) terá CC de gestão próprio (ex.: 4.0 Gabinete da DIREX) ou seus custos ficam em 4.4? | Não bloqueia | DIREX |
 | GAP-CAD-004 | CAD | 15 contas do protótipo não existem no plano oficial de 5 níveis: despesas financeiras (tarifas, IOF, comissões, câmbio, pregão, variação cambial), juros e multas, perda na baixa de imobilizado, doações e **Rateio da Adm. Central** (1.9.23.001). Também 4 descrições diferentes (ex.: 1.9.18.002 "Impostos a Recolher – ISS" × 4.1.1.8.002 Provisão para Contingências de Passivo Tributário) | F3A (base zero só oferece contas oficiais) | Wellington |
 | GAP-CC-006 | CAD | Natureza do CC (Finalístico/Apoio/Administrativo/Gestão) usada no protótipo não está na minuta de CC | Não bloqueia (campo opcional) | DIREX/GFIN |
-| GAP-ORC-007 | ORC | ISS do rateio: base (o valor do rateio?), alíquota (município do TP?) e quem arca (despesa a mais no TP ou dedução do que a Adm. Central recebe) | F3A e F3 (junto com GAP-CAD-001) | Wellington |
+| GAP-ORC-007 | ORC | ISS do rateio: base (o valor do rateio?), alíquota (município do TP?) e quem arca (despesa a mais no TP ou dedução do que a Adm. Central recebe) | F3A e F3 (junto com GAP-CAD-001) | PO (definirá depois) / Wellington |
 | GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
 | GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
 | GAP-CAD-005 | CAD | Descrição da conta 4.1.1.8.005 contém a sigla CTCEA, vedada nas telas (6.7) | Não bloqueia (carga remove a sigla) | Wellington |
