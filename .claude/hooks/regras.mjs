@@ -1,7 +1,8 @@
 // Regras das travas das sessões do Claude Code (spec §11.5 e D12, US-002).
 // Função pura: recebe o comando do Bash e o ambiente e diz se a execução deve ser bloqueada.
 // O comando é avaliado inteiro: encadeamentos (&&, ||, ;, |, quebra de linha), variáveis
-// inline (VAR=valor cmd), export e subshells (bash -c '...') entram na análise.
+// inline (VAR=valor cmd), export, subshells (bash -c '...') e embrulhos (sudo -u x, timeout N,
+// xargs, nice...) entram na análise: o comando real é o que vem depois deles.
 
 const PORTAS_DEV = new Set(['55432', '56432']);
 const HOSTS_LOCAIS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
@@ -9,7 +10,29 @@ const NOMES_VEDADOS = /sgo-prod|sgo-hml/i;
 const CAMINHOS_VEDADOS = /\/etc\/easypanel|\/var\/lib\/docker\/volumes\/sgo-/i;
 const URL_PG = /postgres(?:ql)?:\/\/[^\s'"`;|&)]+/gi;
 const ATRIBUICAO = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
-const PREFIXOS = new Set(['sudo', 'env', 'command', 'exec', 'nohup', 'time']);
+// Variáveis de URL de banco que o Prisma pode usar: DATABASE_URL, MIGRATE_DATABASE_URL (datasource do
+// prisma.config.ts), SHADOW_DATABASE_URL e qualquer outra *_DATABASE_URL.
+export const NOME_URL_BANCO = /^(?:[A-Z0-9_]*_)?DATABASE_URL$/;
+const SHELLS = ['bash', 'sh', 'zsh', 'dash', 'ksh'];
+// Comandos que só embrulham outro comando: o comando real vem depois das opções (e das opções
+// que recebem valor, como sudo -u root) e de um número fixo de posicionais (timeout 10).
+const EMBRULHOS = new Map([
+  ...SHELLS.map((s) => [s, { comValor: ['-o', '-O', '+o', '+O'], posicionais: 0 }]),
+  ['sudo', { comValor: ['-u', '-g', '-h', '-p', '-C', '-D', '-r', '-t', '-U', '-T', '--user', '--group', '--host', '--prompt', '--chdir', '--role', '--type', '--other-user', '--close-from', '--command-timeout'], posicionais: 0 }],
+  ['env', { comValor: ['-u', '--unset', '-C', '--chdir'], posicionais: 0 }],
+  ['command', { comValor: [], posicionais: 0 }],
+  ['exec', { comValor: ['-a'], posicionais: 0 }],
+  ['eval', { comValor: [], posicionais: 0 }],
+  ['nohup', { comValor: [], posicionais: 0 }],
+  ['setsid', { comValor: [], posicionais: 0 }],
+  ['time', { comValor: ['-f', '-o', '--format', '--output'], posicionais: 0 }],
+  ['nice', { comValor: ['-n', '--adjustment'], posicionais: 0 }],
+  ['ionice', { comValor: ['-c', '-n', '-p', '-P', '-u', '--class', '--classdata'], posicionais: 0 }],
+  ['stdbuf', { comValor: ['-i', '-o', '-e'], posicionais: 0 }],
+  ['watch', { comValor: ['-n', '--interval', '-q', '--equexit'], posicionais: 0 }],
+  ['timeout', { comValor: ['-s', '-k', '--signal', '--kill-after'], posicionais: 1 }],
+  ['xargs', { comValor: ['-I', '-n', '-P', '-L', '-s', '-d', '-E', '-a', '--max-args', '--max-procs', '--max-lines', '--max-chars', '--delimiter', '--eof', '--arg-file', '--replace'], posicionais: 0 }],
+]);
 const COMANDOS_DE_CONTEINER = new Set(['docker', 'docker-compose', 'podman', 'nsenter', 'ctr', 'crictl']);
 const CLIENTES_PG = new Set(['psql', 'pg_dump', 'pg_dumpall', 'pg_restore']);
 
@@ -41,6 +64,7 @@ function segmentar(comando) {
     .filter((t) => t.length > 0);
 }
 
+/** Tira variáveis inline e embrulhos (sudo, timeout, bash -c, xargs...) até chegar ao comando real. */
 function semPrefixos(tokens, envSegmento) {
   let i = 0;
   while (i < tokens.length) {
@@ -49,11 +73,15 @@ function semPrefixos(tokens, envSegmento) {
     if (m) {
       envSegmento[m[1]] = m[2];
       i += 1;
-    } else if (PREFIXOS.has(t) || (t.startsWith('-') && i > 0 && PREFIXOS.has(tokens[i - 1]))) {
-      i += 1;
-    } else {
-      break;
+      continue;
     }
+    const embrulho = EMBRULHOS.get(nomeBase(t));
+    if (!embrulho) break;
+    i += 1;
+    while (i < tokens.length && /^[-+]/.test(tokens[i]) && tokens[i] !== '+') {
+      i += embrulho.comValor.includes(tokens[i]) ? 2 : 1;
+    }
+    i += embrulho.posicionais;
   }
   return tokens.slice(i);
 }
@@ -66,7 +94,7 @@ function temSequencia(tokens, a, b) {
   return tokens.some((t, i) => t === a && tokens[i + 1] === b);
 }
 
-function avaliarPrisma(tokens, env) {
+function avaliarPrisma(tokens, env, envArquivos) {
   if (!tokens.some((t) => nomeBase(t) === 'prisma')) return null;
   const reset = temSequencia(tokens, 'migrate', 'reset');
   const push = temSequencia(tokens, 'db', 'push');
@@ -75,11 +103,18 @@ function avaliarPrisma(tokens, env) {
   if (!reset && !push && !diff && !dev) return null;
 
   const urls = [...tokens.join(' ').matchAll(URL_PG)].map((m) => m[0]);
-  for (const nome of ['DATABASE_URL', 'SHADOW_DATABASE_URL']) {
-    if (env[nome]) urls.push(env[nome]);
+  for (const [nome, valor] of Object.entries(env)) {
+    if (NOME_URL_BANCO.test(nome) && valor) urls.push(valor);
   }
-  if ((reset || push) && urls.length === 0) {
-    return `${MOTIVO_BANCO} DATABASE_URL ausente: não dá para saber qual banco seria alterado.`;
+  // As URLs dos arquivos já chegam filtradas (só *_DATABASE_URL), com a chave "arquivo NOME".
+  for (const valor of Object.values(envArquivos)) {
+    if (valor) urls.push(valor);
+  }
+  // migrate diff só toca banco quando usa datasource, migrations (shadow) ou URL; schema contra schema não.
+  const diffComBanco =
+    diff && tokens.some((t) => /^--(?:from|to)-(?:config-datasource|migrations|url)\b|^--shadow-database-url\b/.test(t));
+  if ((reset || push || dev || diffComBanco) && urls.length === 0) {
+    return `${MOTIVO_BANCO} Nenhuma URL de banco visível (DATABASE_URL, MIGRATE_DATABASE_URL, SHADOW_DATABASE_URL): não dá para saber qual banco seria alterado.`;
   }
   const fora = urls.filter((u) => !ehDevLocal(u));
   if (fora.length > 0) return MOTIVO_BANCO;
@@ -93,13 +128,17 @@ function avaliarClientePg(tokens, env) {
   const urls = [];
   for (let i = 1; i < tokens.length; i += 1) {
     const t = tokens[i];
+    // --dbname= aceita URL ou conninfo (chave=valor); o valor é avaliado como argumento solto.
+    const v = t.startsWith('--dbname=') ? t.slice(9) : t;
+    let m;
     if (t === '-h' || t === '--host') host = tokens[i + 1];
     else if (t.startsWith('--host=')) host = t.slice(7);
     else if (t.startsWith('-h') && t.length > 2) host = t.slice(2);
     else if (t === '-p' || t === '--port') porta = tokens[i + 1];
     else if (t.startsWith('--port=')) porta = t.slice(7);
-    else if (/^postgres(?:ql)?:\/\//i.test(t)) urls.push(t);
-    else if (t.startsWith('--dbname=') && /^--dbname=postgres(?:ql)?:\/\//i.test(t)) urls.push(t.slice(9));
+    else if (/^postgres(?:ql)?:\/\//i.test(v)) urls.push(v);
+    else if ((m = /^(?:host|hostaddr)=(.*)$/i.exec(v))) host = m[1];
+    else if ((m = /^port=(.*)$/i.exec(v))) porta = m[1];
   }
   if (urls.some((u) => !ehDevLocal(u))) return MOTIVO_PSQL;
   // Sem host: socket local do próprio servidor (o banco de prod fica em contêiner, sem porta pública).
@@ -123,10 +162,12 @@ function avaliarGitPush(tokens) {
 
 /**
  * @param {string} comando
- * @param {Record<string, string | undefined>} env
+ * @param {Record<string, string | undefined>} env ambiente da sessão
+ * @param {Record<string, string | undefined>} [envArquivos] URLs lidas do .env/.env.local do projeto
+ *   (as que o prisma.config.ts carrega); todas precisam ser de dev local.
  * @returns {{ bloquear: boolean; motivo?: string }}
  */
-export function avaliarComando(comando, env) {
+export function avaliarComando(comando, env, envArquivos = {}) {
   if (typeof comando !== 'string' || comando.trim() === '') return { bloquear: false };
   if (CAMINHOS_VEDADOS.test(comando)) return { bloquear: true, motivo: MOTIVO_PROD };
 
@@ -150,7 +191,7 @@ export function avaliarComando(comando, env) {
     if (CLIENTES_PG.has(nomeBase(tokens[0])) && NOMES_VEDADOS.test(tokens.join(' '))) {
       return { bloquear: true, motivo: MOTIVO_PROD };
     }
-    const motivo = avaliarPrisma(tokens, envSegmento) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens);
+    const motivo = avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens);
     if (motivo) return { bloquear: true, motivo };
   }
   return { bloquear: false };

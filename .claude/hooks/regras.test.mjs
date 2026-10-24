@@ -38,9 +38,46 @@ describe('avaliarComando', () => {
     ['git push --mirror origin', VAZIO, true],
     ['git push origin us-002-claude-md-hooks', VAZIO, false],
     ['git commit -m "bloqueia acesso a sgo-prod"', VAZIO, false],
+    // Embrulhos: o comando real vem depois de bash -c, sudo -u, timeout N, xargs.
+    ["bash -c 'docker exec -it sgo-prod_db.1 psql'", VAZIO, true],
+    ['sh -c "docker volume rm sgo-hml_db"', VAZIO, true],
+    ['sudo -u root docker exec sgo-prod_db.1 psql', VAZIO, true],
+    ['timeout 10 docker exec sgo-prod_db.1 psql', VAZIO, true],
+    ['timeout -s KILL 10 docker exec sgo-prod_db.1 psql', VAZIO, true],
+    ['find . -name x | xargs -n 1 docker volume rm sgo-hml_db', VAZIO, true],
+    ["bash -c 'psql -h sgo-prod_db -U postgres'", VAZIO, true],
+    ["bash -c 'git push origin main'", VAZIO, true],
+    ["sudo -u root bash -lc 'cd /tmp && git push origin HEAD:main'", VAZIO, true],
+    ["bash -c 'docker compose up -d db'", VAZIO, false],
+    ['timeout 10 git push origin us-002-claude-md-hooks', VAZIO, false],
+    // psql com host por IP e por conninfo (chave=valor).
+    ["psql 'host=10.0.1.5 dbname=sgo'", VAZIO, true],
+    ["psql 'host=10.0.1.5 dbname=sgo user=postgres'", VAZIO, true],
+    ["psql --dbname='host=10.0.1.5 dbname=sgo'", VAZIO, true],
+    ["psql 'host=127.0.0.1 port=5432 dbname=sgo'", VAZIO, true],
+    ["psql 'host=127.0.0.1 port=55432 dbname=sgo_dev'", VAZIO, false],
+    ['psql -h 10.0.1.5 -U postgres', VAZIO, true],
+    // MIGRATE_DATABASE_URL (datasource do prisma.config.ts) e qualquer *_DATABASE_URL.
+    ['npx prisma migrate reset --force', { ...DEV_LOCAL, MIGRATE_DATABASE_URL: 'postgresql://u:x@sgo-prod_db:5432/sgo' }, true],
+    ['MIGRATE_DATABASE_URL=postgresql://u:x@10.0.1.5:5432/sgo npx prisma migrate reset --force', DEV_LOCAL, true],
+    ['export MIGRATE_DATABASE_URL=postgresql://u:x@10.0.1.5:5432/sgo && npx prisma migrate dev', DEV_LOCAL, true],
+    ['npx prisma migrate dev', { ...DEV_LOCAL, MIGRATE_DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo_dev' }, false],
+    // URL ausente bloqueia também migrate dev e migrate diff que tocam banco.
+    ['npx prisma migrate dev', VAZIO, true],
+    ['npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --script', VAZIO, true],
+    ['npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema', VAZIO, true],
+    ['npx prisma migrate diff --from-empty --to-schema prisma/schema --script', VAZIO, false],
   ])('%s (env %j) → bloquear=%s', (comando, env, bloquear) => {
     const r = avaliarComando(comando, env);
     expect(r.bloquear).toBe(bloquear);
     if (bloquear) expect(r.motivo).toMatch(/spec §11\.5|spec §12\.5|D12/);
+  });
+
+  it('avalia as URLs lidas do .env/.env.local do projeto', () => {
+    const devArquivo = { '.env MIGRATE_DATABASE_URL': 'postgresql://u:x@127.0.0.1:55432/sgo_dev' };
+    const prodArquivo = { '.env.local MIGRATE_DATABASE_URL': 'postgresql://u:x@sgo-prod_db:5432/sgo' };
+    expect(avaliarComando('npx prisma migrate dev', VAZIO, devArquivo).bloquear).toBe(false);
+    expect(avaliarComando('npx prisma migrate dev', DEV_LOCAL, { ...devArquivo, ...prodArquivo }).bloquear).toBe(true);
+    expect(avaliarComando('npx prisma migrate reset --force', DEV_LOCAL, prodArquivo).bloquear).toBe(true);
   });
 });

@@ -36,6 +36,25 @@ describe('guarda-bash.mjs', () => {
   });
 });
 
+describe('guarda-bash.mjs com .env do projeto', () => {
+  const entrada = { tool_name: 'Bash', tool_input: { command: 'npx prisma migrate dev' } };
+
+  it('libera quando o .env do projeto aponta para dev local', () => {
+    const raiz = mkdtempSync(join(tmpdir(), 'guarda-'));
+    writeFileSync(join(raiz, '.env'), 'MIGRATE_DATABASE_URL="postgresql://u:x@127.0.0.1:55432/sgo_dev"\n');
+    expect(rodar('guarda-bash.mjs', entrada, { CLAUDE_PROJECT_DIR: raiz }).status).toBe(0);
+  });
+
+  it('bloqueia quando o .env.local do projeto aponta para fora do dev local', () => {
+    const raiz = mkdtempSync(join(tmpdir(), 'guarda-'));
+    writeFileSync(join(raiz, '.env'), 'MIGRATE_DATABASE_URL="postgresql://u:x@127.0.0.1:55432/sgo_dev"\n');
+    writeFileSync(join(raiz, '.env.local'), "export MIGRATE_DATABASE_URL='postgresql://u:x@sgo-prod_db:5432/sgo'\n");
+    const r = rodar('guarda-bash.mjs', entrada, { CLAUDE_PROJECT_DIR: raiz });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/spec §11\.5/);
+  });
+});
+
 describe('alerta-marca.mjs', () => {
   const raiz = mkdtempSync(join(tmpdir(), 'marca-'));
   mkdirSync(join(raiz, 'src'), { recursive: true });
