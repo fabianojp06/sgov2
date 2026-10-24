@@ -3,7 +3,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificação Oficial de Desenvolvimento (design spec) |
-| Versão | 1.1 — 24/10/2026 |
+| Versão | 1.2 — 24/10/2026 |
 | Status | Vigente para desenvolvimento. Decisões marcadas **[PROVISÓRIA]** valem até validação do SME indicado |
 | Elaboração | Revisão técnica conduzida com Claude a pedido de Fabiano Garcia (BA/PO — CTCEA/GIA) |
 | Repositório | `fabianojp06/sgov2` |
@@ -15,6 +15,7 @@
 | --- | --- | --- |
 | 1.0 | 24/10/2026 | Versão inicial: revisão das fontes, arquitetura, decisões, fases, F0 + F1 e processo de duas frentes (§12) |
 | 1.1 | 24/10/2026 | Rodada de revisão com o PO (R1–R15): trilha 2027 como primeiro plano (§3.3); convivência do dev com a produção na mesma VPS (D12); motor único de custo de pessoal (C33); cargo em texto livre na trilha (C34); receita de rateio digitada na transição (C35); perfil Diretoria Executiva aprova o orçamento da Adm. Central (C36); prazos dos GAPs urgentes; correções de redação |
+| 1.2 | 24/10/2026 | Rotina de code review em três camadas (§12.12), pedida pelo PO |
 
 ---
 
@@ -803,7 +804,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 3. **Branch.** `us-NNN-slug`, criada a partir da `main` recém-atualizada.
 4. **Desenvolver** com plano (writing-plans) e TDD. Atualizar a branch pela `main` (rebase) pelo menos uma vez por dia e sempre antes de abrir o PR.
 5. **PR.** Título `[US-NNN] …`, corpo com `Closes #n`, label `frente:X` e checklist dos critérios de aceite. O PR deve ser pequeno, idealmente até 400 linhas de código de produção; história maior vira PRs encadeados.
-6. **Merge** pelo PO, com CI verde (12.8), em *squash*. A issue vai para "Em homologação".
+6. **Merge** pelo PO, com CI verde (12.8) e a revisão de código concluída e registrada no PR (12.12), em *squash*. A issue vai para "Em homologação".
 7. **Passagem de sessão.** Ao encerrar a sessão com trabalho em aberto, a frente comenta na issue o que foi feito, o que falta e as decisões tomadas, para que qualquer sessão, de qualquer conta, retome dali. No início de toda sessão, a frente lê `docs/memoria/memoria-do-projeto.md`. Ao fim, atualiza o estado, as pendências e o diário desse arquivo, no PR da história ou num PR próprio.
 
 **Arquivos compartilhados** (12.3): mudam só num **PR exclusivo** (label `compartilhado`), pequeno, sem código de funcionalidade junto. O PO faz o merge no mesmo dia. A outra frente faz rebase logo depois. Dependência nova no `package.json` entra por esse PR, e o `package-lock.json` nunca é mesclado à mão: em conflito, é regerado com `npm install` sobre a `main`.
@@ -847,7 +848,7 @@ Proteção da `main`: merge só por PR, com CI verde e branch atualizada (*requi
 | Momento | Ação |
 | --- | --- |
 | Início do dia | Conferir o quadro; liberar até 2 histórias por frente; resolver pedidos `toca-outra-frente` e `contrato` |
-| Ao longo do dia | Revisar PRs à medida que chegam |
+| Ao longo do dia | Revisar os PRs à medida que chegam, depois do comentário de revisão dos agentes (12.12, camada 3) |
 | Ordem de merge | 1º PRs `compartilhado` → 2º PRs de contrato → 3º PRs com `migration`, um por vez → 4º os demais |
 | Semanal | Homologar em hml o que entrou; rodar `cronograma.py` e atualizar as datas do projeto |
 
@@ -866,6 +867,36 @@ Proteção da `main`: merge só por PR, com CI verde e branch atualizada (*requi
 4. Mitigações de D12 implantadas (US-122) e conferidas.
 5. Criação da worktree e login da conta 2 (frente B).
 6. Primeiro PR de contrato de cada frente antes das histórias que dependem dele.
+
+### 12.12 Rotina de code review
+
+Decisão do PO em 24/10/2026. Como o PO e as duas contas usam o mesmo usuário do GitHub, a proteção da `main` não exige aprovação formal (12.8). A revisão é garantida por esta rotina, e o **comentário de revisão no PR** substitui a aprovação.
+
+**Camada 1 — Automática (CI), em todo PR.** As verificações de 10.4 e 12.8. CI vermelho impede o merge, sem exceção.
+
+**Camada 2 — Revisão por agentes, em todo PR, antes de chamar o PO.** Revisores independentes, que não escreveram o código e não o alteram:
+
+| Lente | Pergunta | Quando |
+| --- | --- | --- |
+| Plano e spec | Cada passo e critério de aceite foi cumprido? As interfaces batem exatamente com o plano? Os valores fixados pela spec estão certos? Há escopo a mais? | Sempre |
+| Testes | Os testes provam o comportamento ou só passam? Os valores exatos e os itens do *Review Focus* estão cobertos? O revisor roda os testes | Sempre |
+| Segurança e produção | Algo expõe porta, credencial ou banco? Viola 11.5 ou D12? Há segredo, versão não fixada ou a marca vedada? | Sempre |
+| `security-review` | Revisão de segurança dedicada | PR de autenticação, autorização, banco, migration ou infra |
+| `silent-failure-hunter` | Erro engolido, *fallback* indevido, falha silenciosa | PR com tratamento de erro, filas, integrações ou importação |
+| `type-design-analyzer` | Tipos de domínio novos expressam as invariantes? | PR que cria tipos de domínio ou contratos (12.6) |
+
+- **Gravidade:** *bloqueante* e *importante* impedem o merge; *menor* vira issue com a label do épico e não bloqueia.
+- **Correção:** o autor corrige com teste quando for comportamento, ou contesta por escrito no PR. Cada correção volta para as lentes que reprovaram. Depois de **2 rodadas** com problema em aberto, o PO decide.
+- **Registro obrigatório:** um comentário no PR com o título `Revisão de código (12.12)`, contendo a rodada, o resultado de cada lente (aprovado ou reprovado), os problemas com gravidade e situação (corrigido, contestado ou virou issue #n) e o estado do CI. Sem esse comentário, o PR não está pronto para o PO.
+
+**Camada 3 — PO.** Revisão funcional e de negócio: os critérios de aceite fazem sentido para o usuário? Depois, o merge (12.9).
+
+**Revisões maiores**
+- **Fim de cada bloco** (P1 a P7 do plano-mestre): revisão da branch `main` inteira desde o início do bloco, com as três lentes, procurando erros entre tarefas que a revisão por PR não pega. O resultado vai num comentário na issue do épico principal do bloco e, se houver problema, vira issue.
+- **Blocos críticos** (P1 Fundação e P6 Orçamento da Adm. Central): o PO pode disparar `/code-review ultra`, uma revisão profunda na nuvem com vários agentes. Ela é cobrada à parte e só o PO pode dispará-la.
+- **PR de contrato** (12.6): além das lentes, a frente consumidora revisa e registra no PR que o contrato atende ao que ela precisa.
+
+**O que a revisão não faz:** não reescreve o código do autor, não acrescenta escopo e não substitui a homologação em hml (11.6).
 
 ---
 

@@ -79,7 +79,7 @@ Recorte da trilha: 41 histórias, 384 h (461 h com contingência), marcadas com 
 **Pronta (DoD):**
 - Critérios de aceite cobertos por testes automatizados (domínio com TDD; integração com PostgreSQL real; E2E nos fluxos principais).
 - Testes de diretriz da spec 10.2 verdes (auditoria, isolamento por TP, Half-Even, versão otimista, ORIGEM BLINDADA).
-- Revisão de código e de segurança feitas; lint, tipos e build verdes; sem "CTCEA" no código.
+- Revisão de código conforme a spec §12.12 (CI verde, três lentes dos agentes sem problema bloqueante ou importante, comentário "Revisão de código (12.12)" no PR) e aceite do PO; sem "CTCEA" no código.
 - Implantada em hml e aceita pelo usuário-chave da release.
 
 ## 6. Backlog priorizado
