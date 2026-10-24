@@ -58,4 +58,4 @@ Passagem de sessão (frente X)
 
 ## 4. Divisão atual
 
-Pelo épico (spec §12.2; `docs/backlog/fonte/dados.py`, `FRENTE_POR_EPICO`). Na trilha 2027: frente A com 23 histórias (196 h) e frente B com 17 histórias (180 h). Pelo `cronograma.py`, a trilha termina por volta de 09/12/2026 a 40 h/semana por frente e de 24/11/2026 a 60 h/semana por frente.
+Pelo épico (spec §12.2; `docs/backlog/fonte/dados.py`, `FRENTE_POR_EPICO`). Na trilha 2027: frente A com 23 histórias (196 h) e frente B com 18 histórias (188 h). Pelo `cronograma.py`, a trilha termina por volta de 11/12/2026 a 40 h/semana por frente e de 27/11/2026 a 60 h/semana por frente.

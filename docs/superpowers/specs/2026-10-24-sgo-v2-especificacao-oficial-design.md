@@ -3,11 +3,18 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificação Oficial de Desenvolvimento (design spec) |
-| Versão | 1.0 — 24/10/2026 |
+| Versão | 1.1 — 24/10/2026 |
 | Status | Vigente para desenvolvimento. Decisões marcadas **[PROVISÓRIA]** valem até validação do SME indicado |
 | Elaboração | Revisão técnica conduzida com Claude a pedido de Fabiano Garcia (BA/PO — CTCEA/GIA) |
 | Repositório | `fabianojp06/sgov2` |
 | Base revisada | `especificacao/OneDrive_1_24-10-2026.zip` (10 documentos) + referência do código anterior `fabianojp06/sistemaSgo` |
+
+**Histórico de versões**
+
+| Versão | Data | Alterações |
+| --- | --- | --- |
+| 1.0 | 24/10/2026 | Versão inicial: revisão das fontes, arquitetura, decisões, fases, F0 + F1 e processo de duas frentes (§12) |
+| 1.1 | 24/10/2026 | Rodada de revisão com o PO (R1–R15): trilha 2027 como primeiro plano (§3.3); convivência do dev com a produção na mesma VPS (D12); motor único de custo de pessoal (C33); cargo em texto livre na trilha (C34); receita de rateio digitada na transição (C35); perfil Diretoria Executiva aprova o orçamento da Adm. Central (C36); prazos dos GAPs urgentes; correções de redação |
 
 ---
 
@@ -36,7 +43,7 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | Login próprio agora; unificação com a intranet depois (como recomendado) | D2 mantido; GAP-AUT-001 sai do caminho do go-live |
 | Uma única organização, **sem multi-tenant**; cada TP vê só o que lhe compete | Isolamento por **unidade** (TP) no lugar de `org_id` (5, C31); Adm. Central em menu próprio (6.7) |
 | Sem tela pública: o sistema abre direto no login | C32 |
-| Push e PR só quando tudo estiver fechado | Branch fica local até o aceite final da spec |
+| Push e PR só quando tudo estiver fechado | Cumprido: a spec foi para a `main` em 24/10/2026. Desde então, tudo entra por PR (`main` protegida, §12.8) |
 | Viagens segue a especificação; os perfis seguem a recomendação desta revisão | RN_VIA_03 sem alteração (C19); matriz 11.3 + Gestor de Diretoria aprovada pelo PO (C30) |
 | A base é a pasta `especificacao`; o `sistemaSgo` é só referência; anotações pessoais não entram | Nenhum arquivo fora de `especificacao/` é fonte de regra de negócio. As notas pessoais versionadas no `sgov2` foram ignoradas |
 | O sistema vai rodar na VPS Hostinger do PO | Hospedagem definida (seção 4.3); sai da lista de gaps a decisão “onde roda” |
@@ -62,14 +69,14 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | 4 | EP118/24 — Cadastros (Minuta) | V5 | Idêntico ao usado no catálogo |
 | 5 | UC03.19 — Cargos e Salários | V4 (01/09/2026) | Lido. **Resolve o GAP-CAR-004** (Encargo Social 51%) |
 | 6 | Viagens — Especificação | V3 (ago/2026) | Lido. Novo painel analítico e 3 contas por viagem |
-| 7 | Aprovações (EP??/26) | V2 (Rev.01 14/09/2026) | Lido integralmente. Roteamento automático por alçadas, novo WA02 |
+| 7 | Aprovações (workflows WA01/WA02/WA05) | V2 (Rev.01 14/09/2026) | Lido integralmente. Roteamento automático por alçadas, novo WA02 |
 | 8 | Orçado × Realizado | V2 (out/2026) | Lido. Integrações 1 e 2 do Plano Financeiro |
 | 9 | Integração SGO × Senior/Rubi/RVS | V4 (out/2026) | Lido. Contratos de API apenas propostos |
 | 10 | Catálogo Consolidado de RF/RNF/RN | 08/10/2026 | Lido integralmente (1.103 itens, 31 inconsistências) |
 | 11 | `Plano_de_Contas_5_Niveis_CTCEA.xlsx` | out/2026 | Lido e validado (6.1). **Define o plano de contas: 5 níveis.** Prevalece sobre os "7 níveis" citados nos outros documentos |
 | 12 | `Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx` | 23/10/2026 (minuta) | Lido e validado (6.1a). **Centro de custo com 5 níveis.** Minuta pendente de aprovação da DIREX |
 | 13 | Protótipo "Orçamento 2027 – Lançamentos" (Adm. Central), artifact `claude.ai/artifact/A9SEjticw6ourPCtWP4gfP` | 23/10/2026 | Lido (tela, cálculos e validações). Fonte do **UC04.17** (6.6). Os valores do protótipo são fictícios |
-| 14 | Protótipo "SGO 2.0 – Telas do Sistema", artifact `claude.ai/artifact/NrxtL5RZyRZRia9wGcemUg` | 15/10/2026 | Lido: tela inicial pública, login com estados, pós-login com menu completo (≈60 funcionalidades em 5 módulos), seletor de unidade e de perfil. Referência de **navegação e layout** (6.7); as regras continuam vindo dos EPs |
+| 14 | Protótipo "SGO 2.0 – Telas do Sistema", artifact `claude.ai/artifact/NrxtL5RZyRZRia9wGcemUg` | 15/10/2026 | Lido: tela inicial pública, login com estados, pós-login com menu completo (≈60 funcionalidades em 5 módulos), seletor de unidade e de perfil. Referência de **navegação e layout** (6.7); as regras continuam vindo dos EPs. A página pública e o seletor de perfil **foram removidos** (C30, C32) |
 | — | Módulo Orçamentário (EP48/26) e Relatórios | Fora do ZIP | Valem as seções 6 e 7 do Catálogo (fonte: Minuta Orçamentário V2) |
 
 ### 2.2 Regra de precedência
@@ -118,6 +125,21 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 | **F7** | Integração Rubi (sincronismo real) e RVS | F2/F3 | GAP-INT-005, GAP-INT-013 |
 
 **Fora do escopo do SGO 2.0**, conforme as fontes: execução financeira (o SGO trata do *orçado*; o *realizado* vem do ERP), emissão/compra de passagens, app mobile.
+
+### 3.3 Trilha do orçamento 2027 (primeiro plano de implementação)
+
+Decisão do PO em 24/10/2026: o orçamento 2027 da Administração Central precisa estar **lançado e aprovado até 30/11/2026**. Por isso, o primeiro plano de implementação **não** é a F0 + F1 completas, e sim um recorte que atravessa as fases: a **trilha 2027**, com 41 histórias marcadas `trilha-2027` no backlog (`docs/backlog/`, seção 3.1).
+
+| Fase | Entra na trilha | Fica para depois de 30/11 |
+| --- | --- | --- |
+| F0 | Repositório, Docker de dev, Prisma e papéis de banco, `Dinheiro`, auditoria, guarda RBAC, TotalizerService, filas, marca neutra, CI/CD, ambientes, backup e hardening da VPS, mitigações de D12 | RLS por unidade (US-007, entra antes do primeiro dado de TP, na F3), concorrência otimista genérica (US-011), infraestrutura de IA (EP02) |
+| F1 | Componentes de grade, e-mail, login, troca de senha, tela principal, logoff, seed, cadastro de usuários | Bloqueio de conta e sessão única, recuperação de senha, modo manutenção, perfis configuráveis (os perfis entram fixos pela seed), exceções, notificações, alçadas (UC02.28), consulta do histórico |
+| F2 | Importação do plano de contas e dos CCs, cargos e salários, benefícios, motor de custo de pessoal (C33), parâmetros | Agrupadores, estrutura funcional, impostos, regras de totalização |
+| F3A | Exercício, importação da planilha-modelo (US-120/121), visão por CC, teto e resultado, receitas digitadas (C35), envio e oficialização (C36) | Telas de lançamento de posições e pacotes (US-056/057), IA onda 1 |
+
+**Modelo híbrido:** os gestores lançam na planilha-modelo (`docs/modelos/`), o sistema importa e recalcula, e a revisão e a aprovação acontecem nele. **Plano B:** se o sistema não estiver em produção a tempo, a aprovação de 30/11 é feita sobre a planilha, que é importada depois como orçamento oficial.
+
+Os itens adiados continuam valendo como requisito: entram no segundo plano, antes do go-live dos TPs (F3).
 
 ---
 
@@ -178,7 +200,7 @@ O sistema roda na **VPS Hostinger do PO** (srv2039095: 2 vCPU, 8 GB de RAM, 96 G
 
 | Ambiente | Onde | Banco |
 | --- | --- | --- |
-| **dev** | Máquina do desenvolvedor, Docker Compose (PostgreSQL 16 + app + worker) | Local, descartável; dados sintéticos da seed |
+| **dev** | **Na própria VPS**, uma worktree por frente (§12.4), com Docker Compose (PostgreSQL 16 + app + worker) e as mitigações de D12 | Próprio de cada frente, descartável; dados sintéticos da seed |
 | **hml** | VPS, projeto Easypanel `sgo-hml` (subdomínio próprio) | PostgreSQL 16 próprio do hml |
 | **prod** | VPS, projeto Easypanel `sgo-prod` (domínio definitivo) | PostgreSQL 16 próprio do prod |
 
@@ -186,7 +208,16 @@ Serviços por ambiente no Easypanel: `app` (Next.js, `node server.js`, saída *s
 
 **Deploy:** um push na `main` dispara o GitHub Actions (lint, testes, build da imagem). A imagem vai para o GHCR (privado) e o Easypanel recebe um *webhook* de deploy. Antes de subir o app, o contêiner roda `prisma migrate deploy`. Se a migration falha, o app novo não sobe e o anterior continua no ar. O hml recebe tudo; o prod só recebe *tags* de release.
 
-**Orçamento de memória (estimado):** prod com app ~600 MB, worker ~300 MB e PostgreSQL ~1,5 GB (`shared_buffers` 512 MB); hml com cerca de metade. São ~3,5 GB ao todo, cabendo nos 8 GB com folga para o Easypanel. Se a VPS ficar apertada, a primeira medida é subir o plano ou tirar o hml da VPS.
+**Orçamento de memória (estimado):** prod com app ~600 MB, worker ~300 MB e PostgreSQL ~1,5 GB (`shared_buffers` 512 MB); hml com cerca de metade. São ~3,5 GB ao todo. Com o dev na mesma VPS (D12), somam-se até ~2,5 GB por frente (banco, app, worker, sessão do Claude Code e picos de build e testes), o que passa dos 8 GB em pico. Por isso valem os limites de D12.
+
+**Convivência do dev com a produção (D12, decisão do PO em 24/10/2026)** — obrigatória antes do primeiro ambiente de dev da frente B (US-122):
+- **Swap** de 8 GB e `vm.swappiness` baixo, para que um pico de dev não esgote a memória.
+- **Prioridade da produção:** os contêineres de prod com reserva de memória e `oom_score_adj` negativo; os de dev e de teste com limite de memória (`mem_limit`) e `oom_score_adj` positivo. Assim, em falta de memória, o sistema mata primeiro o dev.
+- **earlyoom** configurado para preferir processos de dev (`node`, `next`, `vitest`, contêineres `sgo-a`/`sgo-b`) e evitar o `postgres` de produção.
+- **Builds e testes limitados:** `NODE_OPTIONS=--max-old-space-size=1536` no dev e no CI local; Testcontainers com limite de memória.
+- **Barreira de acesso:** os *hooks* das duas contas bloqueiam `docker exec`, `docker cp`, `docker compose` e `psql` contra contêineres, redes ou volumes de `sgo-prod` e `sgo-hml`, e leitura das variáveis do Easypanel.
+- **Monitoramento:** alerta quando a memória disponível ficar abaixo de 1 GB.
+- **Gatilho de revisão:** se houver alerta de memória recorrente (mais de 3 por semana), qualquer *OOM* que atinja a produção ou qualquer incidente de acesso, o dev sai da VPS de produção (VPS separada ou máquina do PO).
 
 **Banco de produção — proteção de dados (inegociável, lição de 14/08/2026):**
 - **PITR**: WAL contínuo com `pgBackRest` (ou WAL-G) para um *storage* S3 compatível **fora da VPS** (ex.: Backblaze B2 ou Cloudflare R2), com retenção de 30 dias.
@@ -238,7 +269,7 @@ O sistema nasce **preparado para consumir API de IA**. O catálogo de funcionali
 | **Precisão monetária** | `NUMERIC(15,2)` para valores, `NUMERIC(9,4)` para percentuais e índices (RNF_PR_004). Value object `Dinheiro` com arredondamento **Half-Even** em 2 casas. Na API, valores trafegam como *string* decimal |
 | **Isolamento por unidade** (substitui o multi-tenant do Catálogo, C31) | Uma só organização. Toda tabela de dado de TP tem `unidade_id NOT NULL` (Proposta e tudo abaixo dela, execução, realizado). Cadastros globais (plano de contas, CC, cargos, parâmetros) não têm unidade. O usuário tem a lista de unidades permitidas (`UsuarioUnidade`). Defesa em duas camadas: a guarda `shared/authz` filtra pela unidade ativa **e** o banco aplica RLS com `current_setting('app.unidades')` (lista das unidades do usuário), definido por `SET LOCAL` em cada transação pelo `shared/unidade`. A aplicação conecta com um papel **sem** `BYPASSRLS`. A Adm. Central não é uma unidade de TP: o acesso a ela é uma permissão própria (6.7) |
 | **Concorrência otimista** (`@Version`) | Coluna `versao int`. O update usa `WHERE id = ? AND versao = ?`; zero linhas afetadas vira erro `ConflitoConcorrencia`, com mensagem inline (RNF_CON_002) |
-| **Concorrência pessimista** (sincronismo, remanejamento, contador de login) | `pg_advisory_xact_lock` por chave (ex.: `sync-plano:<org>`, `remanejamento:<conta>`). `SELECT … FOR UPDATE` na linha do usuário no login (RNF0011) |
+| **Concorrência pessimista** (sincronismo, remanejamento, contador de login) | `pg_advisory_xact_lock` por chave (ex.: `sync-plano`, `sync-cc`, `remanejamento:<conta>`). `SELECT … FOR UPDATE` na linha do usuário no login (RNF0011) |
 | **RBAC revalidado no backend** em todo endpoint | `authz.exigir(funcionalidade, acao)` obrigatório em toda Server Action/Route Handler (lint proíbe Action sem guarda). A UI só oculta botões; a autoridade é o servidor |
 | **TotalizerService** — motor único de agregação | Função pura em `shared/totalizer`: recebe valores das contas **analíticas** e a árvore, devolve sintéticas, totais e percentuais. Sintéticas **nunca** são persistidas como dado vivo (OxR V2 §7), só dentro de *snapshots* de oficialização |
 | **Tempos de resposta** (1,5 s / 2 s / 800 ms / 400 ms) | Viram metas de teste de desempenho (seção 10), medidas em hml com volumetria de referência |
@@ -321,7 +352,7 @@ Conforme o OxR V2: `OrcadoContaMes` (digitado no SGO, por versão), `RealizadoCo
 ### 6.4 Pessoal
 
 - `Cargo` (espelho do Rubi, ORIGEM BLINDADA) com **vínculo 1:1** a um nó analítico da Estrutura Funcional (RN_CAR_08).
-- O custo unitário do cargo é calculado pelo `MotorCalculoCustoPessoal`: Fonte Ativa + adicional (Periculosidade 30% sobre a Fonte Ativa, **ou** Insalubridade de 10/20/40% sobre o SMN) + Encargo Social 51% sobre (Fonte Ativa + adicional) (RN_CAR_17) + benefícios.
+- O custo de pessoal é calculado por um **motor único**, o `MotorCustoPessoal` (módulo `cad`), usado pela proposta e pelo orçamento da Adm. Central (C33). Base mensal = Fonte Ativa + adicional (Periculosidade 30% sobre a Fonte Ativa, **ou** Insalubridade de 10/20/40% sobre o SMN). Sobre a base: férias + 1/3 (base × 4/3 ÷ 12) e 13º (base ÷ 12); Encargo Social de 51% (RN_CAR_17) sobre base + férias + 13º; mais os benefícios da Tabela Mestre **[PROVISÓRIA]** até a validação do Wellington.
 - O percentual de encargo é **parametrizado e versionado** (REQ_CAR_006), nunca fixo no código, com os componentes 38/8/1/3,8/0,2.
 - Headcount (`EmpregadoHeadcount`) por Proposta/Versão/Meta, com vaga "A CONTRATAR" quando não há colaborador (RN0249).
 
@@ -339,11 +370,11 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 
 | Aba | Entidade | Campos | Validações (do protótipo) |
 | --- | --- | --- | --- |
-| Lançamento de pessoal (*driver*) | `PosicaoPessoal` | CC analítico, cargo, quantidade, salário mensal, mês de início, mês de saída | CC obrigatório e dentro do escopo do usuário; cargo obrigatório; quantidade inteira ≥ 1; salário > 0; início ≤ saída |
+| Lançamento de pessoal (*driver*) | `PosicaoPessoal` | CC analítico, cargo (na trilha 2027, texto livre: C34), quantidade, salário mensal, mês de início, mês de saída | CC obrigatório e dentro do escopo do usuário; cargo obrigatório; quantidade inteira ≥ 1; salário > 0; início ≤ saída |
 | Lançamento base zero | `PacoteBaseZero` | CC analítico, conta analítica, atividade/justificativa, prioridade (Essencial · Importante · Desejável), quantidade, valor unitário (preço do ano anterior), corrigir pelo IPCA (sim/não), distribuição (Mensal em 12 parcelas · Pontual em um mês), mês de ocorrência | CC no escopo; conta obrigatória; justificativa ≥ 10 caracteres; quantidade ≥ 1; valor unitário > 0. Contas de pessoal e encargos (4.1.1.1 e 4.1.1.2) **não** aparecem aqui, porque vêm do quadro de pessoal |
 | Visão por centro de custo | — (só leitura, RN_TOT_01) | Árvore de CC com Pessoal + encargos, Base zero, Total e % do escopo; detalhe do CC com série mês a mês e linhas CC × conta com a origem (Pessoal / Base zero) | Sintéticos somados pelo TotalizerService |
 
-**Cálculo mensal de uma posição** (função pura `MotorCustoPosicao`, com `Dinheiro` e Half-Even; o protótipo usa `number` e arredonda só na exibição):
+**Cálculo mensal de uma posição** (função de posição do `MotorCustoPessoal`, C33, com `Dinheiro` e Half-Even; o protótipo usa `number` e arredonda só na exibição):
 - massa(m) = qtd × salário × (1 + reajuste, se m ≥ mês da data-base), nos meses entre início e saída;
 - férias + 1/3 = massa × 4/3 ÷ 12; 13º = massa ÷ 12;
 - encargos = **Encargo Social do C&S V4** (RN_CAR_17, 51%) sobre massa + férias + 13º. O protótipo usa outro conjunto (INSS 20% + RAT 2% + terceiros 5,8% + FGTS 8% + PIS 1%), e o C&S V4 prevalece (C23);
@@ -378,7 +409,9 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 - **Resultado do exercício:** Rateio líquido confirmado − (Pessoal + encargos + Base zero) = superávit ou déficit, mês a mês e no ano.
 - **Teto:** o padrão é o **rateio líquido confirmado** do exercício. O GFIN pode fixar um teto menor, nunca maior sem justificativa registrada. O semáforo (70/85/95) compara o orçado com esse teto (decisão do PO).
 - Até o GAP-ORC-007 ser definido, a coluna de ISS mostra "a definir" e o rateio líquido é igual ao rateio.
-- Dependência: a aba de receitas só tem dados quando a F3 (Proposta, Rateio/ISS) existe. Até lá, a F3A funciona só com despesas e teto manual.
+- **Transição até a F3 (C35):** enquanto as propostas não existem no sistema, a GFIN **digita** o rateio de cada TP, mês a mês, marcado como Confirmado ou Previsto (na trilha 2027, pela aba Receitas da planilha-modelo ou pela tela). Esses valores têm `origem = MANUAL_TRANSICAO`, são auditados e aparecem com um selo na tela. Quando o TP correspondente for oficializado no sistema, o rateio calculado substitui o digitado nos meses ainda não oficializados, e a diferença aparece como ajuste. Exercício oficializado não muda.
+
+**Aprovação (C36):** o GFIN consolida e envia; o perfil **Diretoria Executiva (DIREX)** aprova ou rejeita, com justificativa de pelo menos 15 caracteres na rejeição. A aprovação oficializa o exercício e gera o snapshot. Na trilha 2027, a aprovação tem uma etapa só; a alçada configurável (UC02.28) assume o fluxo depois.
 
 **Atributo novo no CC:** natureza (Finalístico · Apoio · Administrativo · Gestão), usada para ordenar e agrupar. A minuta de CC não tem essa coluna (GAP-CC-006).
 
@@ -415,7 +448,7 @@ O protótipo é a referência de **estrutura de navegação e padrão visual** d
 Catálogo do que a IA pode agregar ao SGO, usando a infraestrutura da 4.4. Cada item vira um caso de uso em `ia_caso_uso`, com spec curta própria antes de ser ligado. **[PROPOSTA]**: o PO prioriza; a ordem abaixo é a recomendação.
 
 **Princípios (valem para todos os itens)**
-1. **Número oficial nunca vem da IA.** Valores, totais, provisões e projeções são calculados pelos motores determinísticos (TotalizerService, MotorCustoPosicao, motor de projeção). A IA **lê** esses resultados por ferramentas somente leitura e **explica, compara, alerta, redige e sugere**.
+1. **Número oficial nunca vem da IA.** Valores, totais, provisões e projeções são calculados pelos motores determinísticos (TotalizerService, MotorCustoPessoal, motor de projeção). A IA **lê** esses resultados por ferramentas somente leitura e **explica, compara, alerta, redige e sugere**.
 2. **Ferramentas, não SQL livre.** A IA consulta o sistema por um conjunto fechado de ferramentas (ex.: `orcado_por_conta`, `realizado_por_mes`, `posicoes_por_cc`, `pacotes_base_zero`, `rateio_por_tp`). Cada ferramenta passa pela guarda de RBAC e de unidade do usuário que perguntou. A IA nunca enxerga um TP que o usuário não enxerga.
 3. **Toda resposta cita a fonte** (conta, CC, TP, competência, versão) e tem link para a tela ou relatório de origem. Texto gerado leva o selo "Gerado com IA – revisar".
 4. **Sugestão só vale depois de aceita por uma pessoa.** O aceite passa pelo caso de uso normal, com a marca `origem = sugestao_ia` (4.4).
@@ -492,6 +525,7 @@ Catálogo do que a IA pode agregar ao SGO, usando a infraestrutura da 4.4. Cada 
 | D9 | Somente leitura de dados do ERP **imposta no banco** (privilégios por papel), não só na UI | Só validação de aplicação | Diretrizes ORIGEM BLINDADA e TRAVA O ERRO pedem bloqueio "a nível de banco e de endpoint" (Integração V4 §3.8) |
 | D10 | Salários: criptografia em repouso pelo armazenamento + mascaramento por perfil. **[PROVISÓRIA]** criptografia AES-256 por coluna só se a auditoria exigir | Criptografia por coluna desde o início | Por coluna impede agregação e ordenação no banco (o TotalizerService soma salários). Validar com a Auditoria/DAF se o requisito é por coluna |
 | D11 | Infra de IA na F0: porta `ProvedorIA` + adaptador Anthropic (`@anthropic-ai/sdk`, `claude-opus-5-5`), jobs no worker, registro de chamadas, tetos de custo e *feature flags* (4.4) | Integrar IA só quando surgir o primeiro caso de uso; chamar a API direto dos módulos | Pedido do PO. Pôr a porta, os limites e o registro no começo evita que cada funcionalidade invente o seu, e a porta permite trocar de provedor |
+| D12 | **Dev das duas frentes na mesma VPS da produção**, com as mitigações de 4.3 (swap, prioridade de memória da produção, earlyoom, limites, barreira de acesso por *hooks*, monitoramento) e gatilho objetivo de revisão | VPS separada para dev e hml; dev na máquina do PO | Decisão do PO (24/10/2026), aceitando o risco documentado. O gatilho de 4.3 força a mudança se o risco se materializar |
 
 ---
 
@@ -521,6 +555,7 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C18 | Glossário do EP085 define o RUBI como sistema de viagens | Errado: Rubi = RH/Folha (Integração V4) | Corrigir o EP085 |
 | C19 | Viagens V3: campo "Custo Unitário de Transporte" existe, mas a fórmula RN_VIA_03 não o inclui | **Segue a especificação** (decisão do PO): custo estimado = (pessoas × passagem) + (pessoas × média de dias × diária), exatamente a RN_VIA_03. O transporte é registrado e exibido como categoria própria no painel (REQ_VIA_005), sem entrar no custo estimado da linha | Fechado |
 | C20 | C&S V4: campo "Salário Definido" não aparece entre as opções de Fonte Ativa (Mín/Máx/Total/Real) | Incluir "Salário Definido" como 5ª opção de Fonte Ativa **[PROVISÓRIA]** | GRH |
+| C21 | Esqueci minha senha / Gerar senha enviam a senha em texto no e-mail (REQ0077, RN0517) | Mantido (é requisito), com mitigação: senha **temporária de uso único**, troca obrigatória no 1º acesso (REQ0039) e **expiração em 24 h** (parametrizável) **[PROVISÓRIA]** | TI/Segurança |
 | C22 | O protótipo do UC04.17 usa o "Plano Financeiro grupo 1.9" (ex.: 1.9.11.001 Salários, reduzida 1.712) × plano oficial de 5 níveis (4.1.1.1.001 Salários, reduzida 900) | **Plano oficial de 5 níveis.** Comparação: 142 de 161 contas do protótipo batem por grupo e sequência (1.9.11→4.1.1.1 … 1.9.16→4.1.1.6); 4 têm descrição diferente; 15 não existem no plano oficial (GAP-CAD-004) | Fechado |
 | C23 | Encargos do protótipo (36,8% + incidência sobre férias/13º) × C&S V4 (51%, RN_CAR_17) | **C&S V4**, como parâmetro único usado tanto na proposta quanto no orçamento da Adm. Central | Fechado (protótipo tem valores fictícios) |
 | C24 | Protótipo: cargo em texto livre e benefícios fixos × Cargos e Salários e Tabela Mestre de Benefícios (F2) | Cargo escolhido do cadastro de C&S; o salário vem preenchido pela Fonte Ativa e pode ser editado com registro no Log Delta; benefícios da Tabela Mestre **[PROVISÓRIA]** | GRH/GFIN |
@@ -532,7 +567,10 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C30 | Protótipo: 5 perfis (Administrador, Gestor, Analista orçamentário, Aprovador GFIN, Consulta), e "Gestor" com acesso a quase tudo × matriz provisória de 6 perfis (11.3) | Vale a 11.3 mais o perfil **Gestor de Diretoria** (C25). "Consulta" corresponde a Auditor. O seletor de perfil do protótipo é ferramenta de demonstração e **não existe** no sistema: o perfil vem do usuário logado | Fechado (aprovado pelo PO) |
 | C31 | Catálogo: diretriz multi-tenant por `org_id` + RLS × PO: uma só organização | **Sem multi-tenant.** O isolamento passa a ser por **unidade (TP)**, com a mesma técnica (guarda + RLS) | Fechado |
 | C32 | Protótipo: tela inicial pública que lista módulos e unidades × nenhum EP prevê página pública | **Sem página pública**: a raiz do sistema abre direto o login (UC01.01) | Fechado |
-| C21 | Esqueci minha senha / Gerar senha enviam a senha em texto no e-mail (REQ0077, RN0517) | Mantido (é requisito), com mitigação: senha **temporária de uso único**, troca obrigatória no 1º acesso (REQ0039) e **expiração em 24 h** (parametrizável) **[PROVISÓRIA]** | TI/Segurança |
+| C33 | Custo de pessoal: §6.4 (encargo de 51% sobre Fonte Ativa + adicional, sem férias e 13º) × §6.6 (encargo sobre massa + férias + 13º); a C23 pede parâmetro único | **Motor único** `MotorCustoPessoal` (módulo `cad`), com a fórmula da Adm. Central para os dois usos: base + férias 1/3 + 13º, encargo sobre o total, mais benefícios (decisão do PO, 24/10/2026) | [PROVISÓRIA] Wellington: confirmar se as provisões de férias e 13º entram na proposta |
+| C34 | C24 (cargo escolhido do cadastro de C&S) × trilha 2027 (cadastro da GRH ainda vazio) | Na trilha 2027, **cargo e salário em texto livre**, na planilha e na importação. A C24 entra depois de 30/11, com uma tela de correspondência entre o texto importado e o cadastro de C&S (decisão do PO, 24/10/2026) | Fechado para a trilha |
+| C35 | §6.6 (receita só leitura, nasce no TP) × trilha 2027 (sem propostas no sistema) | **Rateio digitado na transição**, com `origem = MANUAL_TRANSICAO`, auditado e substituído pelo calculado quando o TP for oficializado (6.6) | Fechado |
+| C36 | Aprovação do orçamento da Adm. Central sem aprovador definido (GAP-ORC-004) | Novo perfil padrão **Diretoria Executiva (DIREX)**: aprova ou rejeita o orçamento enviado pelo GFIN (6.6, 11.3) (decisão do PO, 24/10/2026) | Fechado. Ficam no GAP-ORC-004: quem define o teto e se ele é por diretoria |
 
 ---
 
@@ -542,7 +580,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 
 | ID | Módulo | Gap | Bloqueia | Responsável |
 | --- | --- | --- | --- | --- |
-| GAP-INF-001 | Infra | Hospedagem definida (VPS Hostinger). Falta: domínio/subdomínios, provedor do storage externo de backup e provedor SMTP | Go-live de F1 (não o desenvolvimento) | PO |
+| GAP-INF-001 | Infra | Hospedagem definida (VPS Hostinger). Falta: domínio/subdomínios, provedor do storage externo de backup e provedor SMTP | **Trilha 2027:** US-014/015 (ambientes e backup), prazo **até ~05/11/2026** | PO |
 | GAP-AUT-001 | AUT | "Login unificado com a intranet NodeJS" (EP084 V5, objetivo): protocolo (OIDC/SAML/cookie compartilhado), quem é dono da senha, como ficam bloqueio e manutenção | Só o adaptador de SSO; F1 entrega login próprio | TI CTCEA |
 | GAP-AUT-002 | AUT | Seções 3.6 (Pendências P01–P14) e 3.7 (correspondência de IDs) estão no sumário do EP084 V5, mas não no conteúdo. P02, P05, P07, P09, P10, P11 e P14 são citadas nos fluxos | Não bloqueia; valores ficam parametrizáveis | PO |
 | GAP-ADM-001 | ADM | Conjunto de perfis aprovado pelo PO (§11.3: 6 perfis + Gestor de Diretoria). Falta só o ajuste fino das permissões por funcionalidade, que será validado em hml | Não bloqueia | Adriana (DAF) |
@@ -557,7 +595,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CAD-001 | CAD | Fórmula do ISS (RN_RAT_02 termina em "conforme a expressão matemática:") | **Cálculo de ISS em F3** | Wellington |
 | GAP-CAD-002 | CAD | RN0457 truncada ("homologada via."); RN_VIA_05 valida um período que não tem campo | F3 (pontual) | André |
 | GAP-CAR-005 | CAD | Contas para Obrigações e Riscos Trabalhistas do Encargo Social. Candidatas no plano: 4.1.1.8.003 Provisão para Passivo de Obrigações Trabalhistas (2011) e 4.1.1.8.004 Provisão para Passivo de Riscos Trabalhistas (2012) **[PROVISÓRIA]** | Não bloqueia | Wellington |
-| GAP-CC-001 | CAD | Aprovação final do plano de CC pela DIREX | Carga em **prod** (não o desenvolvimento) | DIREX |
+| GAP-CC-001 | CAD | Aprovação final do plano de CC pela DIREX | Carga em **prod** da trilha 2027 (US-115), prazo **até ~16/11/2026**; sem ela, a importação usa a minuta marcada como provisória | DIREX |
 | GAP-CC-002 | CAD | Máscara do CC: nível 3 com 1 dígito e nível 4 com 2 dígitos (ex.: 4.1.2.11) | Não bloqueia (máscara não fixa dígitos) | DIREX/GFIN |
 | GAP-CC-003 | CAD | Reduzido 14.300 ausente; 14.460 fora de sequência; reduzidos 14.470–14.530 ainda são sugestão (a GFIN confirma no Sapiens) | Carga em prod | GFIN |
 | GAP-CC-004 | CAD | A minuta cobre só a estrutura 4 (áreas internas). TPs/projetos terão CC próprio? Isso afeta RF_TP_001/RN_TP_001, que exigem CC único por TP ativo | **F3** | DIREX/GFIN |
@@ -565,8 +603,8 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CAD-004 | CAD | 15 contas do protótipo não existem no plano oficial de 5 níveis: despesas financeiras (tarifas, IOF, comissões, câmbio, pregão, variação cambial), juros e multas, perda na baixa de imobilizado, doações e **Rateio da Adm. Central** (1.9.23.001). Também 4 descrições diferentes (ex.: 1.9.18.002 "Impostos a Recolher – ISS" × 4.1.1.8.002 Provisão para Contingências de Passivo Tributário) | F3A (base zero só oferece contas oficiais) | Wellington |
 | GAP-CC-006 | CAD | Natureza do CC (Finalístico/Apoio/Administrativo/Gestão) usada no protótipo não está na minuta de CC | Não bloqueia (campo opcional) | DIREX/GFIN |
 | GAP-ORC-007 | ORC | ISS do rateio: base (o valor do rateio?), alíquota (município do TP?) e quem arca (despesa a mais no TP ou dedução do que a Adm. Central recebe) | F3A e F3 (junto com GAP-CAD-001) | PO (definirá depois) / Wellington |
-| GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
-| GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
+| GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | **Distribuição da planilha-modelo** (imediato); no sistema, valores padrão provisórios | GFIN/GRH |
+| GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal. O aprovador foi definido (DIREX, C36); faltam quem define o teto e se o teto é por diretoria | Não bloqueia a trilha (teto padrão = rateio confirmado) | PO/Wellington |
 | GAP-CAD-005 | CAD | Descrição da conta 4.1.1.8.005 contém a sigla CTCEA, vedada nas telas (6.7) | Não bloqueia (carga remove a sigla) | Wellington |
 | GAP-IA-001 | IA | Catálogo proposto na 6.8 (IA-01 a IA-18, em 3 ondas). Falta o PO priorizar e confirmar as ondas | Não bloqueia (infra pronta na F0) | PO |
 | GAP-IA-002 | IA | Provedor de *embeddings* para busca semântica | Só quando houver caso de uso de busca | PO / TI |
@@ -583,7 +621,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 
 ### 10.1 Estratégia
 
-- **TDD no domínio**: TotalizerService, `Dinheiro`, MotorCalculoCustoPessoal, regras de ciclo de vida e de alçada são funções puras com testes primeiro.
+- **TDD no domínio**: TotalizerService, `Dinheiro`, MotorCustoPessoal, regras de ciclo de vida e de alçada são funções puras com testes primeiro.
 - **Critérios de aceite das fontes viram testes executáveis.** Exemplo: os AC01–AC08 do OxR V2 com os valores reais (546.195,02; 80,79%; 131,91%; −37.109,70). O nome do teste carrega o código da regra (ex.: `RN_OXR_010 % de uso do mês`).
 - **Integração com PostgreSQL real** (Testcontainers): RLS, append-only da auditoria, rollback quando o log falha, `FOR UPDATE` no contador, conflito de versão.
 - **E2E (Playwright)** nos fluxos críticos: login/bloqueio/manutenção, permissões de menu, e depois oficialização.
@@ -607,7 +645,9 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 
 ---
 
-## 11. Fase 0 + Fase 1 — detalhamento para o primeiro plano
+## 11. Fase 0 + Fase 1 — detalhamento
+
+O **primeiro plano** cobre a trilha 2027 (§3.3), que usa parte desta seção. Os itens da F0 e da F1 que ficaram fora da trilha entram no segundo plano.
 
 ### 11.1 F0 — Fundação técnica (entregáveis)
 
@@ -669,6 +709,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 | Analista GRH | Estrutura Funcional, Cargos e Salários, Tabela Salarial, Benefícios, Empregados; finalizar WA05; SMN |
 | Operador de Viagens (SCOR/GAD) | Aba Viagens das propostas; solicitar validação WA02 |
 | Auditor | Somente leitura em todos os módulos de negócio + Histórico de Operações + versões congeladas |
+| Diretoria Executiva (DIREX) (C36) | UC04.17: leitura de todo o orçamento da Adm. Central e aprovação ou rejeição do exercício enviado pelo GFIN; leitura do Consolidado dos TPs |
 
 ### 11.4 UC02.28 — Gestão de Alçadas de Aprovação (conteúdo mínimo, a partir do Aprovações V2 §7)
 
@@ -686,6 +727,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 3. `shadowDatabaseUrl` só aponta para um banco efêmero.
 4. Backup diário + PITR verificados por um **teste de restauração mensal** registrado.
 5. Comandos ad hoc em produção: só leitura, com papel de leitura, e anunciados antes de rodar.
+6. Com o dev na mesma VPS (D12), as sessões de desenvolvimento não acessam contêineres, redes, volumes nem variáveis de `sgo-prod` e `sgo-hml`. Os *hooks* bloqueiam, e qualquer exceção exige pedido explícito do PO.
 
 ### 11.6 Critério de pronto da F1
 
@@ -710,7 +752,7 @@ Decisão do PO em 24/10/2026: o desenvolvimento usa **duas contas do Claude Code
 | Frente | Conta | Responsabilidade | Épicos |
 | --- | --- | --- | --- |
 | **A — Núcleo e domínio** | conta 1 (atual) | Kernel, auditoria, isolamento, autorização, totalizador, autenticação, administração, orçamento (Adm. Central e propostas), aprovações, execução | EP00, EP04, EP05, EP09–EP16, EP18 |
-| **B — Plataforma, cadastros e saídas** | conta 2 | Infra (VPS, CI/CD, backup), infraestrutura de IA, componentes de tela, cadastros (plano de contas, CC, pessoal-base, MotorCustoPosicao, parâmetros), relatórios, integrações, go-live | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
+| **B — Plataforma, cadastros e saídas** | conta 2 | Infra (VPS, CI/CD, backup), infraestrutura de IA, componentes de tela, cadastros (plano de contas, CC, pessoal-base, MotorCustoPessoal, parâmetros), relatórios, integrações, go-live | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
 | **PO** | — | Libera histórias, revisa e faz merge dos PRs, decide conflitos de fronteira, homologa | — |
 
 ### 12.3 Mapa de propriedade do código
@@ -770,13 +812,13 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 
 ### 12.6 Contratos entre as frentes
 
-Quando uma frente precisa de algo da outra (exemplo: o orçamento, frente A, usa o `MotorCustoPosicao` e o plano de contas, frente B):
+Quando uma frente precisa de algo da outra (exemplo: o orçamento, frente A, usa o `MotorCustoPessoal` e o plano de contas, frente B):
 
 1. A frente dona abre um **PR de contrato** com o `index.ts` do módulo: tipos, assinatura das funções e um **adaptador falso** para testes. Esse PR passa na frente de qualquer outro na fila de merge.
 2. Com o contrato na `main`, as duas frentes trabalham em paralelo: a dona implementa, e a consumidora programa contra o contrato, usando o falso nos testes.
 3. Mudança de contrato já mergeado exige issue com label `contrato`, avaliação de impacto pela frente consumidora e aprovação do PO. Mudança incompatível não entra sem atualizar os consumidores no mesmo PR.
 
-Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPosicao` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos.
+Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPessoal` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos.
 
 ### 12.7 Banco de dados e migrations
 
@@ -821,15 +863,16 @@ Proteção da `main`: merge só por PR, com CI verde e branch atualizada (*requi
 1. Push da branch de especificação para a `main` (liberação do PO).
 2. Proteção da `main` (12.8) e labels `compartilhado`, `toca-outra-frente`, `migration`, `contrato` e `decisao`.
 3. US-001 a US-004 pela frente A, incluindo `.github/frentes.yml`, `.claude/settings.json` com os *hooks* e o `CLAUDE.md` com o resumo desta seção.
-4. Criação da worktree e login da conta 2 (frente B).
-5. Primeiro PR de contrato de cada frente antes das histórias que dependem dele.
+4. Mitigações de D12 implantadas (US-122) e conferidas.
+5. Criação da worktree e login da conta 2 (frente B).
+6. Primeiro PR de contrato de cada frente antes das histórias que dependem dele.
 
 ---
 
 ## 13. Próximos passos
 
 1. PO revisa este documento. Ajustes são feitos aqui mesmo, em nova versão.
-2. Plano de implementação da **F0 + F1** (`docs/superpowers/plans/`).
+2. Plano de implementação da **trilha 2027** (§3.3, `docs/superpowers/plans/`); depois, o plano do restante da F0 + F1.
 3. Em paralelo, a pauta de refinamento com os SMEs usa a seção 9 e os itens [PROVISÓRIA] da seção 8 como agenda, com prioridade para GAP-APR-001, GAP-CAD-001, GAP-PGD-006/009 e GAP-INF-001.
 4. Cada fase seguinte (F2…F7) começa por uma spec curta da fase, baseada nos EPs e nas decisões aqui registradas.
 5. Implantar o processo de duas frentes (checklist de 12.11) antes da primeira história da frente B.
