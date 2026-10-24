@@ -32,7 +32,8 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | Refazer o SGO do zero no `sgov2`, usando o `sistemaSgo` só como referência | Nenhum código do `sistemaSgo` é migrado; padrões e lições podem ser reaproveitados |
 | A pasta `especificacao` tem o documento de elicitação mais atual, com todas as regras e requisitos | O ZIP é a fonte primária. Onde ele não tem um módulo (Orçamentário, Relatórios), vale o Catálogo Consolidado de 08/10/2026 |
 | Revisar toda a especificação e seguir com as recomendações sem esperar aprovação intermediária | Conflitos foram decididos aqui. As decisões de negócio ficam marcadas [PROVISÓRIA] com o SME responsável |
-| — | As anotações do PO no próprio `sgov2` (`projects/CTCEA - SGO/`) valem como decisões mais recentes que os documentos (ex.: plano de contas em 6 níveis) |
+| A base é a pasta `especificacao`; o `sistemaSgo` é só referência; anotações pessoais não entram | Nenhum arquivo fora de `especificacao/` é fonte de regra de negócio. As notas pessoais versionadas no `sgov2` foram ignoradas |
+| O sistema vai rodar na VPS Hostinger do PO | Hospedagem definida (seção 4.3); sai da lista de gaps a decisão “onde roda” |
 
 ### 1.2 Critérios de sucesso
 
@@ -95,13 +96,13 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 
 | Fase | Entrega | Depende de | Bloqueios abertos (seção 9) |
 | --- | --- | --- | --- |
-| **F0** | Fundação técnica: repositório, CI, ambientes, banco, auditoria, multi-tenant, dinheiro, TotalizerService (núcleo), filas | — | Hospedagem de produção (GAP-INF-001), não bloqueia o desenvolvimento |
+| **F0** | Fundação técnica: repositório, CI/CD para a VPS, ambientes, banco, backup, auditoria, multi-tenant, dinheiro, TotalizerService (núcleo), filas | — | Destino do backup externo (GAP-INF-001), não bloqueia o desenvolvimento |
 | **F1** | GER + AUT + ADM (inclui Alçadas UC02.28 e perfis padrão) | F0 | GAP-ADM-001 (matriz de perfis), não bloqueia: vale a matriz provisória |
 | **F2** | Cadastros-base: Plano Financeiro (Integração 1 + carga por arquivo), Agrupadores, Estrutura Funcional, Cargos e Salários, Tabela Salarial, Parâmetros (alíquotas, SMN, benefícios-mestre, semáforo) | F1 | GAP-INT-001 (contrato Senior), contornado pela carga por arquivo |
 | **F3** | Proposta/TP: capa, versões, duplicação, metas, quantitativos, empregados e benefícios, viagens, bens CAPEX, impostos, rateio/ISS, totalizadores | F2 | GAP-CAD-001 (fórmula do ISS) bloqueia só o cálculo do ISS |
 | **F4** | Aprovações WA01/WA05/WA02 + Termo Aditivo + Termo de Ajuste + Remanejamento | F3 | Alçada de Aditivo, Ajuste e Remanejamento (GAP-APR-001) |
 | **F5** | Execução orçamentária: Cronograma de Desembolso, Premissas/Reajustes, Recursos, Contratações Previstas, Orçado×Realizado (Integração 2), Provisões, Aplicações Financeiras | F4 | GAP-PGD-006/009 (payload do realizado), GAP-ORC-001 (RN0433/0434) |
-| **F6** | Relatórios UC05.01–UC05.11, Book UC05.12, Anexo 6 | F5 | GAP-REL-001 (Book e rateio da Adm. Central) |
+| **F6** | Relatórios UC05.01–UC05.11, Book UC05.12 | F5 | GAP-REL-001 (Book e rateio da Adm. Central) |
 | **F7** | Integração Rubi (sincronismo real) e RVS | F2/F3 | GAP-INT-005, GAP-INT-013 |
 
 **Fora do escopo do SGO 2.0**, conforme as fontes: execução financeira (o SGO trata do *orçado*; o *realizado* vem do ERP), emissão/compra de passagens, app mobile.
@@ -112,7 +113,7 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 
 ### 4.1 Visão geral
 
-**Monólito modular** em Next.js, como já tinha sido decidido em 26/09/2026: sem backend separado por enquanto, e com critérios de extração registrados em ADR. Cada módulo da seção 3.1 é um *bounded context* com fronteira explícita:
+**Monólito modular** em Next.js: sem backend separado por enquanto, e com critérios de extração registrados em ADR. Cada módulo da seção 3.1 é um *bounded context* com fronteira explícita:
 
 ```
 src/
@@ -153,15 +154,36 @@ Regras de fronteira (checadas por lint, com `eslint-plugin-boundaries` ou equiva
 | Senha | Argon2id (`@node-rs/argon2`) | RNF0004 |
 | Exportação | ExcelJS (XLSX), gerador PDF server-side | PDF conforme ISO 32000-1 (RNF_IMP_001) |
 | Testes | Vitest (domínio e integração), Testcontainers/PostgreSQL real, Playwright (E2E) | Seção 10 |
-| Empacotamento | Imagem Docker única (app + worker com entrypoints distintos) | Portável: VPS, nuvem ou infra da CTCEA |
+| Empacotamento | Imagem Docker única (app + worker com entrypoints distintos) | Roda na VPS via Easypanel; portável para outra infra se preciso |
+| Hospedagem | VPS Hostinger (Ubuntu, 2 vCPU, 8 GB RAM, 96 GB disco) com Easypanel + Traefik já instalados | Seção 4.3 |
+| E-mail | SMTP externo autenticado (provedor transacional ou SMTP corporativo da CTCEA) | VPS não envia e-mail direto: IP de VPS cai em spam |
 
-### 4.3 Ambientes e hospedagem
+### 4.3 Ambientes e hospedagem (VPS Hostinger)
 
-Três ambientes isolados, cada um com banco próprio: **dev** (local, Docker Compose), **hml** (homologação com usuários-chave) e **prod**.
+O sistema roda na **VPS Hostinger do PO** (srv2039095: 2 vCPU, 8 GB de RAM, 96 GB de disco). A VPS já tem **Docker** e **Easypanel**, com **Traefik** nas portas 80/443. O SGO usa essa base em vez de instalar outro proxy.
 
-- Banco de **produção** obrigatoriamente com backup diário **e** recuperação ponto-a-ponto (PITR) testada. Recomendação: PostgreSQL gerenciado com PITR (ex.: Supabase Pro, Neon ou equivalente). O plano gratuito, sem PITR, **não** é aceitável para produção (lição do incidente de 14/08/2026).
-- Onde rodam app e worker em produção é o GAP-INF-001 (infra da CTCEA × nuvem × VPS). A imagem Docker torna essa decisão reversível.
-- O worker é um processo de longa duração. Por isso o desenho não depende de plataforma *serverless*.
+| Ambiente | Onde | Banco |
+| --- | --- | --- |
+| **dev** | Máquina do desenvolvedor, Docker Compose (PostgreSQL 16 + app + worker) | Local, descartável; dados sintéticos da seed |
+| **hml** | VPS, projeto Easypanel `sgo-hml` (subdomínio próprio) | PostgreSQL 16 próprio do hml |
+| **prod** | VPS, projeto Easypanel `sgo-prod` (domínio definitivo) | PostgreSQL 16 próprio do prod |
+
+Serviços por ambiente no Easypanel: `app` (Next.js, `node server.js`, saída *standalone*), `worker` (mesma imagem, entrypoint `worker`) e `db` (PostgreSQL 16). Só o `app` é exposto, via Traefik com HTTPS (Let's Encrypt). O banco **não** publica porta na internet e só é acessível pela rede interna do Docker.
+
+**Deploy:** um push na `main` dispara o GitHub Actions (lint, testes, build da imagem). A imagem vai para o GHCR (privado) e o Easypanel recebe um *webhook* de deploy. Antes de subir o app, o contêiner roda `prisma migrate deploy`. Se a migration falha, o app novo não sobe e o anterior continua no ar. O hml recebe tudo; o prod só recebe *tags* de release.
+
+**Orçamento de memória (estimado):** prod com app ~600 MB, worker ~300 MB e PostgreSQL ~1,5 GB (`shared_buffers` 512 MB); hml com cerca de metade. São ~3,5 GB ao todo, cabendo nos 8 GB com folga para o Easypanel. Se a VPS ficar apertada, a primeira medida é subir o plano ou tirar o hml da VPS.
+
+**Banco de produção — proteção de dados (inegociável, lição de 14/08/2026):**
+- **PITR**: WAL contínuo com `pgBackRest` (ou WAL-G) para um *storage* S3 compatível **fora da VPS** (ex.: Backblaze B2 ou Cloudflare R2), com retenção de 30 dias.
+- **Dump lógico diário** (`pg_dump -Fc`), também enviado para fora da VPS, com retenção de 90 dias.
+- **Backup/snapshot da Hostinger** antes de todo deploy com migration. Não substitui os dois itens acima, porque fica na mesma conta.
+- **Teste de restauração mensal** em banco descartável, com registro do resultado. Backup que nunca foi restaurado não conta como backup.
+- Credenciais de produção existem só nas variáveis do Easypanel; nunca em `.env` de desenvolvedor.
+
+**Segurança da VPS** (pré-requisito do go-live): SSH só por chave, sem senha para root; firewall liberando apenas 22/80/443; fail2ban; atualizações automáticas de segurança. O painel do Easypanel (hoje exposto na porta 3000) passa para trás de HTTPS em subdomínio próprio, ou fica restrito por firewall.
+
+O worker é um processo de longa duração; por isso o desenho não depende de plataforma *serverless*.
 
 ---
 
@@ -191,8 +213,8 @@ Três ambientes isolados, cada um com banco próprio: **dev** (local, Docker Com
 
 ### 6.1 Hierarquia de contas (Plano Financeiro)
 
-- O SGO orça sobre o **Plano Financeiro CTCEA** (modelo 0303 do Sapiens, despesas no grupo 1.9), e não sobre o plano contábil. Essa decisão é do PO, registrada nas notas do projeto. **[PROVISÓRIA]**: formalizar nos EPs.
-- **Profundidade genérica**: a árvore é uma lista de adjacência (`conta_pai_id`) com `nivel` e `tipo ∈ {SINTETICA, ANALITICA}` vindos do ERP. Quando os documentos dizem "Nível 7 / Nó Folha", leia-se **conta analítica**, não o número 7. Isso resolve a divergência 6 × 7 níveis (seção 8, C11) sem mudar código.
+- O SGO orça sobre o **Plano Financeiro** recebido do Senior (Integração 1 do OxR V2), em 7 níveis conforme a Integração V4.
+- **Profundidade genérica**: a árvore é uma lista de adjacência (`conta_pai_id`) com `nivel` e `tipo ∈ {SINTETICA, ANALITICA}` vindos do ERP. Os documentos fixam 7 níveis, e o 7º é a conta analítica ("Nível 7 / Nó Folha"). O código trata "Nível 7" como **conta analítica**, sem fixar o número 7: o Senior é a fonte da estrutura, e uma mudança na estrutura do ERP não exige mudar código.
 - Somente contas **analíticas ativas** recebem valor (orçado, realizado, FKs de Cargos/Viagens/Bens/Rateios).
 - **Agrupadores de Contas** são entidades exclusivas do SGO (N:N com analíticas), usadas apenas em relatórios (RN_PLA_007–011). Não são contas sintéticas.
 - A entidade legada **SubConta não existe** no SGO 2.0.
@@ -242,14 +264,14 @@ Conforme o OxR V2: `OrcadoContaMes` (digitado no SGO, por versão), `RealizadoCo
 
 | ID | Decisão | Alternativas descartadas | Motivo |
 | --- | --- | --- | --- |
-| D1 | Monólito modular Next.js com módulos isolados por fronteira lint | Backend separado (NestJS) | Decisão de 26/09/2026; um time pequeno ganha velocidade; a extração fica possível pelos `index.ts` |
+| D1 | Monólito modular Next.js com módulos isolados por fronteira lint | Backend separado (NestJS) | Um time pequeno ganha velocidade; um único deploy na VPS; a extração fica possível pelos `index.ts` |
 | D2 | **Autenticação própria** (Argon2id + sessão em banco), atrás de uma porta `ProvedorIdentidade` | Clerk (usado no `sistemaSgo`); NextAuth | O EP084 V5 exige comportamento que conflita com um IdP terceiro: contador e bloqueio próprios antes de verificar a senha (RN0018), modo manutenção (RN0023), senha gerada pelo sistema e enviada por e-mail (UC02.18), troca obrigatória (REQ0039), sessão única com aviso à estação anterior (RN0519), desconexão forçada com contagem (REQ0087) e hash fictício contra *timing* (RNF0005). O híbrido Clerk + banco próprio dividia a fonte da verdade. A porta permite plugar o login da intranet (GAP-AUT-001) sem reescrever |
 | D3 | Sessão por **token opaco** (cookie `httpOnly`, `Secure`, `SameSite=Lax`) com registro em `SessaoUsuario` | JWT sem estado (citado no glossário do EP085) | Invalidação imediata é requisito (logoff ≤400 ms, sessão única, desconexão forçada, desativação de módulo desconecta usuários); JWT sem estado não revoga. O UID da sessão segue a RN0062 para auditoria |
-| D4 | Hierarquia de contas com profundidade genérica (6.1) | Fixar 7 níveis | Docs dizem 7 e o PO decidiu 6 em out/2026; o ERP é a fonte do tipo da conta |
+| D4 | Hierarquia de contas com profundidade genérica (6.1) | Fixar 7 níveis | Docs dizem 7; o ERP é a fonte da estrutura e do tipo da conta |
 | D5 | `NUMERIC(15,2)` para dinheiro; `NUMERIC(9,4)` para taxas | `numeric(18,2)` (glossário de Cadastros) | Diretriz canônica, confirmada no OxR V2. 15,2 comporta até R$ 9,9 trilhões |
 | D6 | Filas e jobs no PostgreSQL (`pg-boss`) + padrão *outbox* para e-mail e notificação | Redis/BullMQ; serviço externo | Sem infraestrutura nova. O *outbox* garante que a notificação só sai se a transação comitou (RNF0012, RNF_EML_001) |
 | D7 | Carga do Plano Financeiro por **arquivo (CSV/XLSX)** atrás da mesma porta da Integração 1 | Esperar o contrato do Senior | O GAP-INT-001 não tem prazo. O *Bulk Loader* já é requisito (RNF_DES_003: 10.000 linhas em menos de 30 s). Quando a API sair, troca-se só o adaptador |
-| D8 | Imagem Docker portátil; hospedagem de produção é decisão separada | Prender à Vercel/serverless | O worker é de longa duração; a infra da CTCEA é desconhecida (GAP-INF-001) |
+| D8 | Imagem Docker na VPS Hostinger via Easypanel; PostgreSQL 16 próprio com PITR para storage externo | Vercel/serverless; Supabase/Neon gerenciado | Definido pelo PO: o sistema roda na VPS. O worker é de longa duração. Banco na mesma VPS elimina latência e custo, e a proteção vem do PITR externo (4.3) |
 | D9 | Somente leitura de dados do ERP **imposta no banco** (privilégios por papel), não só na UI | Só validação de aplicação | Diretrizes ORIGEM BLINDADA e TRAVA O ERRO pedem bloqueio "a nível de banco e de endpoint" (Integração V4 §3.8) |
 | D10 | Salários: criptografia em repouso pelo armazenamento + mascaramento por perfil. **[PROVISÓRIA]** criptografia AES-256 por coluna só se a auditoria exigir | Criptografia por coluna desde o início | Por coluna impede agregação e ordenação no banco (o TotalizerService soma salários). Validar com a Auditoria/DAF se o requisito é por coluna |
 
@@ -271,7 +293,7 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C8 | Benefícios: V5 só alerta × C&S V4 sobrescreve (Cat. #8) | **C&S V4**: a Tabela Mestre sobrescreve com auditoria e origem registrada (RN_CAR_06/07); nunca altera snapshots oficializados | Fechado |
 | C9 | Precisão 18,2 × 15,2 (Cat. #10) | `NUMERIC(15,2)` (D5) | Fechado |
 | C10 | Encargo Social sem fórmula (Cat. #13, GAP-CAR-004) | **Resolvido pelo C&S V4**: 51% (RN_CAR_17), parametrizado e versionado | Fechado. Conferência: confirmar com o Wellington se o "INSS Patronal 38%" já inclui RAT e terceiros |
-| C11 | Plano de contas com 7 níveis (todos os docs) × 6 níveis (decisão do PO, out/2026) | Profundidade genérica (D4); "N7" = analítica | Atualizar os EPs na próxima revisão |
+| C11 | Docs usam "Nível 7" como sinônimo de conta analítica | 7 níveis, como nos docs; o código identifica a analítica pelo tipo vindo do ERP (D4) | Fechado |
 | C12 | Seis perfis padrão citados sem lista (UC02.27, Cat. #15) | Seed provisório com os seis atores dos documentos: **Administrador, Orçamentista, Gestor Financeiro (GFIN), Analista GRH, Operador de Viagens (SCOR/GAD), Auditor**. Matriz mínima em §11.3 | [PROVISÓRIA] GAP-ADM-001, Adriana |
 | C13 | Critérios de senha não descritos (RN0039, Cat. #16) | Política **parametrizada**, com padrão mínimo de 12 caracteres, maiúscula, minúscula e dígito; bloqueio das últimas 5 senhas; senha diferente do login | [PROVISÓRIA] TI/Segurança CTCEA |
 | C14 | UC02.02/UC02.04 inexistentes; UC02.03 vazio (Cat. #17) | Módulos e funcionalidades só por **seed** (RN_SEED_001). UC02.03 removido. Referências a UC02.04 apontam para UC02.05 | Fechado |
@@ -291,7 +313,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 
 | ID | Módulo | Gap | Bloqueia | Responsável |
 | --- | --- | --- | --- | --- |
-| GAP-INF-001 | Infra | Onde rodam app e worker em produção (infra CTCEA × nuvem × VPS) e provedor de banco com PITR | Go-live de F1 (não o desenvolvimento) | TI CTCEA / PO |
+| GAP-INF-001 | Infra | Hospedagem definida (VPS Hostinger). Falta: domínio/subdomínios, provedor do storage externo de backup e provedor SMTP | Go-live de F1 (não o desenvolvimento) | PO |
 | GAP-AUT-001 | AUT | "Login unificado com a intranet NodeJS" (EP084 V5, objetivo): protocolo (OIDC/SAML/cookie compartilhado), quem é dono da senha, como ficam bloqueio e manutenção | Só o adaptador de SSO; F1 entrega login próprio | TI CTCEA |
 | GAP-AUT-002 | AUT | Seções 3.6 (Pendências P01–P14) e 3.7 (correspondência de IDs) estão no sumário do EP084 V5, mas não no conteúdo. P02, P05, P07, P09, P10, P11 e P14 são citadas nos fluxos | Não bloqueia; valores ficam parametrizáveis | PO |
 | GAP-ADM-001 | ADM | Matriz de permissões dos 6 perfis padrão (C12) | Não bloqueia; vale a matriz provisória §11.3 | Adriana (DAF) |
@@ -347,6 +369,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 
 1. Repositório Next.js + TypeScript strict + estrutura de módulos (4.1) + lint de fronteiras.
 2. Docker Compose de dev (PostgreSQL 16 + app + worker) e imagem Docker única.
+2a. Infra da VPS: projetos `sgo-hml` e `sgo-prod` no Easypanel, PostgreSQL 16 por ambiente sem porta pública, HTTPS via Traefik, pipeline GitHub Actions → GHCR → webhook do Easypanel, pgBackRest com storage externo e o primeiro teste de restauração registrado.
 3. Prisma com migrations; papéis de banco (`sgo_app` sem BYPASSRLS, `sgo_sync`, `sgo_migrator`); RLS por `org_id`.
 4. `shared/kernel`: `Dinheiro` (Half-Even), `Percentual`, `Competencia` (Mmm/AA, RN0302), `Resultado`, erros de domínio.
 5. `shared/audit`: `HistoricoOperacao` append-only (trigger + privilégios) e `auditar(tx, …)`.
@@ -412,7 +435,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 
 ### 11.5 Política de banco de produção (lição de 14/08/2026)
 
-1. Nenhuma máquina de desenvolvimento tem credencial do banco de produção.
+1. Nenhuma máquina de desenvolvimento tem credencial do banco de produção. O banco de prod não tem porta pública na VPS.
 2. Migrations em produção só pelo pipeline de deploy (`prisma migrate deploy`), nunca `migrate dev`, `reset`, `db push` ou `migrate diff` com shadow apontando para prod.
 3. `shadowDatabaseUrl` só aponta para um banco efêmero.
 4. Backup diário + PITR verificados por um **teste de restauração mensal** registrado.
