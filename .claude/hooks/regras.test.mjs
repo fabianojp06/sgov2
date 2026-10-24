@@ -67,6 +67,33 @@ describe('avaliarComando', () => {
     ['npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --script', VAZIO, true],
     ['npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema', VAZIO, true],
     ['npx prisma migrate diff --from-empty --to-schema prisma/schema --script', VAZIO, false],
+    // Prisma com versão fixada (npx prisma@x), @prisma/cli e o binário direto.
+    ['npx prisma@7.0.0 migrate reset --force', { DATABASE_URL: 'postgresql://u:x@sgo-prod_db:5432/sgo' }, true],
+    ['npx prisma@7.0.0 migrate reset --force', { DATABASE_URL: 'postgresql://u:x@10.0.1.5:5432/sgo' }, true],
+    ['npx -y prisma@latest db push', VAZIO, true],
+    ['npx prisma@7 db push', VAZIO, true],
+    ['npx prisma@7 db push', DEV_LOCAL, false],
+    ['npm exec prisma@7 -- migrate dev', VAZIO, true],
+    ['npx -y prisma@7 migrate diff --from-url postgresql://u:x@10.0.1.5:5432/sgo --to-schema prisma/schema', DEV_LOCAL, true],
+    ['npx @prisma/cli@7 db push', VAZIO, true],
+    ['node node_modules/prisma/build/index.js db push', VAZIO, true],
+    ['node ./node_modules/prisma/build/index.js migrate reset --force', DEV_LOCAL, false],
+    // Subshells, grupos, segundo plano e palavras-chave do shell antes do comando real.
+    ['(docker exec -it sgo-prod_db psql -U postgres)', VAZIO, true],
+    ['{ docker compose -p sgo-hml down -v; }', VAZIO, true],
+    ['true & docker rm -f sgo-prod_app', VAZIO, true],
+    ['if true; then docker exec sgo-prod_db ls; fi', VAZIO, true],
+    ['if true; then :; else docker exec sgo-prod_db ls; fi', VAZIO, true],
+    ['for c in a; do docker volume rm sgo-prod_data; done', VAZIO, true],
+    ['while true; do docker stop sgo-hml_app; done', VAZIO, true],
+    ['! docker stop sgo-prod_app', VAZIO, true],
+    ['(psql -h 10.0.0.5 -U postgres)', VAZIO, true],
+    ['true & git push origin main', VAZIO, true],
+    ['(git push origin HEAD:main)', VAZIO, true],
+    ['(cd app && npx prisma db push)', VAZIO, true],
+    ['docker exec 2>&1 sgo-prod_db ls', VAZIO, true],
+    ['docker compose up -d db 2>&1 &', VAZIO, false],
+    ['(git push origin us-002-claude-md-hooks)', VAZIO, false],
   ])('%s (env %j) → bloquear=%s', (comando, env, bloquear) => {
     const r = avaliarComando(comando, env);
     expect(r.bloquear).toBe(bloquear);

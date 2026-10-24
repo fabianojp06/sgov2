@@ -1,8 +1,9 @@
 // Regras das travas das sessões do Claude Code (spec §11.5 e D12, US-002).
 // Função pura: recebe o comando do Bash e o ambiente e diz se a execução deve ser bloqueada.
-// O comando é avaliado inteiro: encadeamentos (&&, ||, ;, |, quebra de linha), variáveis
-// inline (VAR=valor cmd), export, subshells (bash -c '...') e embrulhos (sudo -u x, timeout N,
-// xargs, nice...) entram na análise: o comando real é o que vem depois deles.
+// O comando é avaliado inteiro: encadeamentos (&&, ||, ;, |, & e quebra de linha), variáveis
+// inline (VAR=valor cmd), export, subshells (bash -c '...', ( ... ), $( ... )), grupos { ...; },
+// palavras-chave do shell (if/then/do/!...) e embrulhos (sudo -u x, timeout N, xargs, nice...)
+// entram na análise: o comando real é o que vem depois deles.
 
 const PORTAS_DEV = new Set(['55432', '56432']);
 const HOSTS_LOCAIS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
@@ -33,6 +34,11 @@ const EMBRULHOS = new Map([
   ['timeout', { comValor: ['-s', '-k', '--signal', '--kill-after'], posicionais: 1 }],
   ['xargs', { comValor: ['-I', '-n', '-P', '-L', '-s', '-d', '-E', '-a', '--max-args', '--max-procs', '--max-lines', '--max-chars', '--delimiter', '--eof', '--arg-file', '--replace'], posicionais: 0 }],
 ]);
+// Palavras-chave do shell que podem vir antes do comando real (if x; then cmd; fi, ! cmd, { cmd; }).
+const PALAVRAS_CHAVE = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until', '!', '{', '}']);
+// O CLI do Prisma: prisma, prisma@7, prisma@7.0.0, prisma@latest, @prisma/cli(@x) ou o binário direto.
+const CLI_PRISMA = /^(?:@prisma\/cli|prisma)(?:@\S+)?$/;
+const BINARIO_PRISMA = /(?:^|\/)prisma\/build\/index\.js$/;
 const COMANDOS_DE_CONTEINER = new Set(['docker', 'docker-compose', 'podman', 'nsenter', 'ctr', 'crictl']);
 const CLIENTES_PG = new Set(['psql', 'pg_dump', 'pg_dumpall', 'pg_restore']);
 
@@ -57,9 +63,11 @@ export function ehDevLocal(url) {
 
 function segmentar(comando) {
   // Aspas viram espaço: o conteúdo de bash -c '...' passa a ser analisado como comando comum.
-  const plano = comando.replace(/["'`]/g, ' ').replace(/\$\(|\)/g, ' ; ');
+  // ( e ) delimitam subshells; o & isolado (segundo plano) separa comandos, mas não o de
+  // redirecionamentos como 2>&1, >&2 e &>arquivo.
+  const plano = comando.replace(/["'`]/g, ' ').replace(/\$\(|[()]/g, ' ; ');
   return plano
-    .split(/&&|\|\||[;|\n]/)
+    .split(/&&|\|\||\|&|[;|\n]|(?<![<>])&(?!>)/)
     .map((s) => s.trim().split(/\s+/).filter(Boolean))
     .filter((t) => t.length > 0);
 }
@@ -72,6 +80,10 @@ function semPrefixos(tokens, envSegmento) {
     const m = ATRIBUICAO.exec(t);
     if (m) {
       envSegmento[m[1]] = m[2];
+      i += 1;
+      continue;
+    }
+    if (PALAVRAS_CHAVE.has(t)) {
       i += 1;
       continue;
     }
@@ -90,12 +102,16 @@ function nomeBase(t) {
   return t.split('/').pop() ?? t;
 }
 
+function ehPrisma(t) {
+  return CLI_PRISMA.test(t) || CLI_PRISMA.test(nomeBase(t)) || BINARIO_PRISMA.test(t);
+}
+
 function temSequencia(tokens, a, b) {
   return tokens.some((t, i) => t === a && tokens[i + 1] === b);
 }
 
 function avaliarPrisma(tokens, env, envArquivos) {
-  if (!tokens.some((t) => nomeBase(t) === 'prisma')) return null;
+  if (!tokens.some(ehPrisma)) return null;
   const reset = temSequencia(tokens, 'migrate', 'reset');
   const push = temSequencia(tokens, 'db', 'push');
   const diff = temSequencia(tokens, 'migrate', 'diff');
