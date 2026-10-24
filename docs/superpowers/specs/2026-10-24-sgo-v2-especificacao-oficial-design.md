@@ -33,6 +33,10 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | A pasta `especificacao` tem o documento de elicitação mais atual, com todas as regras e requisitos | O ZIP é a fonte primária. Onde ele não tem um módulo (Orçamentário, Relatórios), vale o Catálogo Consolidado de 08/10/2026 |
 | Revisar toda a especificação e seguir com as recomendações sem esperar aprovação intermediária | Conflitos foram decididos aqui. As decisões de negócio ficam marcadas [PROVISÓRIA] com o SME responsável |
 | Plano de contas, centros de custo e parte dos dados de RH virão por integração com o Senior; **neste sistema, as fontes são os arquivos .xlsx** de plano de contas e de centros de custo, ambos com 5 níveis | A carga por arquivo é a fonte oficial até a integração existir (D7); a integração entra depois, atrás da mesma porta, sem mudar o modelo |
+| Login próprio agora; unificação com a intranet depois (como recomendado) | D2 mantido; GAP-AUT-001 sai do caminho do go-live |
+| Uma única organização, **sem multi-tenant**; cada TP vê só o que lhe compete | Isolamento por **unidade** (TP) no lugar de `org_id` (5, C31); Adm. Central em menu próprio (6.7) |
+| Sem tela pública: o sistema abre direto no login | C32 |
+| Push e PR só quando tudo estiver fechado | Branch fica local até o aceite final da spec |
 | Viagens segue a especificação; os perfis seguem a recomendação desta revisão | RN_VIA_03 sem alteração (C19); matriz 11.3 + Gestor de Diretoria aprovada pelo PO (C30) |
 | A base é a pasta `especificacao`; o `sistemaSgo` é só referência; anotações pessoais não entram | Nenhum arquivo fora de `especificacao/` é fonte de regra de negócio. As notas pessoais versionadas no `sgov2` foram ignoradas |
 | O sistema vai rodar na VPS Hostinger do PO | Hospedagem definida (seção 4.3); sai da lista de gaps a decisão “onde roda” |
@@ -102,7 +106,7 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 
 | Fase | Entrega | Depende de | Bloqueios abertos (seção 9) |
 | --- | --- | --- | --- |
-| **F0** | Fundação técnica: repositório, CI/CD para a VPS, ambientes, banco, backup, auditoria, multi-tenant, dinheiro, TotalizerService (núcleo), filas | — | Destino do backup externo (GAP-INF-001), não bloqueia o desenvolvimento |
+| **F0** | Fundação técnica: repositório, CI/CD para a VPS, ambientes, banco, backup, auditoria, isolamento por unidade, dinheiro, TotalizerService (núcleo), filas | — | Destino do backup externo (GAP-INF-001), não bloqueia o desenvolvimento |
 | **F1** | GER + AUT + ADM (inclui Alçadas UC02.28 e perfis padrão) | F0 | GAP-ADM-001 (matriz de perfis), não bloqueia: vale a matriz provisória |
 | **F2** | Cadastros-base: Plano Financeiro (Integração 1 + carga por arquivo), Centros de Custo (carga por arquivo), Agrupadores, Estrutura Funcional, Cargos e Salários, Tabela Salarial, Parâmetros (alíquotas, SMN, benefícios-mestre, semáforo) | F1 | GAP-INT-001 (contrato Senior), contornado pela carga por arquivo |
 | **F3** | Proposta/TP: capa, versões, duplicação, metas, quantitativos, empregados e benefícios, viagens, bens CAPEX, impostos, rateio/ISS, totalizadores | F2 | GAP-CAD-001 (fórmula do ISS) bloqueia só o cálculo do ISS |
@@ -134,7 +138,7 @@ src/
   shared/
     kernel/              # Dinheiro, Competencia, Resultado, erros de domínio
     audit/               # HistoricoOperacao (porta + adaptador)
-    tenancy/             # contexto de org_id + RLS
+    unidade/             # contexto da unidade (TP) do usuário + RLS
     totalizer/           # TotalizerService (motor puro de agregação)
     authz/               # guarda RBAC usada por toda Server Action/Route Handler
   app/                   # rotas Next.js (App Router), finas: só chamam casos de uso
@@ -203,10 +207,10 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 | **[SOFT DELETE]** — sem DELETE físico em dado financeiro ou histórico | Colunas `ativo boolean` + `inativado_em`/`inativado_por`. Exclusão física só em rascunho sem histórico (RN_EXC_001). A permissão de `DELETE` é revogada no banco para as tabelas financeiras |
 | **[SINCRONISMO ATÔMICO]** — lote tudo ou nada | Toda operação em lote dentro de uma única `prisma.$transaction`. Cargas de ERP gravam primeiro em tabela de *staging*, validam e depois fazem merge numa transação |
 | **[CARGA VIVA]** — registro com dependência não pode ser excluído nem inativado | Cada agregado expõe `verificarDependencias()` no domínio, consultado antes da exclusão. A UI lista os impeditivos (RF_EXC_003). Foreign keys `ON DELETE RESTRICT` como rede de segurança |
-| **Log Delta compulsório** — auditoria na mesma transação; falha desfaz | `HistoricoOperacao` gravado pelo mesmo `tx` da operação via `auditar(tx, evento)`. Tabela append-only: `UPDATE`/`DELETE` revogados e *trigger* que rejeita. Campos: `org_id`, usuário (ou "Sistema"), sessão UID, IP, funcionalidade, tipo de operação (RN0103), descrição padronizada (RN0089–RN0094), `antes`/`depois`/`delta` em JSONB, `TIMESTAMPTZ` do servidor |
+| **Log Delta compulsório** — auditoria na mesma transação; falha desfaz | `HistoricoOperacao` gravado pelo mesmo `tx` da operação via `auditar(tx, evento)`. Tabela append-only: `UPDATE`/`DELETE` revogados e *trigger* que rejeita. Campos: `unidade_id` (nulo em operações globais), usuário (ou "Sistema"), sessão UID, IP, funcionalidade, tipo de operação (RN0103), descrição padronizada (RN0089–RN0094), `antes`/`depois`/`delta` em JSONB, `TIMESTAMPTZ` do servidor |
 | **Nível de log Simples/Avançado** por funcionalidade (RN0104/RN0105) | `Funcionalidade.nivelLog`. Consultas e exportações só geram registro quando o nível é Avançado; login, logoff e escritas sempre geram (RN_LOG_EXP: exportação sempre registra) |
 | **Precisão monetária** | `NUMERIC(15,2)` para valores, `NUMERIC(9,4)` para percentuais e índices (RNF_PR_004). Value object `Dinheiro` com arredondamento **Half-Even** em 2 casas. Na API, valores trafegam como *string* decimal |
-| **Multi-tenant** por `org_id` + RLS | `org_id uuid NOT NULL` em toda tabela de negócio. Políticas RLS com `current_setting('app.org_id')`, definido por `SET LOCAL` no início de cada transação pelo `shared/tenancy`. A aplicação conecta com um papel **sem** `BYPASSRLS` |
+| **Isolamento por unidade** (substitui o multi-tenant do Catálogo, C31) | Uma só organização. Toda tabela de dado de TP tem `unidade_id NOT NULL` (Proposta e tudo abaixo dela, execução, realizado). Cadastros globais (plano de contas, CC, cargos, parâmetros) não têm unidade. O usuário tem a lista de unidades permitidas (`UsuarioUnidade`). Defesa em duas camadas: a guarda `shared/authz` filtra pela unidade ativa **e** o banco aplica RLS com `current_setting('app.unidades')` (lista das unidades do usuário), definido por `SET LOCAL` em cada transação pelo `shared/unidade`. A aplicação conecta com um papel **sem** `BYPASSRLS`. A Adm. Central não é uma unidade de TP: o acesso a ela é uma permissão própria (6.7) |
 | **Concorrência otimista** (`@Version`) | Coluna `versao int`. O update usa `WHERE id = ? AND versao = ?`; zero linhas afetadas vira erro `ConflitoConcorrencia`, com mensagem inline (RNF_CON_002) |
 | **Concorrência pessimista** (sincronismo, remanejamento, contador de login) | `pg_advisory_xact_lock` por chave (ex.: `sync-plano:<org>`, `remanejamento:<conta>`). `SELECT … FOR UPDATE` na linha do usuário no login (RNF0011) |
 | **RBAC revalidado no backend** em todo endpoint | `authz.exigir(funcionalidade, acao)` obrigatório em toda Server Action/Route Handler (lint proíbe Action sem guarda). A UI só oculta botões; a autoridade é o servidor |
@@ -231,7 +235,7 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 | 4 | `9.9.9.9` | 4.1.1.1 DESPESAS DE PESSOAL … 4.1.1.9 PROJETOS (9 grupos) | Sintética |
 | 5 | `9.9.9.9.999` | 4.1.1.1.001 Salários (reduzida 900) | **Analítica** |
 
-- Colunas da planilha → modelo: `Nível` → `nivel`; `Classificação` → `classificacao` (única por org); `Conta Superior` → `conta_pai_id`; `Descrição` → `descricao`; `Tipo` S/A → `tipo`; `Conta Reduzida` → `codigo_reduzido`. O código reduzido é **obrigatório e único nas analíticas** e é a chave de casamento com o Senior nas Integrações 1 e 2.
+- Colunas da planilha → modelo: `Nível` → `nivel`; `Classificação` → `classificacao` (única); `Conta Superior` → `conta_pai_id`; `Descrição` → `descricao`; `Tipo` S/A → `tipo`; `Conta Reduzida` → `codigo_reduzido`. O código reduzido é **obrigatório e único nas analíticas** e é a chave de casamento com o Senior nas Integrações 1 e 2.
 - **Regras de integridade** (validadas na carga e no banco): nível ∈ 1..5; nº de segmentos da classificação = nível; o pai tem nível − 1; analítica ⇔ nível 5; sintética tem pelo menos um filho; analítica não tem filhos.
 - Onde os documentos dizem "Nível 7 / Nó Folha / N7", leia-se **conta analítica de nível 5**. O código identifica a analítica pelo `tipo`, e o limite de 5 níveis fica num parâmetro validado, não espalhado pelo código.
 - A planilha é a **fonte do plano de contas** neste sistema em todos os ambientes (seed de dev/hml e carga de prod), pelo *Bulk Loader* de D7. A origem definitiva é o Senior (Integração 1), que entra depois atrás da mesma porta.
@@ -253,7 +257,7 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 | 5 | — | Reservado |
 
 - **Diferença em relação ao plano de contas:** no CC, a conta **analítica pode estar em qualquer nível** de 2 a 5 (ex.: 4.4 no nível 2, 4.1.1 no nível 3). Somente CC **analítico** (coluna "Aceita lançamento" = S) recebe orçamento ou lançamento.
-- Colunas da planilha → modelo: `Classificação` → `classificacao` (única por org); `Código reduzido` → `codigo_reduzido` (único; chave com o Sapiens/Senior); `Descrição sugerida` → `descricao` (a original fica em `descricao_original` até a decisão de grafia da DIREX/GFIN); `Nível` → `nivel`; `Classificação pai` → `cc_pai_id`; `Tipo` → `tipo`; `Aceita lançamento` → `aceita_lancamento` (precisa ser igual a `tipo = ANALITICO`). A coluna "Observação" não é importada.
+- Colunas da planilha → modelo: `Classificação` → `classificacao` (única); `Código reduzido` → `codigo_reduzido` (único; chave com o Sapiens/Senior); `Descrição sugerida` → `descricao` (a original fica em `descricao_original` até a decisão de grafia da DIREX/GFIN); `Nível` → `nivel`; `Classificação pai` → `cc_pai_id`; `Tipo` → `tipo`; `Aceita lançamento` → `aceita_lancamento` (precisa ser igual a `tipo = ANALITICO`). A coluna "Observação" não é importada.
 - **Regras de integridade** (validadas na carga e no banco): nível ∈ 1..5; nº de segmentos = nível; pai com nível − 1; sintético tem filho; analítico não tem filho; `aceita_lancamento ⇔ analítico`. A máscara **não** fixa a quantidade de dígitos por segmento, porque a minuta usa 1 dígito no nível 3 e 2 no nível 4 (GAP-CC-002).
 - **Regra R3 da minuta (CC de gestão):** toda diretoria e toda gerência sintética tem **exatamente um** CC analítico de gestão (sufixo `.0` no nível 3 e `.10` no nível 4). Ele recebe o custo do titular, da assessoria direta, das viagens e diárias da chefia e da capacitação da equipe de gestão. Custos compartilhados da sede vão para 4.4 Suporte Administrativo. O SGO marca o CC de gestão com o atributo `de_gestao` e valida a regra na carga, com **aviso** (não bloqueia enquanto a minuta não for aprovada).
 - **Classificação ≠ conta:** a classificação do CC começa em "4", assim como o plano de contas, mas são entidades distintas e sem chave em comum. Nas telas, o CC é sempre mostrado com o reduzido para não confundir.
@@ -305,7 +309,7 @@ Conforme o OxR V2: `OrcadoContaMes` (digitado no SGO, por versão), `RealizadoCo
 
 Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só cita o **rateio** dela (RN0270, ainda sem regra). A fonte deste UC é o protótipo de 23/10/2026 (fonte 13). Tudo aqui está marcado **[PROVISÓRIA]** até virar EP.
 
-**Objeto.** Um `OrcamentoExercicio` por org e ano (ex.: 2027), com o ciclo de vida da 6.2 (Rascunho → Em Elaboração → Em Aprovação → Oficializado). A oficialização gera snapshot. O orçamento é montado por duas fontes de lançamento, sempre em **CC analítico**:
+**Objeto.** Um `OrcamentoExercicio` por ano (ex.: 2027), com o ciclo de vida da 6.2 (Rascunho → Em Elaboração → Em Aprovação → Oficializado). A oficialização gera snapshot. O orçamento é montado por duas fontes de lançamento, sempre em **CC analítico**:
 
 | Aba | Entidade | Campos | Validações (do protótipo) |
 | --- | --- | --- | --- |
@@ -338,18 +342,23 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 
 O protótipo é a referência de **estrutura de navegação e padrão visual** da F1 em diante: azul institucional `#1F3864`/`#2E75B6`, cabeçalho com unidade e perfil, menu lateral por módulo → grupo → funcionalidade, busca de funcionalidade, telas CRUD com grade, formulário, confirmação e aviso. O que ele define e o que é corrigido:
 
-**Marca neutra (decisão do PO, 24/10/2026):** o nome "CTCEA" não aparece em lugar nenhum do sistema: telas, e-mails, relatórios, PDFs, mensagens, seed, código e nomes de banco. O sistema se apresenta como **SGO 2.0 – Sistema de Gestão Orçamentária**. Nome da instituição e logotipo, quando um relatório oficial exigir, vêm de **parâmetro da organização** (`org.nome_exibicao`, `org.logotipo`), vazios por padrão. Esta especificação pode citar a CTCEA. Teste automatizado no CI: busca case-insensitive por "ctcea" em `src/`, `prisma/`, `worker/` e nas seeds falha o build.
+**Marca neutra (decisão do PO, 24/10/2026):** o nome "CTCEA" não aparece em lugar nenhum do sistema: telas, e-mails, relatórios, PDFs, mensagens, seed, código e nomes de banco. O sistema se apresenta como **SGO 2.0 – Sistema de Gestão Orçamentária**. Nome da instituição e logotipo, quando um relatório oficial exigir, vêm de **parâmetro do sistema** (`instituicao.nome_exibicao`, `instituicao.logotipo`), vazios por padrão. Esta especificação pode citar a CTCEA. Teste automatizado no CI: busca case-insensitive por "ctcea" em `src/`, `prisma/`, `worker/` e nas seeds falha o build.
 - Dado de origem: a conta 4.1.1.8.005 do plano oficial se chama "Provisão p/plano de invest. e desenv. CTCEA". A carga grava a descrição **sem a sigla** **[PROVISÓRIA]**; confirmar com a GFIN se a conta será renomeada na origem (GAP-CAD-005).
 
 **Mantido como padrão**
-- **Contexto de unidade** no cabeçalho: cada Termo de Parceria é uma unidade, e a **Administração Central** aparece como unidade consolidada. O seletor só lista as unidades a que o usuário tem acesso, e trocar de unidade recarrega a tela com o filtro dessa unidade no servidor.
+- **Contexto de unidade** no cabeçalho: cada Termo de Parceria é uma unidade, e **cada TP vê só o que lhe compete** (decisão do PO). O seletor lista só os TPs a que o usuário tem acesso e some quando há apenas um. Trocar de TP recarrega a tela com o filtro dessa unidade no servidor.
+- **Administração Central em menu próprio** (recomendação aceita como direção; muda o protótipo, que tratava a Adm. Central como mais uma unidade). Ela não entra no seletor de TP, porque não é um TP: não tem Proposta, Cronograma nem Termo de Parceria, e o orçamento dela é por centro de custo. O menu **Administração Central** aparece para quem tem a permissão e reúne:
+  - **Orçamento da Adm. Central** (UC04.17): lançamentos de pessoal e base zero, visão por CC, teto;
+  - **Consolidado dos TPs** (somente leitura): painel e relatórios que somam todos os TPs, inclusive os que o usuário não opera no dia a dia. É o único lugar onde dados de vários TPs aparecem juntos;
+  - **Rateio da Adm. Central** (RN0270), reservado até a regra existir (GAP-REL-001).
+  Vantagens: o usuário de TP nunca vê a Adm. Central por engano, as telas de TP não precisam tratar um "TP consolidado" que não existe, e o acesso ao consolidado vira uma permissão auditável, separada do acesso a cada TP.
 - **Menu por permissão** (RN0027/RN0030): o menu só mostra módulos e funcionalidades ativos e permitidos, e a busca respeita o mesmo filtro.
 - **Agrupamento do menu**: Administração (Operadores e Permissões · Parâmetros · Histórico); Cadastros (Plano de Contas · Central de Cálculos · Propostas · Pessoal · Viagens e Bens); Orçamentário (Novo TP/Aditivo · Execução Orçamentária); Relatórios (Financeiros · Viagens e Bens · Pessoal · Execução Física · Prestação de Contas); Aprovações (Workflows).
 - Padrões de interação já alinhados aos EPs: confirmação com texto da regra, Histórico de Operações sem Novo/Alterar/Excluir, proposta em Oficializado/Em Aprovação somente leitura, justificativa de rejeição com ≥ 15 caracteres, semáforo 70/85/95.
 
 **Itens que o menu do protótipo não tem e entram na spec**
 - Cadastros › Plano de Contas: **Centros de Custo** (6.1a).
-- Orçamentário: grupo **Orçamento da Administração Central** com o UC04.17 (6.6), visível só na unidade Adm. Central.
+- Menu **Administração Central** (acima): Orçamento da Adm. Central (UC04.17, 6.6), Consolidado dos TPs e Rateio (reservado).
 - Administração › Parâmetros: **Alçadas de Aprovação** (UC02.28). O item "Notificações e Aprovações" (UC02.20) fica só com as notificações, e quem aprova passa para as alçadas (C5).
 - Cadastros › Viagens: o **painel analítico** do Viagens V3.
 
@@ -407,6 +416,8 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C28 | Protótipo: custo da viagem = (pessoas × passagem) + (pessoas × dias × diária) | Igual à RN_VIA_03; mantido (C19). O teto vem do Total da Conta e a rejeição acima do teto é mantida | Fechado |
 | C29 | Protótipo de login: "Usuário ou senha inválidos. Tentativa 1 de 3"; mensagem própria de bloqueio após 3 erros; senha nova com ≥ 6 caracteres | EP084 prevalece: mensagem **genérica** "Login ou senha inválidos", sem contagem (RN0015), com aviso **só na última tentativa** (UC01.02 A5); limite de tentativas e regras de senha são **parâmetros** (RN0024, GAP-AUT-002), sem valor fixo na tela; o rótulo do campo é "Login" | Fechado |
 | C30 | Protótipo: 5 perfis (Administrador, Gestor, Analista orçamentário, Aprovador GFIN, Consulta), e "Gestor" com acesso a quase tudo × matriz provisória de 6 perfis (11.3) | Vale a 11.3 mais o perfil **Gestor de Diretoria** (C25). "Consulta" corresponde a Auditor. O seletor de perfil do protótipo é ferramenta de demonstração e **não existe** no sistema: o perfil vem do usuário logado | Fechado (aprovado pelo PO) |
+| C31 | Catálogo: diretriz multi-tenant por `org_id` + RLS × PO: uma só organização | **Sem multi-tenant.** O isolamento passa a ser por **unidade (TP)**, com a mesma técnica (guarda + RLS) | Fechado |
+| C32 | Protótipo: tela inicial pública que lista módulos e unidades × nenhum EP prevê página pública | **Sem página pública**: a raiz do sistema abre direto o login (UC01.01) | Fechado |
 | C21 | Esqueci minha senha / Gerar senha enviam a senha em texto no e-mail (REQ0077, RN0517) | Mantido (é requisito), com mitigação: senha **temporária de uso único**, troca obrigatória no 1º acesso (REQ0039) e **expiração em 24 h** (parametrizável) **[PROVISÓRIA]** | TI/Segurança |
 
 ---
@@ -463,7 +474,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 ### 10.2 Testes obrigatórios das diretrizes (valem para todo módulo)
 
 1. Escrita com falha na auditoria → nada persiste.
-2. Usuário de outra `org_id` não lê nem escreve (RLS).
+2. Usuário sem acesso a um TP não lê nem escreve dados dele, mesmo chamando a API direto (guarda + RLS por `unidade_id`).
 3. Action sem permissão → 403 auditado, mesmo chamada direto.
 4. Dois saves concorrentes → o segundo recebe `ConflitoConcorrencia`.
 5. Campo ORIGEM BLINDADA enviado no payload → ignorado ou rejeitado, nunca gravado.
@@ -486,10 +497,10 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 1. Repositório Next.js + TypeScript strict + estrutura de módulos (4.1) + lint de fronteiras.
 2. Docker Compose de dev (PostgreSQL 16 + app + worker) e imagem Docker única.
 2a. Infra da VPS: projetos `sgo-hml` e `sgo-prod` no Easypanel, PostgreSQL 16 por ambiente sem porta pública, HTTPS via Traefik, pipeline GitHub Actions → GHCR → webhook do Easypanel, pgBackRest com storage externo e o primeiro teste de restauração registrado.
-3. Prisma com migrations; papéis de banco (`sgo_app` sem BYPASSRLS, `sgo_sync`, `sgo_migrator`); RLS por `org_id`.
+3. Prisma com migrations; papéis de banco (`sgo_app` sem BYPASSRLS, `sgo_sync`, `sgo_migrator`); RLS por `unidade_id`.
 4. `shared/kernel`: `Dinheiro` (Half-Even), `Percentual`, `Competencia` (Mmm/AA, RN0302), `Resultado`, erros de domínio.
 5. `shared/audit`: `HistoricoOperacao` append-only (trigger + privilégios) e `auditar(tx, …)`.
-6. `shared/tenancy` e `shared/authz` (guarda obrigatória).
+6. `shared/unidade` e `shared/authz` (guarda obrigatória, com unidade ativa).
 7. `shared/totalizer`: núcleo puro (árvore + valores analíticos → sintéticos e totais), com testes dos AC do OxR.
 8. Worker com `pg-boss` + *outbox* de e-mail (adaptador SMTP; em dev, Mailpit).
 9. CI (10.4) e **política de banco de produção** (11.5).
