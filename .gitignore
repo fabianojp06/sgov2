@@ -1,2 +1,10 @@
 __pycache__/
 *.pyc
+node_modules/
+.next/
+src/generated/
+.env
+.env*.local
+coverage/
+*.tsbuildinfo
+next-env.d.ts
