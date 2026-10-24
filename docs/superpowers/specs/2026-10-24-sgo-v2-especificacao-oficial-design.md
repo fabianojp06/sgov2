@@ -111,6 +111,7 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 | **F2** | Cadastros-base: Plano Financeiro (Integração 1 + carga por arquivo), Centros de Custo (carga por arquivo), Agrupadores, Estrutura Funcional, Cargos e Salários, Tabela Salarial, Parâmetros (alíquotas, SMN, benefícios-mestre, semáforo) | F1 | GAP-INT-001 (contrato Senior), contornado pela carga por arquivo |
 | **F3** | Proposta/TP: capa, versões, duplicação, metas, quantitativos, empregados e benefícios, viagens, bens CAPEX, impostos, rateio/ISS, totalizadores | F2 | GAP-CAD-001 (fórmula do ISS) bloqueia só o cálculo do ISS |
 | **F3A** | Orçamento da Administração Central (UC04.17, 6.6) | F2 (pode correr em paralelo com F3) | GAP-ORC-003/004 só afetam os valores padrão |
+| **IA** | Funcionalidades de IA em 3 ondas (6.8), cada uma junto com a fase de que depende | F0 (infra 4.4) | GAP-IA-001 (priorização) |
 | **F4** | Aprovações WA01/WA05/WA02 + Termo Aditivo + Termo de Ajuste + Remanejamento | F3 | Alçada de Aditivo, Ajuste e Remanejamento (GAP-APR-001) |
 | **F5** | Execução orçamentária: Cronograma de Desembolso, Premissas/Reajustes, Recursos, Contratações Previstas, Orçado×Realizado (Integração 2), Provisões, Aplicações Financeiras | F4 | GAP-PGD-006/009 (payload do realizado), GAP-ORC-001 (RN0433/0434) |
 | **F6** | Relatórios UC05.01–UC05.11, Book UC05.12 | F5 | GAP-REL-001 (Book e rateio da Adm. Central) |
@@ -202,7 +203,7 @@ O worker é um processo de longa duração; por isso o desenho não depende de p
 
 ### 4.4 Infraestrutura para API de IA (decisão do PO, 24/10/2026)
 
-O sistema nasce **preparado para consumir API de IA**, mas nenhum caso de uso de IA está especificado ainda (GAP-IA-001). A F0 entrega só a infraestrutura, testada com um provedor falso; cada funcionalidade com IA entra depois com spec própria.
+O sistema nasce **preparado para consumir API de IA**. O catálogo de funcionalidades está na 6.8 (GAP-IA-001: priorização pelo PO). A F0 entrega só a infraestrutura, testada com um provedor falso; cada funcionalidade com IA entra depois com spec própria.
 
 **Componentes (`shared/ia`)**
 - **Porta `ProvedorIA`** (independente de fornecedor): `gerarTexto`, `gerarEstruturado(schemaZod)` (resposta validada contra um schema) e `gerarStream` (para telas de conversa). Os módulos só importam a porta.
@@ -409,6 +410,73 @@ O protótipo é a referência de **estrutura de navegação e padrão visual** d
 
 **Correções em relação ao protótipo** (ver C26–C30): níveis do plano de contas, plano de contas sem CRUD, fórmula de viagens (igual à RN_VIA_03), mensagens de login e conjunto de perfis.
 
+### 6.8 Funcionalidades de IA (catálogo proposto, pedido do PO em 24/10/2026)
+
+Catálogo do que a IA pode agregar ao SGO, usando a infraestrutura da 4.4. Cada item vira um caso de uso em `ia_caso_uso`, com spec curta própria antes de ser ligado. **[PROPOSTA]**: o PO prioriza; a ordem abaixo é a recomendação.
+
+**Princípios (valem para todos os itens)**
+1. **Número oficial nunca vem da IA.** Valores, totais, provisões e projeções são calculados pelos motores determinísticos (TotalizerService, MotorCustoPosicao, motor de projeção). A IA **lê** esses resultados por ferramentas somente leitura e **explica, compara, alerta, redige e sugere**.
+2. **Ferramentas, não SQL livre.** A IA consulta o sistema por um conjunto fechado de ferramentas (ex.: `orcado_por_conta`, `realizado_por_mes`, `posicoes_por_cc`, `pacotes_base_zero`, `rateio_por_tp`). Cada ferramenta passa pela guarda de RBAC e de unidade do usuário que perguntou. A IA nunca enxerga um TP que o usuário não enxerga.
+3. **Toda resposta cita a fonte** (conta, CC, TP, competência, versão) e tem link para a tela ou relatório de origem. Texto gerado leva o selo "Gerado com IA – revisar".
+4. **Sugestão só vale depois de aceita por uma pessoa.** O aceite passa pelo caso de uso normal, com a marca `origem = sugestao_ia` (4.4).
+5. **Cenário não é orçamento.** Simulações rodam numa cópia isolada (`CenarioSimulacao`) e só viram orçamento se alguém aplicar pelo fluxo normal.
+6. **Avaliação antes de ligar.** Cada caso de uso tem um conjunto de testes com casos reais anonimizados e critério mínimo de acerto, medido em hml antes de entrar em produção. Depois de ligado, a taxa de aceite das sugestões é acompanhada.
+
+**A. Elaboração do orçamento (TP e Adm. Central)**
+
+| ID | Funcionalidade | O que faz | Valor | Depende de |
+| --- | --- | --- | --- | --- |
+| IA-01 | Sugestão de conta e centro de custo | Pela descrição do gasto ("licença do software de BI"), sugere as 3 contas analíticas mais prováveis entre as 162 e o CC, com o motivo. A pessoa escolhe | Reduz lançamento em conta errada, que distorce todo o OxR | F3A |
+| IA-02 | Assistente de justificativa (base zero) | Melhora a redação da justificativa, aponta o que falta (quantidade, motivo, alternativa) e sugere a prioridade | Pacotes mais defensáveis na aprovação | F3A |
+| IA-03 | Revisor antes de enviar para aprovação | Depois das validações automáticas, procura inconsistências: pacote duplicado, valor muito acima do ano anterior, posição sem benefício, salário fora da faixa do cargo, desejáveis que estouram o teto. Gera uma lista com link para cada linha | Menos idas e voltas na aprovação | F3A, F3 |
+| IA-04 | Cenários "e se" | Traduz perguntas como "e se o reajuste for 6% e cortarmos os desejáveis?" em parâmetros. O motor recalcula num cenário isolado e a IA compara com o orçamento atual | Decisão mais rápida em reunião de orçamento | F3A |
+| IA-05 | Ajuste ao teto | Quando o orçado passa do teto, propõe um conjunto de cortes por prioridade e valor (seleção feita por algoritmo determinístico) e explica o impacto por diretoria | Fechamento do orçamento dentro da receita | F3A |
+| IA-06 | Leitura de contrato do TP | Extrai do PDF do Termo de Parceria vigência, valor global, metas, % de rateio e cláusulas de reajuste para pré-preencher a capa da Proposta | Menos digitação e erro na abertura do TP | F3 |
+
+**B. Pessoal e provisões**
+
+| ID | Funcionalidade | O que faz | Valor | Depende de |
+| --- | --- | --- | --- | --- |
+| IA-07 | Análise do quadro de pessoal | Evolução do headcount e do custo por diretoria/TP, vagas "A CONTRATAR" sem data, peso dos encargos, comparação com o ano anterior. Envia só agregados por cargo, nunca nomes ou salários individuais | Visão rápida para a GRH e a diretoria | F3A, F2 |
+| IA-08 | Assistente de provisões | O motor calcula a necessidade de provisão (férias, 13º, obrigações e riscos trabalhistas, contingências) pela regra e pelo histórico do realizado. A IA aponta onde o saldo provisionado está abaixo do necessário e explica a diferença | Evita surpresa no fechamento do ano | F5 |
+
+**C. Execução e acompanhamento**
+
+| ID | Funcionalidade | O que faz | Valor | Depende de |
+| --- | --- | --- | --- | --- |
+| IA-09 | Explicação da variação orçado × realizado | Para uma conta, CC, TP ou para a Adm. Central inteira, redige por que o realizado desviou: meses que puxaram, contas que compensaram, ajustes de mês fechado, pendências de integração | Os gestores entendem o desvio sem montar planilha | F5 |
+| IA-10 | Previsão de fechamento do ano | O motor projeta o fechamento (realizado até o mês + orçado restante + tendência). A IA destaca as contas com risco de estouro e em que mês ele acontece | Ação antes do estouro, não depois | F5 |
+| IA-11 | Alertas inteligentes | Job semanal no worker: lançamentos atípicos, consumo acelerado, contas paradas, CC sem execução. Envia um resumo por e-mail a cada gestor, só com o que é dele | Complementa o semáforo com o "porquê" | F5 |
+| IA-12 | Triagem de pendências de integração | Para conta ou CC desconhecido vindo do Senior (`PendenciaIntegracao`), sugere a correspondência no plano oficial | Integração destravada mais rápido | F5 |
+
+**D. Aprovações**
+
+| ID | Funcionalidade | O que faz | Valor | Depende de |
+| --- | --- | --- | --- | --- |
+| IA-13 | Resumo para o aprovador | Ao abrir um item na Caixa de Entrada, mostra o que mudou em relação à versão anterior (diferença entre snapshots), o impacto no total, no teto e no rateio, e os pontos de atenção. Se o aprovador rejeitar, ajuda a redigir a justificativa (≥ 15 caracteres) | Aprovação mais rápida e mais bem fundamentada | F4 |
+
+**E. Inteligência de dados e apresentação à diretoria**
+
+| ID | Funcionalidade | O que faz | Valor | Depende de |
+| --- | --- | --- | --- | --- |
+| IA-14 | Relatório executivo mensal | Gera o rascunho do relatório para diretores e gerentes: indicadores, gráficos (gerados pelo sistema, não pela IA), resultado da Adm. Central, situação de cada TP, riscos e recomendações em texto. O GFIN revisa, edita e aprova antes de distribuir; sai em PDF e PPTX | Material formal pronto em minutos, sempre com o mesmo padrão | F6 |
+| IA-15 | Apresentação para reunião de diretoria | Monta um roteiro de slides sobre um tema pedido ("orçamento 2027 da Adm. Central", "execução do TP 2 no 1º semestre") a partir dos dados consolidados | Prepara reuniões com dados confiáveis | F6 |
+| IA-16 | Pergunte ao SGO | Perguntas em linguagem comum ("quanto gastamos com viagens no TP 3 este ano, comparado ao orçado?"). Responde com número, fonte e link para o relatório, sempre dentro das permissões do usuário | Acesso a informação sem depender de quem domina os relatórios | F6 |
+| IA-17 | Comparativo entre TPs | Custo por meta, peso do pessoal, peso da Adm. Central e execução de cada TP lado a lado, com comentários sobre os pontos fora da curva. Só no menu da Adm. Central | Visão de portfólio para a direção | F6 |
+
+**F. Apoio ao uso do sistema**
+
+| ID | Funcionalidade | O que faz | Valor | Depende de |
+| --- | --- | --- | --- | --- |
+| IA-18 | Ajuda contextual | Responde "como faço..." com base no manual e nas regras do sistema, citando o trecho. Precisa de busca semântica (GAP-IA-002) | Menos chamados ao suporte e menos treinamento | F1 + manual |
+
+**Ondas recomendadas**
+- **Onda 1 (junto com F3A/F3/F4):** IA-01, IA-02, IA-03, IA-13. Usam dados que o próprio usuário está lançando, são de baixo risco e dão retorno imediato.
+- **Onda 2 (junto com F5):** IA-08, IA-09, IA-10, IA-11, IA-12, IA-04, IA-05. Dependem do realizado vindo do Senior.
+- **Onda 3 (junto com F6):** IA-14, IA-15, IA-16, IA-17, IA-06, IA-07, IA-18. Inteligência de dados e material para a diretoria.
+
+**Configuração inicial de cada caso de uso:** modelo `claude-opus-5-5`; `effort` baixo para classificação e sugestão (IA-01, IA-12), médio para revisão e explicação, alto para relatório executivo e apresentação. O modelo e o esforço de cada caso podem ser trocados no cadastro `ia_caso_uso` depois de medir qualidade e custo em hml.
+
 ## 7. Decisões de arquitetura (ADRs resumidos)
 
 | ID | Decisão | Alternativas descartadas | Motivo |
@@ -500,7 +568,7 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
 | GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
 | GAP-CAD-005 | CAD | Descrição da conta 4.1.1.8.005 contém a sigla CTCEA, vedada nas telas (6.7) | Não bloqueia (carga remove a sigla) | Wellington |
-| GAP-IA-001 | IA | Quais funcionalidades usarão IA (ex.: assistente de justificativa no base zero, resumo de variação orçado × realizado, consulta em linguagem natural aos relatórios) | Não bloqueia (infra pronta na F0) | PO |
+| GAP-IA-001 | IA | Catálogo proposto na 6.8 (IA-01 a IA-18, em 3 ondas). Falta o PO priorizar e confirmar as ondas | Não bloqueia (infra pronta na F0) | PO |
 | GAP-IA-002 | IA | Provedor de *embeddings* para busca semântica | Só quando houver caso de uso de busca | PO / TI |
 | GAP-CAD-003 | CAD | O plano de contas não tem conta de **ISS** nem de impostos sobre a proposta; não se sabe se o imposto da proposta é lançado em conta | F3 (junto com GAP-CAD-001) | Wellington |
 | GAP-ORC-001 | ORC | RN0433 × RN0434 (Transferência para Provisões) e fórmulas de Saldo Final/Parcial do UC04.12 (Cat. #9) | **UC04.12 em F5** | Wellington |
