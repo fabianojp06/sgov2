@@ -63,6 +63,7 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | 11 | `Plano_de_Contas_5_Niveis_CTCEA.xlsx` | out/2026 | Lido e validado (6.1). **Define o plano de contas: 5 níveis.** Prevalece sobre os "7 níveis" citados nos outros documentos |
 | 12 | `Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx` | 23/10/2026 (minuta) | Lido e validado (6.1a). **Centro de custo com 5 níveis.** Minuta pendente de aprovação da DIREX |
 | 13 | Protótipo "Orçamento 2027 – Lançamentos" (Adm. Central), artifact `claude.ai/artifact/A9SEjticw6ourPCtWP4gfP` | 23/10/2026 | Lido (tela, cálculos e validações). Fonte do **UC04.17** (6.6). Os valores do protótipo são fictícios |
+| 14 | Protótipo "SGO 2.0 – Telas do Sistema", artifact `claude.ai/artifact/NrxtL5RZyRZRia9wGcemUg` | 15/10/2026 | Lido: tela inicial pública, login com estados, pós-login com menu completo (≈60 funcionalidades em 5 módulos), seletor de unidade e de perfil. Referência de **navegação e layout** (6.7); as regras continuam vindo dos EPs |
 | — | Módulo Orçamentário (EP48/26) e Relatórios | Fora do ZIP | Valem as seções 6 e 7 do Catálogo (fonte: Minuta Orçamentário V2) |
 
 ### 2.2 Regra de precedência
@@ -331,6 +332,24 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 
 **Relação com o rateio:** o total oficializado da Adm. Central é a base natural do rateio entre os TPs (RN0270), mas a regra continua indefinida (GAP-REL-001).
 
+### 6.7 Navegação e telas (protótipo, fonte 14)
+
+O protótipo é a referência de **estrutura de navegação e padrão visual** da F1 em diante: azul institucional `#1F3864`/`#2E75B6`, cabeçalho com unidade e perfil, menu lateral por módulo → grupo → funcionalidade, busca de funcionalidade, telas CRUD com grade, formulário, confirmação e aviso. O que ele define e o que é corrigido:
+
+**Mantido como padrão**
+- **Contexto de unidade** no cabeçalho: cada Termo de Parceria é uma unidade, e a **Administração Central** aparece como unidade consolidada. O seletor só lista as unidades a que o usuário tem acesso, e trocar de unidade recarrega a tela com o filtro dessa unidade no servidor.
+- **Menu por permissão** (RN0027/RN0030): o menu só mostra módulos e funcionalidades ativos e permitidos, e a busca respeita o mesmo filtro.
+- **Agrupamento do menu**: Administração (Operadores e Permissões · Parâmetros · Histórico); Cadastros (Plano de Contas · Central de Cálculos · Propostas · Pessoal · Viagens e Bens); Orçamentário (Novo TP/Aditivo · Execução Orçamentária); Relatórios (Financeiros · Viagens e Bens · Pessoal · Execução Física · Prestação de Contas); Aprovações (Workflows).
+- Padrões de interação já alinhados aos EPs: confirmação com texto da regra, Histórico de Operações sem Novo/Alterar/Excluir, proposta em Oficializado/Em Aprovação somente leitura, justificativa de rejeição com ≥ 15 caracteres, semáforo 70/85/95.
+
+**Itens que o menu do protótipo não tem e entram na spec**
+- Cadastros › Plano de Contas: **Centros de Custo** (6.1a).
+- Orçamentário: grupo **Orçamento da Administração Central** com o UC04.17 (6.6), visível só na unidade Adm. Central.
+- Administração › Parâmetros: **Alçadas de Aprovação** (UC02.28). O item "Notificações e Aprovações" (UC02.20) fica só com as notificações, e quem aprova passa para as alçadas (C5).
+- Cadastros › Viagens: o **painel analítico** do Viagens V3.
+
+**Correções em relação ao protótipo** (ver C26–C30): níveis do plano de contas, plano de contas sem CRUD, fórmula de viagens, mensagens de login e conjunto de perfis.
+
 ## 7. Decisões de arquitetura (ADRs resumidos)
 
 | ID | Decisão | Alternativas descartadas | Motivo |
@@ -378,6 +397,11 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C23 | Encargos do protótipo (36,8% + incidência sobre férias/13º) × C&S V4 (51%, RN_CAR_17) | **C&S V4**, como parâmetro único usado tanto na proposta quanto no orçamento da Adm. Central | Fechado (protótipo tem valores fictícios) |
 | C24 | Protótipo: cargo em texto livre e benefícios fixos × Cargos e Salários e Tabela Mestre de Benefícios (F2) | Cargo escolhido do cadastro de C&S; o salário vem preenchido pela Fonte Ativa e pode ser editado com registro no Log Delta; benefícios da Tabela Mestre **[PROVISÓRIA]** | GRH/GFIN |
 | C25 | Protótipo: o perfil "Gestor de diretoria" lança só na sua diretoria, mas os EPs de Administração não têm vínculo de usuário com CC | Novo campo "CC de escopo" no cadastro de usuário (UC02) e novo perfil padrão "Gestor de Diretoria" na matriz 11.3 **[PROVISÓRIA]** | PO |
+| C26 | Protótipo de telas: plano de contas "até 7 níveis / analítica nível 7", campos "Subconta (N7)" em Viagens e Bens; exemplos da planilha ACAP DECEA II | **5 níveis**, analítica no nível 5 (D4); o termo "Subconta" sai das telas (6.1: SubConta não existe); exemplos vêm do plano oficial | Fechado |
+| C27 | Protótipo: Plano de Contas com Novo/Alterar/Excluir × ORIGEM BLINDADA (RN_PLA_001: estrutura só muda no Senior) | Tela de plano de contas **sem** inclusão, edição de estrutura ou exclusão: só consulta em árvore, **Sincronizar** (Integração 1), **Importar arquivo** (D7) e parametrização local (natureza OPEX/CAPEX, faixas do semáforo, RF_PLA_REQ_003). Vale o mesmo para Centros de Custo | Fechado |
+| C28 | Protótipo: custo da viagem = (pessoas × passagem) + (pessoas × dias × diária), sem transporte | Vale C19: soma também (pessoas × transporte). O teto vem do Total da Conta e a rejeição acima do teto é mantida | André |
+| C29 | Protótipo de login: "Usuário ou senha inválidos. Tentativa 1 de 3"; mensagem própria de bloqueio após 3 erros; senha nova com ≥ 6 caracteres | EP084 prevalece: mensagem **genérica** "Login ou senha inválidos", sem contagem (RN0015), com aviso **só na última tentativa** (UC01.02 A5); limite de tentativas e regras de senha são **parâmetros** (RN0024, GAP-AUT-002), sem valor fixo na tela; o rótulo do campo é "Login" | Fechado |
+| C30 | Protótipo: 5 perfis (Administrador, Gestor, Analista orçamentário, Aprovador GFIN, Consulta), e "Gestor" com acesso a quase tudo × matriz provisória de 6 perfis (11.3) | Vale a 11.3 mais o perfil **Gestor de Diretoria** (C25). "Consulta" corresponde a Auditor. O seletor de perfil do protótipo é ferramenta de demonstração e **não existe** no sistema: o perfil vem do usuário logado | PO |
 | C21 | Esqueci minha senha / Gerar senha enviam a senha em texto no e-mail (REQ0077, RN0517) | Mantido (é requisito), com mitigação: senha **temporária de uso único**, troca obrigatória no 1º acesso (REQ0039) e **expiração em 24 h** (parametrizável) **[PROVISÓRIA]** | TI/Segurança |
 
 ---
@@ -502,6 +526,7 @@ Lint (incluindo fronteiras de módulo e guarda RBAC obrigatória), `tsc`, testes
 
 | Perfil | Acesso mínimo |
 | --- | --- |
+| Gestor de Diretoria (C25) | UC04.17: lança pessoal e base zero só nos CCs da sua diretoria; leitura dos relatórios da Adm. Central da sua diretoria |
 | Administrador | Módulo de Administração inteiro (exclusivo, RN_SEED_003); leitura do histórico completo |
 | Orçamentista | Cadastros e Orçamentário: escrita nas propostas em Rascunho/Em Elaboração; submeter WA01; relatórios |
 | Gestor Financeiro (GFIN) | Leitura de Cadastros e Orçamentário; Central de Tarefas (aprovar/rejeitar WA01, WA05, WA02 quando titular); Parâmetros financeiros (alíquotas, encargo, semáforo); atualizar Realizado |
