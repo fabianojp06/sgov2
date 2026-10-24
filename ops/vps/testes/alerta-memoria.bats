@@ -79,3 +79,18 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
   [ "$status" -eq 0 ]
   [ ! -s "$LOG_ALERTAS" ]
 }
+
+@test "fronteiras: exatamente no limite não alerta; volta ao normal exatamente em 120%" {
+  meminfo 1048576; run "$SCRIPT"; [ "$status" -eq 0 ]; [ ! -s "$LOG_ALERTAS" ]
+  meminfo 900000; run "$SCRIPT"
+  meminfo 1257472; run "$SCRIPT"; [ "$(cat "$ESTADO_ALERTA")" = "normal" ]   # 1228 MB
+}
+
+@test "estado sem permissão de escrita: sai com 0 e não conta o episódio" {
+  meminfo 900000
+  mkdir -p "$T/ro"; chmod 555 "$T/ro"; export ESTADO_ALERTA="$T/ro/estado"
+  if [ "$(id -u)" -eq 0 ]; then skip "root ignora permissão de diretório"; fi
+  run "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [ ! -s "$LOG_ALERTAS" ]
+}

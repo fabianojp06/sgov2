@@ -1,6 +1,6 @@
 # SGO 2.0 — D12. Quem morre primeiro é decidido pelo oom_score_adj (dev +500, produção -500; ver ajustar-oom.sh),
 # não pelo --prefer. Por isso --prefer só lista ferramentas exclusivas de dev: "node" e "next-server" ficam de fora,
 # porque o painel do Easypanel e o app de produção também rodam como node/next-server.
-# "-s 100": o earlyoom age só pela memória livre (<= 8%), sem esperar o swap encher. Com 8 GB de swap, esperar
+# "-s 100,100": SIGTERM (mem <= 8%) e SIGKILL (mem <= 4%) agem só pela memória livre, sem esperar o swap encher. Com 8 GB de swap, esperar
 # o swap esvaziar deixaria a produção lenta trocando páginas com o disco antes de qualquer reação.
-EARLYOOM_ARGS="-m 8 -s 100 -r 3600 --prefer '(^|/)(vitest|tsx|esbuild|stress-ng)$' --avoid '(^|/)(postgres|dockerd|containerd|containerd-shim.*|traefik|sshd|systemd|earlyoom)$'"
+EARLYOOM_ARGS="-m 8 -s 100,100 -r 3600 --prefer '(^|/)(vitest|tsx|esbuild|stress-ng)$' --avoid '(^|/)(postgres|dockerd|containerd|containerd-shim.*|traefik|sshd|systemd|earlyoom)$'"

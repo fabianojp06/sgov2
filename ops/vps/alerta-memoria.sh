@@ -24,9 +24,13 @@ estado="$(cat "$ESTADO_ALERTA" 2>/dev/null || echo normal)"
 if (( disp_mb < LIMITE_MB )); then
   if [[ "$estado" != "baixo" ]]; then
     msg="SGO: memória disponível baixa na VPS (${disp_mb} MB < ${LIMITE_MB} MB)"
-    mkdir -p "$(dirname "$LOG_ALERTAS")" "$(dirname "$ESTADO_ALERTA")"
-    printf '%s %s MemAvailable=%s\n' "$(date +%G-W%V)" "$(date -Is)" "$disp_mb" >> "$LOG_ALERTAS"
-    echo baixo > "$ESTADO_ALERTA"
+    mkdir -p "$(dirname "$LOG_ALERTAS")" "$(dirname "$ESTADO_ALERTA")" 2>/dev/null || true
+    # Estado antes do log: se o estado não puder ser gravado, não grava o episódio (evita recontar a cada minuto).
+    if echo baixo > "$ESTADO_ALERTA" 2>/dev/null; then
+      printf '%s %s MemAvailable=%s\n' "$(date +%G-W%V)" "$(date -Is)" "$disp_mb" >> "$LOG_ALERTAS" 2>/dev/null || true
+    else
+      "$LOGGER" -t sgo-alerta "não foi possível gravar $ESTADO_ALERTA; episódio não contado" || true
+    fi
     "$LOGGER" -t sgo-alerta "$msg" || true
     if [[ -n "${ALERTA_WEBHOOK_URL:-}" ]]; then
       "$CURL" -fsS -m 10 -d "$msg" "$ALERTA_WEBHOOK_URL" >/dev/null 2>&1 \
@@ -34,7 +38,7 @@ if (( disp_mb < LIMITE_MB )); then
     fi
   fi
 elif (( disp_mb >= retorno_mb )) && [[ "$estado" == "baixo" ]]; then
-  echo normal > "$ESTADO_ALERTA"
+  echo normal > "$ESTADO_ALERTA" 2>/dev/null || true
   "$LOGGER" -t sgo-alerta "SGO: memória disponível normalizada (${disp_mb} MB)" || true
 fi
 exit 0

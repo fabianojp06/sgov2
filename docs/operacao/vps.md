@@ -28,7 +28,8 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 - O earlyoom **não** tem `node` nem `next-server` na lista de preferidos, porque o painel do Easypanel e o app de produção também rodam assim. Quem morre primeiro é decidido pelo `oom_score_adj`. Desvio da spec §4.3, que cita `node`/`next`: registrar na próxima revisão da spec.
 - **Contador semanal (gatilho de D12):** `grep -c "^$(date +%G-W%V) " /var/lib/sgo/alertas-memoria.log` conta **episódios** de memória baixa. Acima de 3 na semana, o dev sai da VPS (spec §4.3).
 - **Canal do alerta: pendente (decisão do PO).** Hoje o alerta vai só para o journal (`journalctl -t sgo-alerta`). Para receber no celular, preencher `ALERTA_WEBHOOK_URL` em `/etc/sgo/alerta.env` (ex.: um tópico do ntfy).
-- Reinstalar ou atualizar: `sudo bash ops/vps/instalar.sh` (D12) e `sudo bash ops/vps/endurecer.sh` (US-016). Os dois são idempotentes.
+- O teste do alerta (Step 11) gravou uma linha em 24/10/2026 19:32, que foi apagada em seguida para não contar no gatilho.
+- Reinstalar ou atualizar: `sudo bash ops/vps/instalar.sh` (D12, inclusive swap e earlyoom) e `sudo bash ops/vps/endurecer.sh` (US-016). Os dois são idempotentes.
 
 ## US-016 — Endurecimento
 
@@ -39,9 +40,10 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 | Atualizações automáticas de segurança | **feito** | `unattended-upgrades` ativo, sem reboot automático (`/etc/apt/apt.conf.d/52-sgo-unattended`, origem `ops/vps/52-sgo-unattended.conf`) |
 | SSH só por chave | **pendente (PO)** | o PO hoje entra por senha. Primeiro: gerar uma chave no computador do PO, instalar em `/root/.ssh/authorized_keys` e testar. Só depois aplicar `ops/vps/sshd-90-sgo.conf` |
 | Porta 3000 (Easypanel) fechada para a internet | **pendente (PO)** | o Docker ignora o ufw para portas publicadas. Fechar exige a regra na cadeia `DOCKER-USER`, e o painel passa a ser acessado por túnel: `ssh -L 3000:127.0.0.1:3000 root@<ip>` → `http://localhost:3000`. Definitivo: subdomínio HTTPS (GAP-INF-001) |
-| Firewall do hPanel | **pendente (PO)** | regras de entrada só para TCP 22, 80 e 443 (plano P2, Tarefa 2, Step 3). Filtra antes da VPS e fecha a 3000 sem mexer no Docker |
+| Firewall do hPanel | **pendente (PO), prioridade alta** | regras de entrada só para TCP 22, 80 e 443 (plano P2, Tarefa 2, Step 3). Filtra antes da VPS e fecha a 3000 sem mexer no Docker |
 
 - Desbloquear um IP banido: `fail2ban-client set sshd unbanip <ip>`. Se o PO for bloqueado, entrar pelo console do hPanel.
+
 ## Como desfazer
 
 | Item | Comando |
@@ -53,6 +55,8 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 | ufw | `ufw disable` |
 | fail2ban | `rm /etc/fail2ban/jail.d/sgo.local && systemctl restart fail2ban` (ou `apt remove fail2ban`) |
 | Atualizações automáticas | `rm /etc/apt/apt.conf.d/52-sgo-unattended` |
+| Scripts, units e dados | `systemctl disable --now sgo-oom.timer sgo-alerta-memoria.timer`; `rm /usr/local/sbin/sgo-ajustar-oom /usr/local/sbin/sgo-alerta-memoria /etc/systemd/system/sgo-oom.* /etc/systemd/system/sgo-alerta-memoria.*`; `systemctl daemon-reload`; `rm -r /etc/sgo /var/lib/sgo` |
+| `oom_score_adj` já aplicado | continua até o contêiner reiniciar; para zerar já: `sgo-ajustar-oom --simular \| while read -r _ pid _; do echo 0 > /proc/$pid/oom_score_adj; done` |
 
 ## Pendências
 
@@ -62,6 +66,9 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 - [ ] Quando o Easypanel criar `sgo-prod`/`sgo-hml` (US-014): reserva de memória nos serviços, swap travado nos contêineres de produção (`memory.swap.max=0` ou `memswap_limit` = `mem_limit`) e conferência do −500 com `sgo-ajustar-oom --simular`.
 - [ ] Compose de dev com `mem_limit` e `oom_score_adj` 500 (P1, Tarefa 3).
 - [ ] Aceite do PO para o desvio Easypanel/Traefik −300.
+- [ ] Aceite do PO para o earlyoom sem `node`/`next-server` no `--prefer`, e ajuste da spec §4.3 na próxima versão.
+- [ ] `ops/vps/docker-user.sh` e `sgo-docker-user.service` (plano P2, Tarefa 2): serão criados junto com a aplicação da regra da porta 3000.
+- [ ] **Risco aceito até a pendência acima:** o Easypanel segue aberto na 3000 por HTTP; a senha do painel trafega sem criptografia. Registrar a data do aceite do PO.
 - [ ] Atualizar `docs/memoria/memoria-do-projeto.md` no encerramento do P2.
 - [ ] Verificar os hooks das sessões (US-122 Step 12) depois do merge da US-002.
 - [ ] Chave SSH do PO → SSH só por chave → fail2ban mais rígido (5 tentativas, 1 h).

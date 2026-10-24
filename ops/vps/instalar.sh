@@ -3,6 +3,15 @@
 # Desfazer: ver docs/operacao/vps.md, seção "Como desfazer".
 set -euo pipefail
 cd "$(dirname "$0")"
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq earlyoom >/dev/null
+
+# Swap de 8 GB (idempotente).
+if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
+  [[ -f /swapfile ]] || { fallocate -l 8G /swapfile && chmod 600 /swapfile && mkswap -q /swapfile; }
+  swapon /swapfile
+fi
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
 install -m 0755 ajustar-oom.sh /usr/local/sbin/sgo-ajustar-oom
 install -m 0755 alerta-memoria.sh /usr/local/sbin/sgo-alerta-memoria
@@ -19,9 +28,7 @@ done
 systemctl daemon-reload
 systemctl enable --now sgo-oom.timer sgo-alerta-memoria.timer
 
-if command -v earlyoom >/dev/null; then
-  install -m 0644 earlyoom.default /etc/default/earlyoom
-  systemctl enable earlyoom >/dev/null 2>&1
-  systemctl restart earlyoom
-fi
+install -m 0644 earlyoom.default /etc/default/earlyoom
+systemctl enable earlyoom >/dev/null 2>&1
+systemctl restart earlyoom
 echo "Mitigações de D12 instaladas."
