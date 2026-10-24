@@ -10,6 +10,12 @@ describe('avaliarComando', () => {
     ['npx prisma migrate reset --force', { DATABASE_URL: 'postgresql://sgo_migrator:x@127.0.0.1:55432/sgo_dev' }, false],
     ['npx prisma migrate reset --force', { DATABASE_URL: 'postgresql://u:x@sgo-prod_db:5432/sgo' }, true],
     ['DATABASE_URL=postgresql://u:x@sgo-prod_db:5432/sgo npx prisma migrate reset --force', DEV_LOCAL, true],
+    // Atribuição com aspas (revisão do PR #152): o valor entre aspas precisa ser reconhecido.
+    ['DATABASE_URL="postgresql://u:x@sgo-prod_db:5432/sgo"; npx prisma db push', DEV_LOCAL, true],
+    ["DATABASE_URL='postgresql://u:x@sgo-prod_db:5432/sgo' && npx prisma migrate reset --force", DEV_LOCAL, true],
+    ['export DATABASE_URL="postgresql://u:x@10.0.1.5:5432/sgo"; npx prisma migrate dev', DEV_LOCAL, true],
+    ['DATABASE_URL="postgresql://u:x@sgo-prod_db:5432/sgo" npx prisma db push', DEV_LOCAL, true],
+    ['DATABASE_URL="postgresql://sgo_migrator:x@127.0.0.1:55432/sgo_dev" npx prisma db push', VAZIO, false],
     ['cd app && npx prisma db push', VAZIO, true],
     ['npx prisma db push', { DATABASE_URL: 'postgresql://u:x@127.0.0.1:56432/sgo_dev' }, false],
     ['npx prisma migrate diff --from-url postgresql://u:x@10.0.1.5:5432/sgo --to-schema prisma/schema', DEV_LOCAL, true],

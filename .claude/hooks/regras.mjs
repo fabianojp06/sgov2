@@ -65,7 +65,12 @@ function segmentar(comando) {
   // Aspas viram espaço: o conteúdo de bash -c '...' passa a ser analisado como comando comum.
   // ( e ) delimitam subshells; o & isolado (segundo plano) separa comandos, mas não o de
   // redirecionamentos como 2>&1, >&2 e &>arquivo.
-  const plano = comando.replace(/["'`]/g, ' ').replace(/\$\(|[()]/g, ' ; ');
+  // Antes, VAR="valor" e VAR='valor' viram VAR=valor, senão a atribuição se partiria em dois tokens
+  // e deixaria de atualizar o ambiente efetivo (revisão do PR #152).
+  const plano = comando
+    .replace(/(\b[A-Za-z_][A-Za-z0-9_]*=)(["'])([^"']*)\2/g, '$1$3')
+    .replace(/["'`]/g, ' ')
+    .replace(/\$\(|[()]/g, ' ; ');
   return plano
     .split(/&&|\|\||\|&|[;|\n]|(?<![<>])&(?!>)/)
     .map((s) => s.trim().split(/\s+/).filter(Boolean))
