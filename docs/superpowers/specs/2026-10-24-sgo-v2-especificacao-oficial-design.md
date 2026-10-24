@@ -334,6 +334,25 @@ Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só 
 
 **Interação:** incluir, editar (a linha em edição fica destacada) e excluir com confirmação na própria linha. Cada operação recalcula e avisa ("O orçamento foi recalculado."). Na tela, a prévia do cálculo aparece enquanto se digita (massa, férias + 13º, encargos, benefícios, custo anual). Os erros aparecem em lista acima do botão, e o formulário mantém o que foi digitado ([TRAVA O ERRO]).
 
+**Exercícios (orçamento por ano).** A Adm. Central tem um orçamento por ano, e vários anos convivem: no fim de 2026, o 2026 está em execução e o **2027 é elaborado**. Ação **Novo exercício** (só GFIN): informa o ano (único; o padrão é o ano seguinte ao último) e a forma de início: **em branco** ou **copiando o exercício anterior** (posições de pessoal e pacotes base zero, já com as premissas do novo ano; nada é oficializado na cópia) **[PROVISÓRIA]**. O seletor de exercício fica no topo da tela.
+
+**Receitas: rateio dos TPs** (decisão do PO, 24/10/2026). Quando um TP é assinado, um percentual dele vai para a Adm. Central. No TP, isso é a linha automática da Taxa de Administração Central (RN0270, UC04.11), lançada nas analíticas pela grade de Rateio/ISS (UC03.03). Na Adm. Central, o mesmo valor é **receita**. A tela ganha uma aba **Receitas – Rateio dos TPs**, só leitura (ORIGEM BLINDADA: o valor nasce no TP, nunca é digitado aqui):
+
+| Coluna | Origem |
+| --- | --- |
+| TP / versão | TP oficializado (snapshot) ou proposta em aprovação |
+| Base do rateio | Conta sintética mandante do TP (REQ_RAT_004) **[a confirmar: GAP-ORC-005]** |
+| % do rateio | Grade de Rateio do TP |
+| Rateio do mês (jan–dez do exercício) | Distribuição mensal da grade do TP, só os meses do ano do exercício |
+| ISS sobre o rateio | Grade de ISS do TP (RN_RAT_02, fórmula pendente: GAP-CAD-001) |
+| Rateio líquido | Rateio − ISS |
+
+- **Confirmado × previsto:** o rateio de TP **oficializado** é receita confirmada. O de proposta **em aprovação** aparece numa coluna separada, como receita prevista, para ajudar a planejar o ano seguinte, mas não entra no saldo **[PROVISÓRIA, GAP-ORC-008]**.
+- **Aditivo e Termo de Ajuste:** a oficialização de um aditivo recalcula o rateio dos meses afetados no exercício aberto. Exercício oficializado não muda; a diferença aparece como ajuste.
+- **Resultado do exercício:** Rateio líquido confirmado − (Pessoal + encargos + Base zero) = superávit ou déficit, mês a mês e no ano.
+- **Teto:** o padrão passa a ser o **rateio líquido confirmado** do exercício. O GFIN pode fixar um teto menor, nunca maior sem justificativa registrada. O semáforo (70/85/95) compara o orçado com esse teto **[PROVISÓRIA]**.
+- Dependência: a aba de receitas só tem dados quando a F3 (Proposta, Rateio/ISS) existe. Até lá, a F3A funciona só com despesas e teto manual.
+
 **Atributo novo no CC:** natureza (Finalístico · Apoio · Administrativo · Gestão), usada para ordenar e agrupar. A minuta de CC não tem essa coluna (GAP-CC-006).
 
 **Relação com o rateio:** o total oficializado da Adm. Central é a base natural do rateio entre os TPs (RN0270), mas a regra continua indefinida (GAP-REL-001).
@@ -450,6 +469,10 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CC-005 | CAD | A DIREX (nível 1) terá CC de gestão próprio (ex.: 4.0 Gabinete da DIREX) ou seus custos ficam em 4.4? | Não bloqueia | DIREX |
 | GAP-CAD-004 | CAD | 15 contas do protótipo não existem no plano oficial de 5 níveis: despesas financeiras (tarifas, IOF, comissões, câmbio, pregão, variação cambial), juros e multas, perda na baixa de imobilizado, doações e **Rateio da Adm. Central** (1.9.23.001). Também 4 descrições diferentes (ex.: 1.9.18.002 "Impostos a Recolher – ISS" × 4.1.1.8.002 Provisão para Contingências de Passivo Tributário) | F3A (base zero só oferece contas oficiais) | Wellington |
 | GAP-CC-006 | CAD | Natureza do CC (Finalístico/Apoio/Administrativo/Gestão) usada no protótipo não está na minuta de CC | Não bloqueia (campo opcional) | DIREX/GFIN |
+| GAP-ORC-005 | ORC | Base do percentual do rateio: valor global do TP ou subtotal de despesas (RN0270)? Percentual único ou negociado por TP? | F3A (aba de receitas) e F3 | PO / Wellington |
+| GAP-ORC-006 | ORC | Como o rateio se distribui no tempo: mês a mês junto com as despesas do TP, ou por parcela de repasse do cronograma de desembolso? | F3A (aba de receitas) | PO / Wellington |
+| GAP-ORC-007 | ORC | ISS do rateio: base (o valor do rateio?), alíquota (município do TP?) e quem arca (despesa a mais no TP ou dedução do que a Adm. Central recebe) | F3A e F3 (junto com GAP-CAD-001) | Wellington |
+| GAP-ORC-008 | ORC | Propostas ainda não assinadas entram no orçamento do ano seguinte como receita prevista? | Não bloqueia (padrão: aparecem separadas, fora do saldo) | PO |
 | GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
 | GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
 | GAP-CAD-005 | CAD | Descrição da conta 4.1.1.8.005 contém a sigla CTCEA, vedada nas telas (6.7) | Não bloqueia (carga remove a sigla) | Wellington |
