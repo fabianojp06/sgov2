@@ -62,6 +62,7 @@ Este documento **não substitui** os EPs nem repete os 1.103 itens do Catálogo.
 | 10 | Catálogo Consolidado de RF/RNF/RN | 08/10/2026 | Lido integralmente (1.103 itens, 31 inconsistências) |
 | 11 | `Plano_de_Contas_5_Niveis_CTCEA.xlsx` | out/2026 | Lido e validado (6.1). **Define o plano de contas: 5 níveis.** Prevalece sobre os "7 níveis" citados nos outros documentos |
 | 12 | `Plano de Centros de Custo - Minuta Rev23102026 - CCs de gestao.xlsx` | 23/10/2026 (minuta) | Lido e validado (6.1a). **Centro de custo com 5 níveis.** Minuta pendente de aprovação da DIREX |
+| 13 | Protótipo "Orçamento 2027 – Lançamentos" (Adm. Central), artifact `claude.ai/artifact/A9SEjticw6ourPCtWP4gfP` | 23/10/2026 | Lido (tela, cálculos e validações). Fonte do **UC04.17** (6.6). Os valores do protótipo são fictícios |
 | — | Módulo Orçamentário (EP48/26) e Relatórios | Fora do ZIP | Valem as seções 6 e 7 do Catálogo (fonte: Minuta Orçamentário V2) |
 
 ### 2.2 Regra de precedência
@@ -87,7 +88,7 @@ Termos de tecnologia Java citados nas fontes (`@Version`, `@Transactional`, `@Pr
 | AUT | Autenticação e Tela Principal | UC01.01–UC01.05 | EP084 V5 |
 | ADM | Administração | UC02.01–UC02.27 + **UC02.28 (novo)** | EP085 V3 + Aprovações V2 §7 |
 | CAD | Cadastros | UC03.00–UC03.38 | EP118 V5 + C&S V4 + Viagens V3 |
-| ORC | Orçamentário | UC04.01–UC04.16 + Orçado×Realizado | Catálogo §6 + OxR V2 |
+| ORC | Orçamentário | UC04.01–UC04.16 + Orçado×Realizado + **UC04.17 Orçamento da Adm. Central (novo)** | Catálogo §6 + OxR V2 + protótipo (fonte 13) |
 | REL | Relatórios e Book | UC05.01–UC05.12 | Catálogo §7 |
 | APR | Aprovações (workflows) | UC6.00–UC6.02 | Aprovações V2 |
 | INT | Integrações | Senior, Rubi, RVS | Integração V4 + OxR V2 |
@@ -102,6 +103,7 @@ Cada fase é um subprojeto com seu próprio ciclo de spec detalhada (quando nece
 | **F1** | GER + AUT + ADM (inclui Alçadas UC02.28 e perfis padrão) | F0 | GAP-ADM-001 (matriz de perfis), não bloqueia: vale a matriz provisória |
 | **F2** | Cadastros-base: Plano Financeiro (Integração 1 + carga por arquivo), Centros de Custo (carga por arquivo), Agrupadores, Estrutura Funcional, Cargos e Salários, Tabela Salarial, Parâmetros (alíquotas, SMN, benefícios-mestre, semáforo) | F1 | GAP-INT-001 (contrato Senior), contornado pela carga por arquivo |
 | **F3** | Proposta/TP: capa, versões, duplicação, metas, quantitativos, empregados e benefícios, viagens, bens CAPEX, impostos, rateio/ISS, totalizadores | F2 | GAP-CAD-001 (fórmula do ISS) bloqueia só o cálculo do ISS |
+| **F3A** | Orçamento da Administração Central (UC04.17, 6.6) | F2 (pode correr em paralelo com F3) | GAP-ORC-003/004 só afetam os valores padrão |
 | **F4** | Aprovações WA01/WA05/WA02 + Termo Aditivo + Termo de Ajuste + Remanejamento | F3 | Alçada de Aditivo, Ajuste e Remanejamento (GAP-APR-001) |
 | **F5** | Execução orçamentária: Cronograma de Desembolso, Premissas/Reajustes, Recursos, Contratações Previstas, Orçado×Realizado (Integração 2), Provisões, Aplicações Financeiras | F4 | GAP-PGD-006/009 (payload do realizado), GAP-ORC-001 (RN0433/0434) |
 | **F6** | Relatórios UC05.01–UC05.11, Book UC05.12 | F5 | GAP-REL-001 (Book e rateio da Adm. Central) |
@@ -296,6 +298,39 @@ Conforme o OxR V2: `OrcadoContaMes` (digitado no SGO, por versão), `RealizadoCo
 
 ---
 
+### 6.6 Orçamento da Administração Central (UC04.17 — novo)
+
+Os EPs não tratam do orçamento anual interno da Adm. Central: o Catálogo só cita o **rateio** dela (RN0270, ainda sem regra). A fonte deste UC é o protótipo de 23/10/2026 (fonte 13). Tudo aqui está marcado **[PROVISÓRIA]** até virar EP.
+
+**Objeto.** Um `OrcamentoExercicio` por org e ano (ex.: 2027), com o ciclo de vida da 6.2 (Rascunho → Em Elaboração → Em Aprovação → Oficializado). A oficialização gera snapshot. O orçamento é montado por duas fontes de lançamento, sempre em **CC analítico**:
+
+| Aba | Entidade | Campos | Validações (do protótipo) |
+| --- | --- | --- | --- |
+| Lançamento de pessoal (*driver*) | `PosicaoPessoal` | CC analítico, cargo, quantidade, salário mensal, mês de início, mês de saída | CC obrigatório e dentro do escopo do usuário; cargo obrigatório; quantidade inteira ≥ 1; salário > 0; início ≤ saída |
+| Lançamento base zero | `PacoteBaseZero` | CC analítico, conta analítica, atividade/justificativa, prioridade (Essencial · Importante · Desejável), quantidade, valor unitário (preço do ano anterior), corrigir pelo IPCA (sim/não), distribuição (Mensal em 12 parcelas · Pontual em um mês), mês de ocorrência | CC no escopo; conta obrigatória; justificativa ≥ 10 caracteres; quantidade ≥ 1; valor unitário > 0. Contas de pessoal e encargos (4.1.1.1 e 4.1.1.2) **não** aparecem aqui, porque vêm do quadro de pessoal |
+| Visão por centro de custo | — (só leitura, RN_TOT_01) | Árvore de CC com Pessoal + encargos, Base zero, Total e % do escopo; detalhe do CC com série mês a mês e linhas CC × conta com a origem (Pessoal / Base zero) | Sintéticos somados pelo TotalizerService |
+
+**Cálculo mensal de uma posição** (função pura `MotorCustoPosicao`, com `Dinheiro` e Half-Even; o protótipo usa `number` e arredonda só na exibição):
+- massa(m) = qtd × salário × (1 + reajuste, se m ≥ mês da data-base), nos meses entre início e saída;
+- férias + 1/3 = massa × 4/3 ÷ 12; 13º = massa ÷ 12;
+- encargos = **Encargo Social do C&S V4** (RN_CAR_17, 51%) sobre massa + férias + 13º. O protótipo usa outro conjunto (INSS 20% + RAT 2% + terceiros 5,8% + FGTS 8% + PIS 1%), e o C&S V4 prevalece (C23);
+- benefícios = qtd ativa × valores da **Tabela Mestre de Benefícios** (seguro saúde, vale-refeição, seguro de vida…), não constantes no código;
+- valor anual de um pacote = qtd × valor unitário × (1 + IPCA, se marcado), distribuído em 12 parcelas iguais ou num único mês. A diferença de arredondamento das 12 parcelas vai para dezembro, para que a soma feche com o anual.
+- Reajuste (5%), mês da data-base (maio) e IPCA projetado (4%) são **parâmetros do exercício** (Premissas/Reajustes), com esses valores como padrão provisório (GAP-ORC-003).
+
+**Lançamento em contas analíticas.** O protótipo grava o pessoal nos grupos sintéticos 1.9.11/1.9.12, o que viola a regra de que só analítica recebe valor (6.1). No SGO, cada componente vai para a sua conta analítica do plano de 5 níveis **[PROVISÓRIA]**: massa → 4.1.1.1.001 Salários; férias → 4.1.1.1.003; 13º → 4.1.1.1.005; seguro saúde → 4.1.1.1.008; vale-refeição → 4.1.1.1.009; seguro de vida → 4.1.1.1.007; encargos → 4.1.1.2.001 INSS, 4.1.1.2.005 FGTS e 4.1.1.2.008 PIS/PASEP, mais Obrigações/Riscos (GAP-CAR-005). A tabela componente → conta é um parâmetro, não código.
+
+**Escopo e perfis.**
+- **Gestor de diretoria:** vê e lança só nos CCs analíticos sob a sua diretoria (subárvore de CC). Exige o novo vínculo usuário → CC raiz de escopo no cadastro de usuário (UC02, C25). A regra vale no **servidor** (RBAC + filtro por subárvore), não só na tela.
+- **GFIN:** vê toda a Adm. Central (CC raiz 4), consolida e define o **teto** do exercício. O painel mostra orçado × teto, a % e o saldo com as faixas do semáforo (C7/RN_PLA_006).
+- Indicadores do topo: orçamento do ano, pessoal + encargos (% do total), base zero (nº de pacotes), empregados em dezembro (nº de posições), mais o resumo por prioridade.
+
+**Interação:** incluir, editar (a linha em edição fica destacada) e excluir com confirmação na própria linha. Cada operação recalcula e avisa ("O orçamento foi recalculado."). Na tela, a prévia do cálculo aparece enquanto se digita (massa, férias + 13º, encargos, benefícios, custo anual). Os erros aparecem em lista acima do botão, e o formulário mantém o que foi digitado ([TRAVA O ERRO]).
+
+**Atributo novo no CC:** natureza (Finalístico · Apoio · Administrativo · Gestão), usada para ordenar e agrupar. A minuta de CC não tem essa coluna (GAP-CC-006).
+
+**Relação com o rateio:** o total oficializado da Adm. Central é a base natural do rateio entre os TPs (RN0270), mas a regra continua indefinida (GAP-REL-001).
+
 ## 7. Decisões de arquitetura (ADRs resumidos)
 
 | ID | Decisão | Alternativas descartadas | Motivo |
@@ -339,6 +374,10 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C18 | Glossário do EP085 define o RUBI como sistema de viagens | Errado: Rubi = RH/Folha (Integração V4) | Corrigir o EP085 |
 | C19 | Viagens V3: campo "Custo Unitário de Transporte" existe, mas a fórmula RN_VIA_03 não o inclui | Custo estimado = passagem + diárias + **(Qtd pessoas × transporte)** **[PROVISÓRIA]**; o painel já mostra o Transporte como componente (REQ_VIA_005) | André |
 | C20 | C&S V4: campo "Salário Definido" não aparece entre as opções de Fonte Ativa (Mín/Máx/Total/Real) | Incluir "Salário Definido" como 5ª opção de Fonte Ativa **[PROVISÓRIA]** | GRH |
+| C22 | O protótipo do UC04.17 usa o "Plano Financeiro grupo 1.9" (ex.: 1.9.11.001 Salários, reduzida 1.712) × plano oficial de 5 níveis (4.1.1.1.001 Salários, reduzida 900) | **Plano oficial de 5 níveis.** Comparação: 142 de 161 contas do protótipo batem por grupo e sequência (1.9.11→4.1.1.1 … 1.9.16→4.1.1.6); 4 têm descrição diferente; 15 não existem no plano oficial (GAP-CAD-004) | Fechado |
+| C23 | Encargos do protótipo (36,8% + incidência sobre férias/13º) × C&S V4 (51%, RN_CAR_17) | **C&S V4**, como parâmetro único usado tanto na proposta quanto no orçamento da Adm. Central | Fechado (protótipo tem valores fictícios) |
+| C24 | Protótipo: cargo em texto livre e benefícios fixos × Cargos e Salários e Tabela Mestre de Benefícios (F2) | Cargo escolhido do cadastro de C&S; o salário vem preenchido pela Fonte Ativa e pode ser editado com registro no Log Delta; benefícios da Tabela Mestre **[PROVISÓRIA]** | GRH/GFIN |
+| C25 | Protótipo: o perfil "Gestor de diretoria" lança só na sua diretoria, mas os EPs de Administração não têm vínculo de usuário com CC | Novo campo "CC de escopo" no cadastro de usuário (UC02) e novo perfil padrão "Gestor de Diretoria" na matriz 11.3 **[PROVISÓRIA]** | PO |
 | C21 | Esqueci minha senha / Gerar senha enviam a senha em texto no e-mail (REQ0077, RN0517) | Mantido (é requisito), com mitigação: senha **temporária de uso único**, troca obrigatória no 1º acesso (REQ0039) e **expiração em 24 h** (parametrizável) **[PROVISÓRIA]** | TI/Segurança |
 
 ---
@@ -368,6 +407,10 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CC-003 | CAD | Reduzido 14.300 ausente; 14.460 fora de sequência; reduzidos 14.470–14.530 ainda são sugestão (a GFIN confirma no Sapiens) | Carga em prod | GFIN |
 | GAP-CC-004 | CAD | A minuta cobre só a estrutura 4 (áreas internas). TPs/projetos terão CC próprio? Isso afeta RF_TP_001/RN_TP_001, que exigem CC único por TP ativo | **F3** | DIREX/GFIN |
 | GAP-CC-005 | CAD | A DIREX (nível 1) terá CC de gestão próprio (ex.: 4.0 Gabinete da DIREX) ou seus custos ficam em 4.4? | Não bloqueia | DIREX |
+| GAP-CAD-004 | CAD | 15 contas do protótipo não existem no plano oficial de 5 níveis: despesas financeiras (tarifas, IOF, comissões, câmbio, pregão, variação cambial), juros e multas, perda na baixa de imobilizado, doações e **Rateio da Adm. Central** (1.9.23.001). Também 4 descrições diferentes (ex.: 1.9.18.002 "Impostos a Recolher – ISS" × 4.1.1.8.002 Provisão para Contingências de Passivo Tributário) | F3A (base zero só oferece contas oficiais) | Wellington |
+| GAP-CC-006 | CAD | Natureza do CC (Finalístico/Apoio/Administrativo/Gestão) usada no protótipo não está na minuta de CC | Não bloqueia (campo opcional) | DIREX/GFIN |
+| GAP-ORC-003 | ORC | Premissas do exercício: % de reajuste, mês da data-base, IPCA projetado; provisão de férias com 1/3 e 13º em 1/12 avos | F3A (valores padrão provisórios) | GFIN/GRH |
+| GAP-ORC-004 | ORC | UC04.17 precisa virar EP formal: alçada de aprovação do orçamento da Adm. Central, quem define o teto, se o teto é por diretoria | F3A (aprovação) | PO/Wellington |
 | GAP-CAD-003 | CAD | O plano de contas não tem conta de **ISS** nem de impostos sobre a proposta; não se sabe se o imposto da proposta é lançado em conta | F3 (junto com GAP-CAD-001) | Wellington |
 | GAP-ORC-001 | ORC | RN0433 × RN0434 (Transferência para Provisões) e fórmulas de Saldo Final/Parcial do UC04.12 (Cat. #9) | **UC04.12 em F5** | Wellington |
 | GAP-ORC-002 | ORC | 22 regras citadas e não definidas (RN0225, RN0262, RN0291, RN0430…) (Cat. #19) | Os UCs afetados em F5 | PO |
