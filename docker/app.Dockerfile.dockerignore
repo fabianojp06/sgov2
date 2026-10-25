@@ -1,0 +1,21 @@
+# Contexto da imagem (docker/app.Dockerfile). Nada de segredo, de git, de dependências ou de
+# build do host, nem de documentação e notas pessoais da raiz.
+.env*
+.git
+.github
+.claude
+node_modules
+**/node_modules
+.next
+coverage
+# O cliente Prisma é gerado dentro da imagem (postinstall); a cópia do host pode estar velha.
+src/generated
+docs
+especificacao
+areas
+people
+projects
+topics
+profile.md
+preferences.md
+*.log
