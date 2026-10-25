@@ -67,5 +67,9 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 - `docker/app.Dockerfile`: app Next.js *standalone* mais o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
 - `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
-- Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`) e `MIGRATE_DATABASE_URL` (`sgo_migrator`). O worker, com `FILA_DATABASE_URL`, entra no Step 10 da Tarefa 4.
-- Teste da imagem: `docker/testes/testar-imagem.sh <imagem>`, que roda no job `Imagem` do CI. Na VPS, rode com `nice -n 10`, um processo pesado por vez (D12).
+- Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`) e `MIGRATE_DATABASE_URL` (`sgo_migrator`).
+- **Serviço `worker`:** a mesma imagem, com o comando (argumento) `worker`. Variáveis: `DATABASE_URL` (`sgo_app`) e `FILA_DATABASE_URL` (`sgo_fila`), sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
+  - O worker roda o bundle `/app/worker/index.mjs`, gerado pelo `worker/build.mjs` com esbuild no build da imagem. Ele também desce para o usuário `node` com `setpriv`.
+  - Sem a `FILA_DATABASE_URL`, ele sai com o código 64. Com falhas seguidas no outbox (banco fora, schema ainda não migrado), ele sai sozinho, e o Easypanel o reinicia.
+  - O *healthcheck* (`docker/saude.sh`) testa o `/login` no app. No worker, que não abre porta, ele só confirma que o processo está vivo.
+- Teste da imagem: `docker/testes/testar-imagem.sh <imagem>`, que roda no job `Imagem` do CI. O passo 8 sobe o worker, publica uma mensagem real do outbox no pg-boss e confere o encerramento no SIGTERM. Na VPS, rode com `nice -n 10`, um processo pesado por vez (D12).

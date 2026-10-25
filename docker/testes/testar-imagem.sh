@@ -14,6 +14,7 @@ PG_IMAGEM="pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d1
 LIMITES=(--memory 768m --memory-swap 768m --oom-score-adj 500 --cpus 1)
 URL_MIGRATOR="postgresql://sgo_migrator:sgo_migrator@$PG:5432"
 URL_APP="postgresql://sgo_app:sgo_app@$PG:5432"
+URL_FILA="postgresql://sgo_fila:sgo_fila@$PG:5432"
 MIGRATION_QUEBRADA="$RAIZ/docker/testes/migration-quebrada:/opt/migrador/prisma/migrations:ro"
 
 limpar() {
@@ -41,6 +42,39 @@ saude() {
   docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sem-healthcheck{{end}}' "$1"
 }
 
+esperar_saude() {
+  local estado=starting
+  for _ in $(seq 1 60); do
+    estado=$(saude "$1")
+    [[ "$estado" == healthy || "$estado" == unhealthy || "$estado" == sem-healthcheck ]] && break
+    sleep 3
+  done
+  echo "$estado"
+}
+
+# Processo do usuário node (uid 1000) cuja linha de comando casa com o padrão: confere que existe
+# e que não tem a MIGRATE_DATABASE_URL. O sh do docker exec herda o ambiente do contêiner e tem o
+# padrão na própria linha de comando, por isso o filtro pelo uid.
+# --privileged só nesta inspeção: depois do setpriv o processo não é "dumpable", e o root do
+# contêiner, sem CAP_SYS_PTRACE, não lê o /proc/<pid>/environ dele. Ambiente ilegível reprova,
+# em vez de passar por vazio.
+sem_credencial_do_migrador() {
+  local ambiente
+  ambiente=$(docker exec --privileged -e PADRAO="$2" "$1" sh -c \
+    'for p in /proc/[0-9]*; do
+       grep -qE "^Uid:[[:space:]]+1000[[:space:]]" "$p/status" 2>/dev/null || continue
+       if grep -qaE "$PADRAO" "$p/cmdline" 2>/dev/null; then
+         echo "PROCESSO $p"
+         tr "\000" "\n" < "$p/environ" 2>/dev/null || echo "ILEGIVEL $p"
+       fi
+     done; true')
+  grep -q '^PROCESSO ' <<< "$ambiente" || falhar "não achei o processo '$2' do usuário node em $1"
+  ! grep -q '^ILEGIVEL ' <<< "$ambiente" || falhar "não consegui ler o ambiente do processo '$2' em $1"
+  # Prova de que o ambiente foi lido: a DATABASE_URL, que o processo precisa, está lá.
+  grep -q '^DATABASE_URL=' <<< "$ambiente" || falhar "o ambiente lido do processo '$2' não tem a DATABASE_URL"
+  ! grep -q '^MIGRATE_DATABASE_URL=' <<< "$ambiente" || falhar "o processo '$2' tem a MIGRATE_DATABASE_URL no ambiente"
+}
+
 echo "1. A imagem não contém .env, .git nem chave (find como root, sem rede)"
 # Só nas pastas que recebem conteúdo do projeto ou de usuário; o resto vem da imagem oficial do
 # Node (ela traz, por exemplo, o .npmrc interno do próprio npm em /usr/local/lib).
@@ -61,7 +95,8 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [[ "$pronto" == 1 ]] || falhar "o Postgres descartável não ficou pronto em 60 s"
-psql_pg < "$RAIZ/docker/postgres/init/01-papeis.sql"
+# Os mesmos scripts de init do dev (papéis, schema pgboss, privilégios e pgvector).
+for script in "$RAIZ"/docker/postgres/init/*.sql; do psql_pg < "$script"; done
 
 echo "3. migrar sem internet e sem devDependencies → todas as migrations aplicadas"
 docker run --rm --name "$PREFIXO-migrar" --network "$REDE" "${LIMITES[@]}" \
@@ -94,12 +129,7 @@ echo "6. app com as migrations boas → healthcheck da imagem saudável e /login
 docker run -d --name "$PREFIXO-app" --network "$REDE" "${LIMITES[@]}" \
   -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e DATABASE_URL="$URL_APP/sgo_teste" \
   -e URL_PUBLICA="http://127.0.0.1:3000" "$IMAGEM" app > /dev/null
-estado=starting
-for _ in $(seq 1 60); do
-  estado=$(saude "$PREFIXO-app")
-  [[ "$estado" == healthy || "$estado" == unhealthy || "$estado" == sem-healthcheck ]] && break
-  sleep 3
-done
+estado=$(esperar_saude "$PREFIXO-app")
 [[ "$estado" == healthy ]] || falhar "healthcheck da imagem: $estado"
 [[ "$(http_login "$PREFIXO-app")" == 200 ]] || falhar "/login não respondeu 200"
 # Mantém viva a prova negativa do passo 5: o texto que ela procura existe no servidor que sobe.
@@ -108,19 +138,37 @@ grep -q 'Ready in' <<< "$(docker logs "$PREFIXO-app" 2>&1)" || falhar "o log do 
 echo "7. O servidor roda como node, sem a credencial do migrador, e não lê o ambiente do PID 1"
 # O Next.js standalone troca o título do processo (e o /proc/<pid>/cmdline) para "next-server (v…)".
 SERVIDOR='next-server|server\.js'
-uid=$(docker top "$PREFIXO-app" -eo pid,uid,args | awk -v padrao="$SERVIDOR" '$0 ~ padrao && !/awk/ { print $2; exit }')
+uid=$(docker top "$PREFIXO-app" -eo pid,uid,args | PADRAO="$SERVIDOR" awk '$0 ~ ENVIRON["PADRAO"] && !/awk/ { print $2; exit }')
 [[ "$uid" == 1000 ]] || falhar "o servidor roda com uid '$uid' (esperado 1000, o usuário node)"
-# Só os processos do usuário node (uid 1000): o próprio sh do docker exec herda o ambiente do
-# contêiner e tem o padrão na linha de comando, então não pode entrar na conta.
-ambiente=$(docker exec "$PREFIXO-app" sh -c \
-  'for p in /proc/[0-9]*; do
-     grep -qE "^Uid:[[:space:]]+1000[[:space:]]" "$p/status" 2>/dev/null || continue
-     if grep -qaE "next-server|server\.js" "$p/cmdline" 2>/dev/null; then echo "PROCESSO $p"; tr "\000" "\n" < "$p/environ"; fi
-   done; true')
-grep -q '^PROCESSO ' <<< "$ambiente" || falhar "não achei o processo do servidor para conferir o ambiente"
-! grep -q '^MIGRATE_DATABASE_URL=' <<< "$ambiente" || falhar "o processo do servidor tem a MIGRATE_DATABASE_URL no ambiente"
+sem_credencial_do_migrador "$PREFIXO-app" "$SERVIDOR"
 if docker exec -u node "$PREFIXO-app" cat /proc/1/environ > /dev/null 2>&1; then
   falhar "o usuário node lê o ambiente do PID 1 (onde está a MIGRATE_DATABASE_URL)"
 fi
+
+echo "8. worker: publica o outbox, roda como node sem a credencial do migrador e para no SIGTERM"
+docker run -d --name "$PREFIXO-worker" --network "$REDE" "${LIMITES[@]}" \
+  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e DATABASE_URL="$URL_APP/sgo_teste" \
+  -e FILA_DATABASE_URL="$URL_FILA/sgo_teste" "$IMAGEM" worker > /dev/null
+id_msg=$(psql_pg -d sgo_teste -c "INSERT INTO outbox_mensagem (tipo, dados) VALUES ('teste.eco', '{\"prova\": 1}') RETURNING id")
+publicada=f
+for _ in $(seq 1 30); do
+  publicada=$(psql_pg -d sgo_teste -c "SELECT publicado_em IS NOT NULL FROM outbox_mensagem WHERE id = '$id_msg'")
+  [[ "$publicada" == t ]] && break
+  sleep 2
+done
+[[ "$publicada" == t ]] || falhar "o worker não publicou o outbox em 60 s: $(docker logs "$PREFIXO-worker" 2>&1 | tail -5)"
+[[ "$(psql_pg -d sgo_teste -c "SELECT count(*) FROM pgboss.job WHERE id = '$id_msg'")" == 1 ]] \
+  || falhar "a mensagem do outbox foi marcada, mas o job não está no pg-boss"
+estado=$(esperar_saude "$PREFIXO-worker")
+[[ "$estado" == healthy ]] || falhar "healthcheck do worker: $estado"
+WORKER='worker/index\.mjs'
+uid=$(docker top "$PREFIXO-worker" -eo pid,uid,args | PADRAO="$WORKER" awk '$0 ~ ENVIRON["PADRAO"] && !/awk/ { print $2; exit }')
+[[ "$uid" == 1000 ]] || falhar "o worker roda com uid '$uid' (esperado 1000, o usuário node)"
+sem_credencial_do_migrador "$PREFIXO-worker" "$WORKER"
+docker stop -t 20 "$PREFIXO-worker" > /dev/null
+[[ "$(docker inspect -f '{{.State.ExitCode}}' "$PREFIXO-worker")" == 0 ]] \
+  || falhar "o worker não saiu com 0 no SIGTERM: $(docker logs "$PREFIXO-worker" 2>&1 | tail -5)"
+grep -q 'SIGTERM recebido, encerrando' <<< "$(docker logs "$PREFIXO-worker" 2>&1)" \
+  || falhar "o worker parou, mas não pelo encerramento ordenado do SIGTERM"
 
 echo "Imagem aprovada."
