@@ -718,6 +718,7 @@ O **primeiro plano** cobre a trilha 2027 (§3.3), que usa parte desta seção. O
   - **Bloqueio por terceiros:** sem expiração (RN0026), qualquer pessoa que conheça um login pode bloqueá-lo de propósito.
   - **Enumeração prevista nos EPs:** a mensagem de bloqueio (RN0018) e a resposta diferente para o Administrador em manutenção (RN0023).
   - **Senha temporária nos backups:** a senha em texto no e-mail (C21) fica no WAL e nos backups por até 30 dias.
+  - **Senha no Histórico:** uma senha com formato de login digitada no campo Login vai para o Histórico.
   - **Limite de taxa por processo.**
 
 ### 11.3 Matriz dos perfis padrão (seed — C12, C30; aprovada pelo PO em 24/10/2026)
@@ -786,7 +787,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 | `src/shared/{kernel,audit,unidade,authz,totalizer,config,db,filas}/` e `tests/integracao/` (helper de banco efêmero) | A |
 | `src/modules/{aut,adm,orc,apr}/` e `prisma/schema/{aut,adm,orc,apr}.prisma` | A |
 | `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`: Histórico de Operações, unidade, filas) | A |
-| `src/middleware.ts` (no Next.js 16, `src/proxy.ts`), `src/instrumentation.ts`, `src/app/login/`, `src/app/troca-senha/`, `src/app/(sistema)/layout.tsx`, `error.tsx` e `inicio/` | A |
+| `src/middleware.ts` (no Next.js 16, `src/proxy.ts`, com `src/proxy.test.ts`), `src/instrumentation.ts`, `e2e/global-setup.ts`, `src/app/login/`, `src/app/troca-senha/`, `src/app/(sistema)/layout.tsx`, `error.tsx` e `inicio/` | A |
 | `src/shared/ia/` | B |
 | `src/modules/{ger,cad,rel,int}/` e `prisma/schema/{cad,rel,int}.prisma` | B |
 | `worker/` (entrypoint e agendador; os *handlers* ficam em `modules/<mod>/infrastructure/` e são do dono do módulo) | B |
@@ -843,7 +844,7 @@ Quando uma frente precisa de algo da outra (exemplo: o orçamento, frente A, usa
 2. Com o contrato na `main`, as duas frentes trabalham em paralelo: a dona implementa, e a consumidora programa contra o contrato, usando o falso nos testes.
 3. Mudança de contrato já mergeado exige issue com label `contrato`, avaliação de impacto pela frente consumidora e aprovação do PO. Mudança incompatível não entra sem atualizar os consumidores no mesmo PR.
 
-Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPessoal` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos; `adm` → catálogo de funcionalidades e perfis padrão (contrato C6: `DeclaracaoFuncionalidade`, `CODIGOS_PERFIL`, `MODULOS_MENU`, `instalarFuncionalidades`), usado pela seed de cada módulo.
+Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPessoal` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos; `adm` → catálogo de funcionalidades e perfis padrão (contrato C6: `DeclaracaoFuncionalidade`, `CODIGOS_PERFIL`, `MODULOS_MENU`, `instalarFuncionalidades`), usado pela seed de cada módulo. Os contratos C1 a C6 (plano-mestre) não se confundem com os conflitos C1 a C36 da §8.
 
 ### 12.7 Banco de dados e migrations
 
