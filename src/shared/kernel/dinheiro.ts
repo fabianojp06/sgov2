@@ -16,8 +16,9 @@ export class Dinheiro {
     return new Dinheiro(new D(0));
   }
 
+  // O limite vale para o total: somas parciais podem passar dele sem erro.
   static somarTodos(xs: readonly Dinheiro[]): Dinheiro {
-    return xs.reduce((total, x) => total.somar(x), Dinheiro.zero());
+    return Dinheiro.criar(xs.reduce((total, x) => total.plus(x.valor), new D(0)));
   }
 
   private static criar(v: Dec): Dinheiro {
@@ -72,7 +73,8 @@ export class Dinheiro {
     return formatarPtBr(this.paraString(), { style: 'currency', currency: 'BRL' });
   }
 
+  // Cópia: o Decimal só é imutável por convenção (o array de dígitos pode ser alterado).
   paraDecimal(): Decimal {
-    return this.valor;
+    return new D(this.valor);
   }
 }

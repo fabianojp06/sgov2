@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { Competencia } from './competencia';
 import { ErroDominio } from './erros';
@@ -35,5 +36,39 @@ describe('Competencia (RN0302)', () => {
   it('formata todos os meses', () => {
     const meses = Array.from({ length: 12 }, (_, i) => Competencia.de(2027, i + 1).formatar().slice(0, 3));
     expect(meses).toEqual(['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']);
+  });
+});
+
+describe('Competencia: propriedades e entrada hostil (revisão 12.12)', () => {
+  const competencia = fc
+    .tuple(fc.integer({ min: 2000, max: 2099 }), fc.integer({ min: 1, max: 12 }))
+    .map(([ano, mes]) => Competencia.de(ano, mes));
+
+  it('parse(formatar(c)) devolve c', () =>
+    fc.assert(
+      fc.property(competencia, (c) => {
+        expect(Competencia.parse(c.formatar()).comparar(c)).toBe(0);
+      }),
+    ));
+
+  it('proxima é sempre maior', () =>
+    fc.assert(
+      fc.property(
+        competencia.filter((c) => c.comparar(Competencia.de(2099, 12)) < 0),
+        (c) => {
+          expect(c.proxima().comparar(c)).toBe(1);
+        },
+      ),
+    ));
+
+  it('texto enorme é recusado sem copiar a entrada para o erro', () => {
+    const enorme = 'J'.repeat(1_000_000);
+    try {
+      Competencia.parse(enorme);
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toBeInstanceOf(ErroDominio);
+      expect(JSON.stringify(e).length + (e as Error).message.length).toBeLessThan(200);
+    }
   });
 });

@@ -7,12 +7,25 @@ export const D = Decimal.clone({ rounding: Decimal.ROUND_HALF_EVEN, precision: 4
 export type Dec = InstanceType<typeof D>;
 
 const NUMERO = /^-?\d+(\.\d+)?$/;
+// Texto mais longo que isso não é valor monetário nem percentual: recusar antes de calcular
+// evita que uma entrada de milhões de dígitos trave o servidor (divisão quadrática) ou vá
+// inteira para o erro e para o log.
+const TAMANHO_MAXIMO = 40;
 
 // Converte a entrada aceita pelo núcleo (texto decimal ou Decimal) sem passar por number.
+// Decimal passa pela mesma validação do texto (toFixed sem expoente): barra NaN, Infinity e
+// objetos que só fingem ser Decimal.
 export function paraDec(v: string | Decimal, tipo: string): Dec {
-  if (Decimal.isDecimal(v)) return new D(v.toString());
+  if (Decimal.isDecimal(v)) {
+    const texto = typeof v.toFixed === 'function' ? v.toFixed() : '';
+    if (!NUMERO.test(texto)) throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}`);
+    return new D(texto);
+  }
   if (typeof v !== 'string') {
     throw new TypeError(`${tipo} não aceita ${typeof v}: use texto decimal ou Decimal (spec §5)`);
+  }
+  if (v.length > TAMANHO_MAXIMO) {
+    throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}: texto longo demais`, { tamanho: v.length });
   }
   if (!NUMERO.test(v)) throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}: "${v}"`, { valor: v });
   return new D(v);

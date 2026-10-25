@@ -21,6 +21,11 @@ export class Competencia {
   }
 
   static parse(s: string): Competencia {
+    if (s.length > 6) {
+      throw new ErroDominio('COMPETENCIA_INVALIDA', 'Competência inválida (use Mmm/AA, ex.: Jun/22)', {
+        tamanho: s.length,
+      });
+    }
     const partes = FORMATO.exec(s);
     const indice = partes ? MESES.findIndex((m) => m.toLowerCase() === partes[1]!.toLowerCase()) : -1;
     if (!partes || indice < 0) {
