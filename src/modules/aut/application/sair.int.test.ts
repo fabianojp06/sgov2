@@ -68,6 +68,12 @@ describe('sair', () => {
     expect(h[0]).toMatchObject({ funcionalidade: 'aut.sessao', sessaoUid: ctx.sessaoUid });
   });
 
+  it('duas abas saindo juntas: um LOGOFF só', async () => {
+    const ctx = await logado('dora');
+    await Promise.all([sair(ctx, { cliente: app }), sair(ctx, { cliente: app })]);
+    expect(await migrator.historicoOperacao.count({ where: { usuarioId: ctx.usuarioId, tipoOperacao: 'LOGOFF' } })).toBe(1);
+  });
+
   it('falha na auditoria: a sessão continua (RNF0013)', async () => {
     const ctx = await logado('bia');
     falharAuditoria = true;

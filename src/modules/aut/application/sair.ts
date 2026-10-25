@@ -12,7 +12,9 @@ type DepsSair = { cliente: PrismaClient };
 export async function sair(ctx: ContextoRequisicao, deps: Partial<DepsSair> = {}): Promise<void> {
   const cliente = deps.cliente ?? prisma;
   await cliente.$transaction(async (tx) => {
-    await tx.sessaoUsuario.deleteMany({ where: { usuarioId: ctx.usuarioId } });
+    const { count } = await tx.sessaoUsuario.deleteMany({ where: { usuarioId: ctx.usuarioId } });
+    // Duas abas saindo juntas: só quem apagou a sessão registra.
+    if (count === 0) return;
     await auditar(tx, {
       contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip },
       funcionalidade: 'aut.sessao',

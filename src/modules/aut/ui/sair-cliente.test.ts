@@ -24,8 +24,18 @@ describe('sairDoSistema (UC01.04, RNF0010)', () => {
     const location = { replace: vi.fn() };
     const a = armazenamento(['sgo:filtro', 'sgo:grade', 'outro']);
     await sairDoSistema(fetchFalso, location, a);
-    expect(fetchFalso).toHaveBeenCalledWith('/aut/sair', { method: 'POST', credentials: 'same-origin' });
+    expect(fetchFalso).toHaveBeenCalledWith('/aut/sair', expect.objectContaining({ method: 'POST', credentials: 'same-origin' }));
     expect(location.replace).toHaveBeenCalledWith('/login?saiu=1');
     expect(a.chaves()).toEqual(['outro']);
+  });
+});
+
+describe('sairDoSistema: servidor travado', () => {
+  it('desiste depois do tempo limite e vai para o login (E1.1)', async () => {
+    const location = { replace: vi.fn() };
+    const travado = (_url: string, init: RequestInit) =>
+      new Promise<Response>((_ok, falhar) => init.signal?.addEventListener('abort', () => falhar(new Error('abortado'))));
+    await sairDoSistema(travado, location, armazenamento([]), 20);
+    expect(location.replace).toHaveBeenCalledWith('/login?saiu=1');
   });
 });

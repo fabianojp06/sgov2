@@ -124,7 +124,7 @@ describe('autenticar: entrada e credenciais', () => {
 
   it('inexistente: CREDENCIAIS, hash fictício, Histórico LOGIN com usuário nulo e o login normalizado', async () => {
     conferencias.total = 0;
-    expect(await entrar('Ninguem')).toMatchObject({ ok: false, motivo: 'CREDENCIAIS' });
+    expect(await entrar('Ninguem')).toMatchObject({ ok: false, motivo: 'CREDENCIAIS', contaFalha: true });
     expect(conferencias.total).toBe(1);
     const [h] = await historico({ usuarioRotulo: 'ninguem' });
     expect(h).toMatchObject({ tipoOperacao: 'LOGIN', usuarioId: null, funcionalidade: 'aut.login' });
@@ -189,12 +189,20 @@ describe('autenticar: manutenção (RN0023)', () => {
     await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: true } });
   });
 
-  it('não administrador: MANUTENCAO, com Histórico e sem contador', async () => {
+  it('não administrador: MANUTENCAO, com Histórico e sem contador; não conta por IP', async () => {
     const u = await criarUsuario('eva');
-    expect(await entrar('eva', ERRADA)).toMatchObject({ ok: false, motivo: 'MANUTENCAO', mensagem: 'Sistema está em manutenção' });
+    expect(await entrar('eva', ERRADA)).toMatchObject({
+      ok: false,
+      motivo: 'MANUTENCAO',
+      mensagem: 'Sistema está em manutenção',
+      contaFalha: false,
+    });
     expect((await usuario('eva')).tentativasFalhas).toBe(0);
     expect((await historico({ usuarioId: u.id })).length).toBe(1);
   });
+
+  it('login inexistente em manutenção conta por IP', async () =>
+    expect(await entrar('ninguem2')).toMatchObject({ motivo: 'MANUTENCAO', contaFalha: true }));
 
   it('administrador com senha errada: CREDENCIAIS e contador +1; com a certa, entra', async () => {
     await criarUsuario('chefe', {}, 'ADMINISTRADOR');

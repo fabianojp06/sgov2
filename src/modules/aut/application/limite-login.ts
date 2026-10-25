@@ -16,8 +16,10 @@ export type OpcoesLimitador = {
 export type LimitadorLogin = {
   permitir(ip: string | null, login: string): boolean;
   // Por IP contam só as falhas (decisão do PO): com a instituição atrás de um NAT, os logins certos
-  // de todos os usuários não podem esgotar o limite.
-  registrarFalha(ip: string | null): void;
+  // de todos os usuários não podem esgotar o limite. O permitir reserva a vaga já (uma rajada
+  // paralela não passa inteira antes do primeiro resultado) e o liberar a devolve quando o
+  // resultado não conta como falha (contaFalhaPorIp).
+  liberar(ip: string | null): void;
   executar<T>(f: () => Promise<T>): Promise<T | 'OCUPADO'>;
   tamanho(): { porIp: number; porLogin: number };
 };
@@ -58,11 +60,6 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
     return j.total <= limite;
   }
 
-  // Só consulta: o limite por IP é de falhas, contadas em registrarFalha.
-  function cabe(mapa: Map<string, Janela>, chave: string, limite: number): boolean {
-    const j = mapa.get(chave);
-    return !j || agora() - j.inicio > janelaMs || j.total < limite;
-  }
 
   let ativos = 0;
   const fila: (() => void)[] = [];
@@ -97,12 +94,13 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
   return {
     permitir(ip, login) {
       // Sem IP (sem CONFIAR_PROXY), todos cairiam no mesmo balde: vale só o limite por login.
-      const okIp = ip === null ? true : cabe(ips, ip, porIp);
+      const okIp = ip === null ? true : contar(ips, ip, porIp);
       const okLogin = contar(logins, login, porLogin);
       return okIp && okLogin;
     },
-    registrarFalha(ip) {
-      if (ip !== null) janela(ips, ip).total++;
+    liberar(ip) {
+      const j = ip === null ? undefined : ips.get(ip);
+      if (j && j.total > 0) j.total--;
     },
     async executar(f) {
       if (!(await vaga())) return 'OCUPADO';
@@ -114,4 +112,10 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
     },
     tamanho: () => ({ porIp: ips.size, porLogin: logins.size }),
   };
+}
+
+// Resultado do login que fica reservado no limite por IP: falha de credencial, bloqueio e tentativa
+// em manutenção com login inexistente (decisão do PO, revisão do #201). O resto devolve a vaga.
+export function contaFalhaPorIp(r: { ok: true } | { ok: false; contaFalha: boolean } | 'OCUPADO'): boolean {
+  return r !== 'OCUPADO' && !r.ok && r.contaFalha;
 }
