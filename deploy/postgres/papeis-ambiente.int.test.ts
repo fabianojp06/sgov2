@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
@@ -90,6 +90,8 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
     container = await new PostgresLocal('pgvector/pgvector:pg16')
       .withUsername('postgres')
       .withDatabase('postgres')
+      // Log de tudo, para provar que o script não deixa senha no log do servidor.
+      .withCommand(['postgres', '-c', 'log_statement=all', '-c', 'log_min_duration_statement=0'])
       .withCopyFilesToContainer([{ source: join(process.cwd(), 'deploy/postgres/01-papeis-ambiente.sql'), target: SCRIPT }])
       .start();
     host = `${container.getHost()}:${container.getPort()}`;
@@ -116,6 +118,13 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
     expect(await papeis()).toEqual([]);
   });
 
+  it('recusa senhas repetidas', async () => {
+    const r = await aplicar({ ...SENHAS, SGO_SENHA_SYNC: SENHAS.SGO_SENHA_APP });
+    expect(r.exitCode).not.toBe(0);
+    expect(r.output).toContain('diferentes');
+    expect(await papeis()).toEqual([]);
+  });
+
   it('cria os papéis e o banco do zero', async () => {
     const r = await aplicar();
     expect(r.output).toBe('');
@@ -131,6 +140,26 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
       expect(l.rolbypassrls, l.rolname).toBe(false);
     }
     expect(linhas.find((l) => l.rolname === 'sgo_admin')?.rolcanlogin).toBe(false);
+  });
+
+  it('fixa o search_path e deixa a sessão do sgo_leitura só de leitura', async () => {
+    const config = Object.fromEntries(
+      ((await papeis()) as { rolname: string; rolconfig: string[] | null }[]).map((l) => [l.rolname, l.rolconfig]),
+    );
+    expect(config).toEqual({
+      sgo_admin: null,
+      sgo_app: ['search_path=public'],
+      sgo_fila: ['search_path=pgboss'],
+      sgo_leitura: ['search_path=public', 'default_transaction_read_only=on'],
+      sgo_migrator: ['search_path=public'],
+      sgo_sync: ['search_path=public'],
+    });
+  });
+
+  it('o pgvector já vem instalado, e a migration que o declara não falha', async () => {
+    await comoPapel('sgo_migrator', (c) => c.query('CREATE EXTENSION IF NOT EXISTS vector'));
+    const { rows } = await comoPostgres((c) => c.query(`SELECT count(*)::int AS n FROM pg_extension WHERE extname = 'vector'`));
+    expect(rows[0]).toEqual({ n: 1 });
   });
 
   it('o sgo_admin é dono do banco e o sgo_migrator, só do schema public', async () => {
@@ -173,7 +202,9 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
       const { rows } = await c.query('SELECT id FROM prova_leitura');
       expect(rows).toEqual([{ id: 1 }]);
       await c.query('SELECT count(*) FROM historico_operacao');
-      await expect(c.query('INSERT INTO prova_leitura VALUES (2)')).rejects.toThrow(/permission denied/);
+      await expect(c.query('INSERT INTO prova_leitura VALUES (2)')).rejects.toThrow(/read-only transaction/);
+      const somenteLeitura = await c.query('SHOW default_transaction_read_only');
+      expect(somenteLeitura.rows).toEqual([{ default_transaction_read_only: 'on' }]);
     });
   });
 
@@ -184,10 +215,11 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
     });
   });
 
-  it('um papel sem grant não conecta no sgo nem no postgres', async () => {
+  it('um papel sem grant não conecta no sgo, no postgres nem no template1', async () => {
     await comoPostgres((c) => c.query(`CREATE ROLE intruso LOGIN PASSWORD '${USUARIO_SENHA.intruso}'`), 'postgres');
     await expect(comoPapel('intruso', (c) => c.query('SELECT 1'))).rejects.toThrow(/permission denied for database/);
     await expect(comoPapel('intruso', (c) => c.query('SELECT 1'), 'postgres')).rejects.toThrow(/permission denied for database/);
+    await expect(comoPapel('intruso', (c) => c.query('SELECT 1'), 'template1')).rejects.toThrow(/permission denied for database/);
     await expect(comoPapel('sgo_app', (c) => c.query('SELECT 1'), 'postgres')).rejects.toThrow(/permission denied for database/);
   });
 
@@ -209,12 +241,71 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
     expect(r.exitCode).toBe(0);
   });
 
-  it('rodar de novo não dá erro nem muda os papéis, e o sgo_leitura lê tabelas criadas depois', async () => {
+  it('o sgo_leitura lê tabelas criadas depois do script (default privileges)', async () => {
+    await comoPapel('sgo_leitura', (c) => c.query('SELECT count(*) FROM prova_rls'));
+  });
+
+  it('rodar de novo não dá erro nem muda os papéis, e avisa quem manteve a senha', async () => {
     const antes = await papeis();
     const r = await aplicar();
-    expect(r.output).toBe('');
+    expect(r.exitCode).toBe(0);
+    expect(r.output).toContain('mantiveram a senha: sgo_app, sgo_fila, sgo_leitura, sgo_migrator, sgo_sync');
+    expect(await papeis()).toEqual(antes);
+  });
+
+  it('rodar de novo com outra senha não troca a de quem já existe', async () => {
+    const r = await aplicar({ ...SENHAS, SGO_SENHA_APP: 'outra-senha-do-app-123' });
+    expect(r.exitCode).toBe(0);
+    await comoPapel('sgo_app', (c) => c.query('SELECT 1'));
+  });
+
+  it('recusa, sem mudar nada, papel do SGO com membership ou configuração por banco', async () => {
+    const antes = await papeis();
+    await comoPostgres((c) => c.query('GRANT sgo_migrator TO sgo_app; ALTER ROLE sgo_sync BYPASSRLS'), 'postgres');
+    let r = await aplicar();
+    expect(r.exitCode).not.toBe(0);
+    expect(r.output).toContain('sgo_app é membro de sgo_migrator');
+    expect(r.output).toContain('nada foi alterado');
+    const sync = ((await papeis()) as { rolname: string; rolbypassrls: boolean }[]).find((l) => l.rolname === 'sgo_sync');
+    expect(sync?.rolbypassrls).toBe(true);
+    await comoPostgres((c) => c.query('REVOKE sgo_migrator FROM sgo_app; ALTER ROLE sgo_sync NOBYPASSRLS'), 'postgres');
+
+    await comoPostgres((c) => c.query('ALTER ROLE sgo_app IN DATABASE sgo SET search_path = outro, public'), 'postgres');
+    r = await aplicar();
+    expect(r.exitCode).not.toBe(0);
+    expect(r.output).toContain('sgo_app tem configuração no banco sgo');
+    await comoPostgres((c) => c.query('ALTER ROLE sgo_app IN DATABASE sgo RESET ALL'), 'postgres');
+    expect(await papeis()).toEqual(antes);
+  });
+
+  it('desfaz atributos, configurações e privilégios dados a mais', async () => {
+    const antes = await papeis();
+    await comoPostgres(
+      (c) =>
+        c.query(`ALTER ROLE sgo_sync BYPASSRLS CONNECTION LIMIT 1 VALID UNTIL '2030-01-01';
+                 ALTER ROLE sgo_app SET work_mem = '1MB'`),
+      'postgres',
+    );
+    await comoPostgres((c) =>
+      c.query(`GRANT CREATE ON DATABASE sgo TO PUBLIC; GRANT TEMPORARY ON DATABASE sgo TO sgo_app;
+               GRANT CREATE ON SCHEMA public TO sgo_app; GRANT USAGE ON SCHEMA pgboss TO sgo_app`),
+    );
+    const r = await aplicar();
     expect(r.exitCode).toBe(0);
     expect(await papeis()).toEqual(antes);
-    await comoPapel('sgo_leitura', (c) => c.query('SELECT count(*) FROM prova_rls'));
+    await comoPapel('sgo_app', async (c) => {
+      await expect(c.query('CREATE TABLE t (id int)')).rejects.toThrow(/permission denied/);
+      await expect(c.query('CREATE TEMP TABLE t (id int)')).rejects.toThrow(/permission denied/);
+      await expect(c.query('CREATE SCHEMA outro')).rejects.toThrow(/permission denied/);
+      await expect(c.query('SELECT 1 FROM pgboss.prova')).rejects.toThrow(/permission denied/);
+    });
+  });
+
+  it('nenhuma senha vai para o log do servidor', () => {
+    const logs = spawnSync('docker', ['logs', container.getId()], { encoding: 'utf8' });
+    const texto = `${logs.stdout}${logs.stderr}`;
+    // O log está ligado de verdade: os comandos do próprio teste aparecem nele.
+    expect(texto).toContain('CREATE ROLE intruso');
+    for (const s of [...Object.values(SENHAS), 'outra-senha-do-app-123']) expect(texto).not.toContain(s);
   });
 });

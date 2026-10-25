@@ -11,40 +11,53 @@ Como o banco de `sgo-hml` e de `sgo-prod` é preparado (US-014; plano do P3, Tar
 | `sgo_app` | sim | `DATABASE_URL` (app) | Lê e grava dados pelos privilégios que as migrations dão. Não cria objetos |
 | `sgo_sync` | sim | Sincronização (US futura) | O mesmo que o `sgo_app` |
 | `sgo_fila` | sim | `FILA_DATABASE_URL` (worker, pg-boss) | Dono só do schema `pgboss` |
-| `sgo_leitura` | sim | Consultas *ad hoc* (spec §11.5 item 5) | Só `SELECT` no `public`, sujeito à RLS |
+| `sgo_leitura` | sim | Consultas *ad hoc* (spec §11.5 item 5) | Só `SELECT` no `public`, sujeito à RLS, numa sessão só de leitura. Vê o Histórico de Operações inteiro (IP, antes e depois), que não tem RLS |
 
 Regras que o script garante a cada execução:
 
-- nenhum papel do SGO é superusuário nem tem `BYPASSRLS`;
-- só os papéis do SGO conectam no `sgo`, e o PUBLIC não conecta nem no `postgres`;
-- ninguém cria tabela temporária;
-- funções que o `sgo_migrator` criar não nascem executáveis por todos. A migration que cria uma função chamada pela aplicação dá `GRANT EXECUTE` a quem usa. Funções de *trigger* não precisam disso. O dev e os testes seguem a mesma regra (`docker/postgres/init/03-privilegios.sql`).
+- nenhum papel do SGO é superusuário, tem `BYPASSRLS`, limite de conexões ou data de validade;
+- as configurações dos papéis são só as do script (`search_path` fixo e, no `sgo_leitura`, sessão só de leitura);
+- só os papéis do SGO conectam no `sgo`, e o PUBLIC não conecta no `postgres` nem no `template1`;
+- ninguém cria schema nem tabela temporária, e privilégios dados a mais no banco e nos schemas `public` e `pgboss` são retirados;
+- a extensão `vector` (pgvector) já fica instalada. Só o superusuário a cria, e a migration que a usar escreve `CREATE EXTENSION IF NOT EXISTS vector`;
+- funções que o `sgo_migrator` criar não nascem executáveis por todos. A migration que cria uma função chamada pela aplicação dá `GRANT EXECUTE` a quem usa. Funções de *trigger* não precisam disso.
 
-O dump diário (Tarefa 7) não usa o `sgo_leitura`: com RLS, o `pg_dump` sem `BYPASSRLS` aborta. Ele roda como `postgres` pelo socket local do contêiner `db`.
+O script **recusa, sem mudar nada,** um papel do SGO que seja membro de outro papel ou tenha membros, ou que tenha configuração por banco (`ALTER ROLE ... IN DATABASE`). Qualquer um desses dá a um papel o poder de outro, e não há como saber se foi de propósito. Se acontecer, desfaça à mão e rode de novo.
+
+O dev e os testes seguem as regras de TEMP e de funções (`docker/postgres/init/03-privilegios.sql`). Os scripts de init só rodam na criação do volume. Para um volume de dev que já existe, aplique à mão; o comando só mexe em privilégios:
+
+```sh
+docker compose exec -T db psql -U postgres -f /docker-entrypoint-initdb.d/03-privilegios.sql
+```
+
+O dump diário (Tarefa 7) não usa o `sgo_leitura`: com RLS, o `pg_dump` sem `BYPASSRLS` aborta. Ele roda como `postgres` pelo socket local do contêiner `db`. O `pg_dump -d sgo` não leva os papéis, os privilégios do banco nem as configurações dos papéis. Por isso, a restauração começa rodando este script no servidor novo.
 
 ## Criar os papéis (PO, uma vez por ambiente)
 
-O script é `deploy/postgres/01-papeis-ambiente.sql`. Ele roda como superusuário, no banco `postgres`, e pega as senhas só do ambiente, nunca do arquivo nem da linha de comando.
+O script é `deploy/postgres/01-papeis-ambiente.sql`. Ele roda como superusuário, no banco `postgres`, e pega as senhas só do ambiente, nunca do arquivo nem da linha de comando. Ele desliga, só na própria sessão, o log de comandos do servidor, que gravaria as senhas.
 
-1. Gere cinco senhas diferentes, com 16 caracteres ou mais, para cada ambiente. Guarde-as só nas variáveis do Easypanel (Tarefa 6) e no seu cofre de senhas.
-2. No console do serviço `db` do ambiente, no Easypanel, leia as senhas sem eco, para elas não irem para o histórico:
+1. Gere cinco senhas diferentes para cada ambiente, com 16 caracteres ou mais, só com letras e números: `@`, `/`, `#` e `:` quebram as URLs de conexão. Guarde-as só nas variáveis do Easypanel (Tarefa 6) e no seu cofre de senhas.
+2. No console do serviço `db` do ambiente, no Easypanel, abra o `bash` (o `read -s` não existe no `sh`) e cole o script num arquivo:
+
+   ```sh
+   bash
+   cat > /tmp/01-papeis-ambiente.sql   # cole o conteúdo e termine com Ctrl+D
+   ```
+
+3. Leia as senhas sem eco, para elas não irem para o histórico, rode o script e apague tudo:
 
    ```sh
    for v in SGO_SENHA_MIGRATOR SGO_SENHA_APP SGO_SENHA_SYNC SGO_SENHA_FILA SGO_SENHA_LEITURA; do
      read -rs -p "$v: " valor; echo; export "$v=$valor"
    done
+   psql -X -U postgres -d postgres -f /tmp/01-papeis-ambiente.sql
+   unset valor SGO_SENHA_MIGRATOR SGO_SENHA_APP SGO_SENHA_SYNC SGO_SENHA_FILA SGO_SENHA_LEITURA
+   rm /tmp/01-papeis-ambiente.sql; exit
    ```
 
-3. Copie o script para o contêiner e rode:
+   Sem saída é sucesso. Se faltar uma senha, se uma for curta ou se houver senhas repetidas, o script para e diz o nome da variável, sem mostrar o valor.
 
-   ```sh
-   psql -X -U postgres -d postgres -f 01-papeis-ambiente.sql
-   ```
-
-   Sem saída é sucesso. Se faltar uma senha, ou se uma for curta, o script para e diz o nome da variável, sem mostrar o valor.
-4. Confira que o `log_statement` do servidor não é `ddl` nem `all`. Se for, o `CREATE ROLE` com a senha vai para o log.
-
-Rodar de novo é seguro: o script cria só o que falta e reaplica os atributos e os privilégios. Ele **não troca** a senha de papel que já existe.
+Rodar de novo é seguro: o script cria só o que falta e reaplica os atributos, as configurações e os privilégios. Ele **não troca** a senha de papel que já existe, e avisa quais papéis mantiveram a senha.
 
 ## Trocar a senha de um papel
 
