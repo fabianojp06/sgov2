@@ -15,6 +15,9 @@ export type OpcoesLimitador = {
 
 export type LimitadorLogin = {
   permitir(ip: string | null, login: string): boolean;
+  // Por IP contam só as falhas (decisão do PO): com a instituição atrás de um NAT, os logins certos
+  // de todos os usuários não podem esgotar o limite.
+  registrarFalha(ip: string | null): void;
   executar<T>(f: () => Promise<T>): Promise<T | 'OCUPADO'>;
   tamanho(): { porIp: number; porLogin: number };
 };
@@ -31,8 +34,8 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
   const ips = new Map<string, Janela>();
   const logins = new Map<string, Janela>();
 
-  // Conta a tentativa na janela da chave e diz se ela ainda cabe no limite.
-  function contar(mapa: Map<string, Janela>, chave: string, limite: number): boolean {
+  // Janela atual da chave (nova se a anterior venceu).
+  function janela(mapa: Map<string, Janela>, chave: string): Janela {
     const t = agora();
     let j = mapa.get(chave);
     if (!j || t - j.inicio > janelaMs) {
@@ -45,8 +48,20 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
         if (maisAntiga !== undefined) mapa.delete(maisAntiga);
       }
     }
+    return j;
+  }
+
+  // Conta a tentativa na janela da chave e diz se ela ainda cabe no limite.
+  function contar(mapa: Map<string, Janela>, chave: string, limite: number): boolean {
+    const j = janela(mapa, chave);
     j.total++;
     return j.total <= limite;
+  }
+
+  // Só consulta: o limite por IP é de falhas, contadas em registrarFalha.
+  function cabe(mapa: Map<string, Janela>, chave: string, limite: number): boolean {
+    const j = mapa.get(chave);
+    return !j || agora() - j.inicio > janelaMs || j.total < limite;
   }
 
   let ativos = 0;
@@ -82,9 +97,12 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
   return {
     permitir(ip, login) {
       // Sem IP (sem CONFIAR_PROXY), todos cairiam no mesmo balde: vale só o limite por login.
-      const okIp = ip === null ? true : contar(ips, ip, porIp);
+      const okIp = ip === null ? true : cabe(ips, ip, porIp);
       const okLogin = contar(logins, login, porLogin);
       return okIp && okLogin;
+    },
+    registrarFalha(ip) {
+      if (ip !== null) janela(ips, ip).total++;
     },
     async executar(f) {
       if (!(await vaga())) return 'OCUPADO';

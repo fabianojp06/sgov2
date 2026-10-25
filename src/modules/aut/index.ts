@@ -9,3 +9,5 @@ export { gerarSessaoUid } from './domain/sessao';
 export { COOKIE_UNIDADE, nomeCookieSessao } from './infrastructure/cookies';
 export { entrar } from './application/acoes-login';
 export { FormLogin } from './ui/form-login';
+export { responderSair, sair } from './application/sair';
+export { BotaoSair } from './ui/botao-sair';

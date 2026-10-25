@@ -29,6 +29,8 @@ export const entrar = definirAcaoPublica(
       return falha([{ campo: '_', mensagem: MENSAGEM_LIMITE }]);
     }
     if (!r.ok) {
+      // Falha de credencial conta no limite por IP; entrada inválida, manutenção e falha técnica não.
+      if (r.motivo === 'CREDENCIAIS' || r.motivo === 'BLOQUEADO') limitador.registrarFalha(ctx.ip);
       const erros: ErroCampo[] = [{ campo: '_', mensagem: r.mensagem }];
       if (r.avisoUltimaTentativa) erros.push({ campo: 'aviso', mensagem: MENSAGENS.ULTIMA_TENTATIVA });
       return falha(erros);
