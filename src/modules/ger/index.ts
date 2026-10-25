@@ -27,4 +27,14 @@ export {
 } from './infrastructure/exportar-xlsx';
 
 // Falsos para os testes dos consumidores.
-export { exportarXlsxFalso } from './falsos';
+export { emailFalso, exportarXlsxFalso, type EnvioFalso } from './falsos';
+
+// Contrato C4: e-mail por outbox.
+export {
+  MODELOS_SENSIVEIS,
+  SENSIBILIDADE_MODELO,
+  type DadosModeloEmail,
+  type Destinatario,
+  type ModeloEmail,
+} from './domain/modelos-email';
+export { enviarEmail } from './application/email';
