@@ -52,8 +52,12 @@ case "${1:-}" in
     # O servidor não precisa da credencial do sgo_migrator (dono do DDL): sobe sem ela e, como
     # root, desce para o APP_USUARIO sem capacidades.
     if [[ -n "$APP_USUARIO" && "$(id -u)" == 0 ]]; then
-      exec setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups --inh-caps=-all \
+      exec setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups \
+        --inh-caps=-all --bounding-set=-all --no-new-privs \
         env -u MIGRATE_DATABASE_URL node server.js
+    fi
+    if [[ -n "$APP_USUARIO" ]]; then
+      echo "Aviso: o entrypoint não roda como root (uid $(id -u)); o servidor e o PID 1 ficam com o mesmo usuário e a MIGRATE_DATABASE_URL fica legível em /proc/1/environ. Não use --user nesta imagem." >&2
     fi
     exec env -u MIGRATE_DATABASE_URL node server.js
     ;;

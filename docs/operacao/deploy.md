@@ -29,6 +29,8 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 2. No console do serviço, rode `/app/docker/entrypoint.sh resolver <nome-da-migration>`.
 3. Corrija a migration num PR novo, porque migration mergeada nunca é editada (spec §12.7), e faça o deploy de novo.
 
+**Console do Easypanel:** como a imagem não tem `USER node`, o console e o `docker exec` entram como root. É assim que o `resolver` funciona. Use o console só para os procedimentos deste documento.
+
 ## Credenciais (só nos *environments* do GitHub e no Easypanel)
 
 | Onde | Nome | Para quê |

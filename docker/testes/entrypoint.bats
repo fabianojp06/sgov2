@@ -118,6 +118,13 @@ SH
   chmod +x "$T/bin/id" "$T/bin/setpriv"
   APP_USUARIO=node run "$SCRIPT" app
   [ "$status" -eq 0 ]
-  grep -q '^setpriv --reuid=node --regid=node --init-groups --inh-caps=-all env -u MIGRATE_DATABASE_URL node server.js$' "$REGISTRO"
+  grep -q '^setpriv --reuid=node --regid=node --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs env -u MIGRATE_DATABASE_URL node server.js$' "$REGISTRO"
   grep -q '^node-env MIGRATE_DATABASE_URL=<ausente>$' "$REGISTRO"
+}
+
+@test "app sem root, com APP_USUARIO definido: avisa que a credencial fica legível" {
+  APP_USUARIO=node run --separate-stderr "$SCRIPT" app
+  if [ "$(id -u)" = 0 ]; then skip "rodando como root: o caminho sem troca não se aplica"; fi
+  [ "$status" -eq 0 ]
+  [[ "$stderr" == *"não roda como root"* ]]
 }
