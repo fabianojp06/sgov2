@@ -6,12 +6,31 @@ Como a imagem chega a hml e a prod (US-013; plano do P3, Tarefa 4). O runbook co
 
 | Evento | O que acontece | Quem aprova |
 | --- | --- | --- |
-| Merge na `main` | O `imagem.yml` publica `sgov2:sha-<commit>` e `sgov2:hml`, registra a atestação de origem e chama o webhook de hml | Ninguém: é automático |
-| Tag `vX.Y.Z` | O `verificar-prod` confere o commit e a atestação. Depois, o `prod` copia o digest verificado para `sgov2-prod:vX.Y.Z` e `:prod` e chama o webhook de prod | **O PO**, no *environment* `producao` |
+| Merge na `main` | O `imagem.yml` publica `sgov2:sha-<commit>` e `sgov2:hml`, registra o digest no artefato `origem-imagem` do run e chama o webhook de hml | Ninguém: é automático |
+| Tag `vX.Y.Z` | O `verificar-prod` confere o commit e pega o digest do artefato do run da `main` daquele commit. Depois, o `prod` copia esse digest para `sgov2-prod:vX.Y.Z` e `:prod` e chama o webhook de prod | **O PO**, no *environment* `producao` |
 | `workflow_dispatch` `acao=teste` | Publica só `sgov2:teste-<nome>`, sem deploy | Ninguém |
 | `workflow_dispatch` `acao=rollback` com `--ref vX.Y.Z` | `sgov2-prod:prod` volta para `vX.Y.Z` e o webhook de prod é chamado | **O PO**, no *environment* `producao` |
 
 As sessões do Claude Code não criam tag `v*`, não aprovam o *environment* e não disparam o `imagem.yml`: o hook `guarda-bash` bloqueia. Quem faz isso é o PO.
+
+## Origem da imagem
+
+O digest que vai para prod vem do artefato `origem-imagem` do run do `imagem.yml` no push na `main` do commit da tag. O `verificar-prod` acha esse run pela API do GitHub, filtrando por workflow, evento, branch e commit, e só aceita um run com sucesso. Outro run não grava no artefato dele. A tag `sgov2:sha-<commit>` não entra na conta, porque qualquer branch com `packages: write` pode sobrescrevê-la.
+
+- **Por que não a atestação do GitHub:** a `attest-build-provenance` não existe para repositório privado de usuário. O primeiro run na `main` (`36f27a4`) falhou nesse passo.
+- **O artefato dura 90 dias**, o máximo padrão do repositório. Para lançar um commit mais antigo, faça a tag num commit mais novo da `main`. Para guardar por mais tempo, aumente a retenção em *Settings → Actions → General* (até 400 dias) e o `retention-days` do `imagem.yml`.
+- **Se o run da `main` falhou ou foi cancelado** (o webhook de hml fora do ar, ou um merge mais novo na fila do `deploy-hml`), o commit não vai para prod.
+  - Se ele é o HEAD da `main`, rode de novo os jobs que falharam e só depois faça a tag.
+  - Se não é, faça a tag num commit mais novo. Rodar de novo o run de um commit antigo refaz o build com outro digest e volta hml para esse commit.
+- **Tag feita antes de o run da `main` terminar:** o `verificar-prod` falha com "Não há run com sucesso". Espere o run da `main` e rode de novo o job `verificar-prod` da tag.
+
+## Antes da primeira tag (PO, uma vez)
+
+O `homologacao` foi criado sozinho pelo primeiro run, sem restrição, e o `producao` ainda não existe. Um job que cita um *environment* inexistente cria-o sem revisor. Por isso, antes de cadastrar qualquer secret e antes da primeira tag:
+
+1. `homologacao`: em *Deployment branches*, só a `main`.
+2. Criar o `producao`: você como revisor obrigatório e, em *Deployment branches and tags*, só as tags `v*`.
+3. Só então cadastrar os secrets da tabela de credenciais.
 
 ## Antes de aprovar um deploy de prod (PO)
 
