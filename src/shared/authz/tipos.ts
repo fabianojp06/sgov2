@@ -14,6 +14,9 @@ export type ContextoRequisicao = Omit<ContextoAuditoria, 'usuarioId' | 'sessaoUi
 };
 
 export interface ProvedorContexto {
+  // Marca estável do provedor: o módulo aut pode ser avaliado em mais de uma camada do Next e
+  // recriar o provedor; com o mesmo id, o novo registro é aceito.
+  readonly id?: string;
   obter(): Promise<ContextoRequisicao | null>;
 }
 

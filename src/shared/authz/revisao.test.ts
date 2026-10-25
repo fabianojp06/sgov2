@@ -247,3 +247,16 @@ describe('revisão 12.12, rodada 2', () => {
     expect(JSON.stringify(log.mock.calls)).toContain('causa real');
   });
 });
+
+describe('revisão 12.12, rodada 3', () => {
+  it('em produção, provedor recriado (outra camada do Next) com o mesmo id é aceito', () => {
+    configurarProvedorContexto({ id: 'aut', obter: async () => ctx });
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(() => configurarProvedorContexto({ id: 'aut', obter: async () => ctx })).not.toThrow();
+      expect(() => configurarProvedorContexto({ id: 'outro', obter: async () => ctx })).toThrow(/já configurado/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
