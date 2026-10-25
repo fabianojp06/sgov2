@@ -77,7 +77,7 @@ async function papeis(): Promise<unknown[]> {
     (c) =>
       c.query(
         `SELECT rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolreplication,
-                rolbypassrls, rolconnlimit, rolconfig
+                rolbypassrls, rolconnlimit, rolvaliduntil, rolconfig
            FROM pg_roles WHERE rolname LIKE 'sgo\\_%' ORDER BY rolname`,
       ),
     'postgres',
@@ -205,6 +205,9 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
       await expect(c.query('INSERT INTO prova_leitura VALUES (2)')).rejects.toThrow(/read-only transaction/);
       const somenteLeitura = await c.query('SHOW default_transaction_read_only');
       expect(somenteLeitura.rows).toEqual([{ default_transaction_read_only: 'on' }]);
+      // A sessão só de leitura é reforço (o próprio papel desliga); quem garante é o privilégio.
+      await c.query('SET default_transaction_read_only = off');
+      await expect(c.query('INSERT INTO prova_leitura VALUES (2)')).rejects.toThrow(/permission denied for table/);
     });
   });
 
@@ -294,10 +297,10 @@ describe('01-papeis-ambiente.sql (hml e prod)', () => {
     expect(r.exitCode).toBe(0);
     expect(await papeis()).toEqual(antes);
     await comoPapel('sgo_app', async (c) => {
-      await expect(c.query('CREATE TABLE t (id int)')).rejects.toThrow(/permission denied/);
-      await expect(c.query('CREATE TEMP TABLE t (id int)')).rejects.toThrow(/permission denied/);
-      await expect(c.query('CREATE SCHEMA outro')).rejects.toThrow(/permission denied/);
-      await expect(c.query('SELECT 1 FROM pgboss.prova')).rejects.toThrow(/permission denied/);
+      await expect(c.query('CREATE TABLE t (id int)')).rejects.toThrow(/permission denied for schema public/);
+      await expect(c.query('CREATE TEMP TABLE t (id int)')).rejects.toThrow(/permission denied to create temporary tables in database/);
+      await expect(c.query('CREATE SCHEMA outro')).rejects.toThrow(/permission denied for database sgo/);
+      await expect(c.query('SELECT 1 FROM pgboss.prova')).rejects.toThrow(/permission denied for schema pgboss/);
     });
   });
 

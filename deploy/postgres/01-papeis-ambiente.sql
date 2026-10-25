@@ -11,6 +11,9 @@
 -- Não troca a senha de papel que já existe (avisa quais; troca: \password, no ambientes.md).
 -- Recusa, sem mudar nada, papel do SGO com membership ou configuração por banco: não há
 -- como saber se foi de propósito, e qualquer um deles pode dar a um papel o poder de outro.
+-- Os privilégios no banco sgo e nos schemas public e pgboss pertencem a este script: ele os
+-- refaz a cada execução, e nenhuma migration deve dá-los. Ele retira os dados aos papéis do
+-- SGO e ao PUBLIC, pelo dono do objeto; grants a papéis de fora do SGO não são mexidos.
 \set ON_ERROR_STOP on
 \set QUIET on
 SET client_min_messages = warning;
