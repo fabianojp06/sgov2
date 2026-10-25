@@ -93,6 +93,8 @@ jobs:
           name: origem-imagem
           path: origem/origem.json
           if-no-files-found: error
+          # Num re-run, o artefato da tentativa anterior do mesmo run é trocado, e não dá conflito.
+          overwrite: true
           # O máximo padrão do repositório. Depois disso, a tag precisa ir num commit mais novo
           # da main (docs/operacao/deploy.md).
           retention-days: 90
@@ -147,7 +149,7 @@ jobs:
           # artefato só pode ter sido gravado por esse run. A tag sha-<commit> não entra na conta.
           run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/imagem.yml/runs?event=push&branch=main&head_sha=$GITHUB_SHA&status=success&per_page=100" \
             --jq '[.workflow_runs[] | select(.path == ".github/workflows/imagem.yml" and .event == "push"
-                    and .head_branch == "main" and .head_sha == $ENV.GITHUB_SHA)] | sort_by(.run_attempt, .id) | last | .id // empty')
+                    and .head_branch == "main" and .head_sha == $ENV.GITHUB_SHA)] | sort_by(.id) | last | .id // empty')
           [[ "$run" =~ ^[0-9]+$ ]] || { echo "::error::Não há run com sucesso do imagem.yml no push na main para $GITHUB_SHA."; exit 1; }
           gh run download "$run" --repo "$GITHUB_REPOSITORY" --name origem-imagem --dir origem \
             || { echo "::error::O run $run não tem o artefato origem-imagem (expirou? docs/operacao/deploy.md)."; exit 1; }
