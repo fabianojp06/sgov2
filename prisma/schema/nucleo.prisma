@@ -41,3 +41,19 @@ model HistoricoOperacao {
   @@index([usuarioId, ocorridoEm])
   @@map("historico_operacao")
 }
+
+// Outbox transacional (US-010): a mensagem é gravada na transação da operação e publicada
+// na fila depois do commit, pelo worker. Transação desfeita não publica nada. Depois de
+// publicada, os dados são apagados da linha (C4: dado sensível não fica guardado).
+model OutboxMensagem {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo        String
+  dados       Json
+  criadoEm    DateTime  @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  publicadoEm DateTime? @map("publicado_em") @db.Timestamptz(6)
+  // Falhas de publicação: a mensagem não trava as outras; com 10 tentativas, para e fica visível.
+  tentativas  Int       @default(0)
+  ultimoErro  String?   @map("ultimo_erro")
+
+  @@map("outbox_mensagem")
+}
