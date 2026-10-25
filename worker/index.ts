@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
@@ -13,8 +13,12 @@ const FALHAS_PARA_SAIR = 6;
 // o worker ficaria vivo sem publicar nada. Bem acima de um lote normal.
 const LIMITE_CICLO_MS = 5 * 60_000;
 // Sinal de vida para o healthcheck da imagem (docker/saude.sh): gravado a cada tique depois do
-// primeiro ciclo com sucesso, enquanto nenhum ciclo passa do limite.
+// primeiro ciclo com sucesso, enquanto nenhum ciclo em curso passa de SINAL_ATE_MS.
 const ARQUIVO_VIVO = '/tmp/sgo-worker-vivo';
+const SINAL_ATE_MS = 60_000;
+// Encerramento com conexão presa (fila.parar, $disconnect): sai assim mesmo, antes do SIGKILL
+// do stop_grace_period de 10 s.
+const LIMITE_ENCERRAR_MS = 9_000;
 
 function marcarVivo(): void {
   try {
@@ -28,6 +32,8 @@ const resumo = (erro: unknown) =>
   erro instanceof Error ? { nome: erro.name, mensagem: erro.message, pilha: erro.stack } : String(erro);
 
 async function iniciar(): Promise<void> {
+  // Um sinal de vida de antes de um reinício do mesmo contêiner não vale para este processo.
+  rmSync(ARQUIVO_VIVO, { force: true });
   const env = lerEnv();
   if (!env.FILA_DATABASE_URL) throw new Error('FILA_DATABASE_URL não definida (veja o .env.example)');
 
@@ -43,7 +49,7 @@ async function iniciar(): Promise<void> {
       if (Date.now() - inicioCiclo > LIMITE_CICLO_MS) {
         console.error('[OUTBOX_TRAVADO]', { segundos: Math.round((Date.now() - inicioCiclo) / 1000) });
         void encerrar('publicação do outbox travada', 1, false);
-      } else if (publicouUmaVez) {
+      } else if (publicouUmaVez && Date.now() - inicioCiclo < SINAL_ATE_MS) {
         marcarVivo();
       }
       return;
@@ -71,6 +77,10 @@ async function iniciar(): Promise<void> {
     if (encerrando) return;
     encerrando = true;
     console.log(`worker: ${motivo}, encerrando`);
+    setTimeout(() => {
+      console.error('[WORKER_ENCERRAMENTO_FORCADO]', { motivo });
+      process.exit(codigo || 1);
+    }, LIMITE_ENCERRAR_MS).unref();
     clearInterval(temporizador);
     try {
       if (drenar) await emCurso; // drena a publicação em andamento antes de fechar as conexões

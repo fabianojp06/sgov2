@@ -235,7 +235,8 @@ jobs:
           codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
           [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de prod respondeu $codigo."; exit 1; }
           echo "Deploy de prod solicitado ao Easypanel (HTTP $codigo). Confira no Easypanel que a versão nova subiu."
-      # Depois do app, que é quem migra: o worker novo sobe com o schema novo.
+      # Pedido depois do app, que é quem migra. Os deploys do Easypanel são assíncronos: se o
+      # worker novo subir antes da migração, ele falha no outbox, sai e reinicia até o schema chegar.
       - name: Webhook do Easypanel (prod, worker)
         env:
           WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK_WORKER }}

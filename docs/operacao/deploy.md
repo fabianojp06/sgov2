@@ -38,7 +38,7 @@ O `homologacao` foi criado sozinho pelo primeiro run, sem restrição, e o `prod
    - O resumo do run é escrito pelo próprio workflow. Se uma tag for posta num commit de branch com o workflow alterado, esse workflow pode pular as checagens e escrever um resumo falso.
    - A sua aprovação é a barreira contra isso.
 2. **Se o resumo disser "há migration", ou se for a primeira release:** tire o snapshot da VPS no hPanel da Hostinger e só depois aprove (spec §4.3).
-3. **Depois de aprovar:** confira no Easypanel que os serviços `app` e `worker` de prod subiram a versão nova (o worker é chamado depois do app, que é quem migra). O webhook responder 2xx só quer dizer que o Easypanel recebeu o pedido. A conferência automática do deploy entra na Tarefa 6.
+3. **Depois de aprovar:** confira no Easypanel que os serviços `app` e `worker` de prod subiram a versão nova (o webhook do worker é chamado depois do do app, que é quem migra; se o worker subir antes da migração terminar, ele sai pelas falhas do outbox e reinicia até o schema chegar). O webhook responder 2xx só quer dizer que o Easypanel recebeu o pedido. A conferência automática do deploy entra na Tarefa 6.
 
 ## Migration presa (P3009)
 
@@ -74,6 +74,6 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
   - O worker roda o bundle `/app/worker/index.mjs`, gerado pelo `worker/build.mjs` com esbuild no build da imagem. O *source map* traz só arquivo e linha, sem o código-fonte. Ele também desce para o usuário `node` com `setpriv`.
   - Na partida, o log mostra `worker pronto` e, enquanto nenhum módulo registrar trabalhador, `[WORKER_SEM_TRABALHADORES]`.
   - Sem a `FILA_DATABASE_URL`, ele sai com o código 64. Com 6 falhas seguidas no outbox (banco fora, schema ainda não migrado), ou com um ciclo preso por mais de 5 minutos (`[OUTBOX_TRAVADO]`), ele sai sozinho, e o Easypanel o reinicia.
-  - **Healthcheck** (`docker/saude.sh`): no app, testa o `/login`. No worker, exige o sinal de vida `/tmp/sgo-worker-vivo` com menos de 60 s. Ele é gravado a cada tique depois do primeiro ciclo do outbox com sucesso. Por isso, uma versão nova do worker que não consegue publicar nunca fica saudável. Limite: com o outbox vazio, o pg-boss não é chamado, e uma conexão dele quebrada não aparece no *healthcheck*.
-  - O encerramento no SIGTERM cabe nos 10 s do `stop_grace_period` padrão quando não há mensagem sendo publicada.
+  - **Healthcheck** (`docker/saude.sh`): no app, testa o `/login`. No worker, exige o sinal de vida `/tmp/sgo-worker-vivo` com menos de 60 s. Ele é gravado a cada tique depois do primeiro ciclo do outbox com sucesso, e deixa de ser gravado com um ciclo em curso há mais de 60 s. Por isso, uma versão nova do worker que não consegue publicar nunca fica saudável. Limite: com o outbox vazio, o pg-boss não é chamado, e uma conexão dele quebrada não aparece no *healthcheck*.
+  - O encerramento no SIGTERM cabe nos 10 s do `stop_grace_period` padrão quando não há mensagem sendo publicada. Com uma conexão presa, o worker sai à força em 9 s (`[WORKER_ENCERRAMENTO_FORCADO]`).
 - Teste da imagem: `docker/testes/testar-imagem.sh <imagem>`, que roda no job `Imagem` do CI. O passo 8 sobe o worker, publica uma mensagem real do outbox no pg-boss e confere o encerramento no SIGTERM. O passo 9 prova que o *healthcheck* não fica verde sem servidor nem com o worker sem schema. Na VPS, rode com `nice -n 10`, um processo pesado por vez (D12).

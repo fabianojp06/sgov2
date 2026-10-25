@@ -189,8 +189,9 @@ psql_pg -d sgo_sem_schema -c "CREATE SCHEMA pgboss AUTHORIZATION sgo_fila"
 docker run -d --name "$PREFIXO-worker-cedo" --network "$REDE" "${LIMITES[@]}" \
   -e DATABASE_URL="$URL_APP/sgo_sem_schema" -e FILA_DATABASE_URL="$URL_FILA/sgo_sem_schema" "$IMAGEM" worker > /dev/null
 saida=$(timeout 150 docker wait "$PREFIXO-worker-cedo") || falhar "o worker sem schema não saiu em 150 s"
-[[ "$saida" != 0 ]] || falhar "o worker sem schema saiu com 0"
-grep -q 'OUTBOX_FALHOU' <<< "$(docker logs "$PREFIXO-worker-cedo" 2>&1)" || falhar "o worker sem schema saiu, mas não pelas falhas do outbox"
+[[ "$saida" == 1 ]] || falhar "o worker sem schema saiu com $saida (esperado 1)"
+grep -q 'falhas seguidas no outbox, encerrando' <<< "$(docker logs "$PREFIXO-worker-cedo" 2>&1)" \
+  || falhar "o worker sem schema saiu, mas não pelas falhas seguidas do outbox"
 [[ "$(saude "$PREFIXO-worker-cedo")" != healthy ]] || falhar "o worker sem schema chegou a ficar saudável"
 
 echo "Imagem aprovada."
