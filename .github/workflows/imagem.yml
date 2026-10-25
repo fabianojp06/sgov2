@@ -112,6 +112,20 @@ jobs:
           codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
           [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de hml respondeu $codigo."; exit 1; }
           echo "Deploy de hml solicitado ao Easypanel (HTTP $codigo). A confirmação de que subiu é manual até a Tarefa 6."
+      # O webhook do Easypanel é por serviço: o worker (mesma imagem, CMD worker) tem o dele.
+      - name: Webhook do Easypanel (hml, worker)
+        env:
+          WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK_WORKER }}
+          OBRIGATORIO: ${{ vars.HML_WEBHOOK_OBRIGATORIO }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            if [ "$OBRIGATORIO" = 1 ]; then echo "::error::Webhook do worker de hml não cadastrado."; exit 1; fi
+            echo "::warning::Deploy do worker de hml pendente: EASYPANEL_WEBHOOK_WORKER não cadastrado no environment homologacao (Tarefa 6)."
+            exit 0
+          fi
+          codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
+          [[ "$codigo" == 2?? ]] || { echo "::error::Webhook do worker de hml respondeu $codigo."; exit 1; }
+          echo "Deploy do worker de hml solicitado ao Easypanel (HTTP $codigo)."
 
   verificar-prod:
     # Sem environment: a aprovação de um environment acontece antes de qualquer passo do job, então
@@ -221,6 +235,16 @@ jobs:
           codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
           [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de prod respondeu $codigo."; exit 1; }
           echo "Deploy de prod solicitado ao Easypanel (HTTP $codigo). Confira no Easypanel que a versão nova subiu."
+      # Pedido depois do app, que é quem migra. Os deploys do Easypanel são assíncronos: se o
+      # worker novo subir antes da migração, ele falha no outbox, sai e reinicia até o schema chegar.
+      - name: Webhook do Easypanel (prod, worker)
+        env:
+          WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK_WORKER }}
+        run: |
+          [ -n "$WEBHOOK" ] || { echo "::error::Webhook do worker de prod não cadastrado no environment producao."; exit 1; }
+          codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
+          [[ "$codigo" == 2?? ]] || { echo "::error::Webhook do worker de prod respondeu $codigo."; exit 1; }
+          echo "Deploy do worker de prod solicitado ao Easypanel (HTTP $codigo)."
 
   teste:
     name: Publicar imagem de teste
@@ -288,3 +312,11 @@ jobs:
           codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
           [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de prod respondeu $codigo."; exit 1; }
           echo "Rollback de prod para $GITHUB_REF_NAME solicitado ao Easypanel (HTTP $codigo)."
+      - name: Webhook do Easypanel (prod, worker)
+        env:
+          WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK_WORKER }}
+        run: |
+          [ -n "$WEBHOOK" ] || { echo "::error::Webhook do worker de prod não cadastrado no environment producao."; exit 1; }
+          codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
+          [[ "$codigo" == 2?? ]] || { echo "::error::Webhook do worker de prod respondeu $codigo."; exit 1; }
+          echo "Rollback do worker de prod para $GITHUB_REF_NAME solicitado ao Easypanel (HTTP $codigo)."

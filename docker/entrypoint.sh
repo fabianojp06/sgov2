@@ -6,7 +6,7 @@
 #   migrar               só a migração (prisma migrate deploy), com o código de saída do Prisma
 #   resolver <migration> marca uma migration com falha como desfeita (prisma migrate resolve
 #                        --rolled-back), para o PO destravar o deploy (runbook, "migration presa")
-#   worker               ainda não disponível nesta versão da imagem (P3, Tarefa 4, Step 10)
+#   worker               sobe o worker (outbox e filas, US-010), sem migrar: quem migra é o app
 # Nada de set -x: as URLs do banco levam senha.
 set -euo pipefail
 
@@ -34,6 +34,20 @@ prisma() {
   (cd "$MIGRADOR_DIR" && ./node_modules/.bin/prisma "$@")
 }
 
+# Troca o processo pelo comando dado, sem a credencial do sgo_migrator (dono do DDL) e, como
+# root, já no APP_USUARIO sem capacidades.
+exec_sem_migrador() {
+  if [[ -n "$APP_USUARIO" && "$(id -u)" == 0 ]]; then
+    exec setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups \
+      --inh-caps=-all --bounding-set=-all --no-new-privs \
+      env -u MIGRATE_DATABASE_URL "$@"
+  fi
+  if [[ -n "$APP_USUARIO" ]]; then
+    echo "Aviso: o entrypoint não roda como root (uid $(id -u)); o processo e o PID 1 ficam com o mesmo usuário e a MIGRATE_DATABASE_URL fica legível em /proc/1/environ. Não use --user nesta imagem." >&2
+  fi
+  exec env -u MIGRATE_DATABASE_URL "$@"
+}
+
 migrar() {
   exigir_url_migracao
   # Sem nenhuma migration na imagem, o migrate deploy sairia 0 sem aplicar nada.
@@ -49,17 +63,7 @@ case "${1:-}" in
   app)
     migrar
     cd "$APP_DIR"
-    # O servidor não precisa da credencial do sgo_migrator (dono do DDL): sobe sem ela e, como
-    # root, desce para o APP_USUARIO sem capacidades.
-    if [[ -n "$APP_USUARIO" && "$(id -u)" == 0 ]]; then
-      exec setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups \
-        --inh-caps=-all --bounding-set=-all --no-new-privs \
-        env -u MIGRATE_DATABASE_URL node server.js
-    fi
-    if [[ -n "$APP_USUARIO" ]]; then
-      echo "Aviso: o entrypoint não roda como root (uid $(id -u)); o servidor e o PID 1 ficam com o mesmo usuário e a MIGRATE_DATABASE_URL fica legível em /proc/1/environ. Não use --user nesta imagem." >&2
-    fi
-    exec env -u MIGRATE_DATABASE_URL node server.js
+    exec_sem_migrador node server.js
     ;;
   migrar)
     migrar
@@ -70,8 +74,12 @@ case "${1:-}" in
     prisma migrate resolve --rolled-back "$2"
     ;;
   worker)
-    echo "O worker ainda não está nesta versão da imagem (P3, Tarefa 4, Step 10)." >&2
-    exit 64
+    # Não migra: com app e worker subindo juntos, só o app aplica as migrations. Enquanto o
+    # schema não chega, o publicador do outbox falha e o worker sai depois de algumas falhas
+    # seguidas (worker/index.ts), para o Easypanel reiniciá-lo.
+    [[ -n "${FILA_DATABASE_URL:-}" ]] || { echo "FILA_DATABASE_URL não definida: o worker não sobe sem a fila." >&2; exit 64; }
+    cd "$APP_DIR"
+    exec_sem_migrador node --enable-source-maps "$APP_DIR/worker/index.mjs"
     ;;
   *)
     uso

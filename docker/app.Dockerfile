@@ -1,5 +1,5 @@
-# Imagem do SGO (US-013 parte 2/3, plano do P3, Tarefa 4): app Next.js standalone + migrador.
-# O worker entra no Step 10, num PR próprio. Build:
+# Imagem do SGO (US-013, plano do P3, Tarefa 4): app Next.js standalone, worker (bundle do
+# esbuild, Step 10) e migrador. A mesma imagem sobe o app (CMD app) ou o worker (CMD worker). Build:
 #   docker build -f docker/app.Dockerfile -t sgo:local .
 # O BuildKit lê o docker/app.Dockerfile.dockerignore (ignore específico deste Dockerfile).
 
@@ -31,6 +31,9 @@ RUN npm ci --no-audit --no-fund
 FROM deps AS build
 COPY . .
 RUN npm run build
+# Worker num arquivo só, com as dependências dentro: a imagem final não tem node_modules
+# além do que o Next.js standalone rastreia.
+RUN node worker/build.mjs /opt/worker/index.mjs
 
 # Migrador autossuficiente: só prisma e zod, com lockfile próprio, sem as devDependencies do
 # projeto. Contorna a issue #165 (o postinstall quebra um npm ci --omit=dev).
@@ -51,15 +54,17 @@ WORKDIR /app
 # entrypoint nem as migrations. O Next.js grava só no cache.
 COPY --from=build /src/.next/standalone ./
 COPY --from=build /src/.next/static ./.next/static
+COPY --from=build /opt/worker /app/worker
 COPY --from=migrador /opt/migrador /opt/migrador
-COPY docker/entrypoint.sh /app/docker/entrypoint.sh
+COPY docker/entrypoint.sh docker/saude.sh /app/docker/
 # Sem USER node: o tini e o entrypoint rodam como root, e o servidor desce para o node com
 # setpriv no exec (entrypoint.sh). O ambiente do PID 1 fica fora do alcance do app.
 RUN mkdir -p /app/.next/cache && chown node:node /app/.next/cache
 EXPOSE 3000
-# A migração roda antes do servidor: o start-period cobre uma migration demorada.
+# A migração roda antes do servidor: o start-period cobre uma migration demorada. No worker,
+# o saude.sh responde pelo processo vivo.
 HEALTHCHECK --start-period=120s --interval=10s --timeout=5s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/login').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
+  CMD ["/app/docker/saude.sh"]
 # -g: o SIGTERM vai para o grupo de processos, inclusive o prisma da migração.
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/app/docker/entrypoint.sh"]
 CMD ["app"]

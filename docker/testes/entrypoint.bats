@@ -84,10 +84,37 @@ teardown() { rm -rf "$T"; }
   [[ "$output$stderr" != *"sgo_migrator:x@"* ]]
 }
 
-@test "worker: ainda não disponível nesta versão da imagem → código 64" {
+@test "worker sem FILA_DATABASE_URL → código 64, sem subir o node" {
   run "$SCRIPT" worker
   [ "$status" -eq 64 ]
-  [[ "$output" == *"worker"* ]]
+  [[ "$output" == *"FILA_DATABASE_URL"* ]]
+  ! grep -q '^node' "$REGISTRO"
+}
+
+@test "worker: não migra e sobe o bundle sem a credencial do migrador" {
+  FILA_DATABASE_URL="postgresql://sgo_fila:x@db:5432/sgo" run "$SCRIPT" worker
+  [ "$status" -eq 0 ]
+  # run !: um "! comando" no meio do teste não reprova (o bash ignora o set -e nele).
+  run ! grep -q '^prisma' "$REGISTRO"
+  grep -q "^node --enable-source-maps $T/worker/index.mjs\$" "$REGISTRO"
+  grep -q '^node-env MIGRATE_DATABASE_URL=<ausente>$' "$REGISTRO"
+}
+
+@test "worker como root: troca para o usuário node com setpriv" {
+  cat > "$T/bin/id" <<'SH'
+#!/bin/sh
+echo 0
+SH
+  cat > "$T/bin/setpriv" <<'SH'
+#!/bin/sh
+echo "setpriv $*" >> "$REGISTRO"
+while [ "$#" -gt 0 ] && [ "${1#--}" != "$1" ]; do shift; done
+exec "$@"
+SH
+  chmod +x "$T/bin/id" "$T/bin/setpriv"
+  APP_USUARIO=node FILA_DATABASE_URL="postgresql://sgo_fila:x@db:5432/sgo" run "$SCRIPT" worker
+  [ "$status" -eq 0 ]
+  grep -q "^setpriv --reuid=node --regid=node --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs env -u MIGRATE_DATABASE_URL node --enable-source-maps $T/worker/index.mjs\$" "$REGISTRO"
 }
 
 @test "app: o servidor sobe sem a credencial do migrador no ambiente" {
