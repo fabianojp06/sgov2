@@ -11,8 +11,10 @@ export type DadosModeloEmail = {
 };
 export type ModeloEmail = keyof DadosModeloEmail;
 
-// Modelo sensível = os dados levam senha, token ou equivalente. Para esses, a US-025 apaga os
-// dados do job depois do envio e também na falha definitiva (o outbox já apaga ao publicar).
+// Modelo sensível = os dados levam senha, token ou equivalente. O publicarOutbox (US-010, #181,
+// src/shared/filas/outbox.ts) já esvazia os dados da linha ao publicar; para esses modelos, a
+// US-025 apaga os dados do job depois do envio e na falha definitiva, e também os da linha do
+// outbox abandonada (MAX_TENTATIVAS_OUTBOX), que o publicarOutbox mantém.
 export const SENSIBILIDADE_MODELO = {
   'usuario.senha_inicial': true,
   'usuario.senha_redefinida': true,

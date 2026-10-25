@@ -16,8 +16,11 @@ import { validarDestinatario, type DadosModeloEmail, type Destinatario, type Mod
  *   instituição vem de `instituicao.nome_exibicao` na renderização, nunca fixo no texto;
  * - o worker envia pelo SMTP externo, com até 5 tentativas, passando o destinatário estruturado
  *   (`{ name, address }`), nunca uma string montada;
- * - modelos em `MODELOS_SENSIVEIS`: os dados são apagados do job depois do envio e também na
- *   falha definitiva. O reenvio exige gerar outra senha (redefinição). Recomendação registrada
+ * - modelos em `MODELOS_SENSIVEIS`: o `publicarOutbox` (#181) já esvazia os dados da linha do
+ *   outbox ao publicar; a US-025 apaga os dados do job depois do envio e na falha definitiva, e
+ *   os da linha do outbox abandonada (`MAX_TENTATIVAS_OUTBOX`), que hoje ficam. Mudar o
+ *   `publicarOutbox` para isso é da frente A (`src/shared/filas/`): por pedido ou com a label
+ *   `toca-outra-frente`. O reenvio exige gerar outra senha (redefinição). Recomendação registrada
  *   no PR #184: cifrar esses dados antes do outbox, com a chave só nas variáveis do Easypanel,
  *   porque o WAL e os backups guardam o que passou pelo banco;
  * - a falha definitiva fica visível: registro no Histórico de Operações (tipo SISTEMA) com o
