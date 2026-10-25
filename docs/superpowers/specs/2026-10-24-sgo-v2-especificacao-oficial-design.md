@@ -3,7 +3,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificação Oficial de Desenvolvimento (design spec) |
-| Versão | 1.3 — 25/10/2026 |
+| Versão | 1.4 — 25/10/2026 |
 | Status | Vigente para desenvolvimento. Decisões marcadas **[PROVISÓRIA]** valem até validação do SME indicado |
 | Elaboração | Revisão técnica conduzida com Claude a pedido de Fabiano Garcia (BA/PO — CTCEA/GIA) |
 | Repositório | `fabianojp06/sgov2` |
@@ -17,6 +17,7 @@
 | 1.1 | 24/10/2026 | Rodada de revisão com o PO (R1–R15): trilha 2027 como primeiro plano (§3.3); convivência do dev com a produção na mesma VPS (D12); motor único de custo de pessoal (C33); cargo em texto livre na trilha (C34); receita de rateio digitada na transição (C35); perfil Diretoria Executiva aprova o orçamento da Adm. Central (C36); prazos dos GAPs urgentes; correções de redação |
 | 1.2 | 24/10/2026 | Rotina de code review em três camadas (§12.12), pedida pelo PO |
 | 1.3 | 25/10/2026 | §12.3: `src/shared/{config,db,filas}/` e `tests/integracao/` passam a ser da frente A; testes de integração dos módulos ficam junto do código, com o dono do módulo (decisão do PO no fim do período de fundação) |
+| 1.4 | 25/10/2026 | §12.3: `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`) é da frente A |
 
 ---
 
@@ -765,6 +766,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 | --- | --- |
 | `src/shared/{kernel,audit,unidade,authz,totalizer,config,db,filas}/` e `tests/integracao/` (helper de banco efêmero) | A |
 | `src/modules/{aut,adm,orc,apr}/` e `prisma/schema/{aut,adm,orc,apr}.prisma` | A |
+| `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`: Histórico de Operações, unidade, filas) | A |
 | `src/middleware.ts` | A |
 | `src/shared/ia/` | B |
 | `src/modules/{ger,cad,rel,int}/` e `prisma/schema/{cad,rel,int}.prisma` | B |

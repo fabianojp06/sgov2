@@ -83,7 +83,7 @@ describe('verificarFrentes', () => {
   });
 
   // Núcleo de configuração, banco e filas e o helper de integração são da frente A (spec §12.3).
-  it.each(['src/shared/config/env.ts', 'src/shared/db/prisma.ts', 'src/shared/filas/index.ts', 'tests/integracao/banco.ts', 'tests/integracao/apoio/x.ts'])(
+  it.each(['src/shared/config/env.ts', 'src/shared/db/prisma.ts', 'src/shared/filas/index.ts', 'tests/integracao/banco.ts', 'tests/integracao/apoio/x.ts', 'prisma/schema/nucleo.prisma'])(
     '%s é da frente A',
     (arquivo) => {
       expect(verificarFrentes({ arquivos: [arquivo], labels: [], frente: 'A', mapa })).toEqual([]);

@@ -81,7 +81,7 @@
 - O progresso da execução do plano fica em `.superpowers/sdd/<plano>/progress.md` (fora do git).
 
 **Repositório (documentação)**
-- Spec oficial **versão 1.3** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3). Status: aguardando a aprovação final do PO.
+- Spec oficial **versão 1.4** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3; 1.4: `prisma/schema/nucleo.prisma` da frente A). Status: aguardando a aprovação final do PO.
 - Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 122 histórias (US-001 a US-122), 22 épicos e releases R0 a R9. Total de 1294 h (1557 h com contingência). O gerador fica em `docs/backlog/fonte/`.
 - Planilha-modelo do orçamento 2027, com o gerador em `docs/modelos/fonte/`.
 - Scripts de sincronização com o GitHub em `docs/backlog/fonte/github/`.
@@ -106,7 +106,7 @@
 | | Frente A | Frente B |
 | --- | --- | --- |
 | Conta | conta 1 | conta 2 |
-| Diretório | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` (worktree, criada após o PR de fim da fundação) |
+| Diretório | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` (worktree) |
 | Início | `claude` | `CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude` |
 | tmux | `tmux new -s sgo-a` | `tmux new -s sgo-b` |
 | Épicos | EP00, EP04, EP05, EP09–EP16, EP18 | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
@@ -131,7 +131,7 @@
 - [x] Na US-002, criar o `CLAUDE.md` com o resumo das regras da seção 2 e da spec §12, além dos hooks: bloquear `prisma migrate reset`/`db push`/`migrate diff` fora do dev, avisar se aparecer "CTCEA" e allowlist de comandos.
 - [x] Na US-001, criar `.github/frentes.yml` (mapa de propriedade da spec §12.3).
 - [x] Texto de abertura da primeira sessão da frente B (25/10).
-- [ ] Frente A: criar a worktree `/root/sistemas/sgo-b` depois do merge do PR de fim da fundação.
+- [x] Worktree `/root/sistemas/sgo-b` criada a partir da `main` (25/10, após o PR #169).
 - [ ] PO: abrir a primeira sessão da frente B (`cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude`, `/login` com a conta 2) e colar `docs/backlog/abertura-frente-b.md`.
 - [ ] Autenticar os MCPs context7 e hostinger (`/mcp`), se forem usados.
 
