@@ -26,6 +26,9 @@ const estado: Estado = (global_[CHAVE] ??= {
 // Em produção, o provedor é configurado uma única vez (pelo módulo aut, no P5): trocá-lo
 // depois desligaria a autorização. Nos testes, a troca é livre.
 export function configurarProvedorContexto(p: ProvedorContexto): void {
+  // O módulo do aut pode ser avaliado em mais de uma camada do Next: registrar de novo o
+  // mesmo provedor é inofensivo; trocar por outro é recusado.
+  if (estado.configurado && estado.provedor === p) return;
   if (estado.configurado && process.env.NODE_ENV === 'production') {
     throw new Error('ProvedorContexto já configurado: a autorização não pode ser trocada em produção');
   }

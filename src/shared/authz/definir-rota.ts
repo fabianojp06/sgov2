@@ -16,6 +16,8 @@ export type ContextoRota = { params: Promise<unknown> };
 
 const json = (status: number, mensagem: string) => Response.json({ erros: erroGeral(mensagem) }, { status });
 
+const MENSAGEM_ORIGEM = 'Requisição recusada: origem inválida.';
+
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 // CSRF: Server Actions já têm a checagem de Origin do Next; Route Handlers não. Métodos que
@@ -39,7 +41,17 @@ export function definirRota(
   executar: (req: Request, ctx: ContextoRequisicao, rota?: ContextoRota) => Promise<Response>,
 ): (req: Request, rota?: ContextoRota) => Promise<Response> {
   return async (req, rota) => {
-    if (!mesmaOrigem(req)) return json(403, MENSAGEM_PERMISSAO);
+    if (!mesmaOrigem(req)) {
+      // Pode ser ataque ou proxy mal configurado (Host reescrito): o log ajuda a distinguir.
+      console.warn('[AUTHZ_ORIGEM_RECUSADA]', {
+        funcionalidade: cfg.funcionalidade,
+        metodo: req.method,
+        secFetchSite: req.headers.get('sec-fetch-site'),
+        origin: req.headers.get('origin'),
+        host: new URL(req.url).host,
+      });
+      return json(403, MENSAGEM_ORIGEM);
+    }
     let ctx: ContextoRequisicao | null = null;
     try {
       const autorizacao = await autorizar(cfg.funcionalidade, cfg.acao);

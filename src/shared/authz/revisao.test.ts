@@ -183,3 +183,67 @@ describe('configuração fora da API pública', () => {
     expect(Object.keys(publico)).not.toContain('configurarAuditorNegacao');
   });
 });
+
+describe('revisão 12.12, rodada 2', () => {
+  it('CSRF: log com marcador e mensagem própria', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const rota = definirRota({ funcionalidade: 'usuarios', acao: 'incluir' }, async () => new Response('ok'));
+    const r = await rota(new Request('http://sgo.local/api', { method: 'POST', headers: { origin: 'https://x.example' } }));
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Requisição recusada: origem inválida.' }] });
+    expect(JSON.stringify(aviso.mock.calls)).toContain('[AUTHZ_ORIGEM_RECUSADA]');
+    expect(JSON.stringify(aviso.mock.calls)).toContain('https://x.example');
+  });
+
+  it('negações suprimidas na janela são contadas e aparecem na próxima auditoria', async () => {
+    vi.useFakeTimers();
+    try {
+      const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'excluir', entrada: z.unknown() }, async () => ok(1));
+      for (let i = 0; i < 4; i++) await acao({});
+      expect(negacoes).toHaveLength(1);
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await acao({});
+      expect(negacoes.map((n) => n.descricao)).toEqual([
+        'Acesso negado à funcionalidade usuarios (excluir)',
+        'Acesso negado à funcionalidade usuarios (excluir); 3 tentativas suprimidas desde a última auditoria',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('se a auditoria da negação falha, a próxima tentativa grava (não fica marcada)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let falhar = true;
+    configurarAuditorNegacao(async (e) => {
+      if (falhar) throw new Error('banco fora');
+      negacoes.push(e);
+    });
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'excluir', entrada: z.unknown() }, async () => ok(1));
+    await acao({});
+    falhar = false;
+    await acao({});
+    expect(negacoes).toHaveLength(1);
+  });
+
+  it('em produção, configurar de novo com o mesmo provedor é aceito; com outro, lança', () => {
+    const provedor = { obter: async () => ctx };
+    configurarProvedorContexto(provedor);
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(() => configurarProvedorContexto(provedor)).not.toThrow();
+      expect(() => configurarProvedorContexto({ obter: async () => ctx })).toThrow(/já configurado/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('log de erro inesperado preserva a causa', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada: z.unknown() }, async () => {
+      throw new Error('fachada', { cause: new Error('causa real') });
+    });
+    await acao({});
+    expect(JSON.stringify(log.mock.calls)).toContain('causa real');
+  });
+});
