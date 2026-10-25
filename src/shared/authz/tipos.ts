@@ -11,6 +11,8 @@ export type ContextoRequisicao = Omit<ContextoAuditoria, 'usuarioId' | 'sessaoUi
   usuarioId: string;
   sessaoUid: string;
   permissoes: ReadonlySet<string>;
+  // Sessão com troca de senha obrigatória (P5): só a troca de senha e o logoff são permitidos.
+  trocaSenhaPendente?: boolean;
 };
 
 export interface ProvedorContexto {
