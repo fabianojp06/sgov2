@@ -12,17 +12,26 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    # "shell: bash" explícito liga o -o pipefail.
+    shell: bash
+
+env:
+  NODE_OPTIONS: --max-old-space-size=1536
+  NEXT_TELEMETRY_DISABLED: '1'
+
+# Os nomes dos jobs são usados como checks obrigatórios na proteção da main: não renomear.
 jobs:
   verificar:
     name: Lint, tipos, testes e build
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      NODE_OPTIONS: --max-old-space-size=1536
-      NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -32,3 +41,82 @@ jobs:
       - run: npm test
       - run: npm run test:arq
       - run: npm run build
+
+  integracao:
+    name: Testes de integração
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Testcontainers sobre o Docker do runner; o vitest.config.ts já desliga o Ryuk (D12).
+      - run: npm run test:int
+
+  migrations:
+    # Spec §12.7 item 4: aplica todas as migrations num banco efêmero do CI e compara com o schema.
+    # Nunca contra hml ou prod: este job não usa nenhum secret de banco.
+    name: Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a # pg16
+        env:
+          # Banco efêmero e sem dados, que só existe durante o job: sem senha nenhuma no repositório.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        # Só em 127.0.0.1 do runner hospedado pelo GitHub (este job não deve rodar em runner próprio
+        # na VPS: seria um Postgres sem senha, na mesma porta do dev da frente B).
+        ports:
+          - 127.0.0.1:56432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      MIGRATE_DATABASE_URL: postgresql://sgo_migrator:sgo_migrator@localhost:56432/sgo_teste
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Conferir que o banco é o efêmero do CI
+        run: |
+          destino=$(node -e 'const u = new URL(process.env.MIGRATE_DATABASE_URL); console.log(`${u.hostname}:${u.port}`)')
+          echo "Banco das migrations: $destino"
+          if [ "$destino" != "localhost:56432" ]; then
+            echo "::error::MIGRATE_DATABASE_URL fora do banco efêmero do CI ($destino)."
+            exit 1
+          fi
+      - name: Papéis de banco
+        run: psql postgresql://postgres@localhost:56432/postgres -v ON_ERROR_STOP=1 -f docker/postgres/init/01-papeis.sql
+      - run: npm ci
+      - name: Aplicar as migrations
+        run: npm run db:deploy
+      - name: Comparar o banco migrado com o schema
+        # --exit-code: 0 sem diferença, 2 com diferença (reprova), 1 erro.
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
+
+  scripts-operacao:
+    name: Scripts de operação
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Instalar bats e shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq bats shellcheck
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
+      - name: bats
+        run: git ls-files '*.bats' | xargs -r -n1 dirname | sort -u | xargs -r bats

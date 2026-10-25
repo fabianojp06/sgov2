@@ -1,0 +1,77 @@
+name: PR
+
+# Arquivo próprio, separado do ci.yml: mudar label ou corpo do PR roda só esta verificação,
+# sem refazer build e testes (spec §12.8).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # "shell: bash" explícito liga o -o pipefail: um git diff que falhe reprova o passo.
+    shell: bash
+
+# O nome do job é usado como check obrigatório na proteção da main: não renomear.
+jobs:
+  fronteira:
+    name: Fronteira de frente
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Dados do PR só por env: nunca interpolados dentro de run.
+      LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+      CORPO: ${{ github.event.pull_request.body }}
+      BASE: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Labels do PR
+        id: labels
+        run: |
+          # As labels seguem separadas por vírgula para os scripts: uma label com vírgula viraria duas,
+          # e uma com quebra de linha escreveria outras chaves no GITHUB_OUTPUT.
+          if jq -e 'any(.[]; test("[,\n\r]"))' <<< "$LABELS_JSON" > /dev/null; then
+            echo "::error::Há label com vírgula ou quebra de linha no nome; renomeie a label."
+            exit 1
+          fi
+          labels=$(jq -r 'join(",")' <<< "$LABELS_JSON")
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+      - name: Frente do PR
+        id: frente
+        env:
+          LABELS: ${{ steps.labels.outputs.labels }}
+        # Atribuição separada do echo: dentro do echo, a falha do script não derrubaria o passo.
+        run: |
+          frente=$(ops/ci/frente-do-pr.sh "$LABELS")
+          echo "frente=$frente" >> "$GITHUB_OUTPUT"
+      - name: Vínculo com issue
+        run: printf '%s' "$CORPO" | ops/ci/vinculo-pr.sh
+      - run: npm ci
+      - name: Fronteira, PR compartilhado puro e migration única
+        env:
+          FRENTE: ${{ steps.frente.outputs.frente }}
+          LABELS: ${{ steps.labels.outputs.labels }}
+        run: |
+          # O mapa vem da base, não do PR: uma mudança no frentes.yml só vale depois do merge.
+          git show "origin/$BASE:.github/frentes.yml" > "$RUNNER_TEMP/frentes.yml"
+          # --no-renames: renomeação conta como remoção + criação, e as duas pontas são verificadas.
+          git diff --name-only --no-renames "origin/$BASE...HEAD" > "$RUNNER_TEMP/arquivos.txt"
+          if [ ! -s "$RUNNER_TEMP/arquivos.txt" ]; then
+            echo "::error::Lista de arquivos do PR vazia: a verificação não pode passar sem arquivos."
+            exit 1
+          fi
+          npx tsx scripts/frentes/verificar.ts --frente "$FRENTE" --labels "$LABELS" \
+            --mapa "$RUNNER_TEMP/frentes.yml" < "$RUNNER_TEMP/arquivos.txt"
