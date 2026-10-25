@@ -41,12 +41,14 @@ jobs:
       - name: Labels do PR
         id: labels
         run: |
-          # As labels seguem separadas por vírgula para os scripts; uma label com vírgula viraria duas.
-          if jq -e 'any(.[]; contains(","))' <<< "$LABELS_JSON" > /dev/null; then
-            echo "::error::Há label com vírgula no nome; renomeie a label."
+          # As labels seguem separadas por vírgula para os scripts: uma label com vírgula viraria duas,
+          # e uma com quebra de linha escreveria outras chaves no GITHUB_OUTPUT.
+          if jq -e 'any(.[]; test("[,\n\r]"))' <<< "$LABELS_JSON" > /dev/null; then
+            echo "::error::Há label com vírgula ou quebra de linha no nome; renomeie a label."
             exit 1
           fi
-          echo "labels=$(jq -r 'join(",")' <<< "$LABELS_JSON")" >> "$GITHUB_OUTPUT"
+          labels=$(jq -r 'join(",")' <<< "$LABELS_JSON")
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
       - name: Frente do PR
         id: frente
         env:
