@@ -92,7 +92,8 @@ grep -q 'P3018' <<< "$log_ruim" || falhar "o app saiu, mas não pela migration q
 
 echo "6. app com as migrations boas → healthcheck da imagem saudável e /login 200"
 docker run -d --name "$PREFIXO-app" --network "$REDE" "${LIMITES[@]}" \
-  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e DATABASE_URL="$URL_APP/sgo_teste" "$IMAGEM" app > /dev/null
+  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e DATABASE_URL="$URL_APP/sgo_teste" \
+  -e URL_PUBLICA="http://127.0.0.1:3000" "$IMAGEM" app > /dev/null
 estado=starting
 for _ in $(seq 1 60); do
   estado=$(saude "$PREFIXO-app")
