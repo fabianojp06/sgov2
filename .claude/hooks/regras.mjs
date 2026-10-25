@@ -181,8 +181,9 @@ const TAG_RELEASE = /^(?:\+?(?:[^:]*:)?(?:refs\/tags\/)?)v(?:\d|\$|$)/;
 // Aprovação do environment e push automático de tags: bloqueados pelo texto, em qualquer comando
 // (gh api, graphql, curl, node -e...), porque a sessão não precisa deles nem para ler.
 const TEXTO_DEPLOY_PROD = /pending_deployments|approveDeployments|deployment_protection_rule|followTags/i;
-// git tag em modo de consulta (não cria tag).
-const TAG_CONSULTA = /^(?:-l|--list|-d|--delete|-v|--verify|-n\d*|--contains|--no-contains|--merged|--no-merged|--points-at|--sort(?:=.*)?|--format(?:=.*)?|--column(?:=.*)?|--no-column)$/;
+// Opções que põem o git tag em modo de consulta ou remoção (não criam tag). --sort, --format e
+// --column não entram: sozinhos, não impedem a criação (git tag --format=x v1 cria a tag).
+const TAG_CONSULTA = /^(?:-l|--list|-d|--delete|-v|--verify|-n\d*|--contains|--no-contains|--merged|--no-merged|--points-at)$/;
 
 // Subcomando do git e os argumentos dele, pulando as opções globais (-C caminho, -c chave=valor...).
 function subcomandoGit(tokens) {
@@ -244,7 +245,7 @@ function avaliarDeployProd(tokens) {
       const imagemSemTeste = tokens.some((t) => /imagem\.ya?ml$/.test(t)) && !tokens.includes('acao=teste');
       if (rollback || imagemSemTeste) return MOTIVO_DEPLOY_PROD;
     }
-    if (grupo === 'api' && ghApiEscreve(tokens) && tokens.some((t) => /\/dispatches\b|refs\/tags\/v|^tag_name=v/.test(t))) {
+    if (grupo === 'api' && ghApiEscreve(tokens) && tokens.some((t) => /\/dispatches\b|refs\/tags\/v|tag_name=v/.test(t))) {
       return MOTIVO_DEPLOY_PROD;
     }
   }
