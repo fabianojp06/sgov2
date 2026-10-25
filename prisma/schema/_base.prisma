@@ -1,0 +1,11 @@
+// Base do schema multi-arquivo (spec §12.5: arquivo compartilhado).
+// Cada módulo tem o seu <modulo>.prisma nesta pasta.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
