@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import { obterContexto } from './contexto';
 import { exigir } from './exigir';
 import { registrarNegacao } from './guarda';
@@ -8,6 +9,9 @@ import { ErroPermissao, type Acao, type ContextoRequisicao } from './tipos';
 // arquitetura impõe. A guarda do layout não basta: o App Router não renderiza o layout de novo na
 // navegação entre páginas irmãs.
 export async function exigirPagina(funcionalidade: string, acao: Acao): Promise<ContextoRequisicao> {
+  // A página depende da sessão: nunca é pré-renderizada no build (sem o provedor, o build gravaria
+  // um redirect para /login como página estática).
+  await connection();
   const ctx = await obterContexto();
   if (!ctx) redirect('/login');
   if (ctx.trocaSenhaPendente && funcionalidade !== 'aut.senha') redirect('/troca-senha');
