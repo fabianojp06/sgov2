@@ -79,6 +79,7 @@ model Usuario {
   criadoEm              DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm          DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
   perfis                UsuarioPerfil[]
+  sessoes               SessaoUsuario[]
 
   @@map("usuario")
 }

@@ -15,7 +15,9 @@ export function hashSenha(senha: string): Promise<string> {
 export async function conferirSenha(hashGravado: string, senha: string): Promise<boolean> {
   try {
     return await verify(hashGravado, senha.normalize('NFC'));
-  } catch {
+  } catch (erro) {
+    // Hash corrompido ou falha do Argon2: conta como senha errada, mas deixa rastro (sem a senha).
+    console.error('[SENHA_HASH_INVALIDO]', { nome: erro instanceof Error ? erro.name : typeof erro });
     return false;
   }
 }

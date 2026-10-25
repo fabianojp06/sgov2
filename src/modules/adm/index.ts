@@ -2,6 +2,7 @@
 export { MODULOS_MENU, type CodigoModuloMenu, type DeclaracaoFuncionalidade } from './application/catalogo';
 export { obterConfiguracaoAcesso, type ConfiguracaoAcesso } from './application/configuracao';
 export { instalarFuncionalidades } from './application/instalar-funcionalidades';
+export { registrarFalhaLogin, travarUsuarioParaLogin, zerarFalhasLogin, type UsuarioParaLogin } from './application/login';
 export { normalizarLogin } from './domain/login';
 export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { validarSenha, type PoliticaSenha } from './domain/politica-senha';
