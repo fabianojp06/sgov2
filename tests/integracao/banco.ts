@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
@@ -29,21 +29,41 @@ class PostgresLocal extends PostgreSqlContainer {
 
 const raiz = process.cwd();
 
-// Limitação: o 01-papeis.sql é executado comando a comando no banco padrão do contêiner,
-// separado por ";". Não suporta meta-comandos do psql (\connect) nem corpos $$...$$;
-// a Tarefa 9 (schema pgboss) precisa adaptar este helper.
+// Aplica os scripts de docker/postgres/init em ordem, como o entrypoint do Postgres faz.
+// Cada comando separado por ";"; "\connect banco" troca de banco. Não suporta corpos $$...$$.
 async function aplicarPapeis(urlAdmin: string): Promise<void> {
-  const admin = new pg.Client({ connectionString: urlAdmin });
+  const dir = join(raiz, 'docker/postgres/init');
+  const scripts = readdirSync(dir).filter((n) => n.endsWith('.sql')).sort();
+  let admin = new pg.Client({ connectionString: urlAdmin });
   await admin.connect();
   try {
-    // Um comando por vez: CREATE DATABASE não roda dentro do bloco implícito de um script.
-    const script = readFileSync(join(raiz, 'docker/postgres/init/01-papeis.sql'), 'utf8');
-    const comandos = script.replace(/^--.*$/gm, '').split(';').map((c) => c.trim()).filter(Boolean);
-    for (const comando of comandos) {
-      try {
-        await admin.query(comando);
-      } catch (erro) {
-        throw new Error(`01-papeis.sql falhou em: ${comando.slice(0, 60)}`, { cause: erro });
+    for (const nome of scripts) {
+      const linhas = readFileSync(join(dir, nome), 'utf8').replace(/^--.*$/gm, '').split('\n');
+      let pendente = '';
+      for (const linha of linhas) {
+        const troca = /^\\connect\s+(\w+)\s*$/.exec(linha.trim());
+        if (troca) {
+          await admin.end();
+          const url = new URL(urlAdmin);
+          url.pathname = `/${troca[1]}`;
+          admin = new pg.Client({ connectionString: url.toString() });
+          await admin.connect();
+          continue;
+        }
+        pendente += `${linha}\n`;
+        let fim = pendente.indexOf(';');
+        while (fim >= 0) {
+          const comando = pendente.slice(0, fim).trim();
+          pendente = pendente.slice(fim + 1);
+          if (comando) {
+            try {
+              await admin.query(comando);
+            } catch (erro) {
+              throw new Error(`${nome} falhou em: ${comando.slice(0, 60)}`, { cause: erro });
+            }
+          }
+          fim = pendente.indexOf(';');
+        }
       }
     }
   } finally {

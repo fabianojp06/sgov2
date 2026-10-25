@@ -5,6 +5,8 @@ CREATE TABLE "outbox_mensagem" (
     "dados" JSONB NOT NULL,
     "criado_em" TIMESTAMPTZ(6) NOT NULL DEFAULT clock_timestamp(),
     "publicado_em" TIMESTAMPTZ(6),
+    "tentativas" INTEGER NOT NULL DEFAULT 0,
+    "ultimo_erro" TEXT,
 
     CONSTRAINT "outbox_mensagem_pkey" PRIMARY KEY ("id")
 );
