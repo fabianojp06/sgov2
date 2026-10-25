@@ -23,7 +23,7 @@
   - nos *secrets* de *environment* do GitHub, `homologacao` (só a `main`) e `producao` (só tags `v*`, com aprovação do PO);
   - para o teste de restauração, num arquivo do host legível só por root.
   Nenhum *secret* fica no nível do repositório. Assim, um workflow alterado numa branch não consegue lê-los.
-- **Imagem de prod fora do alcance do `GITHUB_TOKEN`:** um workflow alterado numa branch pode pedir `packages: write` e sobrescrever tags no GHCR. Por isso, o prod puxa de um pacote separado, `ghcr.io/fabianojp06/sgov2-prod`, em que o repositório tem só leitura (*Manage Actions access*). A escrita nesse pacote usa um token guardado só no *environment* `producao` (`GHCR_PROD_TOKEN`). O pacote `sgov2` (hml e `sha-*`) continua gravável pelo `GITHUB_TOKEN`; esse risco fica aceito para hml.
+- **Imagem de prod fora do alcance do `GITHUB_TOKEN`:** um workflow alterado numa branch pode pedir `packages: write` e sobrescrever tags no GHCR. Por isso, o prod puxa de um pacote separado, `ghcr.io/fabianojp06/sgov2-prod`, em que o repositório tem só leitura (*Manage Actions access*). A escrita nesse pacote usa um token guardado só no *environment* `producao` (`GHCR_PROD_TOKEN`). O pacote `sgov2` (hml e `sha-*`) continua gravável pelo `GITHUB_TOKEN`; esse risco fica aceito para hml. Para que ele não chegue ao prod, só passa para `sgov2-prod` o *digest* com atestação de origem do `imagem.yml` na `main` (Tarefa 4, Step 7).
 - **Banco:** `migrate diff` só contra o banco efêmero do CI ou o dev local (`127.0.0.1`/`localhost`, portas 55432/56432), nunca contra hml ou prod (spec §12.7 item 4). Em hml e prod, só `prisma migrate deploy` pelo entrypoint do contêiner, e `migrate resolve` pelo PO, seguindo o runbook.
 - **Processo pesado (D12):** build de imagem e `test:int` rodam no GitHub Actions. Na VPS, só com a frente A sem build ou `test:int` rodando, com `nice -n 10`, um por vez. Todo contêiner que a frente B sobe na VPS fora do Easypanel (restauração, testes) tem `mem_limit`, `oom_score_adj` ≥ 500 e porta só em `127.0.0.1`.
 - **Propriedade (spec §12.3, `.github/frentes.yml`):** este bloco só cria arquivos em `.github/workflows/`, `docker/`, `deploy/`, `ops/`, `docs/operacao/` e `src/modules/ger/`. O Dockerfile fica em `docker/app.Dockerfile`, com o `docker/app.Dockerfile.dockerignore` ao lado (o BuildKit lê o *ignore* específico do Dockerfile). Assim nenhum arquivo cai como compartilhado por estar fora do mapa (um `.dockerignore` na raiz cairia). Dependência nova (ExcelJS, TanStack, compilador do worker) e mudança no `vitest.config.ts` ou em `.claude/` só em PR `compartilhado`.
@@ -37,12 +37,12 @@
 - **Marca neutra:** nada de "CTCEA" em `docker/`, `deploy/`, `ops/`, modelos de e-mail nem nomes de imagem. O nome exibido vem de `instituicao.nome_exibicao`.
 - Textos de interface, logs e mensagens de CI em português do Brasil.
 
-## Decisões pedidas ao PO neste plano
+## Decisões do PO neste plano (25/10/2026, todas pela recomendação)
 
-1. **`Refs #n` aceito pela verificação de vínculo.** A §12.8 fala só em `Closes #n`. O plano aceita também `Refs #n`, para PRs parciais e de contrato. Se aprovar, registrar na spec (v1.4).
-2. **Aprovação manual do deploy em prod** (*environment* `producao` com o PO como revisor). Recomendado: sempre, porque é nesse momento que o PO confirma o snapshot da Hostinger exigido pela §4.3 quando há migration.
-3. **Local do teste do SQL de papéis** (Tarefa 5). Recomendado: um PR `compartilhado` que acrescenta `deploy/**/*.int.test.ts` ao projeto `integracao` do `vitest.config.ts`.
-4. **Trava de prod no hook das sessões** (PR `compartilhado` em `.claude/hooks/`). Como o PO e as sessões usam o mesmo usuário do GitHub, a aprovação do *environment* não barra uma sessão. A trava bloquearia:
+1. **`Refs #n` aceito pela verificação de vínculo.** A §12.8 fala só em `Closes #n`. O plano aceita também `Refs #n`, para PRs parciais e de contrato. Registrar na spec (v1.4) no próximo PR `compartilhado` de spec.
+2. **Aprovação manual do deploy em prod, sempre** (*environment* `producao` com o PO como revisor). É nesse momento que o PO confirma o snapshot da Hostinger exigido pela §4.3 quando há migration.
+3. **Teste do SQL de papéis em `deploy/`** (Tarefa 5): um PR `compartilhado` acrescenta `deploy/**/*.int.test.ts` ao projeto `integracao` do `vitest.config.ts`.
+4. **Trava de prod no hook das sessões** (PR `compartilhado` em `.claude/hooks/`, antes da Tarefa 4 ir para a `main`). Como o PO e as sessões usam o mesmo usuário do GitHub, a aprovação do *environment* não barra uma sessão. A trava bloqueia:
    - `git tag v*`, `git push --tags`, `git push origin v*` e `gh release create`, porque a tag dispara o prod;
    - `gh api …/pending_deployments`, que aprovaria o *environment*;
    - `gh workflow run` com `rollback`.
@@ -64,7 +64,7 @@
    Teste no CI: migration quebrada → código ≠ 0 e nenhuma resposta HTTP. Prova em hml na Tarefa 6, com uma tag de teste própria, sem tocar a tag `hml`.
 3. **Prod com imagem que não passou por hml, ou disparado sem o PO.** Riscos: uma tag reconstruindo a imagem, uma tag num commit fora da `main`, ou uma sessão criando a tag.
    Esperado:
-   - o job de prod só copia `sgov2:sha-<commit>` já existente para `sgov2-prod` (`docker buildx imagetools create`), sem reconstruir;
+   - o job de prod só copia para `sgov2-prod`, sem reconstruir e por *digest*, a imagem `sgov2:sha-<commit>` cuja atestação de origem confirma o `imagem.yml` em `refs/heads/main` daquele commit;
    - reprova se a imagem não existir ou se o commit não for ancestral de `origin/main`;
    - roda no *environment* `producao` com aprovação do PO, depois de um job sem *environment* que mostra as checagens (Tarefa 4);
    - o pacote `sgov2-prod` não é gravável pelo `GITHUB_TOKEN`;
@@ -344,23 +344,27 @@ export function emailFalso(): {
   5. `docker run -d … sgo:teste app` com a migration quebrada → o contêiner sai com código ≠ 0, e `curl` na porta não recebe resposta (Review Focus 2);
   6. com as migrations boas → `/login` responde 200 em até 60 s.
 
-- [ ] **Step 7: Workflow `imagem.yml`** — um único bloco `on:` com `push: { branches: [main], tags: ['v[0-9]+.[0-9]+.[0-9]+'] }` e `workflow_dispatch` (entrada `nome`, para imagens `teste-<nome>`). Checkout com `fetch-depth: 0`. A permissão `packages: write` fica só nos jobs que publicam.
-  - **Job `hml`** (`if: github.ref == 'refs/heads/main'`, `environment: homologacao`):
+- [ ] **Step 7: Workflow `imagem.yml`** — um único bloco `on:` com `push: { branches: [main], tags: ['v[0-9]+.[0-9]+.[0-9]+'] }` e `workflow_dispatch` (entradas `acao: teste|rollback` e `nome`). Checkout com `fetch-depth: 0`. A permissão `packages: write` fica só nos jobs que publicam. Toda condição de job olha o **tipo de evento**, não só o `github.ref`: um `workflow_dispatch` com `--ref vX.Y.Z` também tem `github.ref` de tag, e um disparado na `main` tem `github.ref` da `main`.
+  - **Job `hml`** (`if: github.event_name == 'push' && github.ref == 'refs/heads/main'`, `environment: homologacao`, `permissions: { contents: read, packages: write, id-token: write, attestations: write }`):
     1. build com cache do GHCR;
     2. `push` de `sha-<commit>` e `hml`;
-    3. `curl --fail-with-body -sS -X POST "$WEBHOOK"`, com `env: WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK }}`.
+    3. `actions/attest-build-provenance` sobre o *digest* publicado. A atestação registra que aquele *digest* saiu do `imagem.yml` num `push` em `refs/heads/main` daquele commit;
+    4. `curl --fail-with-body -sS -X POST "$WEBHOOK"`, com `env: WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK }}`.
     Com o *secret* vazio (antes da Tarefa 6), o passo emite `::warning::Deploy de hml pendente: webhook não cadastrado` e o job fica verde, porque a imagem foi publicada.
-  - **Job `verificar-prod`** (`if: startsWith(github.ref, 'refs/tags/v')`, **sem** *environment*, só leitura). A aprovação de um *environment* acontece antes de qualquer passo do job; por isso, as checagens ficam num job anterior, e o PO as vê antes de aprovar:
+  - **Job `verificar-prod`** (`if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')`, **sem** *environment*, só leitura). A aprovação de um *environment* acontece antes de qualquer passo do job; por isso, as checagens ficam num job anterior, e o PO as vê antes de aprovar:
     1. confere `git merge-base --is-ancestor "$GITHUB_SHA" origin/main`;
-    2. confere que `sgov2:sha-<commit>` existe (`docker buildx imagetools inspect`);
-    3. compara com a tag `v*` anterior (`git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^"`). Se `git diff --name-only <anterior> "$GITHUB_SHA" -- prisma/migrations` não for vazio, ou se esta for a primeira tag, escreve no resumo do run: "há migration: tire e confirme o snapshot da Hostinger antes de aprovar".
-  - **Job `prod`** (`needs: verificar-prod`, `environment: producao`, com aprovação do PO):
+    2. resolve o *digest* de `sgov2:sha-<commit>` (`docker buildx imagetools inspect`);
+    3. reprova se `gh attestation verify oci://ghcr.io/fabianojp06/sgov2@<digest> --repo fabianojp06/sgov2 --signer-workflow fabianojp06/sgov2/.github/workflows/imagem.yml --source-ref refs/heads/main` não confirmar a origem. Uma imagem regravada por um workflow de branch não tem essa atestação. Conferir as opções exatas do `gh attestation verify` na versão do runner;
+    4. compara com a tag `v*` anterior (`git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^"`). Se `git diff --name-only <anterior> "$GITHUB_SHA" -- prisma/migrations` não for vazio, ou se esta for a primeira tag, escreve no resumo do run: "há migration: tire e confirme o snapshot da Hostinger antes de aprovar";
+    5. expõe o *digest* verificado como `outputs.digest`.
+  - **Job `prod`** (`needs: verificar-prod`, mesma condição de evento, `environment: producao`, com aprovação do PO; `concurrency: { group: deploy-prod, cancel-in-progress: false }`):
     1. `docker login` no GHCR com `GHCR_PROD_TOKEN`;
-    2. copia `sgov2:sha-<commit>` para `sgov2-prod:vX.Y.Z` e `sgov2-prod:prod` **sem reconstruir**;
+    2. copia `sgov2@<digest>` (o de `needs.verificar-prod.outputs.digest`, nunca a tag) para `sgov2-prod:vX.Y.Z` e `sgov2-prod:prod` **sem reconstruir**;
     3. chama o webhook.
     Na tag, *secret* vazio **reprova** (Review Focus 3).
-  - **Job `teste`** (`workflow_dispatch`, sem *environment*, porque não usa *secret*): build da branch escolhida e `push` só de `sgov2:teste-<nome>`. **Nunca** mexe em `hml` nem no pacote `sgov2-prod` e não chama webhook.
-  - **Job `rollback`** (`workflow_dispatch` com entrada `acao=rollback`, `environment: producao`). O PO o dispara com `ref` igual à tag de destino (`--ref vX.Y.Z` no GitHub ou na interface), o que satisfaz a política do *environment*, que só aceita tags `v*`. O job copia `sgov2-prod:vX.Y.Z` para `sgov2-prod:prod` e chama o webhook. É o procedimento do runbook, sem token de escrita na mão de ninguém.
+  - **Job `teste`** (`if: github.event_name == 'workflow_dispatch' && inputs.acao == 'teste'`, sem *environment*, porque não usa *secret*): build da branch escolhida e `push` só de `sgov2:teste-<nome>`. **Nunca** mexe em `hml` nem no pacote `sgov2-prod`, não gera atestação e não chama webhook.
+  - **Job `rollback`** (`if: github.event_name == 'workflow_dispatch' && inputs.acao == 'rollback'`, `environment: producao`, mesmo grupo de `concurrency` do `prod`). O PO o dispara com `ref` igual à tag de destino (`--ref vX.Y.Z` no GitHub ou na interface), o que satisfaz a política do *environment*, que só aceita tags `v*`. O job copia `sgov2-prod:vX.Y.Z` para `sgov2-prod:prod` e chama o webhook. É o procedimento do runbook, sem token de escrita na mão de ninguém.
+  - Logo depois do **primeiro** push em `sgov2-prod`, o PO ajusta o *Manage Actions access* do pacote para o repositório ter só leitura. A cópia leva o rótulo `org.opencontainers.image.source`, que pode ligar o pacote ao repositório com escrita.
 
 - [ ] **Step 8: Fixar as actions por SHA** (como na Tarefa 1), incluindo `docker/login-action`, `docker/setup-buildx-action` e `docker/build-push-action`.
 
