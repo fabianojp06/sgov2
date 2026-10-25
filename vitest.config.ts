@@ -21,7 +21,7 @@ export default defineConfig({
           name: 'integracao',
           // D12: sem o Ryuk, que publicaria em 0.0.0.0 uma porta capaz de remover contêineres.
           env: { TESTCONTAINERS_RYUK_DISABLED: 'true' },
-          include: ['src/**/*.int.test.ts', 'worker/**/*.int.test.ts', 'tests/integracao/**/*.test.ts'],
+          include: ['src/**/*.int.test.ts', 'worker/**/*.int.test.ts', 'deploy/**/*.int.test.ts', 'tests/integracao/**/*.test.ts'],
           testTimeout: 120_000,
           hookTimeout: 120_000,
           fileParallelism: false,

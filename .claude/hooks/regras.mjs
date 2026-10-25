@@ -172,6 +172,56 @@ function avaliarClientePg(tokens, env) {
   return null;
 }
 
+const MOTIVO_DEPLOY_PROD =
+  'Trava de deploy de prod (plano do P3, Decisão 4): tag v*, aprovação do environment "producao" e disparo do imagem.yml são do PO, porque o PO e as sessões usam o mesmo usuário do GitHub.';
+const TAG_RELEASE = /^(?:\+?(?:[^:]*:)?(?:refs\/tags\/)?)v\d/;
+
+// Subcomando do git e os argumentos dele, pulando as opções globais (-C caminho, -c chave=valor...).
+function subcomandoGit(tokens) {
+  for (let i = 1; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t === '-C' || t === '-c' || t === '--git-dir' || t === '--work-tree' || t === '--namespace') {
+      i += 1;
+      continue;
+    }
+    if (t.startsWith('-')) continue;
+    return { sub: t, args: tokens.slice(i + 1) };
+  }
+  return { sub: undefined, args: [] };
+}
+
+function avaliarDeployProd(tokens) {
+  const base = nomeBase(tokens[0]);
+  if (base === 'git') {
+    const { sub, args } = subcomandoGit(tokens);
+    if (sub === 'tag') {
+      const listaOuApaga = args.some((a) => ['-l', '--list', '-d', '--delete', '-v', '--verify'].includes(a));
+      if (!listaOuApaga && args.some((a) => !a.startsWith('-') && /^v\d/.test(a))) return MOTIVO_DEPLOY_PROD;
+    }
+    if (sub === 'push') {
+      if (args.some((a) => a === '--tags' || a === '--follow-tags')) return MOTIVO_DEPLOY_PROD;
+      const refspecs = args.filter((a) => !a.startsWith('-')).slice(1);
+      if (refspecs.some((r) => TAG_RELEASE.test(r))) return MOTIVO_DEPLOY_PROD;
+    }
+    return null;
+  }
+  if (base === 'gh') {
+    const [grupo, acao] = tokens.slice(1).filter((t) => !t.startsWith('-'));
+    if (grupo === 'release' && acao === 'create') return MOTIVO_DEPLOY_PROD;
+    if (grupo === 'workflow' && acao === 'run' && tokens.some((t) => /imagem\.ya?ml|rollback/.test(t))) return MOTIVO_DEPLOY_PROD;
+    if (grupo === 'api') {
+      // gh api escreve com -X POST/PATCH/PUT/DELETE ou com campos (-f/-F/--field/--raw-field/--input).
+      const escreve = tokens.some((t, i) =>
+        (['-X', '--method'].includes(t) && tokens[i + 1] !== 'GET') ||
+        ['-f', '-F', '--field', '--raw-field', '--input'].includes(t) ||
+        /^--(?:field|raw-field|input|method)=/.test(t),
+      );
+      if (escreve && tokens.some((t) => /pending_deployments|\/dispatches\b/.test(t))) return MOTIVO_DEPLOY_PROD;
+    }
+  }
+  return null;
+}
+
 function avaliarGitPush(tokens) {
   if (nomeBase(tokens[0]) !== 'git') return null;
   const i = tokens.indexOf('push');
@@ -216,7 +266,7 @@ export function avaliarComando(comando, env, envArquivos = {}) {
     if (CLIENTES_PG.has(nomeBase(tokens[0])) && NOMES_VEDADOS.test(tokens.join(' '))) {
       return { bloquear: true, motivo: MOTIVO_PROD };
     }
-    const motivo = avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens);
+    const motivo = avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens) ?? avaliarDeployProd(tokens);
     if (motivo) return { bloquear: true, motivo };
   }
   return { bloquear: false };

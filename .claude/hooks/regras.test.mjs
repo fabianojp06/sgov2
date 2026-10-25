@@ -121,3 +121,42 @@ describe('avaliarComando', () => {
     expect(avaliarComando('npx prisma migrate reset --force', DEV_LOCAL, prodArquivo).bloquear).toBe(true);
   });
 });
+
+// Trava de deploy de prod (plano do P3, Decisão 4): a tag v* dispara o prod, e a aprovação do
+// environment "producao" é do PO. O PO e as sessões usam o mesmo usuário do GitHub.
+describe('trava de deploy de prod', () => {
+  it.each([
+    ['git tag v0.1.0', true],
+    ['git tag -a v1.2.3 -m "versão"', true],
+    ['git tag -s v1.2.3', true],
+    ['git -C /root/sistemas/sgo-b tag v1.0.0', true],
+    ['git push origin v0.1.0', true],
+    ['git push origin refs/tags/v0.1.0', true],
+    ['git push origin HEAD:refs/tags/v9.9.9', true],
+    ['git push --tags', true],
+    ['git push origin --tags', true],
+    ['git push --follow-tags origin us-013-x', true],
+    ['gh release create v0.1.0', true],
+    ['gh api -X POST repos/fabianojp06/sgov2/actions/runs/1/pending_deployments -f state=approved', true],
+    ['gh api repos/fabianojp06/sgov2/actions/workflows/imagem.yml/dispatches -f ref=v0.1.0', true],
+    ['gh workflow run imagem.yml --ref v0.1.0 -f acao=rollback', true],
+    ['gh workflow run imagem.yml -f acao=teste -f nome=x', true],
+    ["bash -c 'git tag v1.0.0 && git push origin v1.0.0'", true],
+    ['git tag', false],
+    ['git tag -l', false],
+    ['git tag --list "v*"', false],
+    ['git tag -d v0.0.1-teste', false],
+    ['git push -u origin us-013-imagem-deploy', false],
+    ['git push --force-with-lease origin us-013-imagem-deploy', false],
+    ['gh api repos/fabianojp06/sgov2/actions/runs/1/pending_deployments', false],
+    ['gh api -X PATCH repos/fabianojp06/sgov2/pulls/184 -f base=main', false],
+    ['gh run list --workflow imagem.yml', false],
+    ['gh release list', false],
+    ['git commit -m "prepara a tag v1.0.0 e o push --tags"', false],
+    ['git log --tags', false],
+  ])('%s → bloquear=%s', (comando, bloquear) => {
+    const r = avaliarComando(comando, VAZIO);
+    expect(r.bloquear).toBe(bloquear);
+    if (bloquear) expect(r.motivo).toMatch(/deploy de prod/);
+  });
+});

@@ -37,6 +37,14 @@ describe('verificarFrentes', () => {
     ).toEqual([{ tipo: 'compartilhado-misturado', arquivo: 'src/modules/orc/a.ts' }]);
   });
 
+  it('o guarda de fronteira (pr.yml e ops/ci) é compartilhado, mesmo dentro das pastas da frente B (#179)', () => {
+    const arquivos = ['.github/workflows/pr.yml', 'ops/ci/vinculo-pr.sh', 'ops/ci/testes/vinculo-pr.bats'];
+    expect(verificarFrentes({ arquivos, labels: [], frente: 'B', mapa })).toEqual(
+      arquivos.map((arquivo) => ({ tipo: 'compartilhado', arquivo })),
+    );
+    expect(verificarFrentes({ arquivos: ['.github/workflows/ci.yml', 'ops/vps/x.sh'], labels: [], frente: 'B', mapa })).toEqual([]);
+  });
+
   it('acusa mais de uma migration no mesmo PR', () => {
     const violacoes = verificarFrentes({
       arquivos: [
