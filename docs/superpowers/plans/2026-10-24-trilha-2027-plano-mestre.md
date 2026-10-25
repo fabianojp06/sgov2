@@ -16,7 +16,7 @@
 | **P2 VPS** | B | US-122 #145, US-016 #38 | 12 | 26/10 – 27/10 | — (fora do código) | `2026-10-24-trilha-2027-p2-vps.md` |
 | P3 Entrega | B | US-013 #35, US-014 #36, US-015 #37, US-119 #141 | 40 | 28/10 – 08/12 | P1 tarefas 1 e 3; GAP-INF-001 | `2026-10-25-trilha-2027-p3-entrega.md` (inclui os contratos C3 e C4) |
 | P4 Componentes e cadastros | B | US-021 #43, US-025 #47, US-043 #65, US-044 #66, US-046 #68, US-049 #71, US-050 #72, US-051 #73, US-053 #75 | 96 | 05/11 – 27/11 | P1 completo | a detalhar após P1 |
-| P5 Acesso | A | US-026 #48, US-030 #52, US-031 #53, US-032 #54, US-034 #56, US-038 #60 | 62 | 11/11 – 25/11 | P1; contratos C3 e C4 | a detalhar após P1 |
+| P5 Acesso | A | US-026 #48, US-030 #52, US-031 #53, US-032 #54, US-034 #56, US-038 #60 | 74 | 11/11 – 25/11 | P1; contratos C3 e C4; US-025 | `2026-10-25-trilha-2027-p5-acesso.md` (inclui o contrato C6, bloqueio, limite de taxa e E2E mínimo, decisões do PO de 25/10) |
 | P6 Orçamento da Adm. Central | A | US-055 #77, US-120 #142, US-121 #143, US-058 #80, US-059 #81, US-060 #82, US-061 #83 | 60 | 25/11 – 11/12 | P4 (contratos C1 e C2), P5 | a detalhar após P5 |
 | P7 Go-live | B (+PO) | US-115 #137, US-116 #138, US-117 #139 | 40 | 27/11 – 07/12 | P3, P6 | a detalhar após P4 |
 
@@ -39,6 +39,7 @@ Cada contrato é um PR pequeno com o `index.ts` do módulo (tipos, assinaturas e
 | C3 Componentes de tela | B (`ger`) | A (todas as telas) | `<GradeArvore>`, `<Formulario>` com `Resultado`, `exportarXlsx()` | US-031 |
 | C4 E-mail | B (`ger`) | A (`aut`, `adm`) | `enviarEmail(tx, modelo, destinatario, dados)` via *outbox* | US-038 |
 | C5 Autorização e auditoria | A (`shared`) | B (todos os casos de uso) | `definirAcao`, `exigir`, `auditar` (entregues no P1) | P4 |
+| C6 Catálogo de funcionalidades | A (`adm`) | B (seeds de `cad`, `ger`, `rel`, `int`) | `DeclaracaoFuncionalidade`, `CODIGOS_PERFIL`, `MODULOS_MENU`, `instalarFuncionalidades(tx, itens)` | primeira seed de módulo da frente B (P4) |
 
 ## Marcos de controle
 
