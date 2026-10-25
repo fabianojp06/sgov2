@@ -111,8 +111,10 @@ function ehPrisma(t) {
   return CLI_PRISMA.test(t) || CLI_PRISMA.test(nomeBase(t)) || BINARIO_PRISMA.test(t);
 }
 
+// Ignora "--" e flags entre o comando e o subcomando ("migrate -- dev" também é migrate dev).
 function temSequencia(tokens, a, b) {
-  return tokens.some((t, i) => t === a && tokens[i + 1] === b);
+  const posicionais = tokens.filter((t) => !t.startsWith('-'));
+  return posicionais.some((t, i) => t === a && posicionais[i + 1] === b);
 }
 
 function avaliarPrisma(tokens, env, envArquivos) {
@@ -121,7 +123,9 @@ function avaliarPrisma(tokens, env, envArquivos) {
   const push = temSequencia(tokens, 'db', 'push');
   const diff = temSequencia(tokens, 'migrate', 'diff');
   const dev = temSequencia(tokens, 'migrate', 'dev');
-  if (!reset && !push && !diff && !dev) return null;
+  // db execute roda SQL arbitrário (TRUNCATE, DROP) contra o banco da config.
+  const execute = temSequencia(tokens, 'db', 'execute');
+  if (!reset && !push && !diff && !dev && !execute) return null;
 
   const urls = [...tokens.join(' ').matchAll(URL_PG)].map((m) => m[0]);
   for (const [nome, valor] of Object.entries(env)) {
@@ -134,7 +138,7 @@ function avaliarPrisma(tokens, env, envArquivos) {
   // migrate diff só toca banco quando usa datasource, migrations (shadow) ou URL; schema contra schema não.
   const diffComBanco =
     diff && tokens.some((t) => /^--(?:from|to)-(?:config-datasource|migrations|url)\b|^--shadow-database-url\b/.test(t));
-  if ((reset || push || dev || diffComBanco) && urls.length === 0) {
+  if ((reset || push || dev || execute || diffComBanco) && urls.length === 0) {
     return `${MOTIVO_BANCO} Nenhuma URL de banco visível (DATABASE_URL, MIGRATE_DATABASE_URL, SHADOW_DATABASE_URL): não dá para saber qual banco seria alterado.`;
   }
   const fora = urls.filter((u) => !ehDevLocal(u));
