@@ -21,7 +21,7 @@ export type MotivoNegacao = 'ENTRADA' | 'MANUTENCAO' | 'CREDENCIAIS' | 'BLOQUEAD
 
 export type ResultadoLogin =
   | { ok: true; token: string; expiraEm: Date; trocaSenhaObrigatoria: boolean }
-  | { ok: false; motivo: MotivoNegacao; mensagem: string; avisoUltimaTentativa: boolean };
+  | { ok: false; motivo: MotivoNegacao; mensagem: string; avisoUltimaTentativa: boolean; contaFalha: boolean };
 
 export type DepsAut = { cliente: PrismaClient; agora: () => Date };
 
@@ -49,11 +49,15 @@ function obterHashFicticio(): Promise<string> {
 // derrubaria a transação (e o incremento do contador).
 const ipValido = (ip: string | null): string | null => (ip !== null && !ip.includes('%') && isIP(ip) !== 0 ? ip : null);
 
-const negar = (motivo: MotivoNegacao, mensagem: string, avisoUltimaTentativa = false): ResultadoLogin => ({
+// contaFalha: se a tentativa conta no limite por IP (contaFalhaPorIp). Conta a falha de credencial
+// e o bloqueio; em manutenção, só o login inexistente (o administrador atrás do NAT não pode ficar
+// trancado pelas tentativas dos outros).
+const negar = (motivo: MotivoNegacao, mensagem: string, avisoUltimaTentativa = false, contaFalha = false): ResultadoLogin => ({
   ok: false,
   motivo,
   mensagem,
   avisoUltimaTentativa,
+  contaFalha,
 });
 
 export const hashDoToken = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -152,16 +156,16 @@ export async function autenticar(
       switch (avaliarAntesDaSenha({ manutencao: config.manutencao, usuario })) {
         case 'MANUTENCAO':
           await auditarTentativa(tx, t, 'Tentativa de login durante a manutenção');
-          return { resultado: negar('MANUTENCAO', MENSAGENS.MANUTENCAO) };
+          return { resultado: negar('MANUTENCAO', MENSAGENS.MANUTENCAO, false, usuario === null) };
         case 'INEXISTENTE':
           await auditarTentativa(tx, t, 'Tentativa de login malsucedida: login inexistente');
-          return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS) };
+          return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS, false, true) };
         case 'INATIVO':
           await auditarTentativa(tx, t, 'Tentativa de login malsucedida: usuário inativo');
-          return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS) };
+          return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS, false, true) };
         case 'BLOQUEADO':
           await auditarTentativa(tx, t, 'Tentativa de login malsucedida: usuário bloqueado');
-          return { resultado: negar('BLOQUEADO', MENSAGENS.BLOQUEADO) };
+          return { resultado: negar('BLOQUEADO', MENSAGENS.BLOQUEADO, false, true) };
         case 'CONFERIR':
           break;
       }
@@ -176,7 +180,7 @@ export async function autenticar(
           await auditarTentativa(tx, t, `Usuário ${u.login} bloqueado após ${f.novoContador} tentativas malsucedidas`);
         }
         const alerta = f.alertar || f.bloquear ? { usuarioId: u.id, tentativas: f.novoContador, bloqueado: f.bloquear } : undefined;
-        return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS, f.ultimaTentativa), ...(alerta ? { alerta } : {}) };
+        return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS, f.ultimaTentativa, true), ...(alerta ? { alerta } : {}) };
       }
       if (u.senhaExpiraEm && u.senhaExpiraEm.getTime() <= agora.getTime()) {
         await auditarTentativa(tx, t, 'Tentativa de login com senha temporária expirada');

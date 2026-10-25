@@ -15,6 +15,11 @@ export type OpcoesLimitador = {
 
 export type LimitadorLogin = {
   permitir(ip: string | null, login: string): boolean;
+  // Por IP contam só as falhas (decisão do PO): com a instituição atrás de um NAT, os logins certos
+  // de todos os usuários não podem esgotar o limite. O permitir reserva a vaga já (uma rajada
+  // paralela não passa inteira antes do primeiro resultado) e o liberar a devolve quando o
+  // resultado não conta como falha (contaFalhaPorIp).
+  liberar(ip: string | null): void;
   executar<T>(f: () => Promise<T>): Promise<T | 'OCUPADO'>;
   tamanho(): { porIp: number; porLogin: number };
 };
@@ -31,8 +36,8 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
   const ips = new Map<string, Janela>();
   const logins = new Map<string, Janela>();
 
-  // Conta a tentativa na janela da chave e diz se ela ainda cabe no limite.
-  function contar(mapa: Map<string, Janela>, chave: string, limite: number): boolean {
+  // Janela atual da chave (nova se a anterior venceu).
+  function janela(mapa: Map<string, Janela>, chave: string): Janela {
     const t = agora();
     let j = mapa.get(chave);
     if (!j || t - j.inicio > janelaMs) {
@@ -45,9 +50,16 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
         if (maisAntiga !== undefined) mapa.delete(maisAntiga);
       }
     }
+    return j;
+  }
+
+  // Conta a tentativa na janela da chave e diz se ela ainda cabe no limite.
+  function contar(mapa: Map<string, Janela>, chave: string, limite: number): boolean {
+    const j = janela(mapa, chave);
     j.total++;
     return j.total <= limite;
   }
+
 
   let ativos = 0;
   const fila: (() => void)[] = [];
@@ -86,6 +98,10 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
       const okLogin = contar(logins, login, porLogin);
       return okIp && okLogin;
     },
+    liberar(ip) {
+      const j = ip === null ? undefined : ips.get(ip);
+      if (j && j.total > 0) j.total--;
+    },
     async executar(f) {
       if (!(await vaga())) return 'OCUPADO';
       try {
@@ -96,4 +112,10 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
     },
     tamanho: () => ({ porIp: ips.size, porLogin: logins.size }),
   };
+}
+
+// Resultado do login que fica reservado no limite por IP: falha de credencial, bloqueio e tentativa
+// em manutenção com login inexistente (decisão do PO, revisão do #201). O resto devolve a vaga.
+export function contaFalhaPorIp(r: { ok: true } | { ok: false; contaFalha: boolean } | 'OCUPADO'): boolean {
+  return r !== 'OCUPADO' && !r.ok && r.contaFalha;
 }

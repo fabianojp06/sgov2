@@ -9,6 +9,7 @@ import { falha, type ErroCampo } from '@/shared/kernel';
 import { MENSAGENS } from '../domain/mensagens';
 import { nomeCookieSessao, opcoesCookieSessao } from '../infrastructure/cookies';
 import { autenticar } from './autenticar';
+import { contaFalhaPorIp } from './limite-login';
 import { limitadorLogin as limitador } from './limitador';
 
 const MENSAGEM_LIMITE = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
@@ -24,6 +25,7 @@ export const entrar = definirAcaoPublica(
       return falha([{ campo: '_', mensagem: MENSAGEM_LIMITE }]);
     }
     const r = await limitador.executar(() => autenticar({ login: e.login, senha: e.senha, ip: ctx.ip }));
+    if (!contaFalhaPorIp(r)) limitador.liberar(ctx.ip);
     if (r === 'OCUPADO') {
       console.warn('[LOGIN_LIMITADO]', { ip: ctx.ip, motivo: 'concorrencia' });
       return falha([{ campo: '_', mensagem: MENSAGEM_LIMITE }]);

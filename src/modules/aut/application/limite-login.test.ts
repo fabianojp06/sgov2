@@ -1,14 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { criarLimitadorLogin } from './limite-login';
+import { contaFalhaPorIp, criarLimitadorLogin } from './limite-login';
 
 describe('limitador do login (D-P5-1)', () => {
-  it('11º pedido do mesmo IP em 5 min é recusado; a janela libera depois', () => {
+  it('por IP: a vaga é reservada no permitir e devolvida no liberar (NAT, decisão do PO)', () => {
     let t = 0;
     const l = criarLimitadorLogin({ agora: () => t });
+    for (let i = 0; i < 30; i++) {
+      expect(l.permitir('203.0.113.9', `certo${i}`)).toBe(true);
+      l.liberar('203.0.113.9');
+    }
     for (let i = 0; i < 10; i++) expect(l.permitir('203.0.113.9', `u${i}`)).toBe(true);
     expect(l.permitir('203.0.113.9', 'outro')).toBe(false);
     t = 5 * 60 * 1000 + 1;
     expect(l.permitir('203.0.113.9', 'outro')).toBe(true);
+  });
+
+  it('rajada paralela: 11 permitir seguidos, sem resultado no meio, recusam o 11º', () => {
+    const l = criarLimitadorLogin({ agora: () => 0 });
+    const r = Array.from({ length: 11 }, (_, i) => l.permitir('203.0.113.9', `u${i}`));
+    expect(r.filter(Boolean)).toHaveLength(10);
+    expect(r[10]).toBe(false);
+  });
+
+  it('liberar sem IP ou sem reserva não faz nada', () => {
+    const l = criarLimitadorLogin({ agora: () => 0 });
+    l.liberar(null);
+    l.liberar('203.0.113.9');
+    expect(l.tamanho()).toEqual({ porIp: 0, porLogin: 0 });
   });
 
   it('21º do mesmo login, vindo de IPs diferentes, é recusado', () => {
@@ -94,4 +112,19 @@ describe('limitador do login (D-P5-1)', () => {
     await expect(l.executar(async () => Promise.reject(new Error('x')))).rejects.toThrow('x');
     expect(await l.executar(async () => 'ok')).toBe('ok');
   });
+});
+
+describe('contaFalhaPorIp (o que fica reservado no limite por IP)', () => {
+  const neg = (motivo: string, contaFalha: boolean) => ({ ok: false as const, motivo, mensagem: '', avisoUltimaTentativa: false, contaFalha });
+  it.each([
+    ['sucesso', { ok: true as const }, false],
+    ['OCUPADO', 'OCUPADO' as const, false],
+    ['CREDENCIAIS', neg('CREDENCIAIS', true), true],
+    ['BLOQUEADO', neg('BLOQUEADO', true), true],
+    ['MANUTENCAO de login inexistente', neg('MANUTENCAO', true), true],
+    ['MANUTENCAO de login existente', neg('MANUTENCAO', false), false],
+    ['ENTRADA', neg('ENTRADA', false), false],
+    ['SENHA_EXPIRADA', neg('SENHA_EXPIRADA', false), false],
+    ['FALHA_SESSAO', neg('FALHA_SESSAO', false), false],
+  ])('%s → %s', (_caso, r, esperado) => expect(contaFalhaPorIp(r)).toBe(esperado));
 });
