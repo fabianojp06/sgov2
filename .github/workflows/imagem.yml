@@ -1,9 +1,10 @@
 name: Imagem e deploy
 
 # US-013 parte 2/3 (plano do P3, Tarefa 4, Step 7).
-# - push na main  → publica sgov2:sha-<commit> e sgov2:hml, atesta a origem e chama o webhook de hml;
+# - push na main  → publica sgov2:sha-<commit> e sgov2:hml, registra o digest no artefato
+#                   origem-imagem do run e chama o webhook de hml;
 # - tag vX.Y.Z    → verificar-prod (sem environment) e prod (environment "producao", aprovação do PO):
-#                   copia o digest atestado para sgov2-prod:vX.Y.Z e :prod, sem reconstruir;
+#                   copia o digest registrado pelo run da main para sgov2-prod:vX.Y.Z e :prod, sem reconstruir;
 # - workflow_dispatch acao=teste    → publica só sgov2:teste-<nome>, sem webhook;
 # - workflow_dispatch acao=rollback → disparado pelo PO com --ref vX.Y.Z: sgov2-prod:prod volta a vX.Y.Z.
 # Toda condição de job olha o tipo de evento: um dispatch com --ref de tag também tem github.ref de tag.
@@ -48,8 +49,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
-      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -75,15 +74,28 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           # Cache do Actions, isolado por branch: uma branch não grava no cache que a main lê.
           # Um cache no GHCR seria gravável pelo GITHUB_TOKEN de qualquer branch e chegaria ao prod
-          # com atestação válida (revisão 12.12 do PR #188).
+          # pelo run da main (revisão 12.12 do PR #188).
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Atestar a origem (imagem.yml, push na main)
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # Registro da origem. A atestação do GitHub (attest-build-provenance) não existe para
+      # repositório privado de usuário. O artefato fica preso a este run (push na main, este
+      # workflow), e o GitHub não deixa outro run gravar nele: o verificar-prod confia no run,
+      # não na tag sha-<commit>, que qualquer branch com packages:write pode sobrescrever.
+      - name: Registrar o digest deste run
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Digest inválido do build: '$DIGEST'."; exit 1; }
+          mkdir -p origem
+          jq -n --arg digest "$DIGEST" --arg commit "$GITHUB_SHA" '{digest: $digest, commit: $commit}' > origem/origem.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          subject-name: ${{ env.IMAGEM }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+          name: origem-imagem
+          path: origem/origem.json
+          if-no-files-found: error
+          # O máximo padrão do repositório. Depois disso, a tag precisa ir num commit mais novo
+          # da main (docs/operacao/deploy.md).
+          retention-days: 90
       - name: Webhook do Easypanel (hml)
         env:
           WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK }}
@@ -109,7 +121,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-      attestations: read
+      actions: read
     outputs:
       digest: ${{ steps.digest.outputs.digest }}
     steps:
@@ -126,32 +138,37 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Digest da imagem publicada para o commit
+      - name: Digest registrado pelo run do imagem.yml no push na main
         id: digest
-        run: |
-          digest=$(docker buildx imagetools inspect "$IMAGEM:sha-$GITHUB_SHA" --format '{{json .Manifest}}' | jq -r .digest)
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Não há imagem $IMAGEM:sha-$GITHUB_SHA (o push na main publicou?)."; exit 1; }
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "Digest: $digest"
-      - name: A imagem foi gerada pelo imagem.yml num push na main
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          # O run vem da API do GitHub, filtrado por workflow, evento, branch e commit da tag; o
+          # artefato só pode ter sido gravado por esse run. A tag sha-<commit> não entra na conta.
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/imagem.yml/runs?event=push&branch=main&head_sha=$GITHUB_SHA&status=success&per_page=100" \
+            --jq '[.workflow_runs[] | select(.path == ".github/workflows/imagem.yml" and .event == "push"
+                    and .head_branch == "main" and .head_sha == $ENV.GITHUB_SHA)] | sort_by(.run_attempt, .id) | last | .id // empty')
+          [[ "$run" =~ ^[0-9]+$ ]] || { echo "::error::Não há run com sucesso do imagem.yml no push na main para $GITHUB_SHA."; exit 1; }
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" --name origem-imagem --dir origem \
+            || { echo "::error::O run $run não tem o artefato origem-imagem (expirou? docs/operacao/deploy.md)."; exit 1; }
+          digest=$(jq -r .digest origem/origem.json)
+          commit=$(jq -r .commit origem/origem.json)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Digest inválido no artefato do run $run."; exit 1; }
+          [[ "$commit" == "$GITHUB_SHA" ]] || { echo "::error::O artefato do run $run é do commit $commit, não do da tag."; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Run $run, digest $digest"
+      - name: A imagem do digest é do commit da tag
+        env:
           DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
-          # --source-digest prende a atestação ao commit da tag: a tag sha-<commit> é mutável e
-          # poderia apontar para o digest de outro build legítimo da main.
-          gh attestation verify "oci://$IMAGEM@$DIGEST" \
-            --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/imagem.yml" \
-            --source-ref refs/heads/main \
-            --source-digest "$GITHUB_SHA" \
-            --deny-self-hosted-runners
           revisao=$(docker buildx imagetools inspect "$IMAGEM@$DIGEST" --format '{{json .Image}}' \
             | jq -r '[.. | objects | select(has("Labels")) | .Labels."org.opencontainers.image.revision" // empty] | first // empty')
           [[ "$revisao" == "$GITHUB_SHA" ]] || { echo "::error::O rótulo revision da imagem ($revisao) não é o commit da tag."; exit 1; }
       - name: Migrations desde a release anterior
         env:
           DIGEST: ${{ steps.digest.outputs.digest }}
+          RUN: ${{ steps.digest.outputs.run }}
         run: |
           anterior=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$GITHUB_SHA^" 2>/dev/null || true)
           if [ -z "$anterior" ]; then
@@ -161,7 +178,7 @@ jobs:
           fi
           {
             echo "## Release $GITHUB_REF_NAME"
-            echo "Digest verificado: \`$DIGEST\`"
+            echo "Digest verificado: \`$DIGEST\`, registrado pelo run $RUN do push na main"
             echo
             echo "Antes de aprovar, confira na tela do run (não neste resumo) que o commit da tag está na main e que o workflow é o da main (docs/operacao/deploy.md)."
             if [ -n "$mudou" ]; then
