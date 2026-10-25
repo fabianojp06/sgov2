@@ -1,4 +1,4 @@
-export { configurarAuditorNegacao, configurarProvedorContexto, obterContexto } from './contexto';
+export { obterContexto } from './contexto';
 export { definirAcao } from './definir-acao';
 export { definirRota } from './definir-rota';
 export { exigir } from './exigir';

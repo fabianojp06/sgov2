@@ -4,9 +4,9 @@ import { exigir } from './exigir';
 import { ErroPermissao, type ContextoRequisicao } from './tipos';
 
 const ctx: ContextoRequisicao = {
-  usuarioId: null,
+  usuarioId: '0b1e6f1a-5c39-4c2b-9e0a-3d6f1f2a4b5c',
   usuarioRotulo: 'ana',
-  sessaoUid: null,
+  sessaoUid: 's1',
   ip: null,
   permissoes: new Set(['usuarios:consultar']),
 };

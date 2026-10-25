@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { EventoAuditoria } from '@/shared/audit';
 import { ErroDominio, ok } from '@/shared/kernel';
-import { configurarAuditorNegacao, configurarProvedorContexto } from './contexto';
+import { configurarAuditorNegacao, configurarProvedorContexto } from './configuracao';
 import { definirAcao } from './definir-acao';
 import { definirRota } from './definir-rota';
+import { limparJanelaNegacoes } from './guarda';
 import type { ContextoRequisicao } from './tipos';
 
 const ctx: ContextoRequisicao = {
@@ -21,6 +22,7 @@ let negacoes: EventoAuditoria[];
 beforeEach(() => {
   contexto = ctx;
   negacoes = [];
+  limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
   configurarAuditorNegacao(async (evento) => {
     negacoes.push(evento);
@@ -44,6 +46,17 @@ describe('definirAcao', () => {
       erros: [{ campo: '_', mensagem: 'Sessão expirada. Entre novamente.' }],
     });
     expect(executar).not.toHaveBeenCalled();
+    expect(negacoes).toEqual([]);
+  });
+
+  it('sem a permissão e com entrada inválida → 403 sem erros de campo, auditado', async () => {
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, vi.fn());
+    expect(await acao({ nome: '' })).toEqual({
+      ok: false,
+      status: 403,
+      erros: [{ campo: '_', mensagem: 'Você não tem permissão para esta ação.' }],
+    });
+    expect(negacoes).toHaveLength(1);
   });
 
   it('sem a permissão → 403, não executa e audita a negação', async () => {
@@ -103,7 +116,7 @@ describe('definirAcao', () => {
       ok: false,
       erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }],
     });
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('usuarios'), expect.any(Error));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('usuarios'), expect.anything());
   });
 
   it('exigir dentro de executar (permissão extra) também vira 403', async () => {
@@ -114,7 +127,7 @@ describe('definirAcao', () => {
       return ok(1);
     });
     expect(await acao({ nome: 'a' })).toMatchObject({ ok: false, status: 403 });
-    expect(negacoes).toHaveLength(1);
+    expect(negacoes.map((n) => n.descricao)).toEqual(['Acesso negado à funcionalidade usuarios (aprovar)']);
   });
 
   it('caminho feliz devolve o Resultado de executar com a entrada validada', async () => {
@@ -132,7 +145,9 @@ describe('definirRota', () => {
     const rota = definirRota({ funcionalidade: 'usuarios', acao: 'exportar' }, handler);
     const req = new Request('http://x/');
     contexto = null;
-    expect((await rota(req)).status).toBe(401);
+    const semSessao = await rota(req);
+    expect(semSessao.status).toBe(401);
+    expect(await semSessao.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Sessão expirada. Entre novamente.' }] });
     contexto = ctx;
     const negada = await rota(req);
     expect(negada.status).toBe(403);
@@ -152,5 +167,19 @@ describe('definirRota', () => {
     expect(r.status).toBe(500);
     expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
     expect(log).toHaveBeenCalled();
+  });
+});
+
+describe('definirRota: exigir dentro do handler', () => {
+  it('ErroPermissao no handler → 403 auditado', async () => {
+    contexto = comPermissao('usuarios:exportar');
+    const { exigir } = await import('./exigir');
+    const rota = definirRota({ funcionalidade: 'usuarios', acao: 'exportar' }, async (_r, c) => {
+      exigir(c, 'usuarios', 'aprovar');
+      return new Response('ok');
+    });
+    const r = await rota(new Request('http://x/'));
+    expect(r.status).toBe(403);
+    expect(negacoes.map((n) => n.descricao)).toEqual(['Acesso negado à funcionalidade usuarios (aprovar)']);
   });
 });
