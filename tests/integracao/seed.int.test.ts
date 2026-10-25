@@ -12,8 +12,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await cliente?.$disconnect();
-  await banco?.parar();
+  // Sem o Ryuk, parar() precisa rodar mesmo se desconectar falhar (D12).
+  try {
+    await cliente?.$disconnect();
+  } finally {
+    await banco?.parar();
+  }
 });
 
 const seedTeste: Seed = {

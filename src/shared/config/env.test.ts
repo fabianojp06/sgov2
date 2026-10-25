@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lerEnv, validarShadow } from './env';
+import { lerEnv, validarComandoPrisma, validarShadow } from './env';
 
 const dev = 'postgresql://sgo_migrator:x@127.0.0.1:55432/sgo_dev';
 
@@ -47,5 +47,62 @@ describe('lerEnv', () => {
 
   it('recusa URL que não é postgresql://', () => {
     expect(() => lerEnv({ DATABASE_URL: 'mysql://u:x@127.0.0.1/db' })).toThrow('DATABASE_URL');
+  });
+});
+
+describe('validarComandoPrisma (spec §11.5)', () => {
+  const remoto = 'postgresql://u:x@10.0.1.5:5432/sgo';
+  const local = 'postgresql://u:x@127.0.0.1:55432/sgo_dev';
+
+  it.each([
+    [['migrate', 'dev']],
+    [['migrate', 'reset', '--force']],
+    [['migrate', 'diff']],
+    [['db', 'push']],
+  ])('recusa %j fora do dev local', (args) => {
+    expect(() => validarComandoPrisma(['node', 'prisma', ...args], remoto)).toThrow('só contra o banco de dev local');
+  });
+
+  it('recusa comando destrutivo sem URL', () => {
+    expect(() => validarComandoPrisma(['node', 'prisma', 'migrate', 'dev'], undefined)).toThrow(
+      'só contra o banco de dev local',
+    );
+  });
+
+  it('aceita comando destrutivo no dev local', () => {
+    expect(() => validarComandoPrisma(['node', 'prisma', 'migrate', 'dev'], local)).not.toThrow();
+  });
+
+  it.each([[['migrate', 'deploy']], [['generate']], [['db', 'seed']]])('aceita %j em qualquer banco', (args) => {
+    expect(() => validarComandoPrisma(['node', 'prisma', ...args], remoto)).not.toThrow();
+  });
+});
+
+describe('dev local: host, porta e query isolados', () => {
+  it.each([
+    ['host remoto na porta de dev', 'postgresql://u:x@10.0.1.5:55432/sgo_shadow'],
+    ['localhost na porta padrão', 'postgresql://u:x@localhost:5432/sgo_shadow'],
+    ['?host= na query', 'postgresql://u:x@127.0.0.1:55432/sgo_shadow?host=sgo-prod_db&port=5432'],
+    ['?hostaddr= na query', 'postgresql://u:x@127.0.0.1:55432/sgo_shadow?hostaddr=10.0.1.5'],
+  ])('shadow com %s é recusado', (_caso, shadow) => {
+    expect(() => validarShadow(dev, shadow)).toThrow('shadow fora do dev local');
+  });
+
+  it('shadow que só contém _shadow no meio é recusado', () => {
+    expect(() => validarShadow(dev, 'postgresql://u:x@127.0.0.1:55432/sgo_shadow_old')).toThrow(
+      'o banco shadow deve terminar em _shadow',
+    );
+  });
+
+  it('comando destrutivo com ?host= na query é recusado', () => {
+    expect(() =>
+      validarComandoPrisma(['prisma', 'migrate', 'reset'], 'postgresql://u:x@127.0.0.1:55432/sgo_dev?host=10.0.1.5'),
+    ).toThrow('só contra o banco de dev local');
+  });
+
+  it('lerEnv recusa shadow fora do dev local', () => {
+    expect(() =>
+      lerEnv({ DATABASE_URL: dev, SHADOW_DATABASE_URL: 'postgresql://u:x@10.0.1.5:55432/sgo_shadow' }),
+    ).toThrow('shadow fora do dev local');
   });
 });
