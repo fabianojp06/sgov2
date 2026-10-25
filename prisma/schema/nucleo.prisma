@@ -1,0 +1,43 @@
+// Modelos do núcleo (src/shared/), da frente A (spec §12.3).
+
+// Tipos de operação do Histórico (RN0103).
+enum TipoOperacao {
+  INSERCAO
+  ALTERACAO
+  EXCLUSAO
+  CONSULTA
+  IMPRESSAO
+  EXPORTACAO
+  LOGIN
+  LOGOFF
+  SISTEMA
+}
+
+enum OrigemOperacao {
+  USUARIO
+  SISTEMA
+  SUGESTAO_IA
+}
+
+// Histórico de Operações (US-006): somente inserção, garantido por trigger e por privilégio.
+model HistoricoOperacao {
+  id             BigInt         @id @default(autoincrement())
+  ocorridoEm     DateTime       @default(dbgenerated("clock_timestamp()")) @map("ocorrido_em") @db.Timestamptz(6)
+  unidadeId      String?        @map("unidade_id") @db.Uuid
+  usuarioId      String?        @map("usuario_id") @db.Uuid
+  usuarioRotulo  String         @map("usuario_rotulo")
+  sessaoUid      String?        @map("sessao_uid")
+  ip             String?        @db.Inet
+  funcionalidade String
+  tipoOperacao   TipoOperacao   @map("tipo_operacao")
+  registroId     String?        @map("registro_id")
+  descricao      String
+  antes          Json?
+  depois         Json?
+  delta          Json?
+  origem         OrigemOperacao @default(USUARIO)
+
+  @@index([funcionalidade, ocorridoEm])
+  @@index([usuarioId, ocorridoEm])
+  @@map("historico_operacao")
+}
