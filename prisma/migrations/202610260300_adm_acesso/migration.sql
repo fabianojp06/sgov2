@@ -129,6 +129,18 @@ CREATE TABLE "permissao_padrao_aplicada" (
 ALTER TABLE "perfil_permissao" ADD CONSTRAINT "perfil_permissao_acao_check"
   CHECK ("acao" IN ('consultar', 'incluir', 'alterar', 'excluir', 'exportar', 'imprimir', 'aprovar', 'executar'));
 ALTER TABLE "configuracao_acesso" ADD CONSTRAINT "configuracao_acesso_linha_unica_check" CHECK ("id" = 1);
+-- Faixas dos parâmetros: um valor absurdo desligaria o bloqueio ou a sessão, ou travaria a geração
+-- de senha (o teto de 128 é o SENHA_MAXIMO da política).
+ALTER TABLE "configuracao_acesso" ADD CONSTRAINT "configuracao_acesso_faixas_check" CHECK (
+  "limite_tentativas" BETWEEN 1 AND 100
+  AND "limiar_alerta" BETWEEN 1 AND "limite_tentativas" - 1
+  AND "inatividade_min" BETWEEN 1 AND 1440
+  AND "sessao_maxima_horas" BETWEEN 1 AND 168
+  AND "senha_temporaria_horas" BETWEEN 1 AND 720
+  AND "senha_minimo" BETWEEN 8 AND 128
+);
+ALTER TABLE "funcionalidade" ADD CONSTRAINT "funcionalidade_acoes_check"
+  CHECK ("acoes" <@ ARRAY['consultar', 'incluir', 'alterar', 'excluir', 'exportar', 'imprimir', 'aprovar', 'executar']::text[]);
 
 -- Privilégios (spec §5 e §11.5): o sincronismo do ERP não toca em identidade; a aplicação não
 -- apaga cadastros (inativação por status), não cria nem apaga a configuração e não altera o login
@@ -138,6 +150,12 @@ REVOKE ALL ON "modulo", "funcionalidade", "perfil", "perfil_permissao", "usuario
 -- Só a seed (migrator) registra os padrões aplicados.
 REVOKE ALL ON "permissao_padrao_aplicada" FROM sgo_app;
 REVOKE DELETE ON "modulo", "funcionalidade", "perfil", "usuario" FROM sgo_app;
+-- Módulos e funcionalidades vêm só da seed (C14, REQ0055): a aplicação só ativa e desativa.
+REVOKE INSERT, UPDATE ON "modulo", "funcionalidade" FROM sgo_app;
+GRANT UPDATE ("ativo") ON "modulo", "funcionalidade" TO sgo_app;
+-- O código do perfil é a chave da seed e do break-glass: não é renomeado.
+REVOKE UPDATE ON "perfil" FROM sgo_app;
+GRANT UPDATE ("nome", "descricao", "ativo") ON "perfil" TO sgo_app;
 REVOKE INSERT, DELETE ON "configuracao_acesso" FROM sgo_app;
 REVOKE UPDATE ON "usuario" FROM sgo_app;
 GRANT UPDATE ("nome", "email", "ativo", "bloqueado", "tentativas_falhas", "senha_hash", "troca_senha_obrigatoria",

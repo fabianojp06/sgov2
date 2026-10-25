@@ -20,5 +20,16 @@ describe('senha: geração e hash (RNF0004, RN0020)', () => {
     expect(await conferirSenha(hash, 'senha12345')).toBe(false);
   });
 
+  it('política com mínimo acima de 128 não trava a geração: limita a 128', () => {
+    const s = gerarSenhaTemporaria({ minimo: 500, exigeLetra: true, exigeDigito: true });
+    expect(s).toHaveLength(128);
+  });
+
+  it('senha em NFD confere com o hash da mesma senha em NFC', async () => {
+    const nfc = 'Ação2026abc'.normalize('NFC');
+    const hash = await hashSenha(nfc);
+    expect(await conferirSenha(hash, nfc.normalize('NFD'))).toBe(true);
+  });
+
   it('hash corrompido não confere e não lança', async () => expect(await conferirSenha('lixo', 'x')).toBe(false));
 });

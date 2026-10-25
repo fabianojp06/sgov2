@@ -40,6 +40,12 @@ afterAll(async () => {
 beforeEach(() => vi.restoreAllMocks());
 
 describe('seedAdministradorInicial', () => {
+  it('banco sem usuário e sem nenhuma variável: falha citando ADMIN_INICIAL_LOGIN', async () => {
+    await expect(rodar({})).rejects.toThrow(
+      expect.objectContaining({ cause: expect.objectContaining({ message: expect.stringContaining('ADMIN_INICIAL_LOGIN') }) }),
+    );
+  });
+
   it('banco sem usuário e sem variáveis: falha citando o nome, nunca o valor', async () => {
     await expect(rodar({ ADMIN_INICIAL_LOGIN: 'admin' })).rejects.toThrow(
       expect.objectContaining({ cause: expect.objectContaining({ message: expect.stringContaining('ADMIN_INICIAL_EMAIL') }) }),
@@ -91,5 +97,27 @@ describe('seedAdministradorInicial', () => {
     await rodar(env('socorro'));
     const lista = await administradores();
     expect(lista.map((u) => u.loginNormalizado)).toEqual(['admin', 'socorro']);
+    const socorro = lista[1];
+    expect(await cliente.historicoOperacao.count({ where: { registroId: socorro?.id ?? '' } })).toBe(1);
+  });
+
+  it('perfil ADMINISTRADOR inativo: falha com mensagem clara', async () => {
+    await cliente.usuario.updateMany({ data: { bloqueado: true } });
+    await cliente.perfil.update({ where: { codigo: 'ADMINISTRADOR' }, data: { ativo: false } });
+    try {
+      await expect(rodar(env('terceiro'))).rejects.toThrow(
+        expect.objectContaining({ cause: expect.objectContaining({ message: expect.stringContaining('perfil ADMINISTRADOR inativo') }) }),
+      );
+    } finally {
+      await cliente.perfil.update({ where: { codigo: 'ADMINISTRADOR' }, data: { ativo: true } });
+    }
+  });
+
+  it('duas seeds simultâneas criam um administrador só, sem erro', async () => {
+    await cliente.usuario.updateMany({ data: { bloqueado: true } });
+    const erros: unknown[] = [];
+    await Promise.all([rodar(env('paralelo')), rodar(env('paralelo'))].map((p) => p.catch((e: unknown) => erros.push(e))));
+    expect(erros).toEqual([]);
+    expect(await cliente.usuario.count({ where: { loginNormalizado: 'paralelo' } })).toBe(1);
   });
 });

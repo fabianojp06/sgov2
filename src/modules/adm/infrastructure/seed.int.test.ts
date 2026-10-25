@@ -72,6 +72,7 @@ describe('seedAdm', () => {
     const config = await cliente.configuracaoAcesso.findUniqueOrThrow({ where: { id: 1 } });
     expect(config).toMatchObject({ limiteTentativas: 5, limiarAlerta: 3, inatividadeMin: 30, sessaoMaximaHoras: 12 });
     expect(config).toMatchObject({ senhaTemporariaHoras: 24, senhaMinimo: 10, manutencao: false });
+    expect(config).toMatchObject({ senhaExigeLetra: true, senhaExigeDigito: true });
     expect(await cliente.modulo.count()).toBe(6);
     const perfis = await cliente.perfil.findMany({ orderBy: { codigo: 'asc' } });
     expect(perfis.map((p) => p.codigo)).toEqual([
@@ -106,7 +107,9 @@ describe('seedAdm', () => {
     await cliente.$executeRaw`
       DELETE FROM perfil_permissao WHERE acao = 'incluir' AND funcionalidade_codigo = 'adm.usuarios'`;
     await cliente.modulo.update({ where: { codigo: 'RELATORIOS' }, data: { ativo: false } });
+    const ajustado = await retrato();
     await executarSeeds(cliente, [seedAdm]);
+    expect(await retrato()).toEqual(ajustado);
     expect((await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'adm.usuarios' } })).ativo).toBe(false);
     expect(await permissoes('ADMINISTRADOR', 'adm.usuarios')).toEqual(['alterar', 'consultar']);
     expect((await cliente.modulo.findUniqueOrThrow({ where: { codigo: 'RELATORIOS' } })).ativo).toBe(false);
@@ -121,19 +124,47 @@ describe('seedAdm', () => {
     expect(f).toMatchObject({ nome: 'Cargos e salários', ativo: false });
   });
 
-  it('padrão novo (ação ou perfil) é concedido uma vez; o removido pelo administrador não volta (R12)', async () => {
-    await executarSeeds(cliente, [seedCom([{ ...cargos, perfisPadrao: { ANALISTA_GRH: ['consultar', 'incluir'], AUDITOR: ['consultar'] } }])]);
+  it('ação padrão nova vai para quem ainda tem acesso; a removida não volta (R12)', async () => {
+    const v2 = { ...cargos, perfisPadrao: { ANALISTA_GRH: ['consultar', 'incluir'], AUDITOR: ['consultar'] } } as const;
+    await executarSeeds(cliente, [seedCom([v2])]);
     expect(await permissoes('ANALISTA_GRH', 'cad.cargos')).toEqual(['consultar', 'incluir']);
     expect(await permissoes('AUDITOR', 'cad.cargos')).toEqual(['consultar']);
+    // O Administrador tira tudo do AUDITOR: um padrão novo para ele não devolve o item ao menu.
     await cliente.$executeRaw`
       DELETE FROM perfil_permissao WHERE funcionalidade_codigo = 'cad.cargos'
       AND perfil_id = (SELECT id FROM perfil WHERE codigo = 'AUDITOR')`;
-    await executarSeeds(cliente, [seedCom([{ ...cargos, perfisPadrao: { ANALISTA_GRH: ['consultar', 'incluir'], AUDITOR: ['consultar'] } }])]);
+    const v3 = { ...v2, acoes: ['consultar', 'incluir', 'exportar'], perfisPadrao: { ...v2.perfisPadrao, AUDITOR: ['consultar', 'exportar'] } } as const;
+    await executarSeeds(cliente, [seedCom([v3])]);
     expect(await permissoes('AUDITOR', 'cad.cargos')).toEqual([]);
   });
 
+  it('perfil criado depois da funcionalidade recebe o padrão na seed seguinte', async () => {
+    const ferias = { ...cargos, codigo: 'cad.ferias', perfisPadrao: { DIREX: ['consultar'] } } as const;
+    const direx = await cliente.perfil.findUniqueOrThrow({ where: { codigo: 'DIREX' } });
+    await cliente.$executeRaw`DELETE FROM perfil WHERE id = ${direx.id}::uuid`;
+    await executarSeeds(cliente, [seedCom([ferias])]);
+    expect(await cliente.perfilPermissao.count({ where: { funcionalidadeCodigo: 'cad.ferias' } })).toBe(0);
+    await executarSeeds(cliente, [seedAdm, seedCom([ferias])]);
+    expect(await permissoes('DIREX', 'cad.ferias')).toEqual(['consultar']);
+  });
+
+  it('permissão já existente não gera Histórico de concessão', async () => {
+    const relatorio = { ...cargos, codigo: 'cad.relatorio', perfisPadrao: {} };
+    await executarSeeds(cliente, [seedCom([relatorio])]);
+    const gfin = await cliente.perfil.findUniqueOrThrow({ where: { codigo: 'GFIN' } });
+    await cliente.perfilPermissao.create({ data: { perfilId: gfin.id, funcionalidadeCodigo: 'cad.relatorio', acao: 'consultar' } });
+    await executarSeeds(cliente, [seedCom([{ ...relatorio, perfisPadrao: { GFIN: ['consultar'] } }])]);
+    expect(await cliente.historicoOperacao.count({ where: { descricao: { contains: 'cad.relatorio:consultar' } } })).toBe(0);
+  });
+
+  it('funcionalidade que passa para ADMINISTRACAO com permissão de outro perfil falha', async () => {
+    await expect(
+      executarSeeds(cliente, [seedCom([{ ...cargos, modulo: 'ADMINISTRACAO', perfisPadrao: {} }])]),
+    ).rejects.toThrow('Falha na seed "teste"');
+  });
+
   it('declaração inválida desfaz a seed inteira', async () => {
-    const proibida = { ...cargos, codigo: 'adm.x', modulo: 'ADMINISTRACAO', perfisPadrao: { AUDITOR: ['consultar'] as const } };
+    const proibida = { ...cargos, codigo: 'adm.x', modulo: 'ADMINISTRACAO' as const, perfisPadrao: { AUDITOR: ['consultar'] as const } };
     await expect(executarSeeds(cliente, [seedCom([proibida])])).rejects.toThrow('Falha na seed "teste"');
     expect(await cliente.funcionalidade.count({ where: { codigo: 'adm.x' } })).toBe(0);
   });

@@ -27,7 +27,7 @@ describe('catálogo de funcionalidades (contrato C6)', () => {
 
   it('módulo ADMINISTRACAO só para o ADMINISTRADOR (RN_SEED_003, R10)', () =>
     expect(() =>
-      validarDeclaracoes([{ ...base, modulo: 'ADMINISTRACAO', perfisPadrao: { AUDITOR: ['consultar'] } }]),
+      validarDeclaracoes([{ ...base, codigo: 'adm.y', modulo: 'ADMINISTRACAO', perfisPadrao: { AUDITOR: ['consultar'] } }]),
     ).toThrow(expect.objectContaining({ codigo: 'seed.perfil_proibido' })));
 
   it('ação padrão fora das ações da funcionalidade', () =>
@@ -36,8 +36,22 @@ describe('catálogo de funcionalidades (contrato C6)', () => {
     ));
 
   it('módulo de menu desconhecido', () =>
+    // @ts-expect-error módulo fora de CodigoModuloMenu (o tipo pega o erro de digitação)
     expect(() => validarDeclaracoes([{ ...base, modulo: 'XPTO' }])).toThrow(
       expect.objectContaining({ codigo: 'seed.modulo_invalido' }),
+    ));
+
+  it('código fora do formato <mod>.<nome>', () =>
+    expect(() => validarDeclaracoes([{ ...base, codigo: 'Cargos' }])).toThrow(expect.objectContaining({ codigo: 'seed.codigo_invalido' })));
+
+  it('código adm.* fora do módulo ADMINISTRACAO (RN_SEED_003)', () =>
+    expect(() => validarDeclaracoes([{ ...base, codigo: 'adm.x' }])).toThrow(
+      expect.objectContaining({ codigo: 'seed.perfil_proibido' }),
+    ));
+
+  it('ação repetida na declaração', () =>
+    expect(() => validarDeclaracoes([{ ...base, acoes: ['consultar', 'consultar'] }])).toThrow(
+      expect.objectContaining({ codigo: 'seed.acao_invalida' }),
     ));
 
   it('código duplicado', () =>

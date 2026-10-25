@@ -9,7 +9,7 @@ describe('normalizarLogin (RN0518, D-P5-3)', () => {
     ['abc', 'abc'],
   ])('%j → %j', (bruto, esperado) => expect(normalizarLogin(bruto)).toBe(esperado));
 
-  it.each([['ADMİN'], ['ab'], ['a b'], ['joão'], [''], ['   '], ['x'.repeat(61)], ['a@b']])('%j → null', (bruto) =>
+  it.each([['ADMİN'], ['ab'], ['a b'], ['joão'], [''], ['   '], ['x'.repeat(61)], ['a@b'], ['...'], ['-abc'], ['.abc'], ['_ab']])('%j → null', (bruto) =>
     expect(normalizarLogin(bruto)).toBeNull(),
   );
 

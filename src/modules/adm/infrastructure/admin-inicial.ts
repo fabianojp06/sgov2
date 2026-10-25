@@ -26,6 +26,8 @@ export function criarSeedAdministradorInicial(env: Env = process.env, agora: () 
   return {
     nome: 'adm.administrador-inicial',
     executar: async (tx) => {
+      // Duas seeds ao mesmo tempo (dois deploys): a segunda espera e vê o administrador criado.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('adm:administrador-inicial'))`;
       if (await existeAdministradorAtivo(tx)) return;
 
       const faltando = VARIAVEIS.filter((v) => !env[v]?.trim());
@@ -62,6 +64,7 @@ export function criarSeedAdministradorInicial(env: Env = process.env, agora: () 
       }
       const perfil = await tx.perfil.findUnique({ where: { codigo: 'ADMINISTRADOR' } });
       if (!perfil) throw new Error('Perfil ADMINISTRADOR ausente: rode a seed do adm antes');
+      if (!perfil.ativo) throw new Error('perfil ADMINISTRADOR inativo: reative o perfil antes do break-glass');
 
       const expira = new Date(agora().getTime() + VALIDADE_DIAS * 24 * 60 * 60 * 1000);
       const usuario = await tx.usuario.create({
