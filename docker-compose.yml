@@ -1,0 +1,79 @@
+# Ambiente de dev na VPS de produção (D12, spec §4.3 e §12.4).
+# Regras: portas só em 127.0.0.1, mem_limit e oom_score_adj >= 500 em todo serviço,
+# nenhum nome de serviço, volume ou rede citando hml ou prod.
+# Frente A: COMPOSE_PROJECT_NAME=sgo-a, portas 55432/3100/8125; frente B: sgo-b, 56432/3200/8225.
+# Copie as variáveis de compose do .env.example para o .env: sem elas o compose não sobe,
+# para que uma frente nunca assuma os contêineres ou o volume da outra.
+# `docker compose up -d` sobe só db e mailpit; app e worker ficam no perfil "app"
+# (`docker compose --profile app up -d`), para manter um processo pesado por vez.
+name: ${COMPOSE_PROJECT_NAME:?defina COMPOSE_PROJECT_NAME no .env, sgo-a ou sgo-b}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    mem_limit: 768m
+    memswap_limit: 768m
+    oom_score_adj: 500
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:${DB_PORT:?defina DB_PORT no .env}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Os scripts de init só rodam com o volume vazio: depois de mudá-los, recrie o volume
+      # de dev local com `docker compose down -v` (apaga só o banco de dev desta frente).
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    mem_limit: 64m
+    memswap_limit: 64m
+    oom_score_adj: 500
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:?defina MAILPIT_PORT no .env}:8025"
+
+  app:
+    image: node:22-bookworm-slim
+    profiles: ["app"]
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    oom_score_adj: 500
+    working_dir: /app
+    command: ["npx", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=1536"
+      DATABASE_URL: "postgresql://sgo_app:sgo_app@db:5432/sgo_dev"
+    ports:
+      - "127.0.0.1:${APP_PORT:?defina APP_PORT no .env}:3000"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    image: node:22-bookworm-slim
+    profiles: ["app"]
+    mem_limit: 512m
+    memswap_limit: 512m
+    oom_score_adj: 500
+    working_dir: /app
+    command: ["npm", "run", "worker:dev"]
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=384"
+      DATABASE_URL: "postgresql://sgo_app:sgo_app@db:5432/sgo_dev"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

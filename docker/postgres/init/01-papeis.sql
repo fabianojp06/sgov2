@@ -1,0 +1,1 @@
+-- Papéis e bancos do dev local (spec §11.5). Preenchido na US-004 (Tarefa 4 do P1).
