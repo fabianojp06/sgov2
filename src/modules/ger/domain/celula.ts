@@ -15,7 +15,16 @@ const DATA_ISO = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/;
 export const celulaDinheiro = (d: Dinheiro): ValorCelula => d.paraString();
 export const celulaPercentual = (p: Percentual): ValorCelula => p.paraString();
 export const celulaCompetencia = (c: Competencia): ValorCelula => c.formatar();
-export const celulaData = (d: Date): ValorCelula => d.toISOString().slice(0, 10);
+// Dia civil no horário de Brasília (en-CA formata como AAAA-MM-DD). Para @db.Date do Prisma
+// (meia-noite UTC), use celulaDataSemHora, que não desloca o dia.
+const DIA_BRASILIA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+export const celulaData = (d: Date): ValorCelula => DIA_BRASILIA.format(d);
+export const celulaDataSemHora = (d: Date): ValorCelula => d.toISOString().slice(0, 10);
 
 function formatarData(valor: string): string | undefined {
   const partes = DATA_ISO.exec(valor);

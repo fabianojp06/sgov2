@@ -5,6 +5,7 @@ export {
   CELULA_INVALIDA,
   celulaCompetencia,
   celulaData,
+  celulaDataSemHora,
   celulaDinheiro,
   celulaPercentual,
   formatarCelula,

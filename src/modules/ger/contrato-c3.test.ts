@@ -10,6 +10,7 @@ import {
   CELULA_INVALIDA,
   celulaCompetencia,
   celulaData,
+  celulaDataSemHora,
   celulaDinheiro,
   celulaPercentual,
   ErroDoCampo,
@@ -198,7 +199,12 @@ describe('serializadores de célula', () => {
     expect(formatarCelula('dinheiro', celulaDinheiro(Dinheiro.de('1234.5')))).toBe('R$ 1.234,50');
     expect(formatarCelula('percentual', celulaPercentual(Percentual.dePontos('51')))).toBe('51,00%');
     expect(formatarCelula('competencia', celulaCompetencia(Competencia.de(2027, 6)))).toBe('Jun/27');
-    expect(formatarCelula('data', celulaData(new Date(Date.UTC(2027, 2, 5))))).toBe('05/03/2027');
+    expect(formatarCelula('data', celulaDataSemHora(new Date(Date.UTC(2027, 2, 5))))).toBe('05/03/2027');
+  });
+
+  it('celulaData usa o dia de Brasília: 23h30 de 05/03 não vira 06/03', () => {
+    expect(celulaData(new Date('2027-03-05T23:30:00-03:00'))).toBe('2027-03-05');
+    expect(celulaData(new Date('2027-03-05T00:30:00-03:00'))).toBe('2027-03-05');
   });
 });
 
@@ -254,7 +260,7 @@ describe('lógica do formulário', () => {
 
   it('só caminho interno serve de destino', () => {
     expect(ehCaminhoInterno('/orc/contas')).toBe(true);
-    for (const d of ['https://fora.exemplo', '//fora.exemplo', '/\\fora', 'javascript:x', 'orc']) {
+    for (const d of ['https://fora.exemplo', '//fora.exemplo', '/\\fora', 'javascript:x', 'orc', '/\t/evil.com', '/\n/evil.com', '/a\\b', '/\r/x']) {
       expect(ehCaminhoInterno(d), d).toBe(false);
     }
   });
