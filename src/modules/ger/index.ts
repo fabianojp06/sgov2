@@ -1,7 +1,16 @@
 // API pública do módulo ger (spec §4.1): outros módulos só importam daqui.
 
 // Contrato C3: componentes de tela e exportação.
-export { formatarCelula, type TipoColuna, type ValorCelula } from './domain/celula';
+export {
+  CELULA_INVALIDA,
+  celulaCompetencia,
+  celulaData,
+  celulaDinheiro,
+  celulaPercentual,
+  formatarCelula,
+  type TipoColuna,
+  type ValorCelula,
+} from './domain/celula';
 export {
   GradeArvore,
   type ColunaGrade,

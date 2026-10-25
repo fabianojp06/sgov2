@@ -1,9 +1,17 @@
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ok } from '@/shared/kernel';
+import { Competencia, Dinheiro, ok, Percentual } from '@/shared/kernel';
+import { ehCaminhoInterno } from './domain/navegacao';
+import { errosDoCampo, idErroDoCampo } from './ui/formulario-logica';
+import { expansaoInicial, lerExpansaoSalva, visiveis } from './ui/grade-logica';
 import * as ger from '@/modules/ger';
 import {
+  CELULA_INVALIDA,
+  celulaCompetencia,
+  celulaData,
+  celulaDinheiro,
+  celulaPercentual,
   ErroDoCampo,
   exportarXlsx,
   exportarXlsxFalso,
@@ -37,10 +45,10 @@ describe('exportarXlsx', () => {
   });
 
   it('recusa nome de aba com mais de 31 caracteres, vazio ou com caractere proibido pelo Excel', async () => {
-    for (const nome of ['x'.repeat(32), '', 'Receitas/2027']) {
+    for (const nome of ['x'.repeat(32), '', 'Receitas/2027', "'Aspas"]) {
       const r = await exportarXlsx([aba(nome, 1)]);
       expect(r.ok, nome).toBe(false);
-      if (!r.ok) expect(r.erros).toEqual([expect.objectContaining({ campo: 'nome' })]);
+      if (!r.ok) expect(r.erros).toEqual([expect.objectContaining({ campo: 'planilhas.0.nome' })]);
     }
   });
 
@@ -141,5 +149,113 @@ describe('API pública do ger (C3)', () => {
     expect(typeof ger.exportarXlsx).toBe('function');
     expect(typeof ger.exportarXlsxFalso).toBe('function');
     expect(typeof ger.LIMITE_EXPORTACAO_SINCRONA).toBe('number');
+  });
+});
+
+describe('exportarXlsx: entradas inválidas', () => {
+  it('recusa lista vazia', async () => {
+    const r = await exportarXlsx([]);
+    expect(r).toEqual({ ok: false, erros: [expect.objectContaining({ campo: 'planilhas' })] });
+  });
+
+  it('recusa abas repetidas sem diferenciar maiúsculas, apontando a segunda', async () => {
+    const r = await exportarXlsx([aba('Receitas', 1), aba('RECEITAS', 1)]);
+    expect(r).toEqual({ ok: false, erros: [expect.objectContaining({ campo: 'planilhas.1.nome' })] });
+  });
+
+  it('recusa linha sem um valor por coluna', async () => {
+    const p: PlanilhaExportacao = { nome: 'A', colunas: [{ titulo: 'x', tipo: 'texto' }], linhas: [['a', 'b']] };
+    const r = await exportarXlsx([p]);
+    expect(r).toEqual({ ok: false, erros: [expect.objectContaining({ campo: 'planilhas.0.linhas' })] });
+  });
+});
+
+describe('formatarCelula: valores fora do formato', () => {
+  it.each([
+    ['dinheiro', '1.234,50'],
+    ['dinheiro', 'abc'],
+    ['percentual', 'x%'],
+    ['competencia', 'Junho/27'],
+    ['data', '2027-13-45'],
+    ['data', '2027-02-30'],
+    ['data', '05/03/2027'],
+  ] as const)('%s %j vira CELULA_INVALIDA, sem lançar', (tipo, valor) => {
+    expect(formatarCelula(tipo, valor)).toBe(CELULA_INVALIDA);
+  });
+
+  it('dinheiro negativo e com mais de 2 casas (Half-Even do kernel)', () => {
+    expect(formatarCelula('dinheiro', '-10.5')).toBe('-R$ 10,50');
+    expect(formatarCelula('dinheiro', '0.125')).toBe('R$ 0,12');
+  });
+
+  it('data com horário ISO usa só a data', () => {
+    expect(formatarCelula('data', '2027-03-05T10:00:00Z')).toBe('05/03/2027');
+  });
+});
+
+describe('serializadores de célula', () => {
+  it('produzem o formato que formatarCelula espera', () => {
+    expect(formatarCelula('dinheiro', celulaDinheiro(Dinheiro.de('1234.5')))).toBe('R$ 1.234,50');
+    expect(formatarCelula('percentual', celulaPercentual(Percentual.dePontos('51')))).toBe('51,00%');
+    expect(formatarCelula('competencia', celulaCompetencia(Competencia.de(2027, 6)))).toBe('Jun/27');
+    expect(formatarCelula('data', celulaData(new Date(Date.UTC(2027, 2, 5))))).toBe('05/03/2027');
+  });
+});
+
+describe('lógica da grade', () => {
+  const arvore: NoGrade[] = [
+    { id: 'a', linha: {}, filhos: [{ id: 'a1', linha: {}, filhos: [{ id: 'a11', linha: {} }] }] },
+    { id: 'b', linha: {} },
+  ];
+
+  it('expandidos como lista de ids abre só esses', () => {
+    const abertos = expansaoInicial(arvore, ['a']);
+    expect(visiveis(arvore, abertos).map((l) => `${l.no.id}:${l.nivel}`)).toEqual(['a:1', 'a1:2', 'b:1']);
+  });
+
+  it('"todos" abre todos os nós com filhos', () => {
+    expect([...expansaoInicial(arvore, 'todos')].sort()).toEqual(['a', 'a1']);
+  });
+
+  it('lê a expansão salva na sessão e ignora texto corrompido', () => {
+    expect(lerExpansaoSalva('["a","a1"]')).toEqual(new Set(['a', 'a1']));
+    for (const texto of [null, '', '{', '{"a":1}', '[1,2]']) expect(lerExpansaoSalva(texto)).toBeUndefined();
+  });
+
+  it('href externo, de protocolo relativo ou javascript: não vira link', () => {
+    const colunas: ColunaGrade[] = [{ campo: 'conta', titulo: 'Conta', tipo: 'texto' }];
+    for (const href of ['https://fora.exemplo', '//fora.exemplo', 'javascript:alert(1)', '/\\fora.exemplo']) {
+      const html = renderToString(
+        createElement(GradeArvore, { idGrade: 'x', colunas, nos: [{ id: '1', linha: { conta: 'c' }, href }] }),
+      );
+      expect(html, href).not.toContain('<a ');
+    }
+  });
+
+  it('o genérico liga o campo da coluna às chaves da linha', () => {
+    const coluna: ColunaGrade<'conta'> = { campo: 'conta', titulo: 'Conta', tipo: 'texto' };
+    // @ts-expect-error "contaa" não é chave da linha
+    const errada: ColunaGrade<'conta'> = { campo: 'contaa', titulo: 'Conta', tipo: 'texto' };
+    expect([coluna.campo, errada.campo]).toEqual(['conta', 'contaa']);
+  });
+});
+
+describe('lógica do formulário', () => {
+  it('ErroDoCampo mostra só as mensagens do próprio campo, com id para aria-describedby', () => {
+    const erros = [
+      { campo: 'nome', mensagem: 'Obrigatório.' },
+      { campo: '', mensagem: 'Erro geral.' },
+      { campo: 'nome', mensagem: 'Curto demais.' },
+    ];
+    expect(errosDoCampo(erros, 'nome')).toEqual(['Obrigatório.', 'Curto demais.']);
+    expect(errosDoCampo(erros, 'email')).toEqual([]);
+    expect(idErroDoCampo('nome')).toBe('erro-nome');
+  });
+
+  it('só caminho interno serve de destino', () => {
+    expect(ehCaminhoInterno('/orc/contas')).toBe(true);
+    for (const d of ['https://fora.exemplo', '//fora.exemplo', '/\\fora', 'javascript:x', 'orc']) {
+      expect(ehCaminhoInterno(d), d).toBe(false);
+    }
   });
 });

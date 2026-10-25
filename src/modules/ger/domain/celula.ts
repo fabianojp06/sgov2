@@ -3,14 +3,30 @@ import { Competencia, Dinheiro, Percentual } from '@/shared/kernel';
 // Tipos de coluna do contrato C3. Os valores atravessam a fronteira servidor → cliente como
 // string (Server Components não serializam classes): dinheiro e percentual como string decimal
 // ("1234.50", "51" = 51%), competência como "Mmm/AA" e data como ISO 8601 ("2027-03-05").
+// Monte-os com os serializadores abaixo, nunca à mão.
 export type TipoColuna = 'texto' | 'dinheiro' | 'percentual' | 'competencia' | 'data';
 export type ValorCelula = string | null;
 
-const DATA_ISO = /^(\d{4})-(\d{2})-(\d{2})/;
+// Exibido quando o valor não está no formato do tipo da coluna.
+export const CELULA_INVALIDA = '—';
 
-// Formatação para exibição, sempre pelo kernel (nunca por number).
-export function formatarCelula(tipo: TipoColuna, valor: ValorCelula): string {
-  if (valor === null) return '';
+const DATA_ISO = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/;
+
+export const celulaDinheiro = (d: Dinheiro): ValorCelula => d.paraString();
+export const celulaPercentual = (p: Percentual): ValorCelula => p.paraString();
+export const celulaCompetencia = (c: Competencia): ValorCelula => c.formatar();
+export const celulaData = (d: Date): ValorCelula => d.toISOString().slice(0, 10);
+
+function formatarData(valor: string): string | undefined {
+  const partes = DATA_ISO.exec(valor);
+  if (!partes) return undefined;
+  const [, ano, mes, dia] = partes as unknown as [string, string, string, string];
+  const data = new Date(Date.UTC(Number(ano), Number(mes) - 1, Number(dia)));
+  const valida = data.getUTCMonth() === Number(mes) - 1 && data.getUTCDate() === Number(dia);
+  return valida ? `${dia}/${mes}/${ano}` : undefined;
+}
+
+function formatarOuLancar(tipo: TipoColuna, valor: string): string {
   switch (tipo) {
     case 'dinheiro':
       return Dinheiro.de(valor).formatar();
@@ -19,10 +35,25 @@ export function formatarCelula(tipo: TipoColuna, valor: ValorCelula): string {
     case 'competencia':
       return Competencia.parse(valor).formatar();
     case 'data': {
-      const partes = DATA_ISO.exec(valor);
-      return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : valor;
+      const texto = formatarData(valor);
+      if (texto === undefined) throw new Error(`data inválida: ${valor}`);
+      return texto;
     }
     case 'texto':
       return valor;
+  }
+}
+
+// Formatação para exibição, sempre pelo kernel (nunca por number). Nunca lança: um valor fora
+// do formato do tipo vira CELULA_INVALIDA, para uma célula ruim não derrubar a tela inteira.
+export function formatarCelula(tipo: TipoColuna, valor: ValorCelula): string {
+  if (valor === null) return '';
+  try {
+    return formatarOuLancar(tipo, valor);
+  } catch (erro) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`formatarCelula: valor fora do formato do tipo "${tipo}"`, valor, erro);
+    }
+    return CELULA_INVALIDA;
   }
 }

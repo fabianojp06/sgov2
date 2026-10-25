@@ -1,74 +1,52 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { formatarCelula, type TipoColuna, type ValorCelula } from '../domain/celula';
+import { formatarCelula } from '../domain/celula';
+import { ehCaminhoInterno } from '../domain/navegacao';
+import {
+  chaveSessao,
+  expansaoInicial,
+  lerExpansaoSalva,
+  visiveis,
+  type ColunaGrade,
+  type Expansao,
+  type NoGrade,
+} from './grade-logica';
 
-// Contrato C3: Tree Grid do sistema. Esta é a versão mínima do contrato, sem virtualização;
-// a US-021 (P4) troca a implementação mantendo as props (props novas entram como opcionais).
-export type LinhaGrade = Readonly<Record<string, ValorCelula>>;
+export type { ColunaGrade, LinhaGrade, NoGrade } from './grade-logica';
 
-export type ColunaGrade = {
-  campo: string; // chave em LinhaGrade
-  titulo: string;
-  tipo: TipoColuna;
-  largura?: number; // px
-};
-
-export type NoGrade = {
-  id: string;
-  linha: LinhaGrade;
-  href?: string; // navegação ao clicar na linha
-  filhos?: readonly NoGrade[];
-};
-
-export type PropsGradeArvore = {
+// Contrato C3: Tree Grid do sistema. Esta é a versão mínima do contrato, sem virtualização nem
+// navegação por teclado; a US-021 (P4) troca a implementação mantendo as props (props novas
+// entram como opcionais). C liga os campos das colunas às chaves das linhas.
+export type PropsGradeArvore<C extends string = string> = {
   idGrade: string; // chave da expansão (e, na US-021, dos filtros) retida na sessão (RNF0005)
-  nos: readonly NoGrade[];
-  colunas: readonly ColunaGrade[];
-  expandidos?: 'todos' | 'nenhum' | readonly string[];
-  acaoSelecionar?: (id: string) => Promise<void>; // Server Action, opcional
+  rotulo?: string; // nome acessível da grade
+  nos: readonly NoGrade<C>[];
+  colunas: readonly ColunaGrade<C>[];
+  expandidos?: Expansao;
+  acaoSelecionar?: (id: string) => Promise<void>; // Server Action, opcional; erros vão ao error boundary
   textoVazio?: string;
 };
 
-type LinhaVisivel = { no: NoGrade; nivel: number };
-
-function idsComFilhos(nos: readonly NoGrade[], acc: string[] = []): string[] {
-  for (const no of nos) {
-    if (no.filhos?.length) {
-      acc.push(no.id);
-      idsComFilhos(no.filhos, acc);
-    }
-  }
-  return acc;
-}
-
-function expansaoInicial(nos: readonly NoGrade[], expandidos: PropsGradeArvore['expandidos']): Set<string> {
-  if (expandidos === 'todos') return new Set(idsComFilhos(nos));
-  if (expandidos === undefined || expandidos === 'nenhum') return new Set();
-  return new Set(expandidos);
-}
-
-function visiveis(nos: readonly NoGrade[], abertos: Set<string>, nivel = 1, acc: LinhaVisivel[] = []): LinhaVisivel[] {
-  for (const no of nos) {
-    acc.push({ no, nivel });
-    if (no.filhos?.length && abertos.has(no.id)) visiveis(no.filhos, abertos, nivel + 1, acc);
-  }
-  return acc;
-}
-
-const chaveSessao = (idGrade: string) => `sgo.grade.${idGrade}.expandidos`;
-
-export function GradeArvore({ idGrade, nos, colunas, expandidos, acaoSelecionar, textoVazio }: PropsGradeArvore) {
+export function GradeArvore<C extends string = string>({
+  idGrade,
+  rotulo,
+  nos,
+  colunas,
+  expandidos,
+  acaoSelecionar,
+  textoVazio,
+}: PropsGradeArvore<C>) {
   const [abertos, setAbertos] = useState(() => expansaoInicial(nos, expandidos));
   const [, iniciarTransicao] = useTransition();
 
-  // Expansão retida na sessão do navegador (RNF0005). Sem sessionStorage (privado, bloqueado), segue sem reter.
+  // Sem sessionStorage (janela privada, bloqueio), segue com a expansão inicial.
   useEffect(() => {
     try {
-      const salvo = sessionStorage.getItem(chaveSessao(idGrade));
-      if (salvo) setAbertos(new Set(JSON.parse(salvo) as string[]));
+      const salvo = lerExpansaoSalva(sessionStorage.getItem(chaveSessao(idGrade)));
+      if (salvo) setAbertos(salvo);
     } catch {
-      // sem armazenamento de sessão: mantém a expansão inicial
+      // sem armazenamento de sessão
     }
   }, [idGrade]);
 
@@ -89,11 +67,11 @@ export function GradeArvore({ idGrade, nos, colunas, expandidos, acaoSelecionar,
   if (nos.length === 0) return <p>{textoVazio ?? 'Nenhum registro.'}</p>;
 
   return (
-    <table role="treegrid" aria-label={idGrade}>
+    <table role="treegrid" aria-label={rotulo ?? idGrade}>
       <thead>
         <tr>
-          {colunas.map((c) => (
-            <th key={c.campo} scope="col" style={c.largura ? { width: c.largura } : undefined}>
+          {colunas.map((c, i) => (
+            <th key={i} scope="col" style={c.largura ? { width: c.largura } : undefined}>
               {c.titulo}
             </th>
           ))}
@@ -103,6 +81,7 @@ export function GradeArvore({ idGrade, nos, colunas, expandidos, acaoSelecionar,
         {visiveis(nos, abertos).map(({ no, nivel }) => {
           const temFilhos = Boolean(no.filhos?.length);
           const aberto = abertos.has(no.id);
+          const href = no.href !== undefined && ehCaminhoInterno(no.href) ? no.href : undefined;
           return (
             <tr
               key={no.id}
@@ -114,7 +93,7 @@ export function GradeArvore({ idGrade, nos, colunas, expandidos, acaoSelecionar,
                 const texto = formatarCelula(c.tipo, no.linha[c.campo] ?? null);
                 const numerico = c.tipo === 'dinheiro' || c.tipo === 'percentual';
                 return (
-                  <td key={c.campo} style={numerico ? { textAlign: 'right' } : undefined}>
+                  <td key={i} style={numerico ? { textAlign: 'right' } : undefined}>
                     {i === 0 && (
                       <span style={{ paddingLeft: `${(nivel - 1) * 1.25}rem` }}>
                         {temFilhos && (
@@ -131,7 +110,14 @@ export function GradeArvore({ idGrade, nos, colunas, expandidos, acaoSelecionar,
                         )}
                       </span>
                     )}
-                    {i === 0 && no.href ? <a href={no.href}>{texto}</a> : texto}
+                    {i === 0 && href ? (
+                      // O link navega; não dispara também a acaoSelecionar da linha.
+                      <a href={href} onClick={(e) => e.stopPropagation()}>
+                        {texto}
+                      </a>
+                    ) : (
+                      texto
+                    )}
                   </td>
                 );
               })}
