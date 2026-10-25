@@ -1,0 +1,22 @@
+// Modelos do módulo aut (frente A, spec §12.3): sessão do usuário (EP085 UC02.17; plano do P5, Task 2a).
+
+// Uma sessão por usuário (RN0519). O cookie leva um token aleatório; o banco guarda só o SHA-256.
+model SessaoUsuario {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId          String   @map("usuario_id") @db.Uuid
+  usuario            Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  tokenHash          String   @unique @map("token_hash")
+  // UID do Histórico (RN0062): base64 de timestamp, IP e usuário.
+  sessaoUid          String   @map("sessao_uid")
+  ip                 String?  @db.Inet
+  criadaEm           DateTime @map("criada_em") @db.Timestamptz(6)
+  ultimoAcessoEm     DateTime @map("ultimo_acesso_em") @db.Timestamptz(6)
+  // Teto absoluto da sessão (sessao_maxima_horas), além da inatividade.
+  expiraEm           DateTime @map("expira_em") @db.Timestamptz(6)
+  // Usuario.acessoVersao no login: se mudar (perfis, inativação, reset, desbloqueio), a sessão cai.
+  acessoVersao       Int      @map("acesso_versao")
+  trocaSenhaPendente Boolean  @map("troca_senha_pendente")
+
+  @@index([usuarioId])
+  @@map("sessao_usuario")
+}
