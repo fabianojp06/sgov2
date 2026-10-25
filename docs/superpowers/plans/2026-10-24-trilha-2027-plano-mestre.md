@@ -14,7 +14,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | **P1 Fundação** | A | US-001 #23, US-002 #24, US-003 #25, US-004 #26, US-005 #27, US-006 #28, US-008 #30, US-009 #31, US-010 #32, US-012 #34 | 74 | 26/10 – 11/11 | — | `2026-10-24-trilha-2027-p1-fundacao.md` |
 | **P2 VPS** | B | US-122 #145, US-016 #38 | 12 | 26/10 – 27/10 | — (fora do código) | `2026-10-24-trilha-2027-p2-vps.md` |
-| P3 Entrega | B | US-013 #35, US-014 #36, US-015 #37, US-119 #141 | 40 | 28/10 – 08/12 | P1 tarefas 1 e 3; GAP-INF-001 | a detalhar após P1 tarefa 3 |
+| P3 Entrega | B | US-013 #35, US-014 #36, US-015 #37, US-119 #141 | 40 | 28/10 – 08/12 | P1 tarefas 1 e 3; GAP-INF-001 | `2026-10-25-trilha-2027-p3-entrega.md` (inclui os contratos C3 e C4) |
 | P4 Componentes e cadastros | B | US-021 #43, US-025 #47, US-043 #65, US-044 #66, US-046 #68, US-049 #71, US-050 #72, US-051 #73, US-053 #75 | 96 | 05/11 – 27/11 | P1 completo | a detalhar após P1 |
 | P5 Acesso | A | US-026 #48, US-030 #52, US-031 #53, US-032 #54, US-034 #56, US-038 #60 | 62 | 11/11 – 25/11 | P1; contratos C3 e C4 | a detalhar após P1 |
 | P6 Orçamento da Adm. Central | A | US-055 #77, US-120 #142, US-121 #143, US-058 #80, US-059 #81, US-060 #82, US-061 #83 | 60 | 25/11 – 11/12 | P4 (contratos C1 e C2), P5 | a detalhar após P5 |
