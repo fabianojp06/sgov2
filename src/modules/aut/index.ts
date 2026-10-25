@@ -11,3 +11,6 @@ export { entrar } from './application/acoes-login';
 export { FormLogin } from './ui/form-login';
 export { responderSair, sair } from './application/sair';
 export { BotaoSair } from './ui/botao-sair';
+export { trocar } from './application/acoes-senha';
+export { trocarSenha, type EntradaTroca } from './application/trocar-senha';
+export { FormTrocaSenha } from './ui/form-troca-senha';

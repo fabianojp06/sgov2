@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { PrismaClient } from '@/generated/prisma/client';
 import {
@@ -15,7 +15,7 @@ import { auditar } from '@/shared/audit';
 import { prisma, type TxCliente } from '@/shared/db';
 import { avaliarAntesDaSenha, avaliarFalha } from '../domain/autenticacao';
 import { MENSAGENS } from '../domain/mensagens';
-import { gerarSessaoUid } from '../domain/sessao';
+import { emitirSessao } from './sessao';
 
 export type MotivoNegacao = 'ENTRADA' | 'MANUTENCAO' | 'CREDENCIAIS' | 'BLOQUEADO' | 'SENHA_EXPIRADA' | 'FALHA_SESSAO';
 
@@ -60,7 +60,7 @@ const negar = (motivo: MotivoNegacao, mensagem: string, avisoUltimaTentativa = f
   contaFalha,
 });
 
-export const hashDoToken = (token: string) => createHash('sha256').update(token).digest('hex');
+export { hashDoToken } from './token';
 
 type Tentativa = { usuario: UsuarioParaLogin | null; rotulo: string; ip: string | null; agora: Date };
 
@@ -79,27 +79,17 @@ async function criarSessao(
   t: Tentativa,
   maximoHoras: number,
 ): Promise<{ token: string; expiraEm: Date }> {
-  // Sessão única (RN0519): a anterior cai antes de criar a nova.
-  const anteriores = await tx.sessaoUsuario.deleteMany({ where: { usuarioId: usuario.id } });
-  const token = randomBytes(32).toString('base64url');
-  const sessaoUid = gerarSessaoUid(t.agora, t.ip, usuario.id);
-  const expiraEm = new Date(t.agora.getTime() + maximoHoras * 60 * 60 * 1000);
-  await tx.sessaoUsuario.create({
-    data: {
-      usuarioId: usuario.id,
-      tokenHash: hashDoToken(token),
-      sessaoUid,
-      ip: t.ip,
-      criadaEm: t.agora,
-      ultimoAcessoEm: t.agora,
-      expiraEm,
-      acessoVersao: usuario.acessoVersao,
-      trocaSenhaPendente: usuario.trocaSenhaObrigatoria,
-    },
+  const { token, expiraEm, sessaoUid, anteriores } = await emitirSessao(tx, {
+    usuarioId: usuario.id,
+    acessoVersao: usuario.acessoVersao,
+    trocaSenhaPendente: usuario.trocaSenhaObrigatoria,
+    ip: t.ip,
+    agora: t.agora,
+    maximoHoras,
   });
   await zerarFalhasLogin(tx, usuario.id);
   const contexto = { usuarioId: usuario.id, usuarioRotulo: usuario.login, sessaoUid, ip: t.ip };
-  if (anteriores.count > 0) {
+  if (anteriores > 0) {
     await auditar(tx, {
       contexto,
       funcionalidade: FUNCIONALIDADE,
