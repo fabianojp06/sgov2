@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 25/10/2026 (frente A, US-003 e US-004).
+Última atualização: 25/10/2026 (frente A, US-003 a US-005 e preparação da frente B).
 
 ---
 
@@ -72,13 +72,16 @@
 **Código (P1 Fundação, frente A)**
 - Na `main`: US-001 (#149, fronteiras de módulo e `.github/frentes.yml`), US-002/US-012 (#152, `CLAUDE.md`, hooks e marca neutra), US-122/US-016 (#151, mitigações de D12 na VPS).
 - US-003 (#162) na `main`: `docker compose up -d` sobe db e mailpit da frente A; app e worker ficam no perfil `app`. O compose exige um `.env` local (fora do git) com `COMPOSE_PROJECT_NAME`, as portas e `POSTGRES_PASSWORD`.
-- US-004 em PR: Prisma 7 (`prisma.config.ts`, schema em `prisma/schema`), papéis `sgo_migrator`/`sgo_app`/`sgo_sync`, migration de privilégios, `src/shared/{config,db}`. As URLs do Prisma ficam no `.env.local`. O `prisma.config.ts` recusa `migrate dev/reset/diff` e `db push` fora do dev local, inclusive via `npm run db:migrate`.
+- US-004 (#164) na `main`: Prisma 7 (`prisma.config.ts`, schema em `prisma/schema`), papéis `sgo_migrator`/`sgo_app`/`sgo_sync`, migration de privilégios, `src/shared/{config,db}`. As URLs do Prisma ficam no `.env.local`. O `prisma.config.ts` recusa `migrate dev/reset/diff` e `db push` fora do dev local, inclusive via `npm run db:migrate`.
 - Testes de integração (Testcontainers): porta só em 127.0.0.1, 512 MB, `oom_score_adj` 500 e **sem o Ryuk**. Se um teste morrer no meio, limpar com `docker rm -f $(docker ps -aq --filter label=org.testcontainers=true)`.
-- Fim do período de fundação com o merge da US-004: criar a worktree da frente B. Antes, corrigir no `.github/frentes.yml` a propriedade de `src/shared/{config,db}/**` e `tests/integracao/**` (hoje caem como compartilhados).
+- US-005 (#166 lint, #167 kernel) na `main`: `Dinheiro`, `Percentual`, `Competencia` e `distribuirEm12` em `@/shared/kernel`; o lint barra `parseFloat`, `Math.round` e `.toFixed` em `domain/` e `kernel/` (exceção: `kernel/decimal.ts`).
+- Decisões do PO (25/10, issue #168): dezembro pode ficar com sinal oposto em valores pequenos (igual à planilha); a diferença de 1 centavo entre o `ROUND` do Excel e o Half-Even do sistema é aceita, e a conferência da US-121 precisa tolerá-la.
+- **Fim do período de fundação.** Spec 1.3: `src/shared/{config,db,filas}/` e `tests/integracao/` passam a ser da frente A. Texto de abertura da frente B em `docs/backlog/abertura-frente-b.md`.
+- Próxima da frente A: US-006 (Histórico de Operações).
 - O progresso da execução do plano fica em `.superpowers/sdd/<plano>/progress.md` (fora do git).
 
 **Repositório (documentação)**
-- Spec oficial **versão 1.2** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12). Status: aguardando a aprovação final do PO.
+- Spec oficial **versão 1.3** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3). Status: aguardando a aprovação final do PO.
 - Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 122 histórias (US-001 a US-122), 22 épicos e releases R0 a R9. Total de 1294 h (1557 h com contingência). O gerador fica em `docs/backlog/fonte/`.
 - Planilha-modelo do orçamento 2027, com o gerador em `docs/modelos/fonte/`.
 - Scripts de sincronização com o GitHub em `docs/backlog/fonte/github/`.
@@ -103,7 +106,7 @@
 | | Frente A | Frente B |
 | --- | --- | --- |
 | Conta | conta 1 | conta 2 |
-| Diretório | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` (worktree, ainda não criada) |
+| Diretório | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` (worktree, criada após o PR de fim da fundação) |
 | Início | `claude` | `CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude` |
 | tmux | `tmux new -s sgo-a` | `tmux new -s sgo-b` |
 | Épicos | EP00, EP04, EP05, EP09–EP16, EP18 | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
@@ -127,7 +130,9 @@
 - [ ] Após a US-013 (pipeline de CI), incluir o check de CI como obrigatório na proteção da `main` (`required_status_checks`, *strict*).
 - [x] Na US-002, criar o `CLAUDE.md` com o resumo das regras da seção 2 e da spec §12, além dos hooks: bloquear `prisma migrate reset`/`db push`/`migrate diff` fora do dev, avisar se aparecer "CTCEA" e allowlist de comandos.
 - [x] Na US-001, criar `.github/frentes.yml` (mapa de propriedade da spec §12.3).
-- [ ] Criar a worktree da frente B e o texto de abertura da primeira sessão dela.
+- [x] Texto de abertura da primeira sessão da frente B (25/10).
+- [ ] Frente A: criar a worktree `/root/sistemas/sgo-b` depois do merge do PR de fim da fundação.
+- [ ] PO: abrir a primeira sessão da frente B (`cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude`, `/login` com a conta 2) e colar `docs/backlog/abertura-frente-b.md`.
 - [ ] Autenticar os MCPs context7 e hostinger (`/mcp`), se forem usados.
 
 **Com SMEs**
@@ -139,6 +144,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 25/10/2026 | A | US-005: núcleo de dinheiro e lint contra `number` (dois PRs); spec 1.3 (§12.3: config, db, filas e tests/integracao da frente A); texto de abertura da frente B (worktree criada após o merge) |
 | 25/10/2026 | A | US-004: Prisma 7, papéis de banco, trava do shadow e de comandos destrutivos; helper de Testcontainers com D12 (127.0.0.1, sem Ryuk); revisão 12.12 em 4 lentes |
 | 25/10/2026 | A | US-003: compose de dev com limites de D12 (portas em 127.0.0.1, `mem_limit`/`memswap_limit`, nome do projeto obrigatório), revisão 12.12 em 3 lentes com uma rodada de correção |
 | 24/10/2026 | A | Spec 1.2 com a rotina de code review (§12.12); planos P1/P2 escritos (PR #147); início do P1 Tarefa 1 por fluxo de agentes |

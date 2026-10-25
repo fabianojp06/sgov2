@@ -36,7 +36,7 @@ Sistema de Gestão Orçamentária: monólito modular Next.js 16 (App Router) + P
 
 ## Frentes e propriedade (resumo da spec §12.3)
 
-- **Frente A — núcleo e domínio** (`/root/sistemas/sgo`; banco 55432, app 3100, Mailpit 8125): `src/shared/{kernel,audit,unidade,authz,totalizer}/`, `src/modules/{aut,adm,orc,apr}/`, `src/proxy.ts`.
+- **Frente A — núcleo e domínio** (`/root/sistemas/sgo`; banco 55432, app 3100, Mailpit 8125): `src/shared/{kernel,audit,unidade,authz,totalizer,config,db,filas}/`, `tests/integracao/`, `src/modules/{aut,adm,orc,apr}/`, `src/proxy.ts`.
 - **Frente B — plataforma, cadastros e saídas** (`/root/sistemas/sgo-b`; banco 56432, app 3200, Mailpit 8225): `src/shared/ia/`, `src/modules/{ger,cad,rel,int}/`, `worker/`, `.github/workflows/`, `docker/`, `deploy/`, `ops/`.
 - **Compartilhados** (PR exclusivo com a label `compartilhado`, spec §12.5): `package.json`, `package-lock.json`, `tsconfig*.json`, lint, `next.config.*`, `CLAUDE.md`, `.claude/`, `prisma/schema/_base.prisma`, `src/app/layout.tsx`, `.github/frentes.yml`, `docs/superpowers/`.
 - A versão executável do mapa é `.github/frentes.yml`. Uma história = branch `us-NNN-slug` = um PR com `Closes #n` e a label da frente.

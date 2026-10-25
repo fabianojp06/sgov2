@@ -5,7 +5,8 @@
 
 frentes:
   A:
-    - 'src/shared/{kernel,audit,unidade,authz,totalizer}/**'
+    - 'src/shared/{kernel,audit,unidade,authz,totalizer,config,db,filas}/**'
+    - 'tests/integracao/**'
     - 'src/modules/{aut,adm,orc,apr}/**'
     - 'prisma/schema/{aut,adm,orc,apr}.prisma'
     - 'src/proxy.ts'

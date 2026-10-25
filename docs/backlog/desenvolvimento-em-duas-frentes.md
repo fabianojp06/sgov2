@@ -14,6 +14,8 @@ git -C /root/sistemas/sgo config extensions.worktreeConfig true
 cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude
 ```
 
+**Configuração do Claude Code da conta 2.** O `CLAUDE_CONFIG_DIR=/root/.claude-frente-b` começa vazio. Os hooks e as permissões do projeto (`.claude/` do repositório) valem nas duas worktrees, mas o que estiver só nas configurações de usuário da conta 1 (`/root/.claude/settings.json`), como regras do modo automático que marcam `sgo-prod`/`sgo-hml` como alvos sensíveis, **não** vale para a conta 2. O PO configura o equivalente na conta 2 pela própria sessão da frente B (`/config` ou a skill `update-config`), sem copiar credenciais nem a sessão da conta 1.
+
 Atalho opcional no `~/.bashrc`:
 
 ```bash
@@ -21,14 +23,23 @@ alias sgo-a='cd /root/sistemas/sgo && claude'
 alias sgo-b='cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude'
 ```
 
-Cada worktree tem o próprio `.env.local` (fora do git) com as portas da §12.4:
+Cada worktree tem dois arquivos locais, fora do git, copiados do `.env.example` com as portas da §12.4:
 
-| Variável | Frente A | Frente B |
-| --- | --- | --- |
-| `COMPOSE_PROJECT_NAME` | `sgo-a` | `sgo-b` |
-| `DB_PORT` | 55432 | 56432 |
-| `APP_PORT` | 3100 | 3200 |
-| `MAILPIT_PORT` | 8125 | 8225 |
+- **`.env`**: lido pelo Docker Compose. Sem ele, o compose não sobe, para que uma frente nunca assuma os contêineres da outra.
+- **`.env.local`**: lido pelo Prisma (`prisma.config.ts`) e pela aplicação.
+
+| Variável | Arquivo | Frente A | Frente B |
+| --- | --- | --- | --- |
+| `COMPOSE_PROJECT_NAME` | `.env` | `sgo-a` | `sgo-b` |
+| `DB_PORT` | `.env` | 55432 | 56432 |
+| `APP_PORT` | `.env` | 3100 | 3200 |
+| `MAILPIT_PORT` | `.env` | 8125 | 8225 |
+| `POSTGRES_PASSWORD` | `.env` | aleatória | aleatória |
+| `DATABASE_URL`, `MIGRATE_DATABASE_URL`, `SHADOW_DATABASE_URL` | `.env.local` | `127.0.0.1:55432` | `127.0.0.1:56432` |
+
+Depois de criar os dois arquivos: `npm ci`, `docker compose up -d`, `npm run db:deploy` e `npm run db:seed`.
+
+O texto de abertura da primeira sessão da frente B está em `docs/backlog/abertura-frente-b.md`.
 
 ## 2. Início de cada sessão (as duas frentes)
 

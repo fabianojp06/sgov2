@@ -81,4 +81,21 @@ describe('verificarFrentes', () => {
       { tipo: 'compartilhado', arquivo: 'arquivo-novo.txt' },
     ]);
   });
+
+  // Núcleo de configuração, banco e filas e o helper de integração são da frente A (spec §12.3).
+  it.each(['src/shared/config/env.ts', 'src/shared/db/prisma.ts', 'src/shared/filas/index.ts', 'tests/integracao/banco.ts', 'tests/integracao/apoio/x.ts'])(
+    '%s é da frente A',
+    (arquivo) => {
+      expect(verificarFrentes({ arquivos: [arquivo], labels: [], frente: 'A', mapa })).toEqual([]);
+      expect(verificarFrentes({ arquivos: [arquivo], labels: [], frente: 'B', mapa })).toEqual([
+        { tipo: 'outra-frente', arquivo },
+      ]);
+    },
+  );
+
+  it('teste de integração de módulo da frente B fica com o dono do módulo', () => {
+    expect(
+      verificarFrentes({ arquivos: ['src/modules/cad/infrastructure/repo.int.test.ts'], labels: [], frente: 'B', mapa }),
+    ).toEqual([]);
+  });
 });
