@@ -12,6 +12,8 @@ const esquema = z.object({
   DATABASE_URL: urlPostgres,
   MIGRATE_DATABASE_URL: urlPostgres.optional(),
   SHADOW_DATABASE_URL: urlPostgres.optional(),
+  // Filas (pg-boss): conecta como sgo_fila, dono só do schema pgboss.
+  FILA_DATABASE_URL: urlPostgres.optional(),
 });
 
 export type Env = z.infer<typeof esquema>;

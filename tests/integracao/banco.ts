@@ -70,6 +70,7 @@ function migrarDeploy(urlMigrator: string): void {
 export async function iniciarBancoTeste(): Promise<{
   urlApp: string;
   urlMigrator: string;
+  urlFila: string;
   idContainer: string;
   parar(): Promise<void>;
 }> {
@@ -82,6 +83,7 @@ export async function iniciarBancoTeste(): Promise<{
     return {
       urlApp: `postgresql://sgo_app:sgo_app@${host}/sgo_teste`,
       urlMigrator,
+      urlFila: `postgresql://sgo_fila:sgo_fila@${host}/sgo_teste`,
       idContainer: container.getId(),
       parar: async () => {
         await container.stop();
