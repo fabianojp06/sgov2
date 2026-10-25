@@ -2,8 +2,9 @@
 export const NOMES_FILA = ['teste.eco', 'email.enviar', 'outbox.publicar'] as const;
 export type NomeFila = (typeof NOMES_FILA)[number];
 
-// Regra para quem enfileira: job e outbox carregam o mínimo (ids, referências), nunca token,
-// senha ou corpo de e-mail; o dado sensível é buscado pelo trabalhador na hora do envio.
+// Regra para quem enfileira: job e outbox carregam o mínimo necessário. Dado sensível (ex.: a
+// senha temporária do C4) só quando não houver como buscá-lo depois; nesse caso o outbox já
+// apaga os dados ao publicar, e o trabalhador chama apagarJob depois do envio.
 export type OpcoesEnvio = {
   // Identificador idempotente do job (UUID): enviar de novo com a mesma chave não cria outro job.
   chaveUnica?: string;
@@ -23,6 +24,8 @@ export interface FilaGerenciada extends Fila {
   // Job com falha fica visível e reprocessável (critério da US-010).
   consultar(nome: NomeFila, id: string): Promise<{ estado: EstadoJob; tentativas: number } | null>;
   reprocessar(nome: NomeFila, id: string): Promise<void>;
+  // Remove o job e seus dados (C4: senha temporária não fica guardada depois do envio).
+  apagarJob(nome: NomeFila, id: string): Promise<void>;
   // Filas com trabalhador registrado neste processo (para o log de partida do worker).
   filasComTrabalhador(): readonly NomeFila[];
 }

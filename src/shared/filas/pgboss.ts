@@ -8,7 +8,7 @@ const NOVAS_TENTATIVAS = 5;
 const ESPERA_S = 30;
 const uuid = z.uuid();
 
-function opcoesDeJob(opcoes?: OpcoesEnvio) {
+export function opcoesDeJob(opcoes?: OpcoesEnvio) {
   const novas = opcoes?.tentativas === undefined ? NOVAS_TENTATIVAS : opcoes.tentativas - 1;
   if (!Number.isInteger(novas) || novas < 0) {
     throw new ErroDominio('TENTATIVAS_INVALIDAS', `Tentativas inválidas: ${opcoes?.tentativas}`);
@@ -73,6 +73,10 @@ export async function criarFila(urlBanco: string): Promise<FilaGerenciada> {
 
     async reprocessar(nome, id) {
       await boss.retry(nome, id);
+    },
+
+    async apagarJob(nome, id) {
+      await boss.deleteJob(nome, id);
     },
 
     filasComTrabalhador: () => [...comTrabalhador],

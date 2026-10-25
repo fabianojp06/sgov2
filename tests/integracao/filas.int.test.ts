@@ -1,7 +1,8 @@
+import { spawn } from 'node:child_process';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { criarPrisma } from '@/shared/db';
-import { criarFila, publicarOutbox, registrarNoOutbox } from '@/shared/filas';
+import { criarFila, publicarOutbox, registrarNoOutbox, type Fila } from '@/shared/filas';
 import { iniciarBancoTeste } from './banco';
 
 // Filas com pg-boss e outbox transacional (US-010), sobre PostgreSQL real.
@@ -78,6 +79,17 @@ describe('fila', () => {
     } finally {
       await c.end();
     }
+  });
+});
+
+
+describe('C4: dado sensível', () => {
+  it('apagarJob remove o job (e seus dados) depois do envio', async () => {
+    // Os trabalhadores de 'teste.eco' já registrados consomem o job.
+    const id = await fila.enviar('teste.eco', { s: 'dado sensível' });
+    await esperar(async () => (await fila.consultar('teste.eco', id))?.estado === 'completed', 10_000);
+    await fila.apagarJob('teste.eco', id);
+    expect(await fila.consultar('teste.eco', id)).toBeNull();
   });
 });
 
@@ -162,4 +174,58 @@ describe('revisão 12.12: idempotência e falhas no outbox', () => {
       await filaPg.end();
     }
   });
+});
+
+describe('revisão 12.12, rodada 2', () => {
+  it('SKIP LOCKED: o segundo publicador não espera a linha travada pelo primeiro', async () => {
+    await migrator.query('DELETE FROM outbox_mensagem');
+    await app.$transaction((tx) => registrarNoOutbox(tx, 'teste.eco', { k: 1 }));
+    await app.$transaction((tx) => registrarNoOutbox(tx, 'teste.eco', { k: 2 }));
+    let liberar: () => void = () => {};
+    const travada = new Promise<void>((r) => (liberar = r));
+    const lenta: Fila = { enviar: async (_n, _d, o) => (await travada, o!.chaveUnica!) };
+    const primeiro = publicarOutbox(lenta, app, 1);
+    await new Promise((r) => setTimeout(r, 300));
+    const inicio = Date.now();
+    expect(await publicarOutbox(fila, app, 1)).toBe(1);
+    expect(Date.now() - inicio).toBeLessThan(2000);
+    liberar();
+    expect(await primeiro).toBe(1);
+  });
+
+  it('erro de infraestrutura no envio sobe e não gasta tentativa da mensagem', async () => {
+    await migrator.query('DELETE FROM outbox_mensagem');
+    await app.$transaction((tx) => registrarNoOutbox(tx, 'teste.eco', { k: 3 }));
+    const quebrada: Fila = {
+      enviar: async () => {
+        throw new Error('conexão recusada');
+      },
+    };
+    await expect(publicarOutbox(quebrada, app)).rejects.toThrow('conexão recusada');
+    const { rows } = await migrator.query('SELECT tentativas FROM outbox_mensagem');
+    expect(rows).toEqual([{ tentativas: 0 }]);
+  });
+
+  const rodarWorker = (env: Record<string, string>) =>
+    spawn(process.execPath, ['--import', 'tsx', 'worker/index.ts'], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', NODE_ENV: 'test', ...env },
+    });
+
+  it('worker sem FILA_DATABASE_URL sai com código 1', async () => {
+    const p = rodarWorker({ DATABASE_URL: banco.urlApp });
+    const codigo = await new Promise<number | null>((r) => p.on('exit', r));
+    expect(codigo).toBe(1);
+  });
+
+  it('worker encerra limpo no SIGTERM (código 0)', async () => {
+    const p = rodarWorker({ DATABASE_URL: banco.urlApp, FILA_DATABASE_URL: banco.urlFila });
+    let saida = '';
+    p.stdout.on('data', (d) => (saida += String(d)));
+    await esperar(() => saida.includes('worker pronto'), 30_000);
+    const fim = new Promise<number | null>((r) => p.on('exit', r));
+    p.kill('SIGTERM');
+    expect(await fim).toBe(0);
+    expect(saida).toContain('SIGTERM recebido');
+  }, 60_000);
 });
