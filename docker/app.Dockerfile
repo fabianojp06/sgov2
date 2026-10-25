@@ -11,8 +11,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # O Prisma escolhe o binário do schema engine pela versão do OpenSSL, e a imagem slim não o traz.
 # Fica na base para o npm ci do migrador baixar a mesma variante (debian-openssl-3.0.x) que roda
 # no estágio final: sem isso, o migrate deploy tenta baixar o binário certo na hora, sem rede.
+# tini como PID 1: repassa o SIGTERM do Easypanel e recolhe processos filhos (a migração roda
+# antes do servidor, sob o bash do entrypoint).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssl \
+ && apt-get install -y --no-install-recommends openssl tini \
  && rm -rf /var/lib/apt/lists/*
 
 # Dependências completas do projeto. O postinstall (prisma generate) precisa do schema,
@@ -45,14 +47,17 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 WORKDIR /app
-COPY --from=build --chown=node:node /src/.next/standalone ./
-COPY --from=build --chown=node:node /src/.next/static ./.next/static
-COPY --from=migrador --chown=node:node /opt/migrador /opt/migrador
-COPY --chown=node:node docker/entrypoint.sh /app/docker/entrypoint.sh
+# Arquivos do root, só leitura para o node: o processo não reescreve o próprio código, o
+# entrypoint nem as migrations. O Next.js grava só no cache.
+COPY --from=build /src/.next/standalone ./
+COPY --from=build /src/.next/static ./.next/static
+COPY --from=migrador /opt/migrador /opt/migrador
+COPY docker/entrypoint.sh /app/docker/entrypoint.sh
+RUN mkdir -p /app/.next/cache && chown node:node /app/.next/cache
 USER node
 EXPOSE 3000
 # A migração roda antes do servidor: o start-period cobre uma migration demorada.
 HEALTHCHECK --start-period=120s --interval=10s --timeout=5s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/login').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
-ENTRYPOINT ["/app/docker/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker/entrypoint.sh"]
 CMD ["app"]

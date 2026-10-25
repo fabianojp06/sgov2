@@ -15,8 +15,10 @@ SH
   cat > "$T/bin/node" <<'SH'
 #!/bin/sh
 echo "node $*" >> "$REGISTRO"
+echo "node-env MIGRATE_DATABASE_URL=${MIGRATE_DATABASE_URL:-<ausente>}" >> "$REGISTRO"
 exit 0
 SH
+  mkdir -p "$T/migrador/prisma/migrations/202610260000_nucleo_x"
   chmod +x "$T/migrador/node_modules/.bin/prisma" "$T/bin/node"
   export REGISTRO="$T/registro" PATH="$T/bin:$PATH" MIGRADOR_DIR="$T/migrador" APP_DIR="$T"
   export MIGRATE_DATABASE_URL="postgresql://sgo_migrator:x@db:5432/sgo"
@@ -84,4 +86,18 @@ teardown() { rm -rf "$T"; }
   run "$SCRIPT" worker
   [ "$status" -eq 64 ]
   [[ "$output" == *"worker"* ]]
+}
+
+@test "app: o servidor sobe sem a credencial do migrador no ambiente" {
+  run "$SCRIPT" app
+  [ "$status" -eq 0 ]
+  grep -q '^node-env MIGRATE_DATABASE_URL=<ausente>$' "$REGISTRO"
+}
+
+@test "migrar sem nenhuma migration na imagem → erro, sem chamar o prisma" {
+  rm -rf "$T/migrador/prisma/migrations"/*
+  run "$SCRIPT" migrar
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"nenhuma migration"* ]]
+  [ ! -s "$REGISTRO" ]
 }

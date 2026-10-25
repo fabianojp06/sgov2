@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Testes da imagem do SGO (job "Imagem" do CI e verificação local; plano do P3, Tarefa 4, Step 6).
-# Uso: docker/testes/testar-imagem.sh <imagem>
+# Uso: docker/testes/testar-imagem.sh <imagem>      (na VPS: nice -n 10 docker/testes/testar-imagem.sh …)
 # Sobe um Postgres descartável numa rede Docker interna (sem internet), sem porta publicada, com
-# limite de memória e oom_score_adj 500 (D12), e remove tudo no fim, mesmo com falha.
+# limite de memória e de CPU e oom_score_adj 500 (D12), e remove tudo no fim, mesmo com falha.
 set -euo pipefail
 
 IMAGEM="${1:?Uso: testar-imagem.sh <imagem>}"
@@ -11,9 +11,10 @@ PREFIXO="sgo-b-teste-$$"
 REDE="$PREFIXO-rede"
 PG="$PREFIXO-pg"
 PG_IMAGEM="pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a"
-LIMITES=(--memory 768m --memory-swap 768m --oom-score-adj 500)
+LIMITES=(--memory 768m --memory-swap 768m --oom-score-adj 500 --cpus 1)
 URL_MIGRATOR="postgresql://sgo_migrator:sgo_migrator@$PG:5432"
 URL_APP="postgresql://sgo_app:sgo_app@$PG:5432"
+MIGRATION_QUEBRADA="$RAIZ/docker/testes/migration-quebrada:/opt/migrador/prisma/migrations:ro"
 
 limpar() {
   docker ps -aq --filter "name=^$PREFIXO-" | xargs -r docker rm -f > /dev/null
@@ -26,15 +27,25 @@ falhar() {
   exit 1
 }
 
-# Pergunta HTTP de dentro da rede interna, com o node da própria imagem.
-http_login() {
-  docker run --rm --network "$REDE" "${LIMITES[@]}" --entrypoint node "$IMAGEM" -e \
-    "fetch('http://$1:3000/login').then((r) => console.log(r.status)).catch(() => console.log('sem-resposta'))"
+psql_pg() {
+  docker exec -i "$PG" psql -qtA -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 "$@"
 }
 
-echo "1. A imagem não contém .env nem .git"
-achados=$(docker run --rm --entrypoint sh "$IMAGEM" -c \
-  "find / -xdev \( -name '.env*' -o -name .git \) -not -path '/proc/*' 2>/dev/null || true")
+# Pergunta HTTP de dentro da rede interna, com o node da própria imagem.
+http_login() {
+  docker run --rm --name "$PREFIXO-sonda-$RANDOM" --network "$REDE" "${LIMITES[@]}" --entrypoint node "$IMAGEM" -e \
+    "fetch('http://$1:3000/login', { signal: AbortSignal.timeout(5000) }).then((r) => console.log(r.status)).catch(() => console.log('sem-resposta'))"
+}
+
+saude() {
+  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sem-healthcheck{{end}}' "$1"
+}
+
+echo "1. A imagem não contém .env, .git nem chave (find como root, sem rede)"
+# Só nas pastas que recebem conteúdo do projeto ou de usuário; o resto vem da imagem oficial do
+# Node (ela traz, por exemplo, o .npmrc interno do próprio npm em /usr/local/lib).
+achados=$(docker run --rm --name "$PREFIXO-find" --user root --network none "${LIMITES[@]}" --entrypoint sh "$IMAGEM" -c \
+  "find /app /opt /root /home /tmp /srv -xdev \( -name '.env*' -o -name .git -o -name .npmrc -o -name '*.pem' -o -name '*.key' \) 2>/dev/null")
 [[ -z "$achados" ]] || falhar "arquivos proibidos na imagem: $achados"
 
 echo "2. Banco descartável numa rede sem internet"
@@ -48,39 +59,47 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [[ "$pronto" == 1 ]] || falhar "o Postgres descartável não ficou pronto em 60 s"
-docker exec -i "$PG" psql -q -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < "$RAIZ/docker/postgres/init/01-papeis.sql"
+psql_pg < "$RAIZ/docker/postgres/init/01-papeis.sql"
 
-echo "3. migrar sem internet e sem devDependencies → código 0"
+echo "3. migrar sem internet e sem devDependencies → todas as migrations aplicadas"
 docker run --rm --name "$PREFIXO-migrar" --network "$REDE" "${LIMITES[@]}" \
   -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" "$IMAGEM" migrar \
   || falhar "o migrador não aplicou as migrations sem rede"
+esperadas=$(find "$RAIZ/prisma/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l)
+aplicadas=$(psql_pg -d sgo_teste -c "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL")
+[[ "$esperadas" -gt 0 && "$aplicadas" == "$esperadas" ]] \
+  || falhar "migrations aplicadas: $aplicadas; esperadas (pastas em prisma/migrations): $esperadas"
 
-echo "4. migrar com migration quebrada → código diferente de 0"
-if docker run --rm --name "$PREFIXO-quebrada" --network "$REDE" "${LIMITES[@]}" \
-  -v "$RAIZ/docker/testes/migration-quebrada:/opt/migrador/prisma/migrations:ro" \
-  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_shadow" "$IMAGEM" migrar; then
+echo "4. migrar com migration quebrada → falha pela migration (P3018), não por outro motivo"
+if saida=$(docker run --rm --name "$PREFIXO-quebrada" --network "$REDE" "${LIMITES[@]}" -v "$MIGRATION_QUEBRADA" \
+  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_shadow" "$IMAGEM" migrar 2>&1); then
   falhar "a migration quebrada passou"
 fi
+grep -q 'P3018' <<< "$saida" || falhar "a migração falhou, mas não pela migration quebrada: $(tail -5 <<< "$saida")"
 
-echo "5. app com migration quebrada → sai com erro e nunca responde HTTP"
-docker run -d --name "$PREFIXO-app-ruim" --network "$REDE" "${LIMITES[@]}" \
-  -v "$RAIZ/docker/testes/migration-quebrada:/opt/migrador/prisma/migrations:ro" \
+echo "5. app com migration quebrada → sai pela migration; o servidor nunca inicia nem fica saudável"
+docker run -d --name "$PREFIXO-app-ruim" --network "$REDE" "${LIMITES[@]}" -v "$MIGRATION_QUEBRADA" \
   -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_dev" -e DATABASE_URL="$URL_APP/sgo_dev" "$IMAGEM" app > /dev/null
-saida=$(docker wait "$PREFIXO-app-ruim")
+saida=$(timeout 180 docker wait "$PREFIXO-app-ruim") || falhar "o app com migration quebrada não terminou em 180 s"
 [[ "$saida" != 0 ]] || falhar "o app subiu com a migration quebrada (código 0)"
-if docker logs "$PREFIXO-app-ruim" 2>&1 | grep -q 'Next.js'; then
-  falhar "o servidor Next.js chegou a iniciar com a migration quebrada"
-fi
+log_ruim=$(docker logs "$PREFIXO-app-ruim" 2>&1)
+grep -q 'P3018' <<< "$log_ruim" || falhar "o app saiu, mas não pela migration quebrada"
+# O Next.js standalone escreve "Ready in" ao abrir a porta: não pode aparecer.
+! grep -q 'Ready in' <<< "$log_ruim" || falhar "o servidor Next.js chegou a abrir a porta com a migration quebrada"
+[[ "$(saude "$PREFIXO-app-ruim")" != healthy ]] || falhar "o contêiner com migration quebrada ficou saudável"
 
-echo "6. app com as migrations boas → /login responde 200"
+echo "6. app com as migrations boas → healthcheck da imagem saudável e /login 200"
 docker run -d --name "$PREFIXO-app" --network "$REDE" "${LIMITES[@]}" \
   -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e DATABASE_URL="$URL_APP/sgo_teste" "$IMAGEM" app > /dev/null
-status=sem-resposta
-for _ in $(seq 1 30); do
-  status=$(http_login "$PREFIXO-app")
-  [[ "$status" == 200 ]] && break
-  sleep 2
+estado=starting
+for _ in $(seq 1 60); do
+  estado=$(saude "$PREFIXO-app")
+  [[ "$estado" == healthy || "$estado" == unhealthy || "$estado" == sem-healthcheck ]] && break
+  sleep 3
 done
-[[ "$status" == 200 ]] || falhar "/login respondeu $status"
+[[ "$estado" == healthy ]] || falhar "healthcheck da imagem: $estado"
+[[ "$(http_login "$PREFIXO-app")" == 200 ]] || falhar "/login não respondeu 200"
+# Mantém viva a prova negativa do passo 5: o texto que ela procura existe no servidor que sobe.
+docker logs "$PREFIXO-app" 2>&1 | grep -q 'Ready in' || falhar "o log do servidor não tem mais \"Ready in\" (ajuste o passo 5)"
 
 echo "Imagem aprovada."

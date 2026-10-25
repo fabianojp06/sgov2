@@ -32,6 +32,11 @@ prisma() {
 
 migrar() {
   exigir_url_migracao
+  # Sem nenhuma migration na imagem, o migrate deploy sairia 0 sem aplicar nada.
+  if ! compgen -G "$MIGRADOR_DIR/prisma/migrations/*/" > /dev/null; then
+    echo "A imagem não tem nenhuma migration em $MIGRADOR_DIR/prisma/migrations." >&2
+    exit 1
+  fi
   echo "Aplicando as migrations (prisma migrate deploy)..."
   prisma migrate deploy
 }
@@ -40,7 +45,8 @@ case "${1:-}" in
   app)
     migrar
     cd "$APP_DIR"
-    exec node server.js
+    # O servidor não precisa da credencial do sgo_migrator (dono do DDL): sobe sem ela.
+    exec env -u MIGRATE_DATABASE_URL node server.js
     ;;
   migrar)
     migrar
