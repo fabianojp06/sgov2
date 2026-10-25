@@ -121,3 +121,81 @@ describe('avaliarComando', () => {
     expect(avaliarComando('npx prisma migrate reset --force', DEV_LOCAL, prodArquivo).bloquear).toBe(true);
   });
 });
+
+// Trava de deploy de prod (plano do P3, Decisão 4): a tag v* dispara o prod, e a aprovação do
+// environment "producao" é do PO. O PO e as sessões usam o mesmo usuário do GitHub.
+describe('trava de deploy de prod', () => {
+  it.each([
+    ['git tag v0.1.0', true],
+    ['git tag -a v1.2.3 -m "versão"', true],
+    ['git tag -s v1.2.3', true],
+    ['git -C /root/sistemas/sgo-b tag v1.0.0', true],
+    ['git push origin v0.1.0', true],
+    ['git push origin refs/tags/v0.1.0', true],
+    ['git push origin HEAD:refs/tags/v9.9.9', true],
+    ['git push --tags', true],
+    ['git push origin --tags', true],
+    ['git push --follow-tags origin us-013-x', true],
+    ['gh release create v0.1.0', true],
+    ['gh api -X POST repos/fabianojp06/sgov2/actions/runs/1/pending_deployments -f state=approved', true],
+    ['gh api repos/fabianojp06/sgov2/actions/workflows/imagem.yml/dispatches -f ref=v0.1.0', true],
+    ['gh workflow run imagem.yml --ref v0.1.0 -f acao=rollback', true],
+    ["bash -c 'git tag v1.0.0 && git push origin v1.0.0'", true],
+    ['git tag', false],
+    ['git tag -l', false],
+    ['git tag --list "v*"', false],
+    ['git tag -d v0.0.1-teste', false],
+    ['git push -u origin us-013-imagem-deploy', false],
+    ['git push --force-with-lease origin us-013-imagem-deploy', false],
+    ['gh api repos/fabianojp06/sgov2/actions/runs/1/pending_deployments', true],
+    ['gh api -X PATCH repos/fabianojp06/sgov2/pulls/184 -f base=main', false],
+    ['gh run list --workflow imagem.yml', false],
+    ['gh release list', false],
+    ['git commit -m "prepara a tag v1.0.0 e o push --tags"', false],
+    ['git log --tags', false],
+    // Revisão 12.12 do PR #187: variantes que escapavam.
+    ['gh release -R fabianojp06/sgov2 create v1.0.0', true],
+    ['gh -R fabianojp06/sgov2 release create v1.0.0', true],
+    ['gh release --repo=fabianojp06/sgov2 create v1.0.0', true],
+    ['gh workflow -R fabianojp06/sgov2 run imagem.yml --ref v1.0.0 -f acao=rollback', true],
+    ['gh api -XPOST repos/o/r/actions/runs/1/pending_deployments -fstate=approved', true],
+    ['gh api --method=post repos/o/r/actions/runs/1/pending_deployments', true],
+    ["gh api graphql -f query='mutation{approveDeployments(input:{}){clientMutationId}}'", true],
+    ['curl -X POST -H "Authorization: Bearer $(gh auth token)" https://api.github.com/repos/o/r/actions/runs/1/pending_deployments', true],
+    ['node -e "fetch(\'https://api.github.com/repos/o/r/actions/runs/1/pending_deployments\')"', true],
+    ['gh api repos/o/r/git/refs -f ref=refs/tags/v1.0.0 -f sha=abc', true],
+    ['gh api repos/o/r/releases -f tag_name=v1.0.0', true],
+    ['gh api -X POST repos/o/r/actions/workflows/1234/dispatches -f ref=v1.0.0', true],
+    ['git tag "v$VERSAO"', true],
+    ['git tag v$(jq -r .version package.json)', true],
+    ['git push origin "v$VERSAO"', true],
+    ['git push origin tag v1.0.0', true],
+    ['git push origin :refs/tags/v1.0.0', true],
+    ["git push origin 'refs/tags/*'", true],
+    ['git push origin refs/tags/*:refs/tags/*', true],
+    ['git push --repo=origin v1.0.0', true],
+    ['git -c push.followTags=true push origin us-013-x', true],
+    ['git config push.followTags true', true],
+    ['git tag -f v1.0.0', true],
+    ['git tag -- v1.0.0', true],
+    ['git tag --format=x v1.0.0', true],
+    ['git tag --no-column v1.0.0', true],
+    ['git tag --sort version:refname v1.0.0', true],
+    ['gh api repos/o/r/releases -ftag_name=v1.0.0', true],
+    ['gh api repos/o/r/releases --raw-field=tag_name=v1.0.0', true],
+    ['git tag --contains v1.0.0', false],
+    ['git tag -n v1.0.0', false],
+    ['git tag -n5 --sort=-creatordate', false],
+    ['git tag --merged main', false],
+    ['git tag --points-at HEAD', false],
+    ['gh workflow run ci.yml --ref us-020-rollback-docs', false],
+    ['gh workflow run imagem.yml -f acao=teste -f nome=x', false],
+    ['gh workflow run imagem.yml', true],
+    ['gh pr list --repo fabianojp06/sgov2 --label frente:B', false],
+    ['gh api repos/fabianojp06/sgov2/pulls/187 -X PATCH -f body=x', false],
+  ])('%s → bloquear=%s', (comando, bloquear) => {
+    const r = avaliarComando(comando, VAZIO);
+    expect(r.bloquear).toBe(bloquear);
+    if (bloquear) expect(r.motivo).toMatch(/deploy de prod/);
+  });
+});

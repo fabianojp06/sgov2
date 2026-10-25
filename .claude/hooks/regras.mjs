@@ -172,6 +172,86 @@ function avaliarClientePg(tokens, env) {
   return null;
 }
 
+const MOTIVO_DEPLOY_PROD =
+  'Trava de deploy de prod (plano do P3, Decisão 4): tag v*, aprovação do environment "producao" e disparo do imagem.yml são do PO, porque o PO e as sessões usam o mesmo usuário do GitHub.';
+// Tag de release: v seguido de dígito, de variável ($VERSAO) ou de substituição ($(…) vira "v" sozinho
+// depois do segmentar). Vale também para refspec (+, origem:destino, refs/tags/).
+const TAG_V = /^v(?:\d|\$|$)/;
+const TAG_RELEASE = /^(?:\+?(?:[^:]*:)?(?:refs\/tags\/)?)v(?:\d|\$|$)/;
+// Aprovação do environment e push automático de tags: bloqueados pelo texto, em qualquer comando
+// (gh api, graphql, curl, node -e...), porque a sessão não precisa deles nem para ler.
+const TEXTO_DEPLOY_PROD = /pending_deployments|approveDeployments|deployment_protection_rule|followTags/i;
+// Opções que põem o git tag em modo de consulta ou remoção (não criam tag). --sort, --format e
+// --column não entram: sozinhos, não impedem a criação (git tag --format=x v1 cria a tag).
+const TAG_CONSULTA = /^(?:-l|--list|-d|--delete|-v|--verify|-n\d*|--contains|--no-contains|--merged|--no-merged|--points-at)$/;
+
+// Subcomando do git e os argumentos dele, pulando as opções globais (-C caminho, -c chave=valor...).
+function subcomandoGit(tokens) {
+  for (let i = 1; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t === '-C' || t === '-c' || t === '--git-dir' || t === '--work-tree' || t === '--namespace') {
+      i += 1;
+      continue;
+    }
+    if (t.startsWith('-')) continue;
+    return { sub: t, args: tokens.slice(i + 1) };
+  }
+  return { sub: undefined, args: [] };
+}
+
+// Posicionais do gh, pulando o valor de -R/--repo/--hostname (que podem vir antes do subcomando).
+function posicionaisGh(tokens) {
+  const r = [];
+  for (let i = 1; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t === '-R' || t === '--repo' || t === '--hostname') i += 1;
+    else if (!t.startsWith('-')) r.push(t);
+  }
+  return r;
+}
+
+// gh api escreve com método diferente de GET (-X POST, -XPOST, --method=post) ou com campos.
+function ghApiEscreve(tokens) {
+  return tokens.some((t, i) => {
+    const metodo =
+      t === '-X' || t === '--method' ? tokens[i + 1] : /^-X(.+)$/.exec(t)?.[1] ?? /^--method=(.+)$/.exec(t)?.[1];
+    if (metodo !== undefined) return metodo.toUpperCase() !== 'GET';
+    return ['-f', '-F', '--field', '--raw-field', '--input'].includes(t) || /^-[fF].|^--(?:field|raw-field|input)=/.test(t);
+  });
+}
+
+function avaliarDeployProd(tokens) {
+  const base = nomeBase(tokens[0]);
+  if (base === 'git') {
+    const { sub, args } = subcomandoGit(tokens);
+    if (sub === 'tag') {
+      const consulta = args.some((a) => TAG_CONSULTA.test(a));
+      if (!consulta && args.some((a) => !a.startsWith('-') && TAG_V.test(a))) return MOTIVO_DEPLOY_PROD;
+    }
+    if (sub === 'push') {
+      if (args.some((a) => a === '--tags' || a === '--follow-tags')) return MOTIVO_DEPLOY_PROD;
+      // Com --repo=remoto, todos os posicionais são refspecs; senão o primeiro é o remoto.
+      const posicionais = args.filter((a) => !a.startsWith('-'));
+      const refspecs = args.some((a) => a.startsWith('--repo=')) ? posicionais : posicionais.slice(1);
+      if (refspecs.some((r) => TAG_RELEASE.test(r) || r.includes('refs/tags/'))) return MOTIVO_DEPLOY_PROD;
+    }
+    return null;
+  }
+  if (base === 'gh') {
+    const [grupo, acao] = posicionaisGh(tokens);
+    if (grupo === 'release' && acao === 'create') return MOTIVO_DEPLOY_PROD;
+    if (grupo === 'workflow' && acao === 'run') {
+      const rollback = tokens.some((t) => /(?:^|=)rollback$/.test(t));
+      const imagemSemTeste = tokens.some((t) => /imagem\.ya?ml$/.test(t)) && !tokens.includes('acao=teste');
+      if (rollback || imagemSemTeste) return MOTIVO_DEPLOY_PROD;
+    }
+    if (grupo === 'api' && ghApiEscreve(tokens) && tokens.some((t) => /\/dispatches\b|refs\/tags\/v|tag_name=v/.test(t))) {
+      return MOTIVO_DEPLOY_PROD;
+    }
+  }
+  return null;
+}
+
 function avaliarGitPush(tokens) {
   if (nomeBase(tokens[0]) !== 'git') return null;
   const i = tokens.indexOf('push');
@@ -195,6 +275,7 @@ function avaliarGitPush(tokens) {
 export function avaliarComando(comando, env, envArquivos = {}) {
   if (typeof comando !== 'string' || comando.trim() === '') return { bloquear: false };
   if (CAMINHOS_VEDADOS.test(comando)) return { bloquear: true, motivo: MOTIVO_PROD };
+  if (TEXTO_DEPLOY_PROD.test(comando)) return { bloquear: true, motivo: MOTIVO_DEPLOY_PROD };
 
   const envEfetivo = { ...env };
   for (const bruto of segmentar(comando)) {
@@ -216,7 +297,7 @@ export function avaliarComando(comando, env, envArquivos = {}) {
     if (CLIENTES_PG.has(nomeBase(tokens[0])) && NOMES_VEDADOS.test(tokens.join(' '))) {
       return { bloquear: true, motivo: MOTIVO_PROD };
     }
-    const motivo = avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens);
+    const motivo = avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens) ?? avaliarDeployProd(tokens);
     if (motivo) return { bloquear: true, motivo };
   }
   return { bloquear: false };

@@ -45,6 +45,10 @@ compartilhados:
   - 'src/app/providers/**'
   - '.github/frentes.yml'
   - 'docs/superpowers/**'
+  # O guarda de fronteira roda na versão do próprio PR (pull_request): mudá-lo exige PR
+  # compartilhado, para um PR de frente não alterar a própria verificação (#179).
+  - '.github/workflows/pr.yml'
+  - 'ops/ci/**'
 
 # Livres para as duas frentes, sem PR exclusivo (spec §12.3 e §12.5, passo 7).
 livres:

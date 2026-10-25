@@ -47,6 +47,11 @@
    - `gh api …/pending_deployments`, que aprovaria o *environment*;
    - `gh workflow run` com `rollback`.
    Junto, o PO cria um *ruleset* de tag no GitHub restringindo `v*`.
+   **Limites da trava, aceitos (revisão 12.12 do PR #187):**
+   - **O *ruleset* não barra as sessões.** Para o PO criar a tag, ele precisa estar no *bypass*, e as sessões usam o mesmo usuário. O *ruleset* protege contra terceiros e contra o `GITHUB_TOKEN`. Contra as sessões, o que protege é o hook e a aprovação manual do *environment*, e essa aprovação é a trava crítica.
+   - **O hook só vê o Bash.** Ferramentas de navegador logadas como o PO, ou um script gravado com Write e depois executado, passam por fora. Isso exige intenção, não engano.
+   - **O hook lê o texto inteiro do comando.** Um heredoc ou um `--body "…"` que mencione esses comandos, ou que tenha os termos de aprovação e de push automático de tags, é bloqueado. Para mensagem de commit, corpo de PR e runbook, usar `-F`/`--body-file` com arquivo gravado pela ferramenta Write.
+   - **`gh workflow run imagem.yml` só passa com `acao=teste`,** que publica só `sgov2:teste-<nome>` e não toca o prod.
 
 ## Review Focus
 
@@ -68,7 +73,7 @@
    - reprova se a imagem não existir ou se o commit não for ancestral de `origin/main`;
    - roda no *environment* `producao` com aprovação do PO, depois de um job sem *environment* que mostra as checagens (Tarefa 4);
    - o pacote `sgov2-prod` não é gravável pelo `GITHUB_TOKEN`;
-   - a tag `v*` é protegida por *ruleset*, e a aprovação e a tag pela trava do hook (Decisão 4).
+   - a aprovação do *environment* e a tag `v*` são barradas para as sessões pela trava do hook (Decisão 4). O *ruleset* de tag protege contra terceiros e contra o `GITHUB_TOKEN`, não contra as sessões, que usam o mesmo usuário do PO.
 4. **Verificação de fronteira burlável.** Riscos: renomear um arquivo da frente A para fora do mapa, apagar um arquivo da outra frente, trocar a label depois do CI verde, ou abrir o PR sem `frente:X`.
    Esperado: lista de arquivos com `git diff --name-only --no-renames` (renomeação vira remoção + criação); workflow próprio, que reage a `labeled`/`unlabeled`/`edited`; falta ou duplicidade de `frente:X` reprova (Tarefa 1).
 5. **`migrate diff` apontando para fora do CI.** Risco: uma variável do runner ou um *secret* com URL de hml.
