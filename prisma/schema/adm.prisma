@@ -1,0 +1,122 @@
+// Modelos do módulo adm (frente A, spec §12.3): identidade, perfis, catálogo e configuração de
+// acesso (EP085 V3; plano do P5, Task 1).
+
+enum NivelLog {
+  SIMPLES
+  AVANCADO
+}
+
+// Módulo de menu (spec §6.7). Instalado pela seed; o Administrador só ativa e desativa (REQ0055).
+model Modulo {
+  codigo          String           @id
+  nome            String
+  ordem           Int
+  ativo           Boolean          @default(true)
+  funcionalidades Funcionalidade[]
+
+  @@map("modulo")
+}
+
+// Funcionalidade do catálogo (contrato C6): declarada pela seed de cada módulo.
+model Funcionalidade {
+  codigo       String            @id
+  moduloCodigo String            @map("modulo_codigo")
+  modulo       Modulo            @relation(fields: [moduloCodigo], references: [codigo], onDelete: Restrict)
+  grupo        String
+  nome         String
+  rota         String
+  ordem        Int
+  ajuda        String?
+  acoes        String[]
+  nivelLog     NivelLog          @default(SIMPLES) @map("nivel_log")
+  ativo        Boolean           @default(true)
+  permissoes   PerfilPermissao[]
+
+  @@map("funcionalidade")
+}
+
+model Perfil {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo     String            @unique
+  nome       String
+  descricao  String
+  ativo      Boolean           @default(true)
+  permissoes PerfilPermissao[]
+  usuarios   UsuarioPerfil[]
+
+  @@map("perfil")
+}
+
+model PerfilPermissao {
+  perfilId             String         @map("perfil_id") @db.Uuid
+  perfil               Perfil         @relation(fields: [perfilId], references: [id], onDelete: Restrict)
+  funcionalidadeCodigo String         @map("funcionalidade_codigo")
+  funcionalidade       Funcionalidade @relation(fields: [funcionalidadeCodigo], references: [codigo], onDelete: Restrict)
+  acao                 String
+
+  @@id([perfilId, funcionalidadeCodigo, acao])
+  @@map("perfil_permissao")
+}
+
+// Usuário (UC02.11–UC02.14). Status e bloqueio são independentes (RN0063, RN0524).
+model Usuario {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                  String
+  email                 String
+  login                 String
+  loginNormalizado      String          @unique @map("login_normalizado")
+  ativo                 Boolean         @default(true)
+  bloqueado             Boolean         @default(false)
+  tentativasFalhas      Int             @default(0) @map("tentativas_falhas")
+  senhaHash             String          @map("senha_hash")
+  trocaSenhaObrigatoria Boolean         @default(true) @map("troca_senha_obrigatoria")
+  senhaExpiraEm         DateTime?       @map("senha_expira_em") @db.Timestamptz(6)
+  // CC raiz de escopo do Gestor de Diretoria (C25, R8): classificação do CC, validada no P6.
+  ccEscopo              String?         @map("cc_escopo")
+  // Incrementado quando o acesso muda (perfis, inativação, reset, desbloqueio): derruba as sessões.
+  acessoVersao          Int             @default(0) @map("acesso_versao")
+  versao                Int             @default(0)
+  criadoEm              DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm          DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  perfis                UsuarioPerfil[]
+
+  @@map("usuario")
+}
+
+model UsuarioPerfil {
+  usuarioId String  @map("usuario_id") @db.Uuid
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  perfilId  String  @map("perfil_id") @db.Uuid
+  perfil    Perfil  @relation(fields: [perfilId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, perfilId])
+  @@map("usuario_perfil")
+}
+
+// Parâmetros de acesso (linha única, id = 1). Valores [PROVISÓRIOS] da GAP-AUT-002 (spec §11.2a).
+model ConfiguracaoAcesso {
+  id                   Int     @id @default(1)
+  limiteTentativas     Int     @default(5) @map("limite_tentativas")
+  limiarAlerta         Int     @default(3) @map("limiar_alerta")
+  inatividadeMin       Int     @default(30) @map("inatividade_min")
+  sessaoMaximaHoras    Int     @default(12) @map("sessao_maxima_horas")
+  senhaTemporariaHoras Int     @default(24) @map("senha_temporaria_horas")
+  senhaMinimo          Int     @default(10) @map("senha_minimo")
+  senhaExigeLetra      Boolean @default(true) @map("senha_exige_letra")
+  senhaExigeDigito     Boolean @default(true) @map("senha_exige_digito")
+  manutencao           Boolean @default(false)
+
+  @@map("configuracao_acesso")
+}
+
+// Permissões padrão já concedidas pela seed (R12): cada uma é aplicada uma vez só. Uma remoção feita
+// pelo Administrador não volta, e um perfil ou uma ação nova recebe o padrão na próxima seed.
+model PermissaoPadraoAplicada {
+  perfilCodigo         String   @map("perfil_codigo")
+  funcionalidadeCodigo String   @map("funcionalidade_codigo")
+  acao                 String
+  aplicadaEm           DateTime @default(dbgenerated("clock_timestamp()")) @map("aplicada_em") @db.Timestamptz(6)
+
+  @@id([perfilCodigo, funcionalidadeCodigo, acao])
+  @@map("permissao_padrao_aplicada")
+}
