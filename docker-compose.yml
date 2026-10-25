@@ -69,6 +69,7 @@ services:
     environment:
       NODE_OPTIONS: "--max-old-space-size=384"
       DATABASE_URL: "postgresql://sgo_app:sgo_app@db:5432/sgo_dev"
+      FILA_DATABASE_URL: "postgresql://sgo_fila:sgo_fila@db:5432/sgo_dev"
     volumes:
       - .:/app
     depends_on:
