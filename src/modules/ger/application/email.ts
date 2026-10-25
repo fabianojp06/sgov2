@@ -4,16 +4,28 @@ import { validarDestinatario, type DadosModeloEmail, type Destinatario, type Mod
 
 /**
  * Contrato C4: registra o envio de um e-mail na transação do caso de uso.
- * Commit → o worker envia; rollback → nada é enviado (outbox, P1 Tarefa 9).
+ *
+ * **Resolver significa "enfileirado", não "entregue".** Com commit, o worker envia depois;
+ * com rollback, nada é enviado. A tela não deve dizer "e-mail enviado", e sim "e-mail a caminho".
  *
  * Regras que a implementação real (US-025) cumpre:
- * - registra com `registrarNoOutbox(tx, 'email.enviar', …)` de `@/shared/filas` (US-010);
- * - o worker envia pelo SMTP externo, com até 5 tentativas;
- * - os modelos são versionados, sem nome de instituição fixo (o nome vem de `instituicao.nome_exibicao`);
- * - os dados dos modelos em `MODELOS_SENSIVEIS` são apagados do outbox e do job depois do envio.
+ * - registra com `registrarNoOutbox(tx, 'email.enviar', …)` de `@/shared/filas`, carregado com
+ *   `await import()` dentro da função: o index.ts do ger também é importado por componentes
+ *   cliente, e Prisma, pg e pg-boss não podem ir ao bundle do navegador;
+ * - grava no payload a versão do modelo, para as novas tentativas renderizarem igual; o nome da
+ *   instituição vem de `instituicao.nome_exibicao` na renderização, nunca fixo no texto;
+ * - o worker envia pelo SMTP externo, com até 5 tentativas, passando o destinatário estruturado
+ *   (`{ name, address }`), nunca uma string montada;
+ * - modelos em `MODELOS_SENSIVEIS`: os dados são apagados do job depois do envio e também na
+ *   falha definitiva. O reenvio exige gerar outra senha (redefinição). Recomendação registrada
+ *   no PR #184: cifrar esses dados antes do outbox, com a chave só nas variáveis do Easypanel,
+ *   porque o WAL e os backups guardam o que passou pelo banco;
+ * - a falha definitiva fica visível: registro no Histórico de Operações (tipo SISTEMA) com o
+ *   modelo e o destinatário mascarado. O caminho de recuperação é a redefinição de senha.
  *
- * Até a US-010 estar na main, só o falso (`emailFalso`) funciona: o real valida o destinatário
- * e lança `ErroDominio('email.indisponivel')`.
+ * Até a US-025 estar na main, só o falso (`emailFalso`) funciona: o real valida o destinatário
+ * e lança `ErroDominio('email.indisponivel')`, porque ainda não há trabalhador de e-mail e uma
+ * mensagem enfileirada ficaria parada sem ninguém saber.
  *
  * @throws ErroDominio('email.destinatario_invalido') para destinatário malformado (validado antes de tudo).
  */
@@ -26,7 +38,7 @@ export async function enviarEmail<M extends ModeloEmail>(
   validarDestinatario(destinatario);
   void tx;
   void dados;
-  throw new ErroDominio('email.indisponivel', 'Envio de e-mail ainda não disponível (depende da US-010 e da US-025).', {
+  throw new ErroDominio('email.indisponivel', 'Envio de e-mail ainda não disponível (depende da US-025).', {
     modelo,
   });
 }
