@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
@@ -23,6 +23,18 @@ const exportado = (s: ts.Statement) =>
 const chamada = (e: ts.Expression | undefined, nome: string) =>
   e !== undefined && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && e.expression.text === nome;
 
+// Ação pública (sem sessão, R4 do plano do P5): só o login pode ter, e só a ação `entrar`.
+const ACAO_PUBLICA = 'definirAcaoPublica';
+const ARQUIVO_ACAO_PUBLICA = 'src/modules/aut/application/acoes-login.ts';
+const NOME_ACAO_PUBLICA = 'entrar';
+// Onde o identificador pode aparecer: a ação do login e a própria definição em @/shared/authz.
+const PODE_CITAR_ACAO_PUBLICA = new Set([
+  ARQUIVO_ACAO_PUBLICA,
+  'src/shared/authz/definir-acao-publica.ts',
+  'src/shared/authz/definir-acao-publica.test.ts',
+  'src/shared/authz/index.ts',
+]);
+
 // Problemas de exportação: só `export const x = <fabrica>(...)`, um declarador por nome.
 function exportacoes(arquivo: ts.SourceFile, fabrica: string, filtro: (nome: string) => boolean): string[] {
   const problemas: string[] = [];
@@ -44,7 +56,8 @@ function exportacoes(arquivo: ts.SourceFile, fabrica: string, filtro: (nome: str
         if (!ts.isIdentifier(d.name)) problemas.push(`${nome}: exportação por desestruturação`);
         else if (!filtro(nome)) continue;
         else if (!constante) problemas.push(`${nome}: use const`);
-        else if (!chamada(d.initializer, fabrica)) problemas.push(`${nome} não usa ${fabrica}`);
+        else if (!chamada(d.initializer, fabrica) && !(fabrica === 'definirAcao' && chamada(d.initializer, ACAO_PUBLICA)))
+          problemas.push(`${nome} não usa ${fabrica}`);
       }
       continue;
     }
@@ -64,14 +77,110 @@ function diretivasInternas(arquivo: ts.SourceFile): number {
   return total;
 }
 
-export function problemasDeAcao(texto: string): string[] {
+function citaIdentificador(arquivo: ts.SourceFile, nome: string): boolean {
+  let achou = false;
+  const visitar = (n: ts.Node): void => {
+    if (achou) return;
+    if (ts.isIdentifier(n) && n.text === nome) achou = true;
+    else ts.forEachChild(n, visitar);
+  };
+  ts.forEachChild(arquivo, visitar);
+  return achou;
+}
+
+// Ações públicas exportadas com outro nome além de `entrar`.
+function acoesPublicasExtras(arquivo: ts.SourceFile): string[] {
+  return arquivo.statements.flatMap((s) =>
+    ts.isVariableStatement(s) && exportado(s)
+      ? s.declarationList.declarations
+          .filter((d) => chamada(d.initializer, ACAO_PUBLICA) && !(ts.isIdentifier(d.name) && d.name.text === NOME_ACAO_PUBLICA))
+          .map((d) => `${d.name.getText(arquivo)}: a única ação pública é ${NOME_ACAO_PUBLICA}`)
+      : [],
+  );
+}
+
+export function problemasDeAcao(texto: string, caminho?: string): string[] {
   const arquivo = analisar(texto);
   const problemas: string[] = [];
   if (diretivasInternas(arquivo) > 0) problemas.push("'use server' fora do topo do arquivo (Server Action inline)");
+  // Qualquer menção a definirAcaoPublica fora do lugar permitido, com ou sem 'use server'.
+  if (citaIdentificador(arquivo, ACAO_PUBLICA) && !PODE_CITAR_ACAO_PUBLICA.has(caminho ?? '')) {
+    problemas.push(`${ACAO_PUBLICA} só em ${ARQUIVO_ACAO_PUBLICA}`);
+  }
+  if (caminho === ARQUIVO_ACAO_PUBLICA) problemas.push(...acoesPublicasExtras(arquivo));
   const prologo = arquivo.statements.findIndex((s) => !(ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)));
   const topo = arquivo.statements.slice(0, prologo === -1 ? undefined : prologo);
   if (!topo.some(ehDiretiva)) return problemas;
   return [...problemas, ...exportacoes(arquivo, 'definirAcao', () => true)];
+}
+
+// Página do sistema (P5): o export default é uma função async cujo corpo começa com
+// `await exigirPagina(...)`, solto ou atribuído a uma constante. A guarda do layout não basta:
+// na navegação entre páginas irmãs, o App Router não renderiza o layout de novo.
+// default.tsx entra porque, nas rotas paralelas (@slot), ele é renderizado como página.
+export const ehPaginaDoSistema = (caminho: string) =>
+  /^src\/app\/\(sistema\)\/(.+\/)?(page|default)\.(tsx|ts|jsx|js)$/.test(caminho);
+
+// Páginas fora de (sistema), sem a guarda de sessão: só as públicas previstas (C32, P5).
+export const PAGINAS_PUBLICAS = new Set(['src/app/page.tsx', 'src/app/login/page.tsx', 'src/app/troca-senha/page.tsx']);
+const ehPagina = (caminho: string) => /^src\/app\/(.+\/)?(page|default)\.(tsx|ts|jsx|js)$/.test(caminho);
+
+// exigirPagina tem de vir da guarda real, não de um falso local.
+const importaExigirPagina = (arquivo: ts.SourceFile) =>
+  arquivo.statements.some(
+    (s) =>
+      ts.isImportDeclaration(s) &&
+      ts.isStringLiteral(s.moduleSpecifier) &&
+      s.moduleSpecifier.text === '@/shared/authz' &&
+      !s.importClause?.isTypeOnly &&
+      s.importClause?.namedBindings !== undefined &&
+      ts.isNamedImports(s.importClause.namedBindings) &&
+      s.importClause.namedBindings.elements.some((e) => e.name.text === 'exigirPagina' && !e.propertyName && !e.isTypeOnly),
+  );
+
+// Exports que o Next executa fora do corpo da página (e, portanto, sem a guarda dela).
+const EXPORTS_PROIBIDOS = new Set(['generateMetadata', 'generateViewport']);
+
+const ehAwaitExigirPagina = (e: ts.Expression | undefined) =>
+  e !== undefined && ts.isAwaitExpression(e) && chamada(e.expression, 'exigirPagina');
+
+export function problemasDePagina(texto: string): string[] {
+  const arquivo = analisar(texto);
+  const padrao = arquivo.statements.find(
+    (s): s is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(s) && (ts.getModifiers(s) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword),
+  );
+  const assincrona = padrao && (ts.getModifiers(padrao) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
+  const primeira = padrao?.body?.statements[0];
+  const guardada =
+    primeira !== undefined &&
+    ((ts.isExpressionStatement(primeira) && ehAwaitExigirPagina(primeira.expression)) ||
+      (ts.isVariableStatement(primeira) &&
+        primeira.declarationList.declarations.length === 1 &&
+        ehAwaitExigirPagina(primeira.declarationList.declarations[0]?.initializer)));
+  const problemas = assincrona && guardada ? [] : ['a página do sistema precisa começar com await exigirPagina(...)'];
+  if (!importaExigirPagina(arquivo)) problemas.push("exigirPagina precisa ser importado de '@/shared/authz'");
+  for (const s of arquivo.statements) {
+    if (!exportado(s)) continue;
+    const nomes = ts.isVariableStatement(s)
+      ? s.declarationList.declarations.map((d) => d.name.getText(arquivo))
+      : [(s as { name?: ts.Identifier }).name?.text ?? ''];
+    for (const nome of nomes) if (EXPORTS_PROIBIDOS.has(nome)) problemas.push(`${nome} não é permitido em página do sistema`);
+  }
+  return problemas;
+}
+
+// Regras de um arquivo, pelo caminho relativo com barras normais (o Windows usaria \).
+export function problemasDoArquivo(caminho: string, texto: string): string[] {
+  const rota = /^route\.\w+$/.test(caminho.split('/').pop() ?? '');
+  return [
+    ...problemasDeAcao(texto, caminho),
+    ...(rota ? problemasDeRota(texto) : []),
+    ...(ehPaginaDoSistema(caminho) ? problemasDePagina(texto) : []),
+    ...(ehPagina(caminho) && !ehPaginaDoSistema(caminho) && !PAGINAS_PUBLICAS.has(caminho)
+      ? ['página fora de (sistema) sem guarda: mova para src/app/(sistema)/ ou inclua em PAGINAS_PUBLICAS']
+      : []),
+  ];
 }
 
 export function problemasDeRota(texto: string): string[] {
@@ -90,10 +199,8 @@ function varrer(dir: string): string[] {
   return listar(dir)
     .filter((a) => EXTENSOES.test(a))
     .flatMap((a) => {
-      const texto = readFileSync(a, 'utf8');
-      const rota = /^route\.\w+$/.test(a.split('/').pop() ?? '');
-      const problemas = [...problemasDeAcao(texto), ...(rota ? problemasDeRota(texto) : [])];
-      return problemas.map((p) => `${relative(raiz, a)}: ${p}`);
+      const caminho = relative(raiz, a).split(sep).join('/');
+      return problemasDoArquivo(caminho, readFileSync(a, 'utf8')).map((p) => `${caminho}: ${p}`);
     });
 }
 
@@ -111,10 +218,81 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
   it('rota sem guarda é reprovada', () => expect(problemasDeRota(fixture('route-sem-guarda.ts'))).not.toEqual([]));
   it('rota com definirRota passa', () => expect(problemasDeRota(fixture('route-com-guarda.ts'))).toEqual([]));
 
+  it('ação pública só em src/modules/aut/application/acoes-login.ts', () => {
+    expect(problemasDeAcao(fixture('acao-publica.ts'), 'src/modules/aut/application/acoes-login.ts')).toEqual([]);
+    expect(problemasDeAcao(fixture('acao-publica.ts'), 'src/modules/adm/application/x.ts')).toEqual([
+      'definirAcaoPublica só em src/modules/aut/application/acoes-login.ts',
+    ]);
+    expect(problemasDeAcao(fixture('acao-publica.ts'))).toEqual([
+      'definirAcaoPublica só em src/modules/aut/application/acoes-login.ts',
+    ]);
+  });
+  it('acoes-login.ts só exporta entrar como ação pública', () => {
+    const texto = `'use server';\nexport const entrar = definirAcaoPublica(1);\nexport const resetar = definirAcaoPublica(2);`;
+    expect(problemasDeAcao(texto, 'src/modules/aut/application/acoes-login.ts')).toEqual([
+      'resetar: a única ação pública é entrar',
+    ]);
+  });
+  it('definirAcaoPublica citado fora do lugar, mesmo sem use server', () => {
+    expect(problemasDeAcao('const x = definirAcaoPublica(1);', 'src/modules/adm/application/y.ts')).toEqual([
+      'definirAcaoPublica só em src/modules/aut/application/acoes-login.ts',
+    ]);
+    expect(problemasDeAcao('export { definirAcaoPublica } from "./x";', 'src/shared/authz/index.ts')).toEqual([]);
+  });
+  it('página com exigirPagina no início passa', () => expect(problemasDePagina(fixture('pagina-com-guarda.tsx.txt'))).toEqual([]));
+  it('exigirPagina de outro lugar é recusado', () =>
+    expect(
+      problemasDePagina(`import { exigirPagina } from './falso';\nexport default async function P() { await exigirPagina('a', 'consultar'); }`),
+    ).toEqual(["exigirPagina precisa ser importado de '@/shared/authz'"]));
+  it('generateMetadata em página do sistema é recusado', () =>
+    expect(
+      problemasDePagina(
+        `import { exigirPagina } from '@/shared/authz';\nexport async function generateMetadata() { return {}; }\nexport default async function P() { await exigirPagina('a', 'consultar'); }`,
+      ),
+    ).toEqual(['generateMetadata não é permitido em página do sistema']));
+  it('a composição aplica a regra de página pelo caminho relativo', () => {
+    expect(problemasDoArquivo('src/app/(sistema)/x/page.tsx', fixture('pagina-sem-guarda.tsx.txt'))).toContain(
+      'a página do sistema precisa começar com await exigirPagina(...)',
+    );
+    expect(problemasDoArquivo('src/app/(sistema)/x/page.tsx', fixture('pagina-com-guarda.tsx.txt'))).toEqual([]);
+    expect(problemasDoArquivo('src/app/(sistema)/@painel/default.tsx', fixture('pagina-sem-guarda.tsx.txt'))).not.toEqual([]);
+  });
+  it('página fora de (sistema) só na lista de públicas', () => {
+    expect(problemasDoArquivo('src/app/login/page.tsx', 'export default function P() { return null; }')).toEqual([]);
+    expect(problemasDoArquivo('src/app/relatorio/page.tsx', 'export default function P() { return null; }')).toEqual([
+      'página fora de (sistema) sem guarda: mova para src/app/(sistema)/ ou inclua em PAGINAS_PUBLICAS',
+    ]);
+  });
+  it('página sem exigirPagina é reprovada', () => {
+    expect(problemasDePagina(fixture('pagina-sem-guarda.tsx.txt'))).toContain(
+      'a página do sistema precisa começar com await exigirPagina(...)',
+    );
+  });
+  it.each([
+    ['export default async function P() { const x = 1; await exigirPagina("a", "consultar"); }'],
+    ['export default function P() { exigirPagina("a", "consultar"); }'],
+    ['export default async function P() { exigirPagina("a", "consultar"); }'],
+    ['const P = async () => { await exigirPagina("a", "consultar"); };\nexport default P;'],
+    ['export const x = 1;'],
+  ])('página reprovada: %j', (codigo) => expect(problemasDePagina(codigo)).not.toEqual([]));
+  it.each([
+    [`import { exigirPagina } from '@/shared/authz';\nexport default async function P() { await exigirPagina("a", "consultar"); return null; }`],
+    [`import { exigirPagina } from '@/shared/authz';\nexport default async function P({ params }: { params: Promise<unknown> }) { const ctx = await exigirPagina("a", "consultar"); return ctx; }`],
+  ])('página aceita: %j', (codigo) => expect(problemasDePagina(codigo)).toEqual([]));
+  it.each([
+    ['src/app/(sistema)/adm/usuarios/page.tsx', true],
+    ['src/app/(sistema)/inicio/page.tsx', true],
+    ['src/app/(sistema)/layout.tsx', false],
+    ['src/app/(sistema)/@painel/default.tsx', true],
+    ['src/app/login/page.tsx', false],
+    ['src/app/troca-senha/page.tsx', false],
+  ])('página do sistema: %s → %s', (caminho, esperado) => expect(ehPaginaDoSistema(caminho)).toBe(esperado));
+
   it('a varredura acha os problemas das fixtures (não passa vazia)', () => {
     const falhas = varrer(FIXTURES);
     expect(falhas.some((f) => f.includes('acao-sem-guarda'))).toBe(true);
     expect(falhas.some((f) => f.includes('acao-inline'))).toBe(true);
+    expect(falhas.some((f) => f.includes('acao-publica') && f.includes('definirAcaoPublica só em'))).toBe(true);
   });
 
   const U = "'use server';\n";

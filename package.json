@@ -15,6 +15,7 @@
     "test": "vitest run --project unidade",
     "test:int": "vitest run --project integracao",
     "test:arq": "vitest run --project arquitetura",
+    "test:e2e": "TESTCONTAINERS_RYUK_DISABLED=true playwright test",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -24,6 +25,7 @@
     "worker:start": "node --import tsx worker/index.ts"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.2.2",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "decimal.js": "10.6.0",
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
     "@testcontainers/postgresql": "12.2.1",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
