@@ -56,3 +56,29 @@ export async function registrarFalhaLogin(tx: TxCliente, usuarioId: string, novo
 export async function zerarFalhasLogin(tx: TxCliente, usuarioId: string): Promise<void> {
   await tx.usuario.update({ where: { id: usuarioId }, data: { tentativasFalhas: 0 } });
 }
+
+// Permissões efetivas (RN0030/RN0031): perfis ativos × funcionalidades ativas × módulos ativos,
+// no formato "<funcionalidade>:<acao>" do C5.
+export async function carregarPermissoes(tx: TxCliente, usuarioId: string): Promise<ReadonlySet<string>> {
+  const linhas = await tx.$queryRaw<{ p: string }[]>`
+    SELECT DISTINCT pp.funcionalidade_codigo || ':' || pp.acao AS p
+    FROM usuario_perfil up
+    JOIN perfil pe ON pe.id = up.perfil_id AND pe.ativo
+    JOIN perfil_permissao pp ON pp.perfil_id = pe.id
+    JOIN funcionalidade f ON f.codigo = pp.funcionalidade_codigo AND f.ativo
+    JOIN modulo m ON m.codigo = f.modulo_codigo AND m.ativo
+    WHERE up.usuario_id = ${usuarioId}::uuid`;
+  return new Set(linhas.map((l) => l.p));
+}
+
+// Estado do usuário que decide se a sessão continua valendo.
+export async function obterUsuarioParaSessao(
+  tx: TxCliente,
+  usuarioId: string,
+): Promise<{ nome: string; login: string; ativo: boolean; bloqueado: boolean; acessoVersao: number } | null> {
+  const u = await tx.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { nome: true, loginNormalizado: true, ativo: true, bloqueado: true, acessoVersao: true },
+  });
+  return u && { nome: u.nome, login: u.loginNormalizado, ativo: u.ativo, bloqueado: u.bloqueado, acessoVersao: u.acessoVersao };
+}

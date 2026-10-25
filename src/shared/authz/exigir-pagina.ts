@@ -1,0 +1,22 @@
+import { notFound, redirect } from 'next/navigation';
+import { obterContexto } from './contexto';
+import { exigir } from './exigir';
+import { registrarNegacao } from './guarda';
+import { ErroPermissao, type Acao, type ContextoRequisicao } from './tipos';
+
+// Guarda de página (Server Component): toda page.tsx de (sistema) começa com ela, o que o teste de
+// arquitetura impõe. A guarda do layout não basta: o App Router não renderiza o layout de novo na
+// navegação entre páginas irmãs.
+export async function exigirPagina(funcionalidade: string, acao: Acao): Promise<ContextoRequisicao> {
+  const ctx = await obterContexto();
+  if (!ctx) redirect('/login');
+  if (ctx.trocaSenhaPendente && funcionalidade !== 'aut.senha') redirect('/troca-senha');
+  try {
+    exigir(ctx, funcionalidade, acao);
+  } catch (erro) {
+    if (!(erro instanceof ErroPermissao)) throw erro;
+    await registrarNegacao(ctx, erro);
+    notFound();
+  }
+  return ctx;
+}
