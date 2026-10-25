@@ -23,6 +23,10 @@ const exportado = (s: ts.Statement) =>
 const chamada = (e: ts.Expression | undefined, nome: string) =>
   e !== undefined && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && e.expression.text === nome;
 
+// Ação pública (sem sessão, R4 do plano do P5): só o login pode ter.
+const ACAO_PUBLICA = 'definirAcaoPublica';
+const ARQUIVO_ACAO_PUBLICA = 'src/modules/aut/application/acoes-login.ts';
+
 // Problemas de exportação: só `export const x = <fabrica>(...)`, um declarador por nome.
 function exportacoes(arquivo: ts.SourceFile, fabrica: string, filtro: (nome: string) => boolean): string[] {
   const problemas: string[] = [];
@@ -44,7 +48,8 @@ function exportacoes(arquivo: ts.SourceFile, fabrica: string, filtro: (nome: str
         if (!ts.isIdentifier(d.name)) problemas.push(`${nome}: exportação por desestruturação`);
         else if (!filtro(nome)) continue;
         else if (!constante) problemas.push(`${nome}: use const`);
-        else if (!chamada(d.initializer, fabrica)) problemas.push(`${nome} não usa ${fabrica}`);
+        else if (!chamada(d.initializer, fabrica) && !(fabrica === 'definirAcao' && chamada(d.initializer, ACAO_PUBLICA)))
+          problemas.push(`${nome} não usa ${fabrica}`);
       }
       continue;
     }
@@ -64,14 +69,48 @@ function diretivasInternas(arquivo: ts.SourceFile): number {
   return total;
 }
 
-export function problemasDeAcao(texto: string): string[] {
+// Exportações feitas com definirAcaoPublica (só as do topo do arquivo).
+function usaAcaoPublica(arquivo: ts.SourceFile): boolean {
+  return arquivo.statements.some(
+    (s) => ts.isVariableStatement(s) && exportado(s) && s.declarationList.declarations.some((d) => chamada(d.initializer, ACAO_PUBLICA)),
+  );
+}
+
+export function problemasDeAcao(texto: string, caminho?: string): string[] {
   const arquivo = analisar(texto);
   const problemas: string[] = [];
   if (diretivasInternas(arquivo) > 0) problemas.push("'use server' fora do topo do arquivo (Server Action inline)");
   const prologo = arquivo.statements.findIndex((s) => !(ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)));
   const topo = arquivo.statements.slice(0, prologo === -1 ? undefined : prologo);
   if (!topo.some(ehDiretiva)) return problemas;
-  return [...problemas, ...exportacoes(arquivo, 'definirAcao', () => true)];
+  const publica =
+    usaAcaoPublica(arquivo) && caminho !== ARQUIVO_ACAO_PUBLICA ? [`${ACAO_PUBLICA} só em ${ARQUIVO_ACAO_PUBLICA}`] : [];
+  return [...problemas, ...exportacoes(arquivo, 'definirAcao', () => true), ...publica];
+}
+
+// Página do sistema (P5): o export default é uma função async cujo corpo começa com
+// `await exigirPagina(...)`, solto ou atribuído a uma constante. A guarda do layout não basta:
+// na navegação entre páginas irmãs, o App Router não renderiza o layout de novo.
+export const ehPaginaDoSistema = (caminho: string) => /^src\/app\/\(sistema\)\/(.+\/)?page\.(tsx|ts|jsx|js)$/.test(caminho);
+
+const ehAwaitExigirPagina = (e: ts.Expression | undefined) =>
+  e !== undefined && ts.isAwaitExpression(e) && chamada(e.expression, 'exigirPagina');
+
+export function problemasDePagina(texto: string): string[] {
+  const arquivo = analisar(texto);
+  const padrao = arquivo.statements.find(
+    (s): s is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(s) && (ts.getModifiers(s) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword),
+  );
+  const assincrona = padrao && (ts.getModifiers(padrao) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
+  const primeira = padrao?.body?.statements[0];
+  const guardada =
+    primeira !== undefined &&
+    ((ts.isExpressionStatement(primeira) && ehAwaitExigirPagina(primeira.expression)) ||
+      (ts.isVariableStatement(primeira) &&
+        primeira.declarationList.declarations.length === 1 &&
+        ehAwaitExigirPagina(primeira.declarationList.declarations[0]?.initializer)));
+  return assincrona && guardada ? [] : ['a página do sistema precisa começar com await exigirPagina(...)'];
 }
 
 export function problemasDeRota(texto: string): string[] {
@@ -91,8 +130,13 @@ function varrer(dir: string): string[] {
     .filter((a) => EXTENSOES.test(a))
     .flatMap((a) => {
       const texto = readFileSync(a, 'utf8');
+      const caminho = relative(raiz, a);
       const rota = /^route\.\w+$/.test(a.split('/').pop() ?? '');
-      const problemas = [...problemasDeAcao(texto), ...(rota ? problemasDeRota(texto) : [])];
+      const problemas = [
+        ...problemasDeAcao(texto, caminho),
+        ...(rota ? problemasDeRota(texto) : []),
+        ...(ehPaginaDoSistema(caminho) ? problemasDePagina(texto) : []),
+      ];
       return problemas.map((p) => `${relative(raiz, a)}: ${p}`);
     });
 }
@@ -111,10 +155,45 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
   it('rota sem guarda é reprovada', () => expect(problemasDeRota(fixture('route-sem-guarda.ts'))).not.toEqual([]));
   it('rota com definirRota passa', () => expect(problemasDeRota(fixture('route-com-guarda.ts'))).toEqual([]));
 
+  it('ação pública só em src/modules/aut/application/acoes-login.ts', () => {
+    expect(problemasDeAcao(fixture('acao-publica.ts'), 'src/modules/aut/application/acoes-login.ts')).toEqual([]);
+    expect(problemasDeAcao(fixture('acao-publica.ts'), 'src/modules/adm/application/x.ts')).toEqual([
+      'definirAcaoPublica só em src/modules/aut/application/acoes-login.ts',
+    ]);
+    expect(problemasDeAcao(fixture('acao-publica.ts'))).toEqual([
+      'definirAcaoPublica só em src/modules/aut/application/acoes-login.ts',
+    ]);
+  });
+  it('página com exigirPagina no início passa', () => expect(problemasDePagina(fixture('pagina-com-guarda.tsx'))).toEqual([]));
+  it('página sem exigirPagina é reprovada', () => {
+    expect(problemasDePagina(fixture('pagina-sem-guarda.tsx'))).toEqual([
+      'a página do sistema precisa começar com await exigirPagina(...)',
+    ]);
+  });
+  it.each([
+    ['export default async function P() { const x = 1; await exigirPagina("a", "consultar"); }'],
+    ['export default function P() { exigirPagina("a", "consultar"); }'],
+    ['export default async function P() { exigirPagina("a", "consultar"); }'],
+    ['const P = async () => { await exigirPagina("a", "consultar"); };\nexport default P;'],
+    ['export const x = 1;'],
+  ])('página reprovada: %j', (codigo) => expect(problemasDePagina(codigo)).not.toEqual([]));
+  it.each([
+    ['export default async function P() { await exigirPagina("a", "consultar"); return null; }'],
+    ['export default async function P({ params }: { params: Promise<unknown> }) { const ctx = await exigirPagina("a", "consultar"); return ctx; }'],
+  ])('página aceita: %j', (codigo) => expect(problemasDePagina(codigo)).toEqual([]));
+  it.each([
+    ['src/app/(sistema)/adm/usuarios/page.tsx', true],
+    ['src/app/(sistema)/inicio/page.tsx', true],
+    ['src/app/(sistema)/layout.tsx', false],
+    ['src/app/login/page.tsx', false],
+    ['src/app/troca-senha/page.tsx', false],
+  ])('página do sistema: %s → %s', (caminho, esperado) => expect(ehPaginaDoSistema(caminho)).toBe(esperado));
+
   it('a varredura acha os problemas das fixtures (não passa vazia)', () => {
     const falhas = varrer(FIXTURES);
     expect(falhas.some((f) => f.includes('acao-sem-guarda'))).toBe(true);
     expect(falhas.some((f) => f.includes('acao-inline'))).toBe(true);
+    expect(falhas.some((f) => f.includes('acao-publica') && f.includes('definirAcaoPublica só em'))).toBe(true);
   });
 
   const U = "'use server';\n";
