@@ -75,6 +75,13 @@ describe('avaliarComando', () => {
     ['npx prisma migrate diff --from-empty --to-schema prisma/schema --script', VAZIO, false],
     // Prisma com versão fixada (npx prisma@x), @prisma/cli e o binário direto.
     ['npx prisma@7.0.0 migrate reset --force', { DATABASE_URL: 'postgresql://u:x@sgo-prod_db:5432/sgo' }, true],
+    // "--" ou flags entre o comando e o subcomando não escapam da trava.
+    ['MIGRATE_DATABASE_URL=postgresql://u:x@10.0.1.5:5432/sgo npx prisma migrate -- dev', DEV_LOCAL, true],
+    ['npx prisma migrate -- reset --force', { DATABASE_URL: 'postgresql://u:x@sgo-prod_db:5432/sgo' }, true],
+    ['npx prisma db -- push', VAZIO, true],
+    // db execute roda SQL arbitrário contra o banco da config.
+    ['echo "select 1" | MIGRATE_DATABASE_URL=postgresql://u:x@10.0.1.5:5432/sgo npx prisma db execute --stdin', DEV_LOCAL, true],
+    ['npx prisma db execute --stdin', VAZIO, true],
     ['npx prisma@7.0.0 migrate reset --force', { DATABASE_URL: 'postgresql://u:x@10.0.1.5:5432/sgo' }, true],
     ['npx -y prisma@latest db push', VAZIO, true],
     ['npx prisma@7 db push', VAZIO, true],

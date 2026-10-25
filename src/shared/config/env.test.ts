@@ -59,6 +59,10 @@ describe('validarComandoPrisma (spec §11.5)', () => {
     [['migrate', 'reset', '--force']],
     [['migrate', 'diff']],
     [['db', 'push']],
+    [['db', 'execute', '--stdin']],
+    [['migrate', '--', 'dev']],
+    [['migrate', '--', 'reset', '--force']],
+    [['db', '--', 'push']],
   ])('recusa %j fora do dev local', (args) => {
     expect(() => validarComandoPrisma(['node', 'prisma', ...args], remoto)).toThrow('só contra o banco de dev local');
   });

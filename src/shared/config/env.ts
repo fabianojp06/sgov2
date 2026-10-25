@@ -45,10 +45,15 @@ const COMANDOS_DESTRUTIVOS = [
   ['migrate', 'reset'],
   ['migrate', 'diff'],
   ['db', 'push'],
+  ['db', 'execute'], // roda SQL arbitrário contra o banco da config
 ];
 
 export function validarComandoPrisma(argv: readonly string[], url: string | undefined): void {
-  const destrutivo = COMANDOS_DESTRUTIVOS.find(([a, b]) => argv.some((arg, i) => arg === a && argv[i + 1] === b));
+  // Ignora "--" e flags entre o comando e o subcomando ("migrate -- dev" também é migrate dev).
+  const posicionais = argv.filter((arg) => !arg.startsWith('-'));
+  const destrutivo = COMANDOS_DESTRUTIVOS.find(([a, b]) =>
+    posicionais.some((arg, i) => arg === a && posicionais[i + 1] === b),
+  );
   if (!destrutivo || (url !== undefined && ehDevLocal(url))) return;
   throw new Error(
     `prisma ${destrutivo.join(' ')} só contra o banco de dev local (127.0.0.1:55432 ou 127.0.0.1:56432), spec §11.5`,
