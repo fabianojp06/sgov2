@@ -53,7 +53,9 @@ async function buscar(tx: TxCliente, condicao: Prisma.Sql, travar: boolean): Pro
 export async function registrarFalhaLogin(tx: TxCliente, usuarioId: string, novoContador: number, bloquear: boolean): Promise<void> {
   await tx.usuario.update({
     where: { id: usuarioId },
-    data: { tentativasFalhas: novoContador, ...(bloquear ? { bloqueado: true } : {}) },
+    // O bloqueio também muda a versão de acesso: as sessões abertas caem e não voltam a valer num
+    // desbloqueio futuro.
+    data: { tentativasFalhas: novoContador, ...(bloquear ? { bloqueado: true, acessoVersao: { increment: 1 } } : {}) },
   });
 }
 

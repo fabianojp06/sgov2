@@ -4,6 +4,7 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { autenticar } from './autenticar';
+import { criarLimitadorLogin, type LimitadorLogin } from './limite-login';
 import { criarProvedorContexto } from './provedor-contexto';
 import { trocarSenha } from './trocar-senha';
 
@@ -56,8 +57,21 @@ async function contexto(token: string): Promise<ContextoRequisicao> {
 
 const provedorCom = (token: string) =>
   criarProvedorContexto({ cliente: app, agora: relogio, lerCookie: async () => token, lerCabecalho: async () => null }).obter();
-const trocar = (ctx: ContextoRequisicao, e: { senhaAtual?: string; novaSenha: string; repetirSenha: string }) =>
-  trocarSenha(ctx, e, { cliente: app, agora: relogio });
+const trocar = (ctx: ContextoRequisicao, e: { senhaAtual?: string; novaSenha: string; repetirSenha: string }, limitador?: LimitadorLogin) =>
+  trocarSenha(ctx, e, { cliente: app, agora: relogio, ...(limitador ? { limitador } : {}) });
+
+// Limitador real com espiões: prova a vaga reservada (senha atual errada) e devolvida (o resto).
+function limitadorEspiao() {
+  const real = criarLimitadorLogin();
+  const chamadas = { permitir: 0, liberar: 0, executar: 0 };
+  const l: LimitadorLogin = {
+    permitir: (ip, login) => (chamadas.permitir++, real.permitir(ip, login)),
+    liberar: (ip) => (chamadas.liberar++, real.liberar(ip)),
+    executar: (f) => (chamadas.executar++, real.executar(f)),
+    tamanho: () => real.tamanho(),
+  };
+  return { l, chamadas };
+}
 const usuario = (login: string) => migrator.usuario.findUniqueOrThrow({ where: { loginNormalizado: login } });
 
 beforeAll(async () => {
@@ -113,11 +127,57 @@ describe('trocarSenha: senha atual (D-P5-3)', () => {
 
   it('senha atual errada conta falha; no limite bloqueia e a sessão cai', async () => {
     const { ctx, token } = await logado('edu', false);
+    const versao = (await usuario('edu')).acessoVersao;
     for (let i = 0; i < 5; i++) await trocar(ctx, { senhaAtual: `errada${i}x`, novaSenha: NOVA, repetirSenha: NOVA });
-    expect(await usuario('edu')).toMatchObject({ bloqueado: true, tentativasFalhas: 5 });
+    expect(await usuario('edu')).toMatchObject({ bloqueado: true, tentativasFalhas: 5, acessoVersao: versao + 1 });
     expect(await provedorCom(token)).toBeNull();
     const h = await migrator.historicoOperacao.findMany({ where: { usuarioRotulo: 'edu', descricao: { contains: 'bloqueado após' } } });
     expect(h).toHaveLength(1);
+  });
+
+  it('voluntária com a senha atual certa: troca, passa pelo limitador e devolve a vaga', async () => {
+    const { ctx } = await logado('vera', false);
+    const { l, chamadas } = limitadorEspiao();
+    expect(await trocar(ctx, { senhaAtual: ATUAL, novaSenha: NOVA, repetirSenha: NOVA }, l)).toMatchObject({ ok: true });
+    expect(chamadas).toEqual({ permitir: 1, liberar: 1, executar: 1 });
+  });
+
+  it('senha atual errada: a vaga fica reservada; nova igual à atual: devolvida', async () => {
+    const { ctx } = await logado('wal', false);
+    const { l, chamadas } = limitadorEspiao();
+    await trocar(ctx, { senhaAtual: 'erradaQualquer1', novaSenha: NOVA, repetirSenha: NOVA }, l);
+    expect(chamadas.liberar).toBe(0);
+    await trocar(ctx, { senhaAtual: ATUAL, novaSenha: ATUAL, repetirSenha: ATUAL }, l);
+    expect(chamadas.liberar).toBe(1);
+  });
+
+  it('limitador ocupado: recusa sem rodar Argon2 e devolve a vaga', async () => {
+    const { ctx } = await logado('xavi', false);
+    const ocupado: LimitadorLogin = { ...criarLimitadorLogin(), executar: async () => 'OCUPADO' };
+    let liberou = 0;
+    const l = { ...ocupado, liberar: () => void liberou++ };
+    expect(await trocar(ctx, { senhaAtual: ATUAL, novaSenha: NOVA, repetirSenha: NOVA }, l)).toMatchObject({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }],
+    });
+    expect(liberou).toBe(1);
+  });
+
+  it('senha alterada entre as fases → "alterado por outro usuário"', async () => {
+    const { ctx } = await logado('yara', true);
+    const { l } = limitadorEspiao();
+    const corrida: LimitadorLogin = {
+      ...l,
+      executar: async (f) => {
+        const r = await l.executar(f);
+        await migrator.usuario.update({ where: { loginNormalizado: 'yara' }, data: { senhaHash: await hashSenha(`Outra${Date.now()}z`) } });
+        return r;
+      },
+    };
+    expect(await trocar(ctx, { novaSenha: NOVA, repetirSenha: NOVA }, corrida)).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }],
+    });
   });
 
   it('obrigatória não pede a senha atual', async () => {

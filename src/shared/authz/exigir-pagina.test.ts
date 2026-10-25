@@ -57,7 +57,7 @@ describe('exigirPagina', () => {
   it('com a permissão → devolve o contexto', async () =>
     expect(await exigirPagina('adm.usuarios', 'consultar')).toBe(base));
 
-  it('marca a página como dinâmica (connection) antes de ler a sessão', async () => {
+  it('marca a página como dinâmica (connection)', async () => {
     conexao.chamadas = 0;
     await exigirPagina('adm.usuarios', 'consultar');
     expect(conexao.chamadas).toBe(1);

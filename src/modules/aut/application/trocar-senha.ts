@@ -7,6 +7,7 @@ import {
   registrarFalhaLogin,
   travarUsuarioPorId,
   validarSenha,
+  type UsuarioParaLogin,
 } from '@/modules/adm';
 import { auditar } from '@/shared/audit';
 import type { ContextoRequisicao } from '@/shared/authz';
@@ -54,63 +55,74 @@ export async function trocarSenha(
   if (voluntaria && !entrada.senhaAtual) return falha([{ campo: 'senhaAtual', mensagem: MSG.ATUAL_INCORRETA }]);
   if (voluntaria && !limitador.permitir(ctx.ip, lido.login)) return falha([{ campo: '_', mensagem: MSG.LIMITE }]);
   // A vaga reservada no limite por IP só fica quando a senha atual estava errada (contaFalhaPorIp).
-  let falhouAtual = false;
+  let contaFalha = false;
   try {
-    return await executarTroca();
+    const r = await executarTroca(lido, voluntaria);
+    contaFalha = r.contaFalha;
+    return r.resultado;
   } finally {
-    if (voluntaria && !falhouAtual) limitador.liberar(ctx.ip);
+    if (voluntaria && !contaFalha) limitador.liberar(ctx.ip);
   }
 
-  async function executarTroca(): Promise<Resultado<{ token: string; expiraEm: Date }>> {
-  // Fase 1, fora da transação: conferências e hash novo.
-  const conferencias = await limitador.executar(async () => ({
-    atualConfere: voluntaria ? await conferirSenha(lido.senhaHash, entrada.senhaAtual ?? '') : true,
-    igualAtual: await conferirSenha(lido.senhaHash, entrada.novaSenha),
-  }));
-  if (conferencias === 'OCUPADO') return falha([{ campo: '_', mensagem: MSG.LIMITE }]);
-  if (conferencias.atualConfere && conferencias.igualAtual) return falha([{ campo: 'novaSenha', mensagem: MSG.IGUAL_ATUAL }]);
-  const novoHash = conferencias.atualConfere ? await hashSenha(entrada.novaSenha) : null;
+  async function executarTroca(
+    lido: UsuarioParaLogin,
+    voluntaria: boolean,
+  ): Promise<{ resultado: Resultado<{ token: string; expiraEm: Date }>; contaFalha: boolean }> {
+    // Fase 1, fora da transação e dentro do limitador (no máximo 2 Argon2 simultâneos): conferências
+    // e hash novo. Com a senha atual errada, não roda mais nenhum Argon2.
+    const fase1 = await limitador.executar(async () => {
+      const atualConfere = voluntaria ? await conferirSenha(lido.senhaHash, entrada.senhaAtual ?? '') : true;
+      if (!atualConfere) return { atualConfere, igualAtual: false, novoHash: null };
+      const igualAtual = await conferirSenha(lido.senhaHash, entrada.novaSenha);
+      return { atualConfere, igualAtual, novoHash: igualAtual ? null : await hashSenha(entrada.novaSenha) };
+    });
+    if (fase1 === 'OCUPADO') return { resultado: falha([{ campo: '_', mensagem: MSG.LIMITE }]), contaFalha: false };
+    if (fase1.igualAtual) return { resultado: falha([{ campo: 'novaSenha', mensagem: MSG.IGUAL_ATUAL }]), contaFalha: false };
+    const { novoHash } = fase1;
 
-  // Fase 2, na transação.
-  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip };
-  const r = await cliente.$transaction(async (tx): Promise<Resultado<{ token: string; expiraEm: Date }>> => {
-    const u = await travarUsuarioPorId(tx, ctx.usuarioId);
-    if (!u || u.senhaHash !== lido.senhaHash || !u.ativo || u.bloqueado) return falha([{ campo: '_', mensagem: MSG.ALTERADO }]);
-    if (!novoHash) {
-      const f = avaliarFalha({ contador: u.tentativasFalhas, limite: config.limiteTentativas, limiar: config.limiarAlerta });
-      await registrarFalhaLogin(tx, u.id, f.novoContador, f.bloquear);
-      await auditar(tx, { contexto, funcionalidade: 'aut.senha', tipo: 'SISTEMA', descricao: 'Troca de senha recusada: senha atual incorreta' });
-      if (f.bloquear) {
-        await auditar(tx, {
-          contexto,
-          funcionalidade: 'aut.senha',
-          tipo: 'SISTEMA',
-          descricao: `Usuário ${u.login} bloqueado após ${f.novoContador} tentativas malsucedidas`,
-        });
+    // Fase 2, na transação.
+    const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip };
+    return cliente.$transaction(async (tx) => {
+      const u = await travarUsuarioPorId(tx, ctx.usuarioId);
+      // A sessão que pediu a troca ainda precisa existir: um logoff ou outro login entre as fases
+      // não pode ser desfeito pela rotação do token.
+      const sessaoViva = (await tx.sessaoUsuario.count({ where: { usuarioId: ctx.usuarioId, sessaoUid: ctx.sessaoUid } })) === 1;
+      if (!u || u.senhaHash !== lido.senhaHash || !u.ativo || u.bloqueado || !sessaoViva) {
+        return { resultado: falha([{ campo: '_', mensagem: MSG.ALTERADO }]), contaFalha: false };
       }
-      return falha([{ campo: 'senhaAtual', mensagem: MSG.ATUAL_INCORRETA }]);
-    }
-    await gravarNovaSenha(tx, u.id, novoHash);
-    const sessao = await emitirSessao(tx, {
-      usuarioId: u.id,
-      acessoVersao: u.acessoVersao,
-      trocaSenhaPendente: false,
-      ip: ctx.ip,
-      agora,
-      maximoHoras: config.sessaoMaximaHoras,
+      if (!novoHash) {
+        const f = avaliarFalha({ contador: u.tentativasFalhas, limite: config.limiteTentativas, limiar: config.limiarAlerta });
+        await registrarFalhaLogin(tx, u.id, f.novoContador, f.bloquear);
+        await auditar(tx, { contexto, funcionalidade: 'aut.senha', tipo: 'SISTEMA', descricao: 'Troca de senha recusada: senha atual incorreta' });
+        if (f.bloquear) {
+          await auditar(tx, {
+            contexto,
+            funcionalidade: 'aut.senha',
+            tipo: 'SISTEMA',
+            descricao: `Usuário ${u.login} bloqueado após ${f.novoContador} tentativas malsucedidas`,
+          });
+        }
+        return { resultado: falha([{ campo: 'senhaAtual', mensagem: MSG.ATUAL_INCORRETA }]), contaFalha: true };
+      }
+      await gravarNovaSenha(tx, u.id, novoHash);
+      const sessao = await emitirSessao(tx, {
+        usuarioId: u.id,
+        acessoVersao: u.acessoVersao,
+        trocaSenhaPendente: false,
+        ip: ctx.ip,
+        agora,
+        maximoHoras: config.sessaoMaximaHoras,
+      });
+      await auditar(tx, {
+        contexto: { ...contexto, sessaoUid: sessao.sessaoUid },
+        funcionalidade: 'aut.senha',
+        tipo: 'ALTERACAO',
+        registroId: u.id,
+        descricao: voluntaria ? 'Senha alterada pelo usuário' : 'Senha alterada no primeiro acesso',
+        antes: { primeiroAcessoPendente: u.trocaSenhaObrigatoria },
+        depois: { primeiroAcessoPendente: false },
+      });
+      return { resultado: ok({ token: sessao.token, expiraEm: sessao.expiraEm }), contaFalha: false };
     });
-    await auditar(tx, {
-      contexto: { ...contexto, sessaoUid: sessao.sessaoUid },
-      funcionalidade: 'aut.senha',
-      tipo: 'ALTERACAO',
-      registroId: u.id,
-      descricao: voluntaria ? 'Senha alterada pelo usuário' : 'Senha alterada no primeiro acesso',
-      antes: { primeiroAcessoPendente: u.trocaSenhaObrigatoria },
-      depois: { primeiroAcessoPendente: false },
-    });
-    return ok({ token: sessao.token, expiraEm: sessao.expiraEm });
-  });
-  falhouAtual = !r.ok && r.erros.some((e) => e.campo === 'senhaAtual');
-  return r;
   }
 }

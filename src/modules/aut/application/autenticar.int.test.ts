@@ -161,7 +161,7 @@ describe('autenticar: bloqueio', () => {
     for (let i = 1; i <= 3; i++) expect(await entrar('carla', ERRADA)).toMatchObject({ avisoUltimaTentativa: false });
     expect(await entrar('carla', ERRADA)).toMatchObject({ motivo: 'CREDENCIAIS', avisoUltimaTentativa: true });
     expect(await entrar('carla', ERRADA)).toMatchObject({ motivo: 'CREDENCIAIS', avisoUltimaTentativa: false });
-    expect(await usuario('carla')).toMatchObject({ bloqueado: true, tentativasFalhas: 5 });
+    expect(await usuario('carla')).toMatchObject({ bloqueado: true, tentativasFalhas: 5, acessoVersao: 1 });
     expect((await historico({ usuarioId: u.id, descricao: { contains: '5 tentativas' } })).length).toBe(1);
   });
 
