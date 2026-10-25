@@ -3,7 +3,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificação Oficial de Desenvolvimento (design spec) |
-| Versão | 1.4 — 25/10/2026 |
+| Versão | 1.5 — 25/10/2026 |
 | Status | Vigente para desenvolvimento. Decisões marcadas **[PROVISÓRIA]** valem até validação do SME indicado |
 | Elaboração | Revisão técnica conduzida com Claude a pedido de Fabiano Garcia (BA/PO — CTCEA/GIA) |
 | Repositório | `fabianojp06/sgov2` |
@@ -18,6 +18,7 @@
 | 1.2 | 24/10/2026 | Rotina de code review em três camadas (§12.12), pedida pelo PO |
 | 1.3 | 25/10/2026 | §12.3: `src/shared/{config,db,filas}/` e `tests/integracao/` passam a ser da frente A; testes de integração dos módulos ficam junto do código, com o dono do módulo (decisão do PO no fim do período de fundação) |
 | 1.4 | 25/10/2026 | §12.3: `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`) é da frente A |
+| 1.5 | 25/10/2026 | Decisões do PO no plano do P5: §3.3 traz para a trilha o bloqueio de conta, a sessão única, o indicador de manutenção e o limite de taxa no login; §11.2a com as regras de acesso decididas (senha atual na troca voluntária, formato do login, parâmetros provisórios, riscos aceitos); §12.3 com os caminhos novos da frente A e o menu montado do catálogo no banco; §12.6 com o contrato C6 (catálogo de funcionalidades) |
 
 ---
 
@@ -136,7 +137,7 @@ Decisão do PO em 24/10/2026: o orçamento 2027 da Administração Central preci
 | Fase | Entra na trilha | Fica para depois de 30/11 |
 | --- | --- | --- |
 | F0 | Repositório, Docker de dev, Prisma e papéis de banco, `Dinheiro`, auditoria, guarda RBAC, TotalizerService, filas, marca neutra, CI/CD, ambientes, backup e hardening da VPS, mitigações de D12 | RLS por unidade (US-007, entra antes do primeiro dado de TP, na F3), concorrência otimista genérica (US-011), infraestrutura de IA (EP02) |
-| F1 | Componentes de grade, e-mail, login, troca de senha, tela principal, logoff, seed, cadastro de usuários | Bloqueio de conta e sessão única, recuperação de senha, modo manutenção, perfis configuráveis (os perfis entram fixos pela seed), exceções, notificações, alçadas (UC02.28), consulta do histórico |
+| F1 | Componentes de grade, e-mail, login, troca de senha, tela principal, logoff, seed, cadastro de usuários; bloqueio de conta por tentativas, sessão única (sem aviso à estação anterior), indicador de manutenção lido da configuração e limite de taxa no login (decisão do PO, 25/10/2026, plano do P5) | Alerta de tentativas ao administrador, aviso à estação anterior, tela de ativar e desativar a manutenção, recuperação de senha, perfis configuráveis (os perfis entram fixos pela seed), exceções, notificações, alçadas (UC02.28), consulta do histórico |
 | F2 | Importação do plano de contas e dos CCs, cargos e salários, benefícios, motor de custo de pessoal (C33), parâmetros | Agrupadores, estrutura funcional, impostos, regras de totalização |
 | F3A | Exercício, importação da planilha-modelo (US-120/121), visão por CC, teto e resultado, receitas digitadas (C35), envio e oficialização (C36) | Telas de lançamento de posições e pacotes (US-056/057), IA onda 1 |
 
@@ -701,6 +702,24 @@ O **primeiro plano** cobre a trilha 2027 (§3.3), que usa parte desta seção. O
 - UC02.27 Seed idempotente.
 - **UC02.28 Alçadas** (§11.4).
 
+### 11.2a Regras de acesso decididas para a trilha (PO, 25/10/2026)
+
+- **Troca de senha:** a voluntária exige a senha atual (ASVS V2.1.6). A obrigatória do primeiro acesso não exige.
+- **Login:** `^[a-z0-9._-]{3,60}$`, depois de `trim` e minúsculas. Pode ser revisto na unificação com a intranet (GAP-AUT-001).
+- **Parâmetros [PROVISÓRIOS] (GAP-AUT-002):**
+  - 5 tentativas, alerta na 3ª;
+  - inatividade de 30 min e teto da sessão de 12 h;
+  - senha temporária de 24 h;
+  - senha com no mínimo 10 caracteres, letra e dígito;
+  - limite de 10 tentativas por IP e 20 por login a cada 5 min;
+  - senha do administrador inicial com no mínimo 16 caracteres, válida por 7 dias.
+- **Administrador inicial:** criado pela seed a partir de variáveis que ficam só no serviço de migração do Easypanel. A mesma seed serve de *break-glass* quando não há administrador ativo.
+- **Riscos aceitos:**
+  - **Bloqueio por terceiros:** sem expiração (RN0026), qualquer pessoa que conheça um login pode bloqueá-lo de propósito.
+  - **Enumeração prevista nos EPs:** a mensagem de bloqueio (RN0018) e a resposta diferente para o Administrador em manutenção (RN0023).
+  - **Senha temporária nos backups:** a senha em texto no e-mail (C21) fica no WAL e nos backups por até 30 dias.
+  - **Limite de taxa por processo.**
+
 ### 11.3 Matriz dos perfis padrão (seed — C12, C30; aprovada pelo PO em 24/10/2026)
 
 | Perfil | Acesso mínimo |
@@ -767,7 +786,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 | `src/shared/{kernel,audit,unidade,authz,totalizer,config,db,filas}/` e `tests/integracao/` (helper de banco efêmero) | A |
 | `src/modules/{aut,adm,orc,apr}/` e `prisma/schema/{aut,adm,orc,apr}.prisma` | A |
 | `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`: Histórico de Operações, unidade, filas) | A |
-| `src/middleware.ts` | A |
+| `src/middleware.ts` (no Next.js 16, `src/proxy.ts`), `src/instrumentation.ts`, `src/app/login/`, `src/app/troca-senha/`, `src/app/(sistema)/layout.tsx`, `error.tsx` e `inicio/` | A |
 | `src/shared/ia/` | B |
 | `src/modules/{ger,cad,rel,int}/` e `prisma/schema/{cad,rel,int}.prisma` | B |
 | `worker/` (entrypoint e agendador; os *handlers* ficam em `modules/<mod>/infrastructure/` e são do dono do módulo) | B |
@@ -783,7 +802,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 **Testes de integração:** `tests/integracao/` é da frente A e guarda o helper de banco efêmero (`banco.ts`) e os testes transversais do núcleo (papéis, seeds, filas). Os testes de integração de cada módulo ficam junto do código (`src/modules/<mod>/**/*.int.test.ts`, `worker/**/*.int.test.ts`), com o dono do módulo.
 
 **Itens transversais sem dono natural:**
-- O registro do menu é feito por módulo: cada `index.ts` exporta seus itens de menu, e a tela principal só agrega. Não existe arquivo central de menu editado pelas duas frentes.
+- O registro do menu é feito por módulo: cada módulo declara as próprias funcionalidades (com rota, grupo, ajuda e permissões padrão) na sua seed, pelo contrato C6 (`instalarFuncionalidades` do `adm`). A tela principal monta o menu a partir do catálogo no banco, porque o Administrador ativa e desativa funcionalidades. Não existe arquivo central de menu editado pelas duas frentes.
 - A seed tem um arquivo por módulo (`modules/<mod>/infrastructure/seed.ts`), chamados por um orquestrador compartilhado que muda raramente.
 
 ### 12.4 Ambientes isolados
@@ -824,7 +843,7 @@ Quando uma frente precisa de algo da outra (exemplo: o orçamento, frente A, usa
 2. Com o contrato na `main`, as duas frentes trabalham em paralelo: a dona implementa, e a consumidora programa contra o contrato, usando o falso nos testes.
 3. Mudança de contrato já mergeado exige issue com label `contrato`, avaliação de impacto pela frente consumidora e aprovação do PO. Mudança incompatível não entra sem atualizar os consumidores no mesmo PR.
 
-Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPessoal` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos.
+Contratos previstos na trilha 2027: `cad` → plano de contas e CC (consulta da árvore, validação de analítica); `cad` → `MotorCustoPessoal` e Tabela Mestre de Benefícios; `ger` → Tree Grid, formulário e exportação; `shared/authz` e `shared/audit` → usados por todos; `adm` → catálogo de funcionalidades e perfis padrão (contrato C6: `DeclaracaoFuncionalidade`, `CODIGOS_PERFIL`, `MODULOS_MENU`, `instalarFuncionalidades`), usado pela seed de cada módulo.
 
 ### 12.7 Banco de dados e migrations
 
