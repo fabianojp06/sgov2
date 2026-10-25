@@ -14,6 +14,8 @@ git -C /root/sistemas/sgo config extensions.worktreeConfig true
 cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude
 ```
 
+**Configuração do Claude Code da conta 2.** O `CLAUDE_CONFIG_DIR=/root/.claude-frente-b` começa vazio. Os hooks e as permissões do projeto (`.claude/` do repositório) valem nas duas worktrees, mas o que estiver só nas configurações de usuário da conta 1 (`/root/.claude/settings.json`), como regras do modo automático que marcam `sgo-prod`/`sgo-hml` como alvos sensíveis, **não** vale para a conta 2. O PO configura o equivalente na conta 2 pela própria sessão da frente B (`/config` ou a skill `update-config`), sem copiar credenciais nem a sessão da conta 1.
+
 Atalho opcional no `~/.bashrc`:
 
 ```bash

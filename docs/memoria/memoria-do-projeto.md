@@ -106,7 +106,7 @@
 | | Frente A | Frente B |
 | --- | --- | --- |
 | Conta | conta 1 | conta 2 |
-| Diretório | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` (worktree) |
+| Diretório | `/root/sistemas/sgo` | `/root/sistemas/sgo-b` (worktree, criada após o PR de fim da fundação) |
 | Início | `claude` | `CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude` |
 | tmux | `tmux new -s sgo-a` | `tmux new -s sgo-b` |
 | Épicos | EP00, EP04, EP05, EP09–EP16, EP18 | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
@@ -130,7 +130,8 @@
 - [ ] Após a US-013 (pipeline de CI), incluir o check de CI como obrigatório na proteção da `main` (`required_status_checks`, *strict*).
 - [x] Na US-002, criar o `CLAUDE.md` com o resumo das regras da seção 2 e da spec §12, além dos hooks: bloquear `prisma migrate reset`/`db push`/`migrate diff` fora do dev, avisar se aparecer "CTCEA" e allowlist de comandos.
 - [x] Na US-001, criar `.github/frentes.yml` (mapa de propriedade da spec §12.3).
-- [x] Criar a worktree da frente B e o texto de abertura da primeira sessão dela (25/10).
+- [x] Texto de abertura da primeira sessão da frente B (25/10).
+- [ ] Frente A: criar a worktree `/root/sistemas/sgo-b` depois do merge do PR de fim da fundação.
 - [ ] PO: abrir a primeira sessão da frente B (`cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude`, `/login` com a conta 2) e colar `docs/backlog/abertura-frente-b.md`.
 - [ ] Autenticar os MCPs context7 e hostinger (`/mcp`), se forem usados.
 
@@ -143,7 +144,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
-| 25/10/2026 | A | US-005: núcleo de dinheiro e lint contra `number` (dois PRs); spec 1.3 (§12.3: config, db, filas e tests/integracao da frente A); texto de abertura e worktree da frente B |
+| 25/10/2026 | A | US-005: núcleo de dinheiro e lint contra `number` (dois PRs); spec 1.3 (§12.3: config, db, filas e tests/integracao da frente A); texto de abertura da frente B (worktree criada após o merge) |
 | 25/10/2026 | A | US-004: Prisma 7, papéis de banco, trava do shadow e de comandos destrutivos; helper de Testcontainers com D12 (127.0.0.1, sem Ryuk); revisão 12.12 em 4 lentes |
 | 25/10/2026 | A | US-003: compose de dev com limites de D12 (portas em 127.0.0.1, `mem_limit`/`memswap_limit`, nome do projeto obrigatório), revisão 12.12 em 3 lentes com uma rodada de correção |
 | 24/10/2026 | A | Spec 1.2 com a rotina de code review (§12.12); planos P1/P2 escritos (PR #147); início do P1 Tarefa 1 por fluxo de agentes |

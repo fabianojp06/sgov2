@@ -778,7 +778,7 @@ O arquivo `.github/frentes.yml` é a versão executável desta tabela e é lido 
 
 **Período de fundação:** até o merge de US-001 (repositório) e US-004 (Prisma), só a frente A escreve no repositório. Nesse período, a frente B trabalha fora do código: endurecimento da VPS (US-016), ambientes do Easypanel (US-014) e planilha-modelo (US-120).
 
-**Testes de integração:** o helper `tests/integracao/banco.ts` é da frente A. Cada frente escreve os testes de integração dos próprios módulos junto do código (`src/modules/<mod>/**/*.int.test.ts`, `worker/**/*.int.test.ts`), e eles ficam com o dono do módulo.
+**Testes de integração:** `tests/integracao/` é da frente A e guarda o helper de banco efêmero (`banco.ts`) e os testes transversais do núcleo (papéis, seeds, filas). Os testes de integração de cada módulo ficam junto do código (`src/modules/<mod>/**/*.int.test.ts`, `worker/**/*.int.test.ts`), com o dono do módulo.
 
 **Itens transversais sem dono natural:**
 - O registro do menu é feito por módulo: cada `index.ts` exporta seus itens de menu, e a tela principal só agrega. Não existe arquivo central de menu editado pelas duas frentes.
