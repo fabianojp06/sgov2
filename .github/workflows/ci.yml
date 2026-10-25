@@ -12,6 +12,11 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    # "shell: bash" explícito liga o -o pipefail.
+    shell: bash
+
 env:
   NODE_OPTIONS: --max-old-space-size=1536
   NEXT_TELEMETRY_DISABLED: '1'
@@ -24,6 +29,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
@@ -41,6 +48,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
@@ -61,8 +70,10 @@ jobs:
         env:
           # Banco efêmero e sem dados, que só existe durante o job: sem senha nenhuma no repositório.
           POSTGRES_HOST_AUTH_METHOD: trust
+        # Só em 127.0.0.1 do runner hospedado pelo GitHub (este job não deve rodar em runner próprio
+        # na VPS: seria um Postgres sem senha, na mesma porta do dev da frente B).
         ports:
-          - 56432:5432
+          - 127.0.0.1:56432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -72,6 +83,8 @@ jobs:
       MIGRATE_DATABASE_URL: postgresql://sgo_migrator:sgo_migrator@localhost:56432/sgo_teste
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
@@ -99,6 +112,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Instalar bats e shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq bats shellcheck
       - name: shellcheck

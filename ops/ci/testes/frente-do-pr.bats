@@ -1,6 +1,8 @@
 #!/usr/bin/env bats
 # Testes da frente do PR a partir das labels (US-013, spec §12.8)
 
+bats_require_minimum_version 1.5.0
+
 setup() { SCRIPT="$BATS_TEST_DIRNAME/../frente-do-pr.sh"; }
 
 @test "uma label frente:B entre outras → imprime B" {
@@ -40,4 +42,10 @@ setup() { SCRIPT="$BATS_TEST_DIRNAME/../frente-do-pr.sh"; }
 @test "sem argumento → uso, código 64" {
   run "$SCRIPT"
   [ "$status" -eq 64 ]
+}
+
+@test "na falha, nada vai para o stdout (o workflow não grava frente vazia)" {
+  run --separate-stderr "$SCRIPT" "migration"
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
 }

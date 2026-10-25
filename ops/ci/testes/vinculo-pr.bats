@@ -52,3 +52,23 @@ vincular() { printf '%b' "$1" | "$SCRIPT"; }
   run bash -o pipefail -c "{ printf 'Closes #35\n'; head -c 2000000 /dev/zero | tr '\0' 'x'; } | '$SCRIPT'"
   [ "$status" -eq 0 ]
 }
+
+@test "Closes só dentro de comentário HTML não conta" {
+  run vincular "Texto.\n<!-- Closes #35 -->"
+  [ "$status" -eq 1 ]
+}
+
+@test "comentário HTML de várias linhas some, e o Closes fora dele conta" {
+  run vincular "<!--\nmodelo: Closes #1\n-->\nCloses #35"
+  [ "$status" -eq 0 ]
+}
+
+@test "corpo com CRLF, como o GitHub envia → ok" {
+  run vincular "Texto.\r\n\r\nCloses #35\r\n"
+  [ "$status" -eq 0 ]
+}
+
+@test "Closes: #35 com dois-pontos (forma aceita pelo GitHub) → ok" {
+  run vincular "Closes: #35"
+  [ "$status" -eq 0 ]
+}
