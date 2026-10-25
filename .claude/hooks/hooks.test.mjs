@@ -24,6 +24,12 @@ describe('guarda-bash.mjs', () => {
     expect(r.stderr).toMatch(/spec §11\.5/);
   });
 
+  it('bloqueia a tag de release com código 2 e o motivo da trava de deploy de prod', () => {
+    const r = rodar('guarda-bash.mjs', { tool_name: 'Bash', tool_input: { command: 'git tag v0.1.0' } });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/Trava de deploy de prod/);
+  });
+
   it('libera comando comum com código 0', () => {
     const r = rodar('guarda-bash.mjs', { tool_name: 'Bash', tool_input: { command: 'git status' } });
     expect(r.status).toBe(0);
