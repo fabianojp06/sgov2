@@ -40,11 +40,15 @@ achados=$(docker run --rm --entrypoint sh "$IMAGEM" -c \
 echo "2. Banco descartável numa rede sem internet"
 docker network create --internal "$REDE" > /dev/null
 docker run -d --name "$PG" --network "$REDE" "${LIMITES[@]}" -e POSTGRES_HOST_AUTH_METHOD=trust "$PG_IMAGEM" > /dev/null
+# Por TCP (-h 127.0.0.1): o servidor temporário da inicialização da imagem do Postgres só escuta no
+# socket local e reinicia em seguida; pelo socket, o pg_isready diria "pronto" cedo demais.
+pronto=0
 for _ in $(seq 1 60); do
-  docker exec "$PG" pg_isready -U postgres > /dev/null 2>&1 && break
+  if docker exec "$PG" pg_isready -h 127.0.0.1 -U postgres > /dev/null 2>&1; then pronto=1; break; fi
   sleep 1
 done
-docker exec -i "$PG" psql -q -U postgres -v ON_ERROR_STOP=1 < "$RAIZ/docker/postgres/init/01-papeis.sql"
+[[ "$pronto" == 1 ]] || falhar "o Postgres descartável não ficou pronto em 60 s"
+docker exec -i "$PG" psql -q -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < "$RAIZ/docker/postgres/init/01-papeis.sql"
 
 echo "3. migrar sem internet e sem devDependencies → código 0"
 docker run --rm --name "$PREFIXO-migrar" --network "$REDE" "${LIMITES[@]}" \
