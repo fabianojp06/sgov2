@@ -49,3 +49,26 @@ describe('fronteiras de módulo', () => {
     expect(erros.length > 0, JSON.stringify(r!.messages)).toBe(deveFalhar);
   });
 });
+
+// Dinheiro nunca passa por number (spec §5, D5): domain/ e kernel/ não usam as
+// funções que arredondam ou convertem number. O Decimal.toFixed fica só em kernel/decimal.ts.
+describe('number para dinheiro', () => {
+  it.each([
+    ['src/modules/orc/domain/a.ts', 'export const x = Math.round(1.5);', true],
+    ['src/modules/orc/domain/a.ts', "export const x = parseFloat('1.5');", true],
+    ['src/modules/orc/domain/a.ts', "export const x = Number.parseFloat('1.5');", true],
+    ['src/modules/orc/domain/a.ts', 'export const f = (v: number) => v.toFixed(2);', true],
+    ['src/shared/kernel/dinheiro.ts', 'export const x = Math.round(1.5);', true],
+    ['src/shared/kernel/dinheiro.ts', 'export const f = (v: { toFixed(n: number): string }) => v.toFixed(2);', true],
+    ['src/shared/kernel/decimal.ts', 'export const f = (v: { toFixed(n: number): string }) => v.toFixed(2);', false],
+    ['src/modules/orc/application/a.ts', 'export const x = Math.round(1.5);', false],
+    ['src/modules/orc/domain/a.ts', 'export const x = Math.max(1, 2);', false],
+  ])('%s com (%s) → erro=%s', async (arquivo, codigo, deveFalhar) => {
+    const [r] = await eslint.lintText(codigo, { filePath: arquivo });
+    const erros = r!.messages.filter(
+      (m) => m.severity === 2 && (m.ruleId === 'no-restricted-syntax' || m.ruleId === 'no-restricted-properties'),
+    );
+    expect(erros.length > 0, JSON.stringify(r!.messages)).toBe(deveFalhar);
+    if (deveFalhar) expect(erros[0]!.message).toContain('Use Dinheiro/Percentual (spec §5)');
+  });
+});
