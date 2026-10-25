@@ -1,0 +1,271 @@
+name: Imagem e deploy
+
+# US-013 parte 2/3 (plano do P3, Tarefa 4, Step 7).
+# - push na main  → publica sgov2:sha-<commit> e sgov2:hml, atesta a origem e chama o webhook de hml;
+# - tag vX.Y.Z    → verificar-prod (sem environment) e prod (environment "producao", aprovação do PO):
+#                   copia o digest atestado para sgov2-prod:vX.Y.Z e :prod, sem reconstruir;
+# - workflow_dispatch acao=teste    → publica só sgov2:teste-<nome>, sem webhook;
+# - workflow_dispatch acao=rollback → disparado pelo PO com --ref vX.Y.Z: sgov2-prod:prod volta a vX.Y.Z.
+# Toda condição de job olha o tipo de evento: um dispatch com --ref de tag também tem github.ref de tag.
+# Os secrets ficam só nos environments, nunca no repositório.
+on:
+  push:
+    branches: [main]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      acao:
+        description: 'teste (publica sgov2:teste-<nome>) ou rollback (volta o prod para a tag do --ref)'
+        required: true
+        type: choice
+        options: [teste, rollback]
+      nome:
+        description: 'Nome da imagem de teste (a-z, 0-9 e hífen; só para acao=teste)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  IMAGEM: ghcr.io/fabianojp06/sgov2
+  IMAGEM_PROD: ghcr.io/fabianojp06/sgov2-prod
+
+jobs:
+  hml:
+    name: Publicar e implantar em hml
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: homologacao
+    concurrency:
+      group: deploy-hml
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build e push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/app.Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGEM }}:sha-${{ github.sha }}
+            ${{ env.IMAGEM }}:hml
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          # Cache do Actions, isolado por branch: uma branch não grava no cache que a main lê.
+          # Um cache no GHCR seria gravável pelo GITHUB_TOKEN de qualquer branch e chegaria ao prod
+          # com atestação válida (revisão 12.12 do PR #188).
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Atestar a origem (imagem.yml, push na main)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGEM }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Webhook do Easypanel (hml)
+        env:
+          WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK }}
+          OBRIGATORIO: ${{ vars.HML_WEBHOOK_OBRIGATORIO }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            # Depois da Tarefa 6, o PO define HML_WEBHOOK_OBRIGATORIO=1 no environment, e a falta vira erro.
+            if [ "$OBRIGATORIO" = 1 ]; then echo "::error::Webhook de hml não cadastrado."; exit 1; fi
+            echo "::warning::Deploy de hml pendente: webhook não cadastrado no environment homologacao (Tarefa 6)."
+            exit 0
+          fi
+          codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
+          [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de hml respondeu $codigo."; exit 1; }
+          echo "Deploy de hml solicitado ao Easypanel (HTTP $codigo). A confirmação de que subiu é manual até a Tarefa 6."
+
+  verificar-prod:
+    # Sem environment: a aprovação de um environment acontece antes de qualquer passo do job, então
+    # as checagens ficam aqui, e o PO lê o resumo antes de aprovar o job prod.
+    name: Verificar a release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: O commit da tag está na main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::O commit da tag $GITHUB_REF_NAME não está na main."; exit 1; }
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Digest da imagem publicada para o commit
+        id: digest
+        run: |
+          digest=$(docker buildx imagetools inspect "$IMAGEM:sha-$GITHUB_SHA" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Não há imagem $IMAGEM:sha-$GITHUB_SHA (o push na main publicou?)."; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Digest: $digest"
+      - name: A imagem foi gerada pelo imagem.yml num push na main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          # --source-digest prende a atestação ao commit da tag: a tag sha-<commit> é mutável e
+          # poderia apontar para o digest de outro build legítimo da main.
+          gh attestation verify "oci://$IMAGEM@$DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/imagem.yml" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
+          revisao=$(docker buildx imagetools inspect "$IMAGEM@$DIGEST" --format '{{json .Image}}' \
+            | jq -r '[.. | objects | select(has("Labels")) | .Labels."org.opencontainers.image.revision" // empty] | first // empty')
+          [[ "$revisao" == "$GITHUB_SHA" ]] || { echo "::error::O rótulo revision da imagem ($revisao) não é o commit da tag."; exit 1; }
+      - name: Migrations desde a release anterior
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          anterior=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$GITHUB_SHA^" 2>/dev/null || true)
+          if [ -z "$anterior" ]; then
+            mudou="primeira release"
+          else
+            mudou=$(git diff --name-only "$anterior" "$GITHUB_SHA" -- prisma/migrations)
+          fi
+          {
+            echo "## Release $GITHUB_REF_NAME"
+            echo "Digest verificado: \`$DIGEST\`"
+            echo
+            echo "Antes de aprovar, confira na tela do run (não neste resumo) que o commit da tag está na main e que o workflow é o da main (docs/operacao/deploy.md)."
+            if [ -n "$mudou" ]; then
+              echo
+              echo "**Há migration ($mudou): tire e confirme o snapshot da Hostinger antes de aprovar o deploy (spec §4.3).**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  prod:
+    name: Implantar em prod
+    needs: verificar-prod
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: producao
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PROD_TOKEN }}
+      - name: Copiar o digest verificado para sgov2-prod (sem reconstruir)
+        env:
+          DIGEST: ${{ needs.verificar-prod.outputs.digest }}
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGEM_PROD:$GITHUB_REF_NAME" -t "$IMAGEM_PROD:prod" \
+            "$IMAGEM@$DIGEST"
+      - name: Webhook do Easypanel (prod)
+        env:
+          WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK }}
+        run: |
+          [ -n "$WEBHOOK" ] || { echo "::error::Webhook de prod não cadastrado no environment producao."; exit 1; }
+          codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
+          [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de prod respondeu $codigo."; exit 1; }
+          echo "Deploy de prod solicitado ao Easypanel (HTTP $codigo). Confira no Easypanel que a versão nova subiu."
+
+  teste:
+    name: Publicar imagem de teste
+    if: github.event_name == 'workflow_dispatch' && inputs.acao == 'teste'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validar o nome
+        env:
+          NOME: ${{ inputs.nome }}
+        run: |
+          [[ "$NOME" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || { echo "::error::nome inválido: use a-z, 0-9 e hífen (até 40)."; exit 1; }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/app.Dockerfile
+          push: true
+          tags: ${{ env.IMAGEM }}:teste-${{ inputs.nome }}
+          # Só leitura do cache do Actions (o da main e o da própria branch); nada é gravado.
+          cache-from: type=gha
+
+  rollback:
+    name: Rollback de prod
+    if: github.event_name == 'workflow_dispatch' && inputs.acao == 'rollback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: producao
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - name: O rollback é disparado com --ref de uma tag de release
+        run: |
+          [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "::error::Dispare o rollback com --ref vX.Y.Z (recebido: $GITHUB_REF)."; exit 1; }
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PROD_TOKEN }}
+      - name: sgov2-prod:prod volta para a release escolhida
+        run: |
+          destino=$(docker buildx imagetools inspect "$IMAGEM_PROD:$GITHUB_REF_NAME" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ "$destino" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Não há $IMAGEM_PROD:$GITHUB_REF_NAME."; exit 1; }
+          echo "Rollback para $GITHUB_REF_NAME, digest $destino"
+          docker buildx imagetools create -t "$IMAGEM_PROD:prod" "$IMAGEM_PROD@$destino"
+      - name: Webhook do Easypanel (prod)
+        env:
+          WEBHOOK: ${{ secrets.EASYPANEL_WEBHOOK }}
+        run: |
+          [ -n "$WEBHOOK" ] || { echo "::error::Webhook de prod não cadastrado no environment producao."; exit 1; }
+          codigo=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK") || codigo=erro
+          [[ "$codigo" == 2?? ]] || { echo "::error::Webhook de prod respondeu $codigo."; exit 1; }
+          echo "Rollback de prod para $GITHUB_REF_NAME solicitado ao Easypanel (HTTP $codigo)."

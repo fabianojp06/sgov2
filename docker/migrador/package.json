@@ -1,0 +1,10 @@
+{
+  "name": "sgo-migrador",
+  "private": true,
+  "description": "Migrador autossuficiente da imagem do SGO (prisma migrate deploy), sem as devDependencies do projeto (issue #165).",
+  "type": "module",
+  "dependencies": {
+    "prisma": "7.10.1",
+    "zod": "4.6.7"
+  }
+}

@@ -75,7 +75,7 @@ jobs:
         ports:
           - 127.0.0.1:56432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -120,3 +120,18 @@ jobs:
         run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
       - name: bats
         run: git ls-files '*.bats' | xargs -r -n1 dirname | sort -u | xargs -r bats
+
+  imagem:
+    # Constrói a imagem de produção e a testa sem publicar (plano do P3, Tarefa 4, Step 6):
+    # sem .env nem .git, migrador sem internet, migration quebrada impedindo o app de subir.
+    name: Imagem
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Build da imagem
+        run: docker build -f docker/app.Dockerfile -t sgo:ci .
+      - name: Testes da imagem
+        run: docker/testes/testar-imagem.sh sgo:ci
