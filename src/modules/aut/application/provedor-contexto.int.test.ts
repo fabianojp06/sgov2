@@ -108,6 +108,7 @@ describe('criarProvedorContexto', () => {
     cookie = await logar('dani');
     await migrator.sessaoUsuario.updateMany({ where: { usuarioId: u.id }, data: { expiraEm: new Date('2026-11-11T11:59:00Z') } });
     expect(await provedor().obter()).toBeNull();
+    expect(await migrator.sessaoUsuario.count({ where: { usuarioId: u.id } })).toBe(0);
   });
 
   it.each([
@@ -138,8 +139,11 @@ describe('criarProvedorContexto', () => {
     await criarUsuario('gui');
     cookie = await logar('gui');
     await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: false } });
-    const ctx = await provedor().obter();
-    expect([...(ctx?.permissoes ?? [])].some((p) => p.startsWith('adm.usuarios:'))).toBe(false);
-    await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: true } });
+    try {
+      const ctx = await provedor().obter();
+      expect([...(ctx?.permissoes ?? [])].some((p) => p.startsWith('adm.usuarios:'))).toBe(false);
+    } finally {
+      await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: true } });
+    }
   });
 });

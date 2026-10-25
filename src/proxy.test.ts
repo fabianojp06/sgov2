@@ -23,6 +23,21 @@ describe('proxy.ts', () => {
 
   it('/login sem cookie passa', () => expect(proxy(req('/login')).status).toBe(200));
 
+  it.each([['/login'], ['/inicio']])('cabeçalhos de segurança também em %s sem cookie', (caminho) => {
+    const r = proxy(req(caminho));
+    expect(r.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+    expect(r.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
+  it('com URL_PUBLICA https, exige e limpa __Host-sgo_sessao', () => {
+    vi.stubEnv('URL_PUBLICA', 'https://sgo.exemplo.org');
+    expect(proxy(req('/inicio', { cookie: true })).status).toBe(307);
+    const comHost = new NextRequest(new URL('/inicio', 'http://127.0.0.1:3100'), { headers: { cookie: '__Host-sgo_sessao=abc' } });
+    expect(proxy(comHost).status).toBe(200);
+    const saiu = proxy(req('/login?saiu=1', { cabecalhos: { 'sec-fetch-site': 'same-origin' } }));
+    expect(saiu.headers.getSetCookie().join('\n')).toMatch(/__Host-sgo_sessao=;.*Secure/i);
+  });
+
   it('página do sistema com cookie: no-store e cabeçalhos de segurança', () => {
     const r = proxy(req('/inicio', { cookie: true }));
     expect(r.headers.get('cache-control')).toBe('no-store');

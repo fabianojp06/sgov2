@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { aoCancelar, aoFalhar, MENSAGEM_REDE, validarCampos } from './validar-login';
+import { redirect } from 'next/navigation';
+import { aoCancelar, aoFalhar, enviarLogin, MENSAGEM_REDE, validarCampos } from './validar-login';
 
 describe('tela de login: regras do cliente (UC01.01)', () => {
   it.each([
@@ -26,5 +27,26 @@ describe('tela de login: regras do cliente (UC01.01)', () => {
       const texto = readFileSync(join(__dirname, arquivo), 'utf8');
       expect(texto).not.toMatch(/localStorage|sessionStorage|document\.cookie/);
     }
+  });
+});
+
+describe('enviarLogin', () => {
+  const campos = { login: 'ana', senha: 'x' };
+  it('redirect do login bem-sucedido passa adiante (não vira erro de rede)', async () => {
+    await expect(enviarLogin(async () => redirect('/inicio'), campos)).rejects.toThrow('NEXT_REDIRECT');
+  });
+  it('falha de rede → mensagem do E8, campos preservados', async () => {
+    expect(await enviarLogin(async () => Promise.reject(new TypeError('Failed to fetch')), campos)).toEqual({
+      mensagem: MENSAGEM_REDE,
+      aviso: null,
+      campos,
+    });
+  });
+  it('credenciais recusadas → mensagem, aviso e senha limpa', async () => {
+    const r = await enviarLogin(
+      async () => ({ ok: false, erros: [{ campo: '_', mensagem: 'Login ou senha inválidos' }, { campo: 'aviso', mensagem: 'A5' }] }),
+      campos,
+    );
+    expect(r).toEqual({ mensagem: 'Login ou senha inválidos', aviso: 'A5', campos: { login: 'ana', senha: '' } });
   });
 });

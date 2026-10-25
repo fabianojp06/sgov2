@@ -26,6 +26,17 @@ describe('lerEnvAcesso (URL_PUBLICA, CONFIAR_PROXY)', () => {
   it('URL com caminho é recusada (os links somam /login)', () =>
     expect(() => lerEnvAcesso({ URL_PUBLICA: 'https://x.org/sgo' })).toThrow(/origem/));
 
+  it.each([['ftp://x.org'], ['ws://127.0.0.1:3100'], ['https://u:p@x.org']])('URL %s é recusada', (url) =>
+    expect(() => lerEnvAcesso({ URL_PUBLICA: url })).toThrow(/URL_PUBLICA/));
+
+  it('nome e opções do cookie de sessão', async () => {
+    const { nomeCookieSessao, opcoesCookieSessao } = await import('./acesso');
+    const https = lerEnvAcesso({ URL_PUBLICA: 'https://x.org' });
+    expect(nomeCookieSessao(https)).toBe('__Host-sgo_sessao');
+    expect(opcoesCookieSessao(new Date(0), https)).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/', secure: true });
+    expect(nomeCookieSessao(lerEnvAcesso({}))).toBe('sgo_sessao');
+  });
+
   it('CONFIAR_PROXY=1 liga; outro valor é recusado', () => {
     expect(lerEnvAcesso({ CONFIAR_PROXY: '1' }).confiarProxy).toBe(true);
     expect(() => lerEnvAcesso({ CONFIAR_PROXY: 'sim' })).toThrow(/CONFIAR_PROXY/);

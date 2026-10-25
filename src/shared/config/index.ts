@@ -1,2 +1,2 @@
 export { encontrarMarcaVedada } from './marca';
-export { lerEnvAcesso, type EnvAcesso } from './acesso';
+export { COOKIE_UNIDADE, lerEnvAcesso, nomeCookieSessao, opcoesCookieSessao, type EnvAcesso } from './acesso';

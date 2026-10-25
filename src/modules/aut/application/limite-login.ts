@@ -9,6 +9,7 @@ export type OpcoesLimitador = {
   concorrencia?: number; // Argon2 simultâneos no processo
   esperaMs?: number; // quanto o excedente espera por uma vaga
   teto?: number; // chaves por mapa (descarta a mais antiga)
+  maxFila?: number; // pedidos em espera; o excedente recebe OCUPADO na hora
   agora?: () => number;
 };
 
@@ -25,6 +26,7 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
   const concorrencia = o.concorrencia ?? 2;
   const esperaMs = o.esperaMs ?? 2000;
   const teto = o.teto ?? 10_000;
+  const maxFila = o.maxFila ?? 50;
   const agora = o.agora ?? Date.now;
   const ips = new Map<string, Janela>();
   const logins = new Map<string, Janela>();
@@ -55,6 +57,8 @@ export function criarLimitadorLogin(o: OpcoesLimitador = {}): LimitadorLogin {
       ativos++;
       return true;
     }
+    // Numa enxurrada, a fila não cresce sem limite: o pior caso de memória e de timers é previsível.
+    if (fila.length >= maxFila) return false;
     return new Promise<boolean>((resolver) => {
       const liberar = () => {
         clearTimeout(timer);

@@ -1,13 +1,13 @@
 import { isIP } from 'node:net';
 import { NextResponse, type NextRequest } from 'next/server';
-import { lerEnvAcesso } from '@/shared/config';
+import { COOKIE_UNIDADE, lerEnvAcesso, nomeCookieSessao } from '@/shared/config';
 
 // Proxy (o middleware do Next 16), da frente A (spec §12.3). Só confere se o cookie existe: quem
 // valida a sessão é o provedor de contexto do aut. Também resolve o IP do cliente, limpa os
 // cookies no logoff e aplica os cabeçalhos de segurança (plano do P5, Task 2b).
 const PUBLICAS = new Set(['/', '/login']);
+// O mesmo nome de CABECALHO_IP de @/shared/authz (que carrega o Prisma e fica fora do proxy).
 const CABECALHO_IP = 'x-sgo-ip';
-const COOKIE_UNIDADE = 'sgo_unidade';
 
 // Último salto do X-Forwarded-For: é o que o Traefik acrescenta; os anteriores vêm do cliente.
 // Zona IPv6 ('%eth0') é recusada, porque o tipo inet do Postgres não a aceita.
@@ -27,7 +27,7 @@ function comSeguranca(r: NextResponse): NextResponse {
 
 export function proxy(req: NextRequest): NextResponse {
   const env = lerEnvAcesso();
-  const nomeSessao = env.seguro ? '__Host-sgo_sessao' : 'sgo_sessao';
+  const nomeSessao = nomeCookieSessao(env);
   const { pathname, searchParams } = req.nextUrl;
 
   if (!PUBLICAS.has(pathname) && !req.cookies.has(nomeSessao)) {

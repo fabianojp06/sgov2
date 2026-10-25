@@ -1,14 +1,11 @@
 'use client';
 
 import { useState, useTransition, type FormEvent } from 'react';
-import type { ErroCampo } from '@/shared/kernel';
-import { aoCancelar, aoFalhar, MENSAGEM_REDE, validarCampos, type CamposLogin } from './validar-login';
-
-type Resposta = { ok: true } | { ok: false; erros: readonly ErroCampo[] };
+import { aoCancelar, enviarLogin, validarCampos, type CamposLogin, type RespostaLogin } from './validar-login';
 
 // Tela de login (UC01.01). Os campos ficam só na memória do componente (RNF0002); a senha é
 // mascarada (RN0515). A ação vem do servidor por props, para a tela não importar código de servidor.
-export function FormLogin({ entrar }: { entrar: (dados: CamposLogin) => Promise<Resposta> }) {
+export function FormLogin({ entrar }: { entrar: (dados: CamposLogin) => Promise<RespostaLogin> }) {
   const [campos, setCampos] = useState<CamposLogin>({ login: '', senha: '' });
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -23,17 +20,11 @@ export function FormLogin({ entrar }: { entrar: (dados: CamposLogin) => Promise<
       return;
     }
     iniciar(async () => {
-      try {
-        const r = await entrar(campos);
-        // Sucesso: a ação redireciona e esta tela não volta a renderizar.
-        if (!r.ok) {
-          setMensagem(r.erros.find((e) => e.campo !== 'aviso')?.mensagem ?? null);
-          setAviso(r.erros.find((e) => e.campo === 'aviso')?.mensagem ?? null);
-          setCampos(aoFalhar);
-        }
-      } catch {
-        setMensagem(MENSAGEM_REDE);
-      }
+      // Sucesso: a ação redireciona (o erro de redirect segue adiante em enviarLogin).
+      const r = await enviarLogin(entrar, campos);
+      setMensagem(r.mensagem);
+      setAviso(r.aviso);
+      setCampos(r.campos);
     });
   }
 

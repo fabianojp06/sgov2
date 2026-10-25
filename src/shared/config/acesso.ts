@@ -19,6 +19,8 @@ export function lerEnvAcesso(fonte: Readonly<Record<string, string | undefined>>
   } catch {
     throw new Error('URL_PUBLICA inválida');
   }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('URL_PUBLICA deve usar http ou https');
+  if (url.username || url.password) throw new Error('URL_PUBLICA não pode ter usuário ou senha');
   if (url.origin === 'null' || (url.pathname !== '/' && url.pathname !== '') || url.search || url.hash) {
     throw new Error('URL_PUBLICA deve ser só a origem (esquema, host e porta), sem caminho');
   }
@@ -31,3 +33,15 @@ export function lerEnvAcesso(fonte: Readonly<Record<string, string | undefined>>
   if (confiar !== '' && confiar !== '1') throw new Error('CONFIAR_PROXY deve ser vazio ou 1');
   return { urlPublica: url.origin, seguro, confiarProxy: confiar === '1' };
 }
+
+// Cookie de sessão: __Host- e Secure quando a URL_PUBLICA é https; sem prefixo em http (dev e E2E
+// em 127.0.0.1). Proxy, provedor, login e logoff usam estas funções (sem banco, o proxy importa).
+export function nomeCookieSessao(env: EnvAcesso = lerEnvAcesso()): string {
+  return env.seguro ? '__Host-sgo_sessao' : 'sgo_sessao';
+}
+
+export function opcoesCookieSessao(expires: Date, env: EnvAcesso = lerEnvAcesso()) {
+  return { httpOnly: true, sameSite: 'lax' as const, path: '/', secure: env.seguro, expires };
+}
+
+export const COOKIE_UNIDADE = 'sgo_unidade';

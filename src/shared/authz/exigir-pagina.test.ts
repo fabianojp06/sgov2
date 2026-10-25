@@ -47,6 +47,7 @@ describe('exigirPagina', () => {
   it('sem a permissão → notFound e negação auditada', async () => {
     expect(await digest(exigirPagina('adm.usuarios', 'incluir'))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
     expect(negacoes).toHaveLength(1);
+    expect(negacoes[0]).toMatchObject({ funcionalidade: 'adm.usuarios', descricao: expect.stringContaining('(incluir)') });
   });
 
   it('com a permissão → devolve o contexto', async () =>

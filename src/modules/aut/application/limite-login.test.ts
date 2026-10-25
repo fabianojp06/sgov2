@@ -23,9 +23,45 @@ describe('limitador do login (D-P5-1)', () => {
   });
 
   it('teto de 10.000 chaves, com descarte da mais antiga', () => {
-    const l = criarLimitadorLogin({ agora: () => 0 });
+    const l = criarLimitadorLogin({ agora: () => 0, porLogin: 1 });
     for (let i = 0; i <= 10_000; i++) l.permitir(null, `u${i}`);
     expect(l.tamanho()).toEqual({ porIp: 0, porLogin: 10_000 });
+    // u0 saiu (ganha janela nova); u10000 continua contado.
+    expect(l.permitir(null, 'u10000')).toBe(false);
+    expect(l.permitir(null, 'u0')).toBe(true);
+  });
+
+  it('espera padrão de 2 s', async () => {
+    const { vi } = await import('vitest');
+    vi.useFakeTimers();
+    try {
+      const l = criarLimitadorLogin({ concorrencia: 1 });
+      let liberar = () => {};
+      const a = l.executar(() => new Promise<void>((r) => (liberar = r)));
+      const b = l.executar(async () => 'b');
+      await vi.advanceTimersByTimeAsync(1999);
+      liberar();
+      await a;
+      expect(await b).toBe('b');
+      const c = l.executar(() => new Promise<void>(() => {}));
+      const d = l.executar(async () => 'd');
+      await vi.advanceTimersByTimeAsync(2001);
+      expect(await d).toBe('OCUPADO');
+      void c;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fila com no máximo 50 em espera: o excedente recebe OCUPADO na hora', async () => {
+    const l = criarLimitadorLogin({ concorrencia: 1, esperaMs: 10_000 });
+    let liberar = () => {};
+    const travada = new Promise<void>((r) => (liberar = r));
+    const ativos = [l.executar(() => travada)];
+    for (let i = 0; i < 50; i++) ativos.push(l.executar(() => travada));
+    expect(await l.executar(async () => 'x')).toBe('OCUPADO');
+    liberar();
+    await Promise.all(ativos);
   });
 
   it('concorrência 2: a terceira espera; sem vaga em 2 s, devolve OCUPADO sem rodar', async () => {

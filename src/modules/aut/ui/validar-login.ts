@@ -1,3 +1,5 @@
+import { unstable_rethrow } from 'next/navigation';
+import type { ErroCampo } from '@/shared/kernel';
 import { MENSAGENS } from '../domain/mensagens';
 
 // Regras da tela de login que rodam no cliente (UC01.01). O estado fica só na memória do
@@ -16,3 +18,23 @@ export const aoCancelar = (): CamposLogin => ({ login: '', senha: '' });
 
 // E2: credenciais recusadas limpam só a senha.
 export const aoFalhar = (c: CamposLogin): CamposLogin => ({ login: c.login, senha: '' });
+
+export type RespostaLogin = { ok: true } | { ok: false; erros: readonly ErroCampo[] };
+export type EstadoLogin = { mensagem: string | null; aviso: string | null; campos: CamposLogin };
+
+// Envia o login. O sucesso é um redirect do Next, que chega ao cliente como erro e precisa seguir
+// adiante (senão a tela mostraria o erro de rede a cada login certo).
+export async function enviarLogin(entrar: (c: CamposLogin) => Promise<RespostaLogin>, campos: CamposLogin): Promise<EstadoLogin> {
+  try {
+    const r = await entrar(campos);
+    if (r.ok) return { mensagem: null, aviso: null, campos };
+    return {
+      mensagem: r.erros.find((e) => e.campo !== 'aviso')?.mensagem ?? null,
+      aviso: r.erros.find((e) => e.campo === 'aviso')?.mensagem ?? null,
+      campos: aoFalhar(campos),
+    };
+  } catch (erro) {
+    unstable_rethrow(erro);
+    return { mensagem: MENSAGEM_REDE, aviso: null, campos };
+  }
+}

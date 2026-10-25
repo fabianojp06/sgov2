@@ -9,17 +9,14 @@ import { falha, type ErroCampo } from '@/shared/kernel';
 import { MENSAGENS } from '../domain/mensagens';
 import { nomeCookieSessao, opcoesCookieSessao } from '../infrastructure/cookies';
 import { autenticar } from './autenticar';
-import { criarLimitadorLogin } from './limite-login';
+import { limitadorLogin as limitador } from './limitador';
 
 const MENSAGEM_LIMITE = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
-
-// Um limitador por processo (risco aceito: com várias instâncias, o limite multiplica).
-const limitador = criarLimitadorLogin();
 
 // Entrar (UC01.01): a única ação pública do sistema (R4). O token vai só para o cookie HttpOnly:
 // o resultado da ação nunca o carrega.
 export const entrar = definirAcaoPublica(
-  { nome: 'aut.entrar', entrada: z.object({ login: z.string().max(200), senha: z.string().max(200) }) },
+  { nome: 'aut.entrar', entrada: z.object({ login: z.string().max(200, MENSAGENS.CREDENCIAIS), senha: z.string().max(200, MENSAGENS.CREDENCIAIS) }) },
   async (e, ctx) => {
     const chave = normalizarLogin(e.login) ?? e.login.trim().toLowerCase().slice(0, 60);
     if (!limitador.permitir(ctx.ip, chave)) {
