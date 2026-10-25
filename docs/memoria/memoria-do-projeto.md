@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 24/10/2026 (frente A, rodada de revisão da spec → versão 1.1).
+Última atualização: 25/10/2026 (frente A, US-003: compose de dev).
 
 ---
 
@@ -69,12 +69,17 @@
 
 ## 5. Estado atual (24/10/2026)
 
-**Repositório (`main` em `8355614`)**
+**Código (P1 Fundação, frente A)**
+- Na `main`: US-001 (#149, fronteiras de módulo e `.github/frentes.yml`), US-002/US-012 (#152, `CLAUDE.md`, hooks e marca neutra), US-122/US-016 (#151, mitigações de D12 na VPS).
+- US-003 (compose de dev) em PR: `docker compose up -d` sobe db e mailpit da frente A; app e worker ficam no perfil `app`. O compose exige um `.env` local (fora do git) com `COMPOSE_PROJECT_NAME` e as portas, copiado do `.env.example`.
+- Próxima: US-004 (Prisma 7 e papéis). Antes do passo 11 dela, rodar `docker compose down -v` (apaga só o banco de dev da frente A), porque o volume `sgo-a_pgdata` foi inicializado com `01-papeis.sql` vazio.
+- O progresso da execução do plano fica em `.superpowers/sdd/<plano>/progress.md` (fora do git).
+
+**Repositório (documentação)**
 - Spec oficial **versão 1.2** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12). Status: aguardando a aprovação final do PO.
 - Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 122 histórias (US-001 a US-122), 22 épicos e releases R0 a R9. Total de 1294 h (1557 h com contingência). O gerador fica em `docs/backlog/fonte/`.
 - Planilha-modelo do orçamento 2027, com o gerador em `docs/modelos/fonte/`.
 - Scripts de sincronização com o GitHub em `docs/backlog/fonte/github/`.
-- **Ainda não existe código da aplicação.** A primeira história é a US-001.
 
 **GitHub**
 - Issues: 22 épicos (#1–#22) e 122 histórias (#23–#143 e a US-122 em #145), ligadas como sub-issues, com dependências nativas ("blocked by"). O PR #144 (memória) usou o número seguinte.
@@ -118,8 +123,8 @@
 
 **Técnicas**
 - [ ] Após a US-013 (pipeline de CI), incluir o check de CI como obrigatório na proteção da `main` (`required_status_checks`, *strict*).
-- [ ] Na US-002, criar o `CLAUDE.md` com o resumo das regras da seção 2 e da spec §12, além dos hooks: bloquear `prisma migrate reset`/`db push`/`migrate diff` fora do dev, avisar se aparecer "CTCEA" e allowlist de comandos.
-- [ ] Na US-001, criar `.github/frentes.yml` (mapa de propriedade da spec §12.3).
+- [x] Na US-002, criar o `CLAUDE.md` com o resumo das regras da seção 2 e da spec §12, além dos hooks: bloquear `prisma migrate reset`/`db push`/`migrate diff` fora do dev, avisar se aparecer "CTCEA" e allowlist de comandos.
+- [x] Na US-001, criar `.github/frentes.yml` (mapa de propriedade da spec §12.3).
 - [ ] Criar a worktree da frente B e o texto de abertura da primeira sessão dela.
 - [ ] Autenticar os MCPs context7 e hostinger (`/mcp`), se forem usados.
 
@@ -132,6 +137,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 25/10/2026 | A | US-003: compose de dev com limites de D12 (portas em 127.0.0.1, `mem_limit`/`memswap_limit`, nome do projeto obrigatório), revisão 12.12 em 3 lentes com uma rodada de correção |
 | 24/10/2026 | A | Spec 1.2 com a rotina de code review (§12.12); planos P1/P2 escritos (PR #147); início do P1 Tarefa 1 por fluxo de agentes |
 | 24/10/2026 | A | Rodada de revisão da spec (v1.1): D12 dev na VPS com mitigações e US-122; trilha 2027 como primeiro plano; C33–C36 (motor único, cargo texto livre, receita de transição, aprovador DIREX); prazos dos GAPs |
 | 24/10/2026 | A | Revisão da especificação e spec oficial; plano de contas e CC de 5 níveis; protótipos de telas e do orçamento da Adm. Central; infra de IA e catálogo; backlog (121 histórias); trilha híbrida do orçamento 2027; planilha-modelo; processo de duas frentes (spec §12); publicação no GitHub (issues, milestones, projeto); push da spec para a `main` e proteção da `main`; criação desta memória |
