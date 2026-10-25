@@ -6,6 +6,7 @@
 // Dependências externas (pacotes) ficam com no-restricted-imports por bloco de files:
 // - app/ não importa @prisma/*, pg nem o client gerado;
 // - domain/ não faz I/O: sem @prisma/*, pg, pg-boss, next nem módulos nativos do Node.
+// - domain/ e kernel/ não usam parseFloat, Math.round nem .toFixed para dinheiro (spec §5).
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
@@ -13,6 +14,8 @@ import boundaries from 'eslint-plugin-boundaries';
 import tseslint from 'typescript-eslint';
 
 const raiz = fileURLToPath(new URL('.', import.meta.url));
+
+const MSG_DINHEIRO = 'Use Dinheiro/Percentual (spec §5): number não serve para dinheiro.';
 
 // Tudo o que fica dentro de um módulo, exceto o index.ts da raiz, é privado para os outros módulos.
 const CAMADAS = ['mod-domain', 'mod-application', 'mod-infrastructure', 'mod-ui'];
@@ -142,6 +145,24 @@ export default tseslint.config(
             },
           ],
         },
+      ],
+    },
+  },
+  // Dinheiro nunca passa por number (spec §5, D5). O Decimal.toFixed do núcleo fica isolado em
+  // kernel/decimal.ts, a única exceção; os testes podem comparar com number.
+  {
+    files: ['src/modules/*/domain/**/*.{ts,tsx}', 'src/shared/kernel/**/*.{ts,tsx}'],
+    ignores: ['src/shared/kernel/decimal.ts', '**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        { selector: "CallExpression[callee.name='parseFloat']", message: MSG_DINHEIRO },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'round', message: MSG_DINHEIRO },
+        { object: 'Number', property: 'parseFloat', message: MSG_DINHEIRO },
+        { property: 'toFixed', message: MSG_DINHEIRO },
       ],
     },
   },
