@@ -33,3 +33,14 @@ describe('senha: geração e hash (RNF0004, RN0020)', () => {
 
   it('hash corrompido não confere e não lança', async () => expect(await conferirSenha('lixo', 'x')).toBe(false));
 });
+
+describe('conferirSenha com hash ilegível', () => {
+  it('registra no log, sem a senha', async () => {
+    const { vi } = await import('vitest');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await conferirSenha('lixo', 'SegredoX1')).toBe(false);
+    expect(log).toHaveBeenCalledWith('[SENHA_HASH_INVALIDO]', expect.not.objectContaining({ senha: expect.anything() }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('SegredoX1');
+    log.mockRestore();
+  });
+});

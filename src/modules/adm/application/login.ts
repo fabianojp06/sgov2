@@ -1,7 +1,7 @@
+import { Prisma } from '@/generated/prisma/client';
 import type { TxCliente } from '@/shared/db';
 
-// Dados do usuário que o aut precisa para autenticar (UC01.02). A linha fica travada até o fim da
-// transação (SELECT … FOR UPDATE, RNF0011): duas tentativas simultâneas não passam do limite.
+// Dados do usuário que o aut precisa para autenticar (UC01.02).
 export type UsuarioParaLogin = {
   id: string;
   nome: string;
@@ -18,7 +18,15 @@ export type UsuarioParaLogin = {
 
 type Linha = Omit<UsuarioParaLogin, 'ehAdministrador'> & { eh_administrador: boolean };
 
-export async function travarUsuarioParaLogin(tx: TxCliente, loginNormalizado: string): Promise<UsuarioParaLogin | null> {
+// travar = true: a linha fica presa até o fim da transação (FOR NO KEY UPDATE, RNF0011), e duas
+// tentativas simultâneas não passam do limite. NO KEY não bloqueia as FKs de outras tabelas.
+// travar = false: leitura sem trava, para conferir a senha fora da transação.
+export async function travarUsuarioParaLogin(
+  tx: TxCliente,
+  loginNormalizado: string,
+  travar = true,
+): Promise<UsuarioParaLogin | null> {
+  const trava = travar ? Prisma.sql`FOR NO KEY UPDATE OF u` : Prisma.empty;
   const linhas = await tx.$queryRaw<Linha[]>`
     SELECT u.id, u.nome, u.login_normalizado AS login, u.ativo, u.bloqueado,
       u.tentativas_falhas AS "tentativasFalhas", u.senha_hash AS "senhaHash",
@@ -29,7 +37,7 @@ export async function travarUsuarioParaLogin(tx: TxCliente, loginNormalizado: st
         WHERE up.usuario_id = u.id AND p.codigo = 'ADMINISTRADOR' AND p.ativo
       ) AS eh_administrador
     FROM usuario u WHERE u.login_normalizado = ${loginNormalizado}
-    FOR UPDATE OF u`;
+    ${trava}`;
   const l = linhas[0];
   if (!l) return null;
   const { eh_administrador, ...resto } = l;

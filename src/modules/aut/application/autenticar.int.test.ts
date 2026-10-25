@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { hashSenha, seedAdm } from '@/modules/adm';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
-import { autenticar } from './autenticar';
+import { autenticar, hashDoToken } from './autenticar';
 
 // Autenticação (US-026, UC01.02): ordem das verificações, contador, bloqueio, sessão e Histórico.
 let falharAuditoria = false;
@@ -13,6 +13,19 @@ vi.mock('@/shared/audit', async (original) => {
     auditar: async (...args: Parameters<typeof m.auditar>) => {
       if (falharAuditoria) throw new Error('falha simulada da auditoria');
       return m.auditar(...args);
+    },
+  };
+});
+
+// Espião do conferirSenha (RNF0005: login inexistente também paga um Argon2).
+const conferencias = vi.hoisted(() => ({ total: 0 }));
+vi.mock('@/modules/adm', async (original) => {
+  const m = await original<typeof import('@/modules/adm')>();
+  return {
+    ...m,
+    conferirSenha: async (...args: Parameters<typeof m.conferirSenha>) => {
+      conferencias.total++;
+      return m.conferirSenha(...args);
     },
   };
 });
@@ -80,15 +93,39 @@ describe('autenticar: entrada e credenciais', () => {
   });
 
   it('senha só com espaços: ENTRADA, sem contador e sem Histórico (RN0014)', async () => {
+    await criarUsuario('ana2');
     const antes = await migrator.historicoOperacao.count();
-    const u0 = await usuario('ana');
-    expect(await entrar('ana', '   ')).toMatchObject({ ok: false, motivo: 'ENTRADA', mensagem: 'Login e/ou Senha são obrigatórios' });
-    expect((await usuario('ana')).tentativasFalhas).toBe(u0.tentativasFalhas);
+    const u0 = await usuario('ana2');
+    expect(await entrar('ana2', '   ')).toMatchObject({ ok: false, motivo: 'ENTRADA', mensagem: 'Login e/ou Senha são obrigatórios' });
+    expect(await entrar('   ')).toMatchObject({ ok: false, motivo: 'ENTRADA', mensagem: 'Login e/ou Senha são obrigatórios' });
+    expect((await usuario('ana2')).tentativasFalhas).toBe(u0.tentativasFalhas);
     expect(await migrator.historicoOperacao.count()).toBe(antes);
   });
 
-  it('inexistente: CREDENCIAIS, Histórico LOGIN com usuário nulo e o login normalizado', async () => {
+  it('entrada longa (login > 60, senha > 128): ENTRADA genérica, sem banco e sem Histórico', async () => {
+    const antes = await migrator.historicoOperacao.count();
+    expect(await entrar('a'.repeat(61))).toMatchObject({ ok: false, motivo: 'ENTRADA', mensagem: 'Login ou senha inválidos' });
+    expect(await entrar('ana2', `a1${'b'.repeat(127)}`)).toMatchObject({ ok: false, motivo: 'ENTRADA' });
+    expect(await migrator.historicoOperacao.count()).toBe(antes);
+  });
+
+  it('entrada que não é texto: ENTRADA, sem exceção', async () => {
+    expect(await autenticar({ login: 1 as unknown as string, senha: SENHA, ip: IP }, { cliente: app })).toMatchObject({
+      ok: false,
+      motivo: 'ENTRADA',
+    });
+  });
+
+  it('IP inválido ou com zona IPv6 vira nulo, e a falha ainda conta (o inet recusaria)', async () => {
+    await criarUsuario('ipzona');
+    expect(await entrar('ipzona', ERRADA, 'fe80::1%eth0')).toMatchObject({ motivo: 'CREDENCIAIS' });
+    expect((await usuario('ipzona')).tentativasFalhas).toBe(1);
+  });
+
+  it('inexistente: CREDENCIAIS, hash fictício, Histórico LOGIN com usuário nulo e o login normalizado', async () => {
+    conferencias.total = 0;
     expect(await entrar('Ninguem')).toMatchObject({ ok: false, motivo: 'CREDENCIAIS' });
+    expect(conferencias.total).toBe(1);
     const [h] = await historico({ usuarioRotulo: 'ninguem' });
     expect(h).toMatchObject({ tipoOperacao: 'LOGIN', usuarioId: null, funcionalidade: 'aut.login' });
   });
@@ -128,6 +165,16 @@ describe('autenticar: bloqueio', () => {
     expect((await historico({ usuarioId: u.id, descricao: { contains: '5 tentativas' } })).length).toBe(1);
   });
 
+  it('falha da transação numa senha errada desfaz o incremento e o bloqueio (UC01.05 E1.2)', async () => {
+    await criarUsuario('jair', { tentativasFalhas: 4 });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    falharAuditoria = true;
+    expect(await entrar('jair', ERRADA)).toMatchObject({ motivo: 'FALHA_SESSAO' });
+    expect(await usuario('jair')).toMatchObject({ tentativasFalhas: 4, bloqueado: false });
+    expect(log).toHaveBeenCalledWith('[LOGIN_FALHA_SESSAO]', expect.objectContaining({ nome: 'Error' }));
+    log.mockRestore();
+  });
+
   it('tentativas simultâneas no limite: um bloqueio só', async () => {
     const u = await criarUsuario('davi', { tentativasFalhas: 4 });
     const r = await Promise.all([entrar('davi', ERRADA), entrar('davi', ERRADA)]);
@@ -138,7 +185,9 @@ describe('autenticar: bloqueio', () => {
 });
 
 describe('autenticar: manutenção (RN0023)', () => {
-  beforeEach(() => migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: true } }));
+  beforeEach(async () => {
+    await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: true } });
+  });
 
   it('não administrador: MANUTENCAO, com Histórico e sem contador', async () => {
     const u = await criarUsuario('eva');
@@ -167,15 +216,21 @@ describe('autenticar: sessão', () => {
     expect((await usuario('fabio')).tentativasFalhas).toBe(0);
     const [h] = await historico({ usuarioId: u.id, tipoOperacao: 'LOGIN' });
     expect(h).toMatchObject({ sessaoUid: s?.sessaoUid, ip: IP });
-    // O token não é guardado em claro.
-    expect(r.ok && s?.tokenHash).not.toBe(r.ok && r.token);
+    // Token de 256 bits; o banco guarda só o SHA-256 dele (o provedor da 2b busca por esse hash).
+    if (!r.ok) throw new Error('esperava sucesso');
+    expect(Buffer.from(r.token, 'base64url')).toHaveLength(32);
+    expect(s?.tokenHash).toBe(hashDoToken(r.token));
   });
 
-  it('sessão única: o segundo login encerra a primeira, com Histórico (A2.3)', async () => {
-    const u = await usuario('fabio');
-    await entrar('fabio');
-    expect(await sessoes(u.id)).toHaveLength(1);
-    expect((await historico({ usuarioId: u.id, descricao: { contains: 'Sessão anterior encerrada' } })).length).toBeGreaterThan(0);
+  it('sessão única: o segundo login encerra a primeira, com um Histórico (A2.3)', async () => {
+    const u = await criarUsuario('lia');
+    await entrar('lia');
+    const [primeira] = await sessoes(u.id);
+    await entrar('lia');
+    const atuais = await sessoes(u.id);
+    expect(atuais).toHaveLength(1);
+    expect(atuais[0]?.tokenHash).not.toBe(primeira?.tokenHash);
+    expect(await historico({ usuarioId: u.id, descricao: { contains: 'Sessão anterior encerrada' } })).toHaveLength(1);
   });
 
   it('troca obrigatória: sessão marcada e resultado sinaliza', async () => {
@@ -206,6 +261,7 @@ describe('autenticar: senha temporária', () => {
       mensagem: 'Senha temporária expirada. Solicite uma nova senha ao Administrador.',
     });
     expect((await usuario('ivo')).tentativasFalhas).toBe(0);
+    expect(await historico({ usuarioRotulo: 'ivo', descricao: { contains: 'expirada' } })).toHaveLength(1);
   });
 
   it('expirada com a senha errada: CREDENCIAIS e conta a falha', async () => {
