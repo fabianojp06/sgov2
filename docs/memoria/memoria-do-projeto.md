@@ -140,7 +140,7 @@
 - [ ] PO: abrir a primeira sessão da frente B (`cd /root/sistemas/sgo-b && CLAUDE_CONFIG_DIR=/root/.claude-frente-b claude`, `/login` com a conta 2) e colar `docs/backlog/abertura-frente-b.md`.
 - [ ] Autenticar os MCPs context7 e hostinger (`/mcp`), se forem usados.
 - [ ] Frente B: copiar para a conta 2 as regras de `autoMode` da conta 1 (o classificador recusou a cópia pela sessão; o PO faz pelo `/config` ou aprova).
-- [ ] Frente B: PRs `compartilhado` antes das Tarefas 4 e 5 do P3 (trava de prod no hook; `deploy/**/*.int.test.ts` no `vitest.config.ts`) e registrar `Refs #n` na spec (v1.4).
+- [ ] Frente B: PRs `compartilhado` antes das Tarefas 4 e 5 do P3 (trava de prod no hook; `deploy/**/*.int.test.ts` no `vitest.config.ts`) e registrar `Refs #n` na spec (v1.5).
 - [ ] Frente B: plugin `superpowers` não está instalado na conta 2 (o plano do P3 foi escrito à mão, no formato do P1/P2).
 
 **Com SMEs**

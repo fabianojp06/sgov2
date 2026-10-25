@@ -13,7 +13,7 @@
 
 **Tech Stack:** GitHub Actions (actions fixadas por SHA de commit, *environments* com *secrets* próprios) · Docker BuildKit · GHCR · Easypanel (Docker Swarm) + Traefik/Let's Encrypt · PostgreSQL 16 (`pgvector/pgvector:pg16` por digest) · Prisma 7.10.1 (`migrate deploy`, `migrate resolve`, `migrate diff`) · pgBackRest · bats-core e shellcheck (já usados no P2) · Node 22.23 · React 19.3.1 · Vitest 5.0.5.
 
-**Spec:** `docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md` (v1.3) — §4.2, §4.3, §10.4, §11.1 item 2a, §11.5, §12.3, §12.6, §12.7, §12.8, §12.12. **Plano-mestre:** `docs/superpowers/plans/2026-10-24-trilha-2027-plano-mestre.md`. **Abertura da frente B:** `docs/backlog/abertura-frente-b.md`.
+**Spec:** `docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md` (v1.4) — §4.2, §4.3, §10.4, §11.1 item 2a, §11.5, §12.3, §12.6, §12.7, §12.8, §12.12. **Plano-mestre:** `docs/superpowers/plans/2026-10-24-trilha-2027-plano-mestre.md`. **Abertura da frente B:** `docs/backlog/abertura-frente-b.md`.
 
 ## Global Constraints
 
@@ -39,7 +39,7 @@
 
 ## Decisões do PO neste plano (25/10/2026, todas pela recomendação)
 
-1. **`Refs #n` aceito pela verificação de vínculo.** A §12.8 fala só em `Closes #n`. O plano aceita também `Refs #n`, para PRs parciais e de contrato. Registrar na spec (v1.4) no próximo PR `compartilhado` de spec.
+1. **`Refs #n` aceito pela verificação de vínculo.** A §12.8 fala só em `Closes #n`. O plano aceita também `Refs #n`, para PRs parciais e de contrato. Registrar na spec (v1.5) no próximo PR `compartilhado` de spec.
 2. **Aprovação manual do deploy em prod, sempre** (*environment* `producao` com o PO como revisor). É nesse momento que o PO confirma o snapshot da Hostinger exigido pela §4.3 quando há migration.
 3. **Teste do SQL de papéis em `deploy/`** (Tarefa 5): um PR `compartilhado` acrescenta `deploy/**/*.int.test.ts` ao projeto `integracao` do `vitest.config.ts`.
 4. **Trava de prod no hook das sessões** (PR `compartilhado` em `.claude/hooks/`, antes da Tarefa 4 ir para a `main`). Como o PO e as sessões usam o mesmo usuário do GitHub, a aprovação do *environment* não barra uma sessão. A trava bloqueia:
