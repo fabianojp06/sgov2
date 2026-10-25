@@ -8,7 +8,7 @@ frentes:
     - 'src/shared/{kernel,audit,unidade,authz,totalizer,config,db,filas}/**'
     - 'tests/integracao/**'
     - 'src/modules/{aut,adm,orc,apr}/**'
-    - 'prisma/schema/{aut,adm,orc,apr}.prisma'
+    - 'prisma/schema/{nucleo,aut,adm,orc,apr}.prisma'
     - 'src/proxy.ts'
     - 'src/app/\(sistema\)/{aut,adm,orc,apr}/**'
     - 'e2e/{aut,adm,orc,apr}/**'
