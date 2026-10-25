@@ -44,7 +44,7 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 ## A imagem
 
-- `docker/app.Dockerfile`: app Next.js *standalone* mais o migrador autossuficiente em `/opt/migrador`. O `tini` é o PID 1. Os arquivos pertencem ao root e o processo roda como `node`, com escrita só em `/app/.next/cache`.
-- `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente.
+- `docker/app.Dockerfile`: app Next.js *standalone* mais o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
+- `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
 - Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`) e `MIGRATE_DATABASE_URL` (`sgo_migrator`). O worker, com `FILA_DATABASE_URL`, entra no Step 10 da Tarefa 4.
 - Teste da imagem: `docker/testes/testar-imagem.sh <imagem>`, que roda no job `Imagem` do CI. Na VPS, rode com `nice -n 10`, um processo pesado por vez (D12).

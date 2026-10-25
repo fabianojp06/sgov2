@@ -53,11 +53,13 @@ COPY --from=build /src/.next/standalone ./
 COPY --from=build /src/.next/static ./.next/static
 COPY --from=migrador /opt/migrador /opt/migrador
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
+# Sem USER node: o tini e o entrypoint rodam como root, e o servidor desce para o node com
+# setpriv no exec (entrypoint.sh). O ambiente do PID 1 fica fora do alcance do app.
 RUN mkdir -p /app/.next/cache && chown node:node /app/.next/cache
-USER node
 EXPOSE 3000
 # A migração roda antes do servidor: o start-period cobre uma migration demorada.
 HEALTHCHECK --start-period=120s --interval=10s --timeout=5s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/login').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
-ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker/entrypoint.sh"]
+# -g: o SIGTERM vai para o grupo de processos, inclusive o prisma da migração.
+ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/app/docker/entrypoint.sh"]
 CMD ["app"]

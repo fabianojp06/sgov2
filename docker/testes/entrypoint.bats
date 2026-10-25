@@ -22,6 +22,8 @@ SH
   chmod +x "$T/migrador/node_modules/.bin/prisma" "$T/bin/node"
   export REGISTRO="$T/registro" PATH="$T/bin:$PATH" MIGRADOR_DIR="$T/migrador" APP_DIR="$T"
   export MIGRATE_DATABASE_URL="postgresql://sgo_migrator:x@db:5432/sgo"
+  # Por padrão, sem troca de usuário (o teste roda como root na VPS e sem root no CI).
+  export APP_USUARIO=""
   touch "$REGISTRO"
   SCRIPT="$BATS_TEST_DIRNAME/../entrypoint.sh"
 }
@@ -100,4 +102,22 @@ teardown() { rm -rf "$T"; }
   [ "$status" -ne 0 ]
   [[ "$output" == *"nenhuma migration"* ]]
   [ ! -s "$REGISTRO" ]
+}
+
+@test "app como root: troca para o usuário node com setpriv no exec do servidor" {
+  cat > "$T/bin/id" <<'SH'
+#!/bin/sh
+echo 0
+SH
+  cat > "$T/bin/setpriv" <<'SH'
+#!/bin/sh
+echo "setpriv $*" >> "$REGISTRO"
+while [ "$#" -gt 0 ] && [ "${1#--}" != "$1" ]; do shift; done
+exec "$@"
+SH
+  chmod +x "$T/bin/id" "$T/bin/setpriv"
+  APP_USUARIO=node run "$SCRIPT" app
+  [ "$status" -eq 0 ]
+  grep -q '^setpriv --reuid=node --regid=node --init-groups --inh-caps=-all env -u MIGRATE_DATABASE_URL node server.js$' "$REGISTRO"
+  grep -q '^node-env MIGRATE_DATABASE_URL=<ausente>$' "$REGISTRO"
 }

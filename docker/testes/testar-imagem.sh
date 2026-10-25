@@ -45,7 +45,9 @@ echo "1. A imagem não contém .env, .git nem chave (find como root, sem rede)"
 # Só nas pastas que recebem conteúdo do projeto ou de usuário; o resto vem da imagem oficial do
 # Node (ela traz, por exemplo, o .npmrc interno do próprio npm em /usr/local/lib).
 achados=$(docker run --rm --name "$PREFIXO-find" --user root --network none "${LIMITES[@]}" --entrypoint sh "$IMAGEM" -c \
-  "find /app /opt /root /home /tmp /srv -xdev \( -name '.env*' -o -name .git -o -name .npmrc -o -name '*.pem' -o -name '*.key' \) 2>/dev/null")
+  'for d in /app /opt /root /home /tmp /srv; do
+     [ -d "$d" ] && find "$d" -xdev \( -name ".env*" -o -name .git -o -name .npmrc -o -name "*.pem" -o -name "*.key" \)
+   done; true')
 [[ -z "$achados" ]] || falhar "arquivos proibidos na imagem: $achados"
 
 echo "2. Banco descartável numa rede sem internet"
@@ -100,6 +102,24 @@ done
 [[ "$estado" == healthy ]] || falhar "healthcheck da imagem: $estado"
 [[ "$(http_login "$PREFIXO-app")" == 200 ]] || falhar "/login não respondeu 200"
 # Mantém viva a prova negativa do passo 5: o texto que ela procura existe no servidor que sobe.
-docker logs "$PREFIXO-app" 2>&1 | grep -q 'Ready in' || falhar "o log do servidor não tem mais \"Ready in\" (ajuste o passo 5)"
+grep -q 'Ready in' <<< "$(docker logs "$PREFIXO-app" 2>&1)" || falhar "o log do servidor não tem mais \"Ready in\" (ajuste o passo 5)"
+
+echo "7. O servidor roda como node, sem a credencial do migrador, e não lê o ambiente do PID 1"
+# O Next.js standalone troca o título do processo (e o /proc/<pid>/cmdline) para "next-server (v…)".
+SERVIDOR='next-server|server\.js'
+uid=$(docker top "$PREFIXO-app" -eo pid,uid,args | awk -v padrao="$SERVIDOR" '$0 ~ padrao && !/awk/ { print $2; exit }')
+[[ "$uid" == 1000 ]] || falhar "o servidor roda com uid '$uid' (esperado 1000, o usuário node)"
+# Só os processos do usuário node (uid 1000): o próprio sh do docker exec herda o ambiente do
+# contêiner e tem o padrão na linha de comando, então não pode entrar na conta.
+ambiente=$(docker exec "$PREFIXO-app" sh -c \
+  'for p in /proc/[0-9]*; do
+     grep -qE "^Uid:[[:space:]]+1000[[:space:]]" "$p/status" 2>/dev/null || continue
+     if grep -qaE "next-server|server\.js" "$p/cmdline" 2>/dev/null; then echo "PROCESSO $p"; tr "\000" "\n" < "$p/environ"; fi
+   done; true')
+grep -q '^PROCESSO ' <<< "$ambiente" || falhar "não achei o processo do servidor para conferir o ambiente"
+! grep -q '^MIGRATE_DATABASE_URL=' <<< "$ambiente" || falhar "o processo do servidor tem a MIGRATE_DATABASE_URL no ambiente"
+if docker exec -u node "$PREFIXO-app" cat /proc/1/environ > /dev/null 2>&1; then
+  falhar "o usuário node lê o ambiente do PID 1 (onde está a MIGRATE_DATABASE_URL)"
+fi
 
 echo "Imagem aprovada."

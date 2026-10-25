@@ -12,6 +12,10 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/app}"
 MIGRADOR_DIR="${MIGRADOR_DIR:-/opt/migrador}"
+# O entrypoint (e o tini, PID 1) roda como root e só o servidor desce para este usuário: assim o
+# ambiente do PID 1, que tem a MIGRATE_DATABASE_URL, não fica legível pelo processo do app
+# (/proc/1/environ). Vazio = sem troca (testes).
+APP_USUARIO="${APP_USUARIO-node}"
 
 uso() {
   echo "Uso: entrypoint.sh app | migrar | resolver <migration> | worker" >&2
@@ -45,7 +49,12 @@ case "${1:-}" in
   app)
     migrar
     cd "$APP_DIR"
-    # O servidor não precisa da credencial do sgo_migrator (dono do DDL): sobe sem ela.
+    # O servidor não precisa da credencial do sgo_migrator (dono do DDL): sobe sem ela e, como
+    # root, desce para o APP_USUARIO sem capacidades.
+    if [[ -n "$APP_USUARIO" && "$(id -u)" == 0 ]]; then
+      exec setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups --inh-caps=-all \
+        env -u MIGRATE_DATABASE_URL node server.js
+    fi
     exec env -u MIGRATE_DATABASE_URL node server.js
     ;;
   migrar)
