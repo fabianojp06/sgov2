@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
@@ -8,6 +9,20 @@ import { criarFila, publicarOutbox } from '@/shared/filas';
 const INTERVALO_OUTBOX_MS = 10_000;
 // Falhas seguidas do publicador (banco fora, credencial revogada): sai para o orquestrador reiniciar.
 const FALHAS_PARA_SAIR = 6;
+// Publicação presa (conexão meio aberta, lock sem timeout) não conta como falha: sem este limite,
+// o worker ficaria vivo sem publicar nada. Bem acima de um lote normal.
+const LIMITE_CICLO_MS = 5 * 60_000;
+// Sinal de vida para o healthcheck da imagem (docker/saude.sh): gravado a cada tique depois do
+// primeiro ciclo com sucesso, enquanto nenhum ciclo passa do limite.
+const ARQUIVO_VIVO = '/tmp/sgo-worker-vivo';
+
+function marcarVivo(): void {
+  try {
+    writeFileSync(ARQUIVO_VIVO, String(Date.now()));
+  } catch (erro) {
+    console.error('[WORKER_SINAL_DE_VIDA_FALHOU]', resumo(erro));
+  }
+}
 
 const resumo = (erro: unknown) =>
   erro instanceof Error ? { nome: erro.name, mensagem: erro.message, pilha: erro.stack } : String(erro);
@@ -20,12 +35,25 @@ async function iniciar(): Promise<void> {
   const fila = await criarFila(env.FILA_DATABASE_URL);
 
   let emCurso: Promise<unknown> | null = null;
+  let inicioCiclo = 0;
   let falhasSeguidas = 0;
+  let publicouUmaVez = false;
   const temporizador = setInterval(() => {
-    if (emCurso) return;
+    if (emCurso) {
+      if (Date.now() - inicioCiclo > LIMITE_CICLO_MS) {
+        console.error('[OUTBOX_TRAVADO]', { segundos: Math.round((Date.now() - inicioCiclo) / 1000) });
+        void encerrar('publicação do outbox travada', 1, false);
+      } else if (publicouUmaVez) {
+        marcarVivo();
+      }
+      return;
+    }
+    inicioCiclo = Date.now();
     emCurso = publicarOutbox(fila, prisma)
       .then(() => {
         falhasSeguidas = 0;
+        publicouUmaVez = true;
+        marcarVivo();
       })
       .catch((erro: unknown) => {
         falhasSeguidas++;
@@ -38,13 +66,14 @@ async function iniciar(): Promise<void> {
   }, INTERVALO_OUTBOX_MS);
 
   let encerrando = false;
-  async function encerrar(motivo: string, codigo = 0): Promise<void> {
+  // drenar = false só quando a publicação está travada: esperar por ela seria esperar para sempre.
+  async function encerrar(motivo: string, codigo = 0, drenar = true): Promise<void> {
     if (encerrando) return;
     encerrando = true;
     console.log(`worker: ${motivo}, encerrando`);
     clearInterval(temporizador);
     try {
-      await emCurso; // drena a publicação em andamento antes de fechar as conexões
+      if (drenar) await emCurso; // drena a publicação em andamento antes de fechar as conexões
       await fila.parar();
     } finally {
       await prisma.$disconnect();

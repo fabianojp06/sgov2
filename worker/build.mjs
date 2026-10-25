@@ -19,6 +19,8 @@ await build({
   format: 'esm',
   tsconfig: 'tsconfig.json',
   sourcemap: 'linked',
+  // Só arquivo e linha nas pilhas (--enable-source-maps), sem o código-fonte dentro da imagem.
+  sourcesContent: false,
   // Dependências CommonJS com require() de módulos do Node dentro de um bundle ESM.
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
   logLevel: 'warning',

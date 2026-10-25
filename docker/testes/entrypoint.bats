@@ -94,7 +94,8 @@ teardown() { rm -rf "$T"; }
 @test "worker: não migra e sobe o bundle sem a credencial do migrador" {
   FILA_DATABASE_URL="postgresql://sgo_fila:x@db:5432/sgo" run "$SCRIPT" worker
   [ "$status" -eq 0 ]
-  ! grep -q '^prisma' "$REGISTRO"
+  # run !: um "! comando" no meio do teste não reprova (o bash ignora o set -e nele).
+  run ! grep -q '^prisma' "$REGISTRO"
   grep -q "^node --enable-source-maps $T/worker/index.mjs\$" "$REGISTRO"
   grep -q '^node-env MIGRATE_DATABASE_URL=<ausente>$' "$REGISTRO"
 }

@@ -38,7 +38,7 @@ O `homologacao` foi criado sozinho pelo primeiro run, sem restrição, e o `prod
    - O resumo do run é escrito pelo próprio workflow. Se uma tag for posta num commit de branch com o workflow alterado, esse workflow pode pular as checagens e escrever um resumo falso.
    - A sua aprovação é a barreira contra isso.
 2. **Se o resumo disser "há migration", ou se for a primeira release:** tire o snapshot da VPS no hPanel da Hostinger e só depois aprove (spec §4.3).
-3. **Depois de aprovar:** confira no Easypanel que o serviço `app` de prod subiu a versão nova. O webhook responder 2xx só quer dizer que o Easypanel recebeu o pedido. A conferência automática do deploy entra na Tarefa 6.
+3. **Depois de aprovar:** confira no Easypanel que os serviços `app` e `worker` de prod subiram a versão nova (o worker é chamado depois do app, que é quem migra). O webhook responder 2xx só quer dizer que o Easypanel recebeu o pedido. A conferência automática do deploy entra na Tarefa 6.
 
 ## Migration presa (P3009)
 
@@ -54,9 +54,11 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 | Onde | Nome | Para quê |
 | --- | --- | --- |
-| *environment* `homologacao` (só a `main`) | `EASYPANEL_WEBHOOK` | Deploy de hml |
+| *environment* `homologacao` (só a `main`) | `EASYPANEL_WEBHOOK` | Deploy de hml (serviço `app`) |
+| *environment* `homologacao` | `EASYPANEL_WEBHOOK_WORKER` | Deploy de hml (serviço `worker`) |
 | *environment* `homologacao` | variável `HML_WEBHOOK_OBRIGATORIO=1` (depois da Tarefa 6) | A falta do webhook passa a ser erro, não só aviso |
-| *environment* `producao` (só tags `v*`, revisor: PO) | `EASYPANEL_WEBHOOK` | Deploy de prod |
+| *environment* `producao` (só tags `v*`, revisor: PO) | `EASYPANEL_WEBHOOK` | Deploy de prod (serviço `app`) |
+| *environment* `producao` | `EASYPANEL_WEBHOOK_WORKER` | Deploy e rollback de prod (serviço `worker`) |
 | *environment* `producao` | `GHCR_PROD_TOKEN` | Gravar em `sgov2-prod` |
 
 - **`GHCR_PROD_TOKEN`:** é um PAT clássico com `read:packages` e `write:packages`, e grava em **todos** os pacotes do usuário, não só no `sgov2-prod`. Guarde-o só no *environment* `producao` e troque-o se houver suspeita de vazamento.
@@ -65,11 +67,13 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 ## A imagem
 
-- `docker/app.Dockerfile`: app Next.js *standalone* mais o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
+- `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
 - `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
 - Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`) e `MIGRATE_DATABASE_URL` (`sgo_migrator`).
-- **Serviço `worker`:** a mesma imagem, com o comando (argumento) `worker`. Variáveis: `DATABASE_URL` (`sgo_app`) e `FILA_DATABASE_URL` (`sgo_fila`), sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
-  - O worker roda o bundle `/app/worker/index.mjs`, gerado pelo `worker/build.mjs` com esbuild no build da imagem. Ele também desce para o usuário `node` com `setpriv`.
-  - Sem a `FILA_DATABASE_URL`, ele sai com o código 64. Com falhas seguidas no outbox (banco fora, schema ainda não migrado), ele sai sozinho, e o Easypanel o reinicia.
-  - O *healthcheck* (`docker/saude.sh`) testa o `/login` no app. No worker, que não abre porta, ele só confirma que o processo está vivo.
-- Teste da imagem: `docker/testes/testar-imagem.sh <imagem>`, que roda no job `Imagem` do CI. O passo 8 sobe o worker, publica uma mensagem real do outbox no pg-boss e confere o encerramento no SIGTERM. Na VPS, rode com `nice -n 10`, um processo pesado por vez (D12).
+- **Serviço `worker`:** a mesma imagem, com `worker` no campo de **argumentos** (o CMD) do Easypanel, sem trocar o *entrypoint*. O *healthcheck* e o `tini` dependem do *entrypoint* da imagem. Variáveis: `DATABASE_URL` (`sgo_app`) e `FILA_DATABASE_URL` (`sgo_fila`), sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
+  - O worker roda o bundle `/app/worker/index.mjs`, gerado pelo `worker/build.mjs` com esbuild no build da imagem. O *source map* traz só arquivo e linha, sem o código-fonte. Ele também desce para o usuário `node` com `setpriv`.
+  - Na partida, o log mostra `worker pronto` e, enquanto nenhum módulo registrar trabalhador, `[WORKER_SEM_TRABALHADORES]`.
+  - Sem a `FILA_DATABASE_URL`, ele sai com o código 64. Com 6 falhas seguidas no outbox (banco fora, schema ainda não migrado), ou com um ciclo preso por mais de 5 minutos (`[OUTBOX_TRAVADO]`), ele sai sozinho, e o Easypanel o reinicia.
+  - **Healthcheck** (`docker/saude.sh`): no app, testa o `/login`. No worker, exige o sinal de vida `/tmp/sgo-worker-vivo` com menos de 60 s. Ele é gravado a cada tique depois do primeiro ciclo do outbox com sucesso. Por isso, uma versão nova do worker que não consegue publicar nunca fica saudável. Limite: com o outbox vazio, o pg-boss não é chamado, e uma conexão dele quebrada não aparece no *healthcheck*.
+  - O encerramento no SIGTERM cabe nos 10 s do `stop_grace_period` padrão quando não há mensagem sendo publicada.
+- Teste da imagem: `docker/testes/testar-imagem.sh <imagem>`, que roda no job `Imagem` do CI. O passo 8 sobe o worker, publica uma mensagem real do outbox no pg-boss e confere o encerramento no SIGTERM. O passo 9 prova que o *healthcheck* não fica verde sem servidor nem com o worker sem schema. Na VPS, rode com `nice -n 10`, um processo pesado por vez (D12).

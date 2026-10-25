@@ -53,14 +53,15 @@ esperar_saude() {
 }
 
 # Processo do usuário node (uid 1000) cuja linha de comando casa com o padrão: confere que existe
-# e que não tem a MIGRATE_DATABASE_URL. O sh do docker exec herda o ambiente do contêiner e tem o
-# padrão na própria linha de comando, por isso o filtro pelo uid.
-# --privileged só nesta inspeção: depois do setpriv o processo não é "dumpable", e o root do
-# contêiner, sem CAP_SYS_PTRACE, não lê o /proc/<pid>/environ dele. Ambiente ilegível reprova,
-# em vez de passar por vazio.
+# e que não tem a MIGRATE_DATABASE_URL.
+# A leitura do /proc/<pid>/environ de um processo de outro uid exige CAP_SYS_PTRACE, que o root do
+# contêiner não tem. Ela é feita num contêiner auxiliar da imagem do Postgres (fixada por digest),
+# no espaço de PIDs do contêiner em teste e só com essa capacidade: nenhum binário da imagem em
+# teste roda com privilégio na VPS (D12). Ambiente ilegível reprova, em vez de passar por vazio.
 sem_credencial_do_migrador() {
   local ambiente
-  ambiente=$(docker exec --privileged -e PADRAO="$2" "$1" sh -c \
+  ambiente=$(docker run --rm --name "$PREFIXO-inspecao-$RANDOM" --network none --memory 128m \
+    --pid "container:$1" --cap-add SYS_PTRACE -e PADRAO="$2" --entrypoint sh "$PG_IMAGEM" -c \
     'for p in /proc/[0-9]*; do
        grep -qE "^Uid:[[:space:]]+1000[[:space:]]" "$p/status" 2>/dev/null || continue
        if grep -qaE "$PADRAO" "$p/cmdline" 2>/dev/null; then
@@ -165,10 +166,31 @@ WORKER='worker/index\.mjs'
 uid=$(docker top "$PREFIXO-worker" -eo pid,uid,args | PADRAO="$WORKER" awk '$0 ~ ENVIRON["PADRAO"] && !/awk/ { print $2; exit }')
 [[ "$uid" == 1000 ]] || falhar "o worker roda com uid '$uid' (esperado 1000, o usuário node)"
 sem_credencial_do_migrador "$PREFIXO-worker" "$WORKER"
-docker stop -t 20 "$PREFIXO-worker" > /dev/null
+if docker exec -u node "$PREFIXO-worker" cat /proc/1/environ > /dev/null 2>&1; then
+  falhar "no worker, o usuário node lê o ambiente do PID 1"
+fi
+docker run --rm --name "$PREFIXO-mapa" --network none "${LIMITES[@]}" --entrypoint test "$IMAGEM" -f /app/worker/index.mjs.map \
+  || falhar "a imagem não tem o source map do worker"
+# 10 s: o stop_grace_period padrão do Docker e do Swarm.
+docker stop -t 10 "$PREFIXO-worker" > /dev/null
 [[ "$(docker inspect -f '{{.State.ExitCode}}' "$PREFIXO-worker")" == 0 ]] \
   || falhar "o worker não saiu com 0 no SIGTERM: $(docker logs "$PREFIXO-worker" 2>&1 | tail -5)"
 grep -q 'SIGTERM recebido, encerrando' <<< "$(docker logs "$PREFIXO-worker" 2>&1)" \
   || falhar "o worker parou, mas não pelo encerramento ordenado do SIGTERM"
+
+echo "9. healthcheck não fica verde à toa: sem servidor, e com o worker sem conseguir publicar"
+if docker run --rm --name "$PREFIXO-saude" --network none "${LIMITES[@]}" --entrypoint /app/docker/saude.sh "$IMAGEM"; then
+  falhar "o saude.sh deu saudável sem servidor e sem worker"
+fi
+# Banco sem as migrations (só o schema das filas): o worker que sobe antes do app falha no outbox,
+# nunca fica saudável e sai sozinho depois das falhas seguidas.
+psql_pg -c "CREATE DATABASE sgo_sem_schema OWNER sgo_migrator"
+psql_pg -d sgo_sem_schema -c "CREATE SCHEMA pgboss AUTHORIZATION sgo_fila"
+docker run -d --name "$PREFIXO-worker-cedo" --network "$REDE" "${LIMITES[@]}" \
+  -e DATABASE_URL="$URL_APP/sgo_sem_schema" -e FILA_DATABASE_URL="$URL_FILA/sgo_sem_schema" "$IMAGEM" worker > /dev/null
+saida=$(timeout 150 docker wait "$PREFIXO-worker-cedo") || falhar "o worker sem schema não saiu em 150 s"
+[[ "$saida" != 0 ]] || falhar "o worker sem schema saiu com 0"
+grep -q 'OUTBOX_FALHOU' <<< "$(docker logs "$PREFIXO-worker-cedo" 2>&1)" || falhar "o worker sem schema saiu, mas não pelas falhas do outbox"
+[[ "$(saude "$PREFIXO-worker-cedo")" != healthy ]] || falhar "o worker sem schema chegou a ficar saudável"
 
 echo "Imagem aprovada."
