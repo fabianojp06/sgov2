@@ -76,6 +76,8 @@
   - dinheiro auditado como `Dinheiro`/`Percentual`;
   - a negação (403) é auditada pela `definirAcao`;
   - campo de ORIGEM BLINDADA no *payload* gera `ErroDominio('cad.violacao_governanca')`, auditado numa transação própria, como a negação, porque a operação é desfeita (spec §5, M4).
+    - **Detecção (M-n4):** o Zod remove campo desconhecido em silêncio, e a violação nunca dispararia. Por isso, a casca de cada caso de uso confere as chaves do *payload* bruto contra a lista `CAMPOS_ORIGEM_BLINDADA` da entidade **antes** do *parse*. Os *schemas* de entrada usam `.strict()`.
+    - **Teste em cada tarefa com escrita:** *payload* com `salarioReal` → o Histórico ganha um `cad.violacao_governanca`, e nada muda.
 - **Testes obrigatórios das diretrizes (spec §10.2), em toda tarefa com escrita:**
   - item 1, auditoria falhando: nada persiste (com `vi.mock('@/shared/audit', …)`, R13 do P5);
   - item 3, ação sem permissão: 403 auditado;
@@ -118,24 +120,37 @@
   - **Classificação nova com o reduzido de um registro ativo de outra classificação:** inativa o antigo, cria o novo e gera o aviso "O reduzido <r> passou de <antiga> para <nova>: a antiga foi inativada."
   - **Classificação nova com reduzido livre:** inclui.
   - **Registro ausente no arquivo:** inativa (soft delete). Nada é apagado.
-  - **Banco:** o reduzido é único só entre os ativos (índice parcial `WHERE ativa`), para o antigo inativado conviver com o novo. O mesmo arquivo recarregado não muda nada, nem o Histórico.
+  - **Banco:** o reduzido é único só entre os ativos (índice parcial `WHERE ativa`), para o antigo inativado conviver com o novo.
+  - **Recarga do mesmo arquivo (M-n2):** cria só o lote e o evento "importação solicitada" no Histórico. Nenhuma linha de estrutura muda, e o *merge* não grava nenhuma outra linha de Histórico.
+  - **Ordem do *merge* (M-n3):** primeiro inativa (os ausentes e os antigos de reduzido movido), depois inclui e reativa, e por fim atualiza as descrições. O índice parcial de reduzido não é deferível; incluir antes de inativar violaria o índice.
+  - **Pai ativo (M-n3):** o *trigger* deferido também exige que todo registro ativo tenha pai ativo, com teste.
   - **No C1:** o JSDoc registra essa regra.
   - **Spec v1.6:** a D7 recebe esse texto.
 - **R6 (D-b). *Staging* no app, *merge* no worker como `sgo_sync` (§5 SINCRONISMO ATÔMICO, D9).**
   - **No app** (só `sgo_app`), a importação faz, em ordem:
     1. confere a permissão;
     2. lê e valida o arquivo inteiro em memória;
-    3. numa transação, grava o lote em `carga_estrutura` (`situacao = PENDENTE`, com o contexto de auditoria do usuário) e as linhas validadas em `carga_estrutura_linha`;
-    4. audita "importação solicitada".
+    3. **planeja a carga contra o banco** (E-N2): com o `SELECT` que tem na estrutura, roda o `planejarCarga` (R5). Os erros que dependem do banco (mesma classificação com outro reduzido ou tipo) voltam à tela por linha (`linhas.<n>.<coluna>`), sem gravar nada;
+    4. numa transação, grava o lote em `carga_estrutura` (`situacao = PENDENTE`, com o contexto de auditoria do usuário) e as linhas validadas em `carga_estrutura_linha`. As linhas vão por `createMany` **sem `RETURNING`**, porque o `sgo_app` não tem `SELECT` nessa tabela (M-n5);
+    5. audita "importação solicitada".
 
-    Um índice único parcial (`tipo WHERE situacao IN ('PENDENTE','PROCESSANDO')`) recusa na hora uma segunda carga do mesmo tipo (RNF_PLA_REQ_007). O `sgo_app` tem só `INSERT` no *staging* e `SELECT` no lote.
-  - **No worker** (único processo com `SYNC_DATABASE_URL`; o app **não** recebe essa variável), o processador de cargas lê um lote `PENDENTE` com `FOR UPDATE SKIP LOCKED` a cada 5 s. Depois:
-    1. confere `SELECT current_user = 'sgo_sync'` (outro papel recusa a carga, com teste);
-    2. pega `pg_try_advisory_xact_lock(hashtext('sync-<tipo>'))`;
-    3. aplica o *merge* (R5) numa transação, auditando com o contexto gravado no lote;
-    4. grava `CONCLUIDA` com as contagens e os avisos, ou `FALHOU` com a mensagem sem valores;
-    5. apaga as linhas do *staging*.
-  - **Na tela:** o app atualiza a tela a cada 2 s até o lote terminar.
+    Um índice único parcial (`tipo WHERE situacao IN ('PENDENTE','PROCESSANDO')`) recusa na hora uma segunda carga do mesmo tipo (RNF_PLA_REQ_007). `CARGOS` e `CARGOS_RECIFRA` contam como o mesmo grupo no índice e no *lock* (m5).
+  - **`INSERT` do `sgo_app` só nas colunas de entrada (S-N3):** `GRANT INSERT (id, tipo, arquivo_nome, arquivo_sha256, linhas, provisoria, aprovacao_data, aprovacao_documento, contexto_auditoria)`. A `situacao` nasce com o *default* `PENDENTE`; as contagens, o resultado e as datas de conclusão não são graváveis pelo app. Um `CHECK` exige `situacao = 'PENDENTE'` com as contagens nulas no `INSERT` (*trigger* `BEFORE INSERT`).
+  - **No worker** (único processo com `SYNC_DATABASE_URL`; o app **não** recebe essa variável), o processador de cargas roda um ciclo a cada 5 s:
+    1. **Papel (S-N1):** confere `SELECT current_user = 'sgo_sync'` **antes de tocar qualquer lote**. Com outro papel, emite `[CARGA_PAPEL_INVALIDO]` e não processa nem grava nada; o lote continua `PENDENTE`.
+    2. **Limpeza no início do ciclo (S-N2, E-N1):**
+       - lote `PROCESSANDO` há mais de 15 min (worker morto no meio) vira `FALHOU`, com "processamento interrompido", e tem o *staging* apagado;
+       - lote `PENDENTE` com mais de 24 h vira `FALHOU` "expirada", com o *staging* apagado.
+    3. **Processamento, numa transação única:**
+       1. trava o lote mais antigo com `FOR UPDATE SKIP LOCKED` e marca `PROCESSANDO`;
+       2. pega `pg_try_advisory_xact_lock(hashtext('sync-<grupo>'))`, com `sync-plano`, `sync-cc` e `sync-cargos` (este para `CARGOS` e `CARGOS_RECIFRA`, m5);
+       3. **revalida o *staging* (S-N3):** Zod nos `dados` de cada linha, e o mesmo domínio puro do app de novo (`validarPlanoContas`/`validarCentrosCusto`). Com `AMBIENTE=producao`, recusa lote de CC `provisoria` ou sem `aprovacao_data`/`aprovacao_documento`;
+       4. **replaneja sob o *lock* (E-N2):** se o resultado divergir do que o app validou (o banco mudou no meio), falha com `erros` por linha;
+       5. aplica o *merge* (R5), auditando com o contexto gravado no lote;
+       6. grava `CONCLUIDA` com as contagens e os avisos;
+       7. apaga as linhas do *staging*.
+    4. **Erro em qualquer passo do 3:** a transação é desfeita, e uma **transação nova** grava `FALHOU` com a mensagem sem valores e os `erros` por linha, além de apagar o *staging*. Um lote `FALHOU` nunca é reprocessado, então um lote envenenado não volta a cada 5 s.
+  - **Na tela:** o app atualiza a tela a cada 2 s até o lote terminar e mostra os `erros` por linha de um `FALHOU`.
   - **Um cliente Prisma do `sgo_sync` por processo do worker.** Sem `SYNC_DATABASE_URL`, o worker emite `[CARGA_SEM_SYNC]`, e os lotes ficam `PENDENTE`, visíveis.
   - **Núcleo separado da casca:** o *merge* (`aplicarCarga(tx, contexto, linhas)`) não confere papel nem lote. A conferência do `current_user` e a gravação do lote são da casca do worker.
   - **Seed:** a de referência chama o mesmo núcleo com o `tx` do migrator e o contexto "Sistema" (descrição "Seed: …").
@@ -145,11 +160,12 @@
     | Tabela | `sgo_app` | `sgo_sync` |
     | --- | --- | --- |
     | `conta_contabil`, `centro_custo` | `SELECT` | `SELECT`, `INSERT`, `UPDATE` |
-    | `cargo` | `SELECT` + `UPDATE` só das colunas manuais | `SELECT`, `INSERT` + `UPDATE` só das colunas Rubi e de controle (`ativo`, `versao`, `atualizado_em`, `carga_id`) |
-    | `carga_estrutura` | `SELECT`, `INSERT` | `SELECT`, `UPDATE` |
+    | `cargo` | `SELECT` + `UPDATE` só das colunas manuais | `SELECT` + `INSERT` e `UPDATE` só das colunas Rubi e de controle (`ativo`, `versao`, `atualizado_em`, `carga_id`) (m2) |
+    | `carga_estrutura` | `SELECT` + `INSERT` só nas colunas de entrada (S-N3) | `SELECT`, `UPDATE` |
     | `carga_estrutura_linha` | `INSERT` | `SELECT`, `DELETE` |
 
     Ninguém além do migrator tem `DELETE` nas tabelas de estrutura.
+  - **Risco aceito (m3):** o `contexto_auditoria` do lote (usuário, sessão, IP) é gravado pelo app, e o worker audita com ele. Ele tem o mesmo nível de confiança da auditoria feita pelo próprio app, porque ambos usam o `sgo_app`, que já grava o Histórico direto.
   - **Spec v1.6:** registrar na §5 que o *staging* é gravado pelo app e o *merge* é feito pelo worker.
 - **R9 (D-c). Novas tentativas do e-mail: 3, como no EP083, para qualquer falha de envio.**
   - O EP083 (UC0.06 E1) prevê "até três tentativas posteriores" também para "rejeição de endereço": o erro SMTP 5xx entra nas 3 novas tentativas, sem falha definitiva imediata.
@@ -159,8 +175,12 @@
 - **R23 (D-e). Limpeza garantida dos dados sensíveis do e-mail.**
   - **Expiração:** o *payload* leva `criadoEm`. Mensagem com mais de 24 h vira falha definitiva "expirada", sem tentar enviar, porque a senha temporária já venceu (C21).
   - **Quando apagar o job sensível:** num `finally`, sempre que o resultado for sucesso, falha definitiva ou expiração. Na última tentativa (a 4ª), o job é apagado em qualquer resultado.
+  - **Falha do `apagarJob` depois de enviado (m1):**
+    - **Antes de apagar, o trabalhador grava o marcador "enviado"** (o Histórico `SISTEMA` com o `registroId` igual ao id do job). Se o `apagarJob` falhar, ele emite `[EMAIL_JOB_NAO_APAGADO]` com o id do job e encerra **sem relançar como falha de envio**.
+    - **Se houver nova execução do mesmo job**, por exemplo depois de uma queda, ela encontra o marcador, **só apaga o job** e nunca reenvia. Isso evita o e-mail duplicado.
+    - **Na última execução**, se o `apagarJob` falhar de novo, os dados ficam no job, e o log aponta o id. O roteiro de `docs/operacao/` (Task 1b) descreve a remoção manual pelo PO.
   - **Sem SMTP configurado:** cada tentativa falha com "SMTP não configurado" e segue as mesmas regras. A mensagem não fica parada com a senha.
-  - **Outbox abandonado:** para `email.enviar`, só acontece com fila desconhecida ou chave inválida, o que não ocorre na prática. Com isso, a pré-condição da Task 6a do P5 fica satisfeita. O PR da Task 1 pede à frente A essa confirmação explícita na revisão de consumidor. O JSDoc do C4 passa a dizer isso.
+  - **Outbox abandonado:** para `email.enviar`, só acontece com fila desconhecida ou chave inválida, o que não ocorre na prática. Com isso, a pré-condição da Task 6a do P5 fica satisfeita. O PR da Task 1b pede à frente A essa confirmação explícita na revisão de consumidor. O JSDoc do C4 passa a dizer isso.
 - **R24 (D-f). Ver salário sem máscara é permissão própria e auditada.**
   - **A permissão:** funcionalidade `cad.salarios` (ação `consultar`, `nivelLog` `AVANCADO`). Toda leitura sem máscara grava um `CONSULTA` no Histórico, com o cargo e sem os valores.
   - **Quem não tem a permissão** recebe mascarados:
@@ -311,8 +331,18 @@
   - **`servidor.ts`:** exporta só código de servidor sem React (trabalhador de e-mail, processador de cargas, leitor de .xlsx, funções do C1/C2).
   - **`index.ts`:** reexporta o C1/C2 para os casos de uso, mas nunca o trabalhador, o processador de cargas nem o SMTP.
   - **Worker:** `worker/index.ts` importa só os `servidor.ts`.
-  - **Teste:** o build do worker gera o *metafile* do esbuild, e o teste reprova se aparecerem `react`, `react-dom`, `next` ou arquivos `.tsx`.
-- **R25. Ambiente explícito (M1).** A variável `AMBIENTE` (`dev`, `hml` ou `producao`) existe no `app` e no `worker` de hml e prod. Ausente conta como `dev`, e só o valor `producao` liga as travas da R7, da R15 e da R16.
+  - **Seed (E-N3):** o `prisma/seed.ts` importa as seeds de `@/modules/cad/servidor`, nunca do `index.ts`, que reexporta ações com `server-only` e quebraria fora do Next.
+  - **Isolamento do `servidor.ts` (E-N4):** o `servidor.ts` só exporta arquivos que **não importam** `@/shared/authz` nem `next/`. Por isso, as funções de serviço (`obterParametroSistema`, o processador de cargas, o núcleo `aplicarCarga`, as seeds e os reais do C1/C2) ficam em arquivos próprios, separados dos casos de uso com `exigir`.
+  - **Teste:** o build do worker gera o *metafile* do esbuild. O teste reprova se aparecerem `react`, `react-dom`, `next`, `server-only`, `src/shared/authz` ou arquivos `.tsx`.
+- **R25. Ambiente explícito (M1, S-N4, E-N5).**
+  - **Valores:** a variável `AMBIENTE` (`dev`, `hml` ou `producao`) existe no `app`, no `worker` e no serviço de migração/seed de hml e prod. Só o valor `producao` liga as travas da R7, da R15 e da R16.
+  - **Com `NODE_ENV=production`** (sempre, na imagem): `AMBIENTE` ausente ou fora do conjunto é **erro na partida** do app, do worker e da seed, com a mensagem "AMBIENTE ausente ou inválido (use dev, hml ou producao)". A mensagem cita só o nome da variável.
+  - **Sem `NODE_ENV=production`:** a ausência conta como `dev`.
+  - **Testes:**
+    - `lerAmbiente` (`src/modules/ger/infrastructure/ambiente.ts`, exportado pelo `ger/servidor.ts`), em teste de unidade;
+    - o passo 8 do `docker/testes/testar-imagem.sh`, que confere que o worker sem `AMBIENTE` sai com erro;
+    - os testes usam `AMBIENTE=dev`, nunca um valor `test`.
+  - **Checklist do PO:** fica em `docs/operacao/ambientes.md` (Task 4b).
 
 ## Decisões pendentes do PO
 
@@ -339,17 +369,20 @@
    - **Reduzido de CC numérico:** "14.180" viraria 14,18. Esperado: erro na linha (Task 5).
 2. **Estrutura alterada por fora da carga, ou com classificação trocada.** Esperado:
    - a matriz de privilégios bate (Global Constraints, B1);
-   - a carga recusa rodar com papel diferente de `sgo_sync`;
+   - a carga com papel diferente de `sgo_sync` não toca o lote, que fica `PENDENTE` (S-N1);
+   - o `sgo_app` só insere lote `PENDENTE`, sem resultado (S-N3);
+   - o worker revalida o *staging* e, em produção, recusa CC provisório (S-N3);
    - a recarga nunca muda classificação, nível, pai ou tipo (R5);
-   - o *payload* com campo de estrutura é recusado e auditado.
+   - o *payload* com campo de estrutura é recusado e auditado, mesmo com o Zod removendo chaves (M-n4).
 
    Testes `privilegios.int.test.ts`, `carga só como sgo_sync` e `recarga não muda classificação` (Tasks 4b, 5 e 12a).
 3. **Carga parcial ou concorrente.** Esperado:
-   - erro em uma linha reprova o arquivo inteiro, nada vai para o *staging* e a tela lista os erros por linha;
-   - falha no *merge* deixa o lote `FALHOU`, sem nada aplicado;
-   - uma segunda carga do mesmo tipo é recusada na hora (índice parcial);
-   - recarga idempotente;
-   - registro ausente inativado.
+   - erro em uma linha, inclusive os erros da R5 que dependem do banco, reprova o arquivo inteiro antes do *staging*, e a tela lista os erros por linha (E-N2);
+   - o processamento acontece numa transação única (travar, aplicar, `CONCLUIDA`, apagar o *staging*). A falha grava `FALHOU` numa transação nova, com os `erros`, e nunca é reprocessada;
+   - lote preso em `PROCESSANDO` ou `PENDENTE` vencido vira `FALHOU`, e o *staging* é apagado (S-N2, E-N1);
+   - uma segunda carga do mesmo grupo é recusada na hora;
+   - a recarga idempotente só gera o evento "importação solicitada" (M-n2);
+   - o *merge* inativa antes de incluir, e registro ativo exige pai ativo (M-n3).
 
    Testes nas Tasks 4b e 5.
 4. **Planilha maliciosa (R4).** Esperado: zip bomb recusada **sem estourar a memória** (o teste roda com `--max-old-space-size=256` num processo filho); DOCTYPE recusado; mais de 50 entradas recusado; fórmula sem resultado vira erro na linha; célula acima de 1.000 caracteres recusada; leituras simultâneas limitadas a 1. Testes na Task 4a.
@@ -368,9 +401,10 @@
    - o worker revalida destinatário e dados antes de renderizar;
    - o link é exatamente `${URL_PUBLICA}/login`, sem *query*, fragmento nem credencial;
    - o `nomeExibicao` é escapado;
-   - o SMTP usa TLS de verdade (I4).
+   - o SMTP usa TLS de verdade (I4);
+   - uma falha do `apagarJob` depois do envio não gera e-mail duplicado (marcador, m1).
 
-   Testes na Task 1.
+   Testes nas Tasks 1a e 1b.
 7. **CC provisório em prod.** Esperado: com `AMBIENTE=producao`, a carga de CC sem data e documento da DIREX é recusada, mesmo com `CC_CARGA_PROVISORIA=1`. Teste na Task 8.
 8. **Parâmetro de exercício oficializado mudando, ou versão que não muda.** Esperado:
    - depois de `congelarPremissasExercicio(ano)`, toda alteração do ano dá `cad.exercicio_congelado`;
@@ -381,7 +415,9 @@
 10. **Bundle errado.** Esperado:
     - nenhum `'use client'` importa o `index.ts` do próprio módulo;
     - o `index.ts` do `ger` e o do `cad` não alcançam nodemailer, `node:crypto`, `pg`, o trabalhador nem o processador (teste da Task 0);
-    - o *metafile* do worker não tem React nem `next` (R22).
+    - o *metafile* do worker não tem React, `next`, `server-only` nem `src/shared/authz` (R22, E-N4);
+    - o `prisma/seed.ts` importa só do `servidor.ts` (E-N3).
+11. **Ambiente mal configurado em produção.** Esperado: com `NODE_ENV=production`, `AMBIENTE` ausente ou inválido derruba a partida do app, do worker e da seed; o worker também exige a `URL_PUBLICA` (R25, S-N4, M-n5). Testes nas Tasks 1b e 4c e no passo 8 do `testar-imagem.sh`.
 
 ---
 
@@ -390,21 +426,23 @@
 | # | PR | Depende de | Migration | Lentes extras (§12.12) | Previsão |
 | --- | --- | --- | --- | --- | --- |
 | 0 | compartilhado: dependências, lint de `servidor.ts`, `next.config`, `vitest.config`, `.env.example`, compose do worker | este plano | — | security-review | 27/10 |
-| 1 | US-025 #47 (`Closes #47`): e-mail real pelo worker | 0 | — | security-review, silent-failure-hunter | 27/10 – 29/10 |
+| 1a | US-025 parte 1 (`Refs #47`): renderização, modelos versionados e config SMTP | 0 | — | security-review | 27/10 – 28/10 |
+| 1b | US-025 parte 2 (`Closes #47`): trabalhador, registro no worker, limpeza | 1a | — | security-review, silent-failure-hunter | 28/10 – 29/10 |
 | 2 | Contrato C1 (`Refs #65 #68 #143`) + issue do C6 (`exibirNoMenu`) | 0 | — | type-design-analyzer | 29/10 |
 | 3 | Contrato C2 (`Refs #73 #75 #143`) | 2 (usa as classificações do C1) | — | type-design-analyzer | 29/10 – 30/10 |
-| 4a | US-043 parte 1 (`Refs #65`): leitor seguro de .xlsx (`ger`) e validação do plano (pura) | 0 | — | security-review | 30/10 – 31/10 |
+| 4a | US-043 parte 1 (`Refs #65`): leitor seguro de .xlsx (`ger`) e validação do plano (pura) | 1b (`ger/servidor.ts`), 2 (tipos do C1) | — | security-review | 30/10 – 31/10 |
 | 4b | US-043 parte 2 (`Refs #65`): migration, *staging*, *merge* no worker, C1 real das contas | 2, 4a | `…_cad_plano_contas` | security-review, silent-failure-hunter | 31/10 – 04/11 |
-| 4c | compartilhado: `prisma/seed.ts` registra `seedCad` e `seedDadosReferenciaCad` | 4b | — | — | 04/11 |
-| 5 | US-046 parte 1 (`Refs #68`): CC, *merge* e C1 real dos CCs | 4b | `…_cad_centros_custo` | security-review, silent-failure-hunter | 05/11 |
+| 4c | US-043 parte 3 (`Refs #65`): `seedCad` e `seedDadosReferenciaCad` (M-n6) | 4b | — | — | 04/11 |
+| 4d | compartilhado: `prisma/seed.ts` registra as seeds do `cad` via `@/modules/cad/servidor` | 4c | — | — | 04/11 |
+| 5 | US-046 parte 1 (`Refs #68`): CC, *merge* e C1 real dos CCs | 4c | `…_cad_centros_custo` | security-review, silent-failure-hunter | 05/11 |
 | 6a | US-021 parte 1 (`Refs #43`): virtualização, teclado e medição de rolagem | 0 | — | — | 06/11 |
 | 6b | US-021 parte 2 (`Refs #43`): `exportarXlsx` real | 0 | — | security-review | 06/11 |
 | 6c | US-021 parte 3 (`Closes #43`): filtros retidos na sessão | 6a | — | — | 09/11 |
-| 7a | US-043 parte 3 (`Closes #65`): tela de importação do plano | 4b, 6c | — | security-review | 10/11 |
+| 7a | US-043 parte 4 (`Closes #65`): tela de importação do plano | 4d, 6c | — | security-review | 10/11 |
 | 7b | US-044 #66 (`Closes #66`): consulta em árvore | 7a | — | — | 10/11 |
 | 8 | US-046 parte 2 (`Closes #68`): telas de CC e trava da DIREX | 5, 7a | — | security-review | 11/11 |
 | 9a | US-053 parte 1 (`Refs #75`): migration, domínio, `garantir`/`congelar` do C2 | 3, 4b | `…_cad_parametros` | security-review | 11/11 |
-| 9b | US-053 parte 2 (`Closes #75`): telas, ações e nome de exibição no worker | 9a, 1, 6c | — | — | 12/11 |
+| 9b | US-053 parte 2 (`Closes #75`): telas, ações e nome de exibição no worker | 9a, 1b, 6c | — | — | 12/11 |
 | 10 | US-050 parte 1 (`Refs #72`): Tabela Mestre por exercício | 9a | `…_cad_beneficios` | — | 13/11 |
 | 11 | US-051 parte 1 (`Refs #73`): motor real e `obterPremissasExercicio` (**C2 real**) | 3, 9a, 10 | — | type-design-analyzer, silent-failure-hunter | 13/11 – 17/11 |
 | 12a | US-049 parte 1 (`Refs #71`): schema, cifra, domínio e importação Rubi | 4b, 6c, 9a | `…_cad_cargos` | security-review, type-design-analyzer | 18/11 |
@@ -426,10 +464,10 @@ As datas supõem a frente B só no P4, a 40 h/semana, a partir de 27/10. As Task
 - **Revisão de consumidor** (§12.12):
   - C1 e C2 (Tasks 2 e 3);
   - o acréscimo `lerPlanilhaSegura` ao C3 (Task 4a);
-  - o C4 na Task 1: link igual a `${URL_PUBLICA}/login`, 3 tentativas e limpeza garantida (R23), com a **confirmação explícita** de que a pré-condição da Task 6a do P5 está satisfeita.
+  - o C4 na Task 1b: link igual a `${URL_PUBLICA}/login`, 3 tentativas e limpeza garantida (R23), com a **confirmação explícita** de que a pré-condição da Task 6a do P5 está satisfeita.
 - **Issue de contrato C6** (Task 2): `exibirNoMenu?: boolean` em `DeclaracaoFuncionalidade` (R24). A Task 12b depende dela.
 - **Issue de E2E** (Task 6a): o `e2e/global-setup.ts` cria um usuário GFIN (`E2E_GFIN_LOGIN`/`E2E_GFIN_SENHA`) para os E2E do `cad`.
-- **Issue não bloqueante** (Task 1): dados da mensagem abandonada no `publicarOutbox` (R23).
+- **Issue não bloqueante** (Task 1b): dados da mensagem abandonada no `publicarOutbox` (R23).
 - **Nota (P1):** a cifra e a máscara do salário das posições do `orc` ficam com a frente A; o Histórico de salário decifra só para `cad.salarios:consultar` quando a consulta do Histórico existir (R7).
 
 ## Estrutura de arquivos
@@ -437,23 +475,23 @@ As datas supõem a frente B só no P4, a 40 h/semana, a partir de 27/10. As Task
 ```
 prisma/schema/cad.prisma                                         (B, Task 4b cria; 5, 9a, 10, 12a, 13 alteram)
 prisma/migrations/<AAAAMMDDHHMM>_cad_{plano_contas,centros_custo,parametros,beneficios,cargos,beneficio_cargo}/
-src/modules/ger/servidor.ts                                                                (Task 1; R22)
-src/modules/ger/domain/{modelos-email,renderizar-email}.ts · domain/modelos/*.v1.ts       (Task 1)
-src/modules/ger/infrastructure/{config-smtp,smtp,trabalhador-email}.ts                     (Task 1)
+src/modules/ger/servidor.ts                                                                (Task 1b; R22)
+src/modules/ger/domain/{modelos-email,renderizar-email}.ts · domain/modelos/*.v1.ts       (Task 1a)
+src/modules/ger/infrastructure/{ambiente,config-smtp,smtp,trabalhador-email}.ts                     (Task 1)
 src/modules/ger/infrastructure/{ler-xlsx,zip-seguro}.ts                                    (Task 4a; R4)
 src/modules/ger/ui/{grade-arvore.tsx,grade-logica.ts,grade-virtual.ts,grade-filtros.ts}    (Task 6)
 src/modules/ger/infrastructure/exportar-xlsx.ts                                            (Task 6b)
 src/modules/cad/index.ts · servidor.ts · falsos.ts · contrato-c1.test.ts · contrato-c2.test.ts
 src/modules/cad/domain/{estrutura,plano-contas,centros-custo,carga,parametros,beneficios,cargo,motor-custo-pessoal,semaforo}.ts
-src/modules/cad/application/{estrutura-financeira,importar-estrutura,aplicar-carga,parametros,beneficios,cargos,tabela-salarial,premissas,saneamento}.ts
+src/modules/cad/application/{importar-estrutura,parametros,beneficios,cargos,tabela-salarial,saneamento}.ts      (casos de uso, com exigir)
 src/modules/cad/application/acoes-*.ts                                                     ('use server')
-src/modules/cad/infrastructure/{cliente-sync,processador-cargas,cifra-salarios,seed,seed-referencia}.ts
+src/modules/cad/infrastructure/{estrutura-financeira,aplicar-carga,premissas,parametro-sistema,cliente-sync,processador-cargas,cifra-salarios,seed,seed-referencia}.ts  (sem authz/next, R22)
 src/modules/cad/infrastructure/dados/{plano-contas-oficial,cc-minuta-rev23102026,cargos-sinteticos}.json
 src/modules/cad/ui/*.tsx
 src/app/(sistema)/cad/{plano-contas,centros-custo,parametros,salario-minimo,beneficios,cargos,tabela-salarial}/**
 e2e/cad/rolagem-plano.spec.ts                                                              (Task 6a)
-worker/index.ts                                                                            (Tasks 1, 4b e 9b)
-docs/operacao/{ambientes,deploy}.md                                                        (Tasks 1, 4b, 12a e 12b)
+worker/index.ts                                                                            (Tasks 1b, 4b e 9b)
+docs/operacao/{ambientes,deploy}.md                                                        (Tasks 1b, 4b, 12a e 12b)
 ```
 
 ---
@@ -492,29 +530,23 @@ docs/operacao/{ambientes,deploy}.md                                             
 - [ ] **Step 4:** `npm run lint && npm run typecheck && npm test && npm run test:arq` e, sozinho, `npm run build` → PASS.
 - [ ] **Step 5: PR** "Compartilhado do P4: dependências, entrada servidor.ts, limites de upload e variáveis de cadastros", labels `compartilhado` e `frente:B`, `Refs #47`. Lentes: plano/spec, testes, segurança e `security-review`. A frente A faz *rebase* depois do merge.
 
-### Task 1: Envio real de e-mail pelo worker (US-025, #47; fecha o C4)
+### Task 1a: Renderização, modelos versionados e configuração SMTP (US-025 parte 1, `Refs #47`)
+
+A US-025 é dividida em duas partes (M-n6), para cada PR caber em cerca de 400 linhas.
 
 **Files:**
 - Create:
-  - `src/modules/ger/servidor.ts`;
-  - `src/modules/ger/domain/renderizar-email.ts` e os modelos `src/modules/ger/domain/modelos/usuario-senha-inicial.v1.ts` e `usuario-senha-redefinida.v1.ts`;
-  - `src/modules/ger/infrastructure/config-smtp.ts`, `smtp.ts` e `trabalhador-email.ts`.
-- Modify:
-  - `src/modules/ger/domain/modelos-email.ts` (versões, `criadoEm`, validação dos dados);
-  - `src/modules/ger/application/email.ts` (real), `src/modules/ger/falsos.ts`, `src/modules/ger/index.ts`;
-  - `worker/index.ts`;
-  - `docs/operacao/ambientes.md` e `docs/operacao/deploy.md` (variáveis SMTP, `URL_PUBLICA` e `AMBIENTE` no `worker`).
+  - `src/modules/ger/domain/renderizar-email.ts`;
+  - os modelos `src/modules/ger/domain/modelos/usuario-senha-inicial.v1.ts` e `usuario-senha-redefinida.v1.ts`;
+  - `src/modules/ger/infrastructure/config-smtp.ts` e `smtp.ts`.
+- Modify: `src/modules/ger/domain/modelos-email.ts` (versões, `criadoEm`, validação dos dados), `src/modules/ger/application/email.ts` (real), `src/modules/ger/falsos.ts`
 - Test:
-  - Create: `src/modules/ger/domain/renderizar-email.test.ts`, `src/modules/ger/domain/modelos-versoes.test.ts`;
-  - Create: `src/modules/ger/infrastructure/config-smtp.test.ts`, `smtp.test.ts`, `trabalhador-email.test.ts`, `email.int.test.ts`;
-  - Create: `worker/bundle.test.ts`;
-  - Modify: `src/modules/ger/contrato-c4.test.ts`, `docker/testes/testar-imagem.sh` (passo 8).
+  - Create: `src/modules/ger/domain/renderizar-email.test.ts`, `src/modules/ger/domain/modelos-versoes.test.ts`, `src/modules/ger/application/marca-email.test.ts`;
+  - Create: `src/modules/ger/infrastructure/config-smtp.test.ts`, `smtp.test.ts`;
+  - Modify: `src/modules/ger/contrato-c4.test.ts`.
 
 **Interfaces:**
-- Consumes:
-  - de `@/shared/filas`: `registrarNoOutbox`, `publicarOutbox`, `criarFila` e `FilaGerenciada` (`registrarTrabalhador`, `consultar`, `apagarJob`);
-  - `auditar` (`@/shared/audit`), `lerEnvAcesso()` (`@/shared/config`) e `criarPrisma` (`@/shared/db`);
-  - `iniciarBancoTeste()` (`tests/integracao/banco.ts`).
+- Consumes: `registrarNoOutbox` (`@/shared/filas`, carregado com `await import()`), `lerEnvAcesso()` (`@/shared/config`).
 - Produces:
 
 ```ts
@@ -550,7 +582,56 @@ export interface TransporteEmail {
   enviar(m: { para: Destinatario; assunto: string; texto: string; html: string }): Promise<void>;
 }
 export function criarTransporteSmtp(cfg: ConfigSmtp, criar?: typeof nodemailer.createTransport): TransporteEmail;
+```
 
+- [ ] **Step 1: Testes de unidade (falham):**
+  - **`renderizarEmail`:**
+    - sem nome de exibição, assunto `[SGO 2.0][Acesso] …`;
+    - `nome = '<script>'`, `nome` com `"` e `nomeExibicao` com `<b>` saem escapados;
+    - versão `99` → `email.modelo_desconhecido`;
+    - `nomeExibicao` com `\r\n` → erro.
+  - **`marca-email.test.ts`** (em `application/`, sigla montada em tempo de execução, I1): nenhuma saída de nenhuma versão contém a marca vedada.
+  - **`modelos-versoes.test.ts`:** o SHA-256 de cada `(modelo, versão)` bate com a tabela (R8).
+  - **`validarDadosModelo`:** com `URL_PUBLICA=https://sgo.exemplo`:
+    - passa só `https://sgo.exemplo/login`;
+    - recusa `http://sgo.exemplo/login`, `https://sgo.exemplo/login?x=1`, `…#a`, `https://u:p@sgo.exemplo/login`, `https://outro/login`, `javascript:` e `\r\n` no nome.
+  - **`lerConfigSmtp`:**
+    - sem `SMTP_HOST` → `null`;
+    - `SMTP_HOST` sem `SMTP_SEGURANCA` → erro citando o nome;
+    - `nenhuma` com host `smtp.provedor.com` → erro;
+    - `AMBIENTE=producao` com `nenhuma` → erro;
+    - a mensagem nunca contém o valor de `SMTP_SENHA`.
+  - **`smtp.test.ts`** (espião no `createTransport`, I4):
+    - `starttls` → `{ secure: false, requireTLS: true, tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' }, logger: false, debug: false }`;
+    - `tls` → `secure: true`;
+    - o `sendMail` recebe `to: { name, address }`.
+  - **`contrato-c4.test.ts`:** o `enviarEmail` real deixa de lançar `email.indisponivel`. Com um `tx` falso, grava no *outbox* `{ modelo, versao, destinatario, dados, criadoEm }`; o `emailFalso` aplica a mesma validação.
+- [ ] **Step 2:** `npx vitest run --project unidade src/modules/ger` → FAIL.
+- [ ] **Step 3: Implementar.**
+  - **`enviarEmail` real:** `validarDestinatario` → `validarDadosModelo(modelo, dados, lerEnvAcesso().urlPublica)` → `await import('@/shared/filas')` → `registrarNoOutbox(tx, 'email.enviar', { modelo, versao, destinatario, dados, criadoEm })`.
+  - **Mensagem sem consumidor:** até a Task 1b, a mensagem fica pendente no *outbox* sem trabalhador. O dev e o hml ainda não usam o envio.
+  - **JSDoc do C4:** corrigir conforme R9 e R23.
+- [ ] **Step 4:** suíte + `npm run lint && npm run typecheck && npm run test:arq` → PASS.
+- [ ] **Step 5: PR** "[US-025] Modelos de e-mail versionados, renderização e configuração SMTP (parte 1/2)", `Refs #47`, label `frente:B`. Lentes: plano/spec, testes, segurança e `security-review`.
+
+### Task 1b: Trabalhador de e-mail, registro no worker e limpeza (US-025 parte 2, `Closes #47`; fecha o C4)
+
+**Files:**
+- Create: `src/modules/ger/servidor.ts`, `src/modules/ger/infrastructure/trabalhador-email.ts`, `src/modules/ger/infrastructure/ambiente.ts` (`lerAmbiente`, R25; exportado pelo `ger/servidor.ts`, usado pelo worker e pelo `cad`)
+- Modify:
+  - `src/modules/ger/index.ts`, `worker/index.ts`;
+  - `docs/operacao/ambientes.md` e `docs/operacao/deploy.md`: variáveis SMTP, `URL_PUBLICA` e `AMBIENTE` no `worker`, mais o roteiro de remoção manual de job (m1).
+- Test:
+  - Create: `src/modules/ger/infrastructure/trabalhador-email.test.ts`, `email.int.test.ts`, `worker/bundle.test.ts`, `worker/configuracao.test.ts`;
+  - Modify: `docker/testes/testar-imagem.sh` (passo 8).
+
+**Interfaces:**
+- Consumes:
+  - de `@/shared/filas`: `publicarOutbox`, `criarFila` e `FilaGerenciada` (`registrarTrabalhador`, `consultar`, `apagarJob`);
+  - `auditar` (`@/shared/audit`), `lerEnvAcesso()` (`@/shared/config`), `criarPrisma` (`@/shared/db`) e `iniciarBancoTeste()`.
+- Produces:
+
+```ts
 // infrastructure/trabalhador-email.ts
 export const NOVAS_TENTATIVAS_EMAIL = 3; // R9
 export type DepsTrabalhadorEmail = {
@@ -568,87 +649,80 @@ export function registrarTrabalhadoresGer(
 export { lerPlanilhaSegura } from './infrastructure/ler-xlsx'; // a partir da Task 4a
 ```
 
+**Partida do worker (M-n5, R25):**
+- `lerAmbiente()` falha com `NODE_ENV=production` e `AMBIENTE` inválido.
+- O worker lê a `URL_PUBLICA` com o `lerEnvAcesso()`, o mesmo do app. Ausente ou inválida em produção, sai com erro e `[URL_PUBLICA_AUSENTE]`/`[URL_PUBLICA_INVALIDA]`.
+- Uma divergência com a do app aparece como e-mail recusado na revalidação (falha definitiva no Histórico), visível, nunca como link errado.
+
 **Regras do trabalhador:**
-1. **Revalidação (I5):** `validarDestinatario` e `validarDadosModelo(…, urlPublica)` sobre a mensagem do job. Se falhar, é falha definitiva, porque o *payload* pode ter sido adulterado no banco.
-2. **Expiração:** `agora − criadoEm > 24 h` → falha definitiva "expirada".
-3. **Tentativa:** `tentativa = (await fila.consultar('email.enviar', job.id))?.tentativas ?? 0`.
-4. **Envio:** renderizar (com o nome de exibição validado) e enviar. Sem transporte, a tentativa falha com "SMTP não configurado".
-5. **Histórico** `SISTEMA` (`funcionalidade 'ger.email'`, `origem 'SISTEMA'`): só modelo, versão, destinatário mascarado, tentativa e resultado (enviado, falha temporária, falha definitiva ou expirada), sem os dados.
-6. **Resultado do envio:**
+1. **Marcador (m1):** se já existe no Histórico um "enviado" com `registroId` = id do job, o trabalhador só apaga o job e retorna.
+2. **Revalidação (I5):** `validarDestinatario` e `validarDadosModelo(…, urlPublica)` sobre a mensagem do job. Se falhar, é falha definitiva.
+3. **Expiração:** `agora − criadoEm > 24 h` → falha definitiva "expirada".
+4. **Tentativa:** `tentativa = (await fila.consultar('email.enviar', job.id))?.tentativas ?? 0`.
+5. **Envio:** renderizar (com o nome de exibição validado) e enviar. Sem transporte, a tentativa falha com "SMTP não configurado".
+6. **Histórico** `SISTEMA` (`funcionalidade 'ger.email'`, `origem 'SISTEMA'`, `registroId` = id do job): só modelo, versão, destinatário mascarado, tentativa e resultado (enviado, falha temporária, falha definitiva ou expirada), sem os dados. O "enviado" é gravado **antes** do `apagarJob`.
+7. **Resultado do envio:**
    - **sucesso:** termina normalmente;
    - **falha com `tentativa < 3`:** relança, para a fila tentar de novo com *backoff*;
    - **falha com `tentativa ≥ 3`:** é a definitiva e retorna sem erro, com o log `[EMAIL_FALHA_DEFINITIVA]` (modelo e destinatário mascarado).
-7. **`finally`:** apaga o job (`fila.apagarJob`) quando o resultado for sucesso, falha definitiva ou expiração, sempre que o modelo for sensível e sempre na última tentativa. Uma falha do `apagarJob` gera `[EMAIL_JOB_NAO_APAGADO]` e relança.
+8. **`finally`:** apaga o job (`fila.apagarJob`) quando o resultado for sucesso, falha definitiva ou expiração, sempre que o modelo for sensível e sempre na última tentativa.
+   - **Falha do `apagarJob` depois de um envio com sucesso:** só `[EMAIL_JOB_NAO_APAGADO]` com o id do job, sem relançar. Assim não há reenvio, e uma nova execução encontra o marcador (m1).
+   - **Nos outros casos**, o log e o relançamento.
 
 - [ ] **Step 0: Preparar o banco de dev da frente B** (o volume 56432 ainda não tem o `sgo_fila`):
   1. conferir `COMPOSE_PROJECT_NAME=sgo-b` no `.env` e as quatro URLs em `127.0.0.1:56432`;
   2. `docker compose down -v` (**apaga** só o banco de dev local da frente B);
   3. `docker compose up -d --wait`;
   4. `npm run db:deploy` e `npm run db:seed` (**escrevem** no dev local).
-- [ ] **Step 1: Testes de unidade (falham):**
-  - **`renderizarEmail`:**
-    - sem nome de exibição, assunto `[SGO 2.0][Acesso] …`;
-    - `nome = '<script>'`, `nome` com `"` e `nomeExibicao` com `<b>` saem escapados;
-    - nenhuma saída contém a marca vedada (a sigla é montada em tempo de execução, fora de `domain/`: o teste fica em `domain/` só se não importar `@/shared/config`; senão, em `application/`);
-    - versão `99` → `email.modelo_desconhecido`;
-    - `nomeExibicao` com `\r\n` → erro.
-  - **`modelos-versoes.test.ts`:** o SHA-256 de cada `(modelo, versão)` bate com a tabela (R8).
-  - **`validarDadosModelo`:** com `URL_PUBLICA=https://sgo.exemplo`:
-    - passa só `https://sgo.exemplo/login`;
-    - recusa `http://sgo.exemplo/login`, `https://sgo.exemplo/login?x=1`, `…#a`, `https://u:p@sgo.exemplo/login`, `https://outro/login`, `javascript:` e `\r\n` no nome.
-  - **`lerConfigSmtp`:**
-    - sem `SMTP_HOST` → `null`;
-    - `SMTP_HOST` sem `SMTP_SEGURANCA` → erro citando o nome;
-    - `nenhuma` com host `smtp.provedor.com` → erro;
-    - `AMBIENTE=producao` com `nenhuma` → erro;
-    - a mensagem nunca contém o valor de `SMTP_SENHA`.
-  - **`smtp.test.ts`** (espião no `createTransport`, I4):
-    - `starttls` → `{ secure: false, requireTLS: true, tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' }, logger: false, debug: false }`;
-    - `tls` → `secure: true`;
-    - o `sendMail` recebe `to: { name, address }`.
-  - **`trabalhador-email.test.ts`** (transporte, fila e `auditar` falsos; relógio fixo):
-    - sucesso → 1 envio, 1 Histórico e `apagarJob`;
-    - falha com `tentativas: 1` → relança, sem `apagarJob` (sensível ou não: os dados ficam para a nova tentativa e saem no fim, R23);
-    - falha com `tentativas: 3` → não relança, Histórico "falha definitiva" e `apagarJob`;
-    - erro 550 na tentativa 1 → relança (R9, D-c);
-    - `criadoEm` de 25 h atrás → nenhum envio, Histórico "expirada" e `apagarJob`;
-    - transporte `null` → falha "SMTP não configurado", seguindo as mesmas regras;
-    - `urlAcesso` adulterada no job → falha definitiva, sem envio;
-    - `apagarJob` lançando → `[EMAIL_JOB_NAO_APAGADO]` e relança;
-    - um espião em `console.*` e o `depois` do Histórico não contêm a `senhaTemporaria`.
-- [ ] **Step 2: Integração `email.int.test.ts` (falha).** Usa `iniciarBancoTeste()`, `criarFila(urlFila)` e o `smtp-server` em `127.0.0.1`, sem TLS, com o trabalhador configurado para `nenhuma`, em `AMBIENTE=test`:
+- [ ] **Step 1: Testes de unidade (falham)** — `trabalhador-email.test.ts`, com transporte, fila e `auditar` falsos e relógio fixo:
+  - sucesso → 1 envio, 1 Histórico "enviado" e `apagarJob`;
+  - falha com `tentativas: 1` → relança, sem `apagarJob` (sensível ou não: os dados ficam para a nova tentativa e saem no fim, R23);
+  - falha com `tentativas: 3` → não relança, Histórico "falha definitiva" e `apagarJob`;
+  - erro 550 na tentativa 1 → relança (R9, D-c);
+  - `criadoEm` de 25 h atrás → nenhum envio, Histórico "expirada" e `apagarJob`;
+  - transporte `null` → falha "SMTP não configurado", seguindo as mesmas regras;
+  - `urlAcesso` adulterada no job → falha definitiva, sem envio;
+  - **m1:**
+    - envio com sucesso e `apagarJob` lançando → `[EMAIL_JOB_NAO_APAGADO]` e **não relança**;
+    - a execução seguinte do mesmo job (com o marcador) não envia, só apaga;
+  - falha de envio e `apagarJob` lançando → log e relança;
+  - um espião em `console.*` e o `depois` do Histórico não contêm a `senhaTemporaria`.
+  - **`worker/configuracao.test.ts`**, com `NODE_ENV=production`:
+    - sem `AMBIENTE` → erro na partida;
+    - `AMBIENTE=teste` → erro;
+    - sem `URL_PUBLICA` → erro.
+- [ ] **Step 2: Integração `email.int.test.ts` (falha).** Usa `iniciarBancoTeste()`, `criarFila(urlFila)` e o `smtp-server` em `127.0.0.1`, sem TLS, com o trabalhador configurado para `nenhuma`, em **`AMBIENTE=dev`**:
   - **commit:** `enviarEmail` → `publicarOutbox` → envio. Chega a mensagem v1, e a **varredura** (SQL `LIKE '%<senha>%'` em `pgboss.job`, `outbox_mensagem.dados` e `historico_operacao` inteiros) dá 0 linhas;
   - **rollback:** nenhuma linha no *outbox* e nada no SMTP;
-  - **SMTP respondendo 550 quatro vezes** (tentativa forçada pelo `retryDelay`, ou o trabalhador chamado 4 vezes com o `consultar` real): 4 Históricos, o último "falha definitiva", e a varredura vazia;
+  - **SMTP respondendo 550 quatro vezes:** o trabalhador é chamado 4 vezes com o `consultar` real. São 4 Históricos, o último "falha definitiva", e a varredura vazia;
   - **expiração:** mensagem com `criadoEm` antigo → varredura vazia;
   - **destinatário inválido** → `email.destinatario_invalido` antes de gravar.
 - [ ] **Step 3:** `npx vitest run --project unidade src/modules/ger worker` e, sozinho (D12), `npx vitest run --project integracao src/modules/ger` → FAIL.
-- [ ] **Step 4: Implementar.**
-  - **`enviarEmail` real:** `validarDestinatario` → `validarDadosModelo(modelo, dados, lerEnvAcesso().urlPublica)` → `await import('@/shared/filas')` → `registrarNoOutbox(tx, 'email.enviar', { modelo, versao, destinatario, dados, criadoEm })`.
-  - **`emailFalso`:** chama a mesma validação.
-  - **`worker/index.ts`:** importa só `@/modules/ger/servidor` e chama `registrarTrabalhadoresGer(fila, { cliente: prisma })`.
-  - **JSDoc do C4:** corrigir conforme R9 e R23.
+- [ ] **Step 4: Implementar.** O `worker/index.ts` importa só `@/modules/ger/servidor` (inclusive o `lerAmbiente`) e chama `registrarTrabalhadoresGer(fila, { cliente: prisma })`.
 - [ ] **Step 5: Bundle real do worker (I13), sozinho (D12):**
-  - **`worker/bundle.test.ts`:** roda o `esbuild` do `worker/build.mjs` com `metafile: true` para um diretório temporário. Reprova se o *metafile* tiver `node_modules/react`, `react-dom`, `next/` ou arquivos `.tsx`.
-  - **`docker/testes/testar-imagem.sh`, passo 8:** passa a exigir `email.enviar` na lista de filas do log `worker pronto`.
+  - **`worker/bundle.test.ts`:** roda o `esbuild` do `worker/build.mjs` com `metafile: true` para um diretório temporário. Reprova se o *metafile* tiver `node_modules/react`, `react-dom`, `next/`, `server-only`, `src/shared/authz` ou arquivos `.tsx` (R22).
+  - **`docker/testes/testar-imagem.sh`, passo 8:**
+    - exige `email.enviar` na lista de filas do log `worker pronto`;
+    - exige que o worker sem `AMBIENTE` saia com erro (R25).
 - [ ] **Step 6:** suítes do Step 3 + `npm run lint && npm run typecheck && npm run test:arq` e, sozinho, `npm run build` → PASS.
 - [ ] **Step 7: Prova no dev com o Mailpit** (D12, com a frente A sem build/test:int):
   1. `docker compose --profile app up -d worker`;
   2. um script de teste em `tsx`, fora do repositório (no *scratchpad*), chama `enviarEmail` num `$transaction` conectado com a `DATABASE_URL` do dev local, como `sgo_app` (**escreve** no dev local);
   3. a mensagem aparece em `http://127.0.0.1:8225`, e a varredura do Step 2 no dev local dá 0 linhas;
   4. `docker compose --profile app stop worker`.
-- [ ] **Step 8: PR** "[US-025] Envio de e-mail pelo worker com nova tentativa, modelos versionados e limpeza dos dados sensíveis", `Closes #47`, label `frente:B`.
+- [ ] **Step 8: PR** "[US-025] Trabalhador de e-mail com nova tentativa e limpeza dos dados sensíveis (parte 2/2)", `Closes #47`, label `frente:B`.
   - **No corpo:**
     - as mudanças de comportamento do C4 (R9, R23 e o link exato);
     - o pedido de **confirmação explícita** da frente A de que a pré-condição da Task 6a do P5 está satisfeita;
     - a issue não bloqueante do *outbox* abandonado;
-    - a pendência P7.
+    - a pendência P7;
+    - o checklist do PO: `AMBIENTE`, `URL_PUBLICA` e as variáveis SMTP no `worker`.
   - **Lentes:** plano/spec, testes, segurança, `security-review` e `silent-failure-hunter`.
 
 ### Task 2: Contrato C1 — estrutura financeira (`cad`)
 
 **Files:**
-- Create: `src/modules/cad/domain/estrutura.ts`, `src/modules/cad/application/estrutura-financeira.ts` (reais, ainda indisponíveis), `src/modules/cad/falsos.ts`, `src/modules/cad/servidor.ts`
+- Create: `src/modules/cad/domain/estrutura.ts`, `src/modules/cad/infrastructure/estrutura-financeira.ts` (reais, ainda indisponíveis; sem `@/shared/authz`, R22), `src/modules/cad/falsos.ts`, `src/modules/cad/servidor.ts`
 - Modify: `src/modules/cad/index.ts`
 - Test: `src/modules/cad/contrato-c1.test.ts`
 
@@ -738,7 +812,7 @@ export function estruturaFinanceiraFalsa(dados?: { contas?: readonly NoConta[]; 
 ### Task 3: Contrato C2 — custo de pessoal (`cad`)
 
 **Files:**
-- Create: `src/modules/cad/domain/custo-pessoal.ts`, `src/modules/cad/application/premissas.ts` (reais, ainda indisponíveis)
+- Create: `src/modules/cad/domain/custo-pessoal.ts`, `src/modules/cad/infrastructure/premissas.ts` (reais, ainda indisponíveis; sem `@/shared/authz`, R22)
 - Modify: `src/modules/cad/index.ts`, `src/modules/cad/servidor.ts`, `src/modules/cad/falsos.ts`
 - Test: `src/modules/cad/contrato-c2.test.ts`
 
@@ -895,22 +969,22 @@ export function sanearDescricao(texto: string): { texto: string; retirou: boolea
 - [ ] **Step 3:** `npx vitest run --project unidade src/modules/ger src/modules/cad` → FAIL.
 - [ ] **Step 4: Implementar** (`zip-seguro.ts` lê o diretório central e infla com `node:zlib`, sem dependência nova).
 - [ ] **Step 5:** suíte + `npm run lint && npm run typecheck` → PASS.
-- [ ] **Step 6: PR** "[US-043] Leitor seguro de planilhas e validação do plano de contas (parte 1/3)", `Refs #65`, label `frente:B`. Revisão de consumidor da frente A (acréscimo `lerPlanilhaSegura` ao C3, para a US-121). Lentes: plano/spec, testes, segurança e `security-review`.
+- [ ] **Step 6: PR** "[US-043] Leitor seguro de planilhas e validação do plano de contas (parte 1/4)", `Refs #65`, label `frente:B`. Revisão de consumidor da frente A (acréscimo `lerPlanilhaSegura` ao C3, para a US-121). Lentes: plano/spec, testes, segurança e `security-review`.
 
 ### Task 4b: Plano de contas — migration, *staging*, *merge* no worker e C1 real (US-043 parte 2, `Refs #65`)
 
 **Files:**
 - Create:
   - `prisma/schema/cad.prisma` e `prisma/migrations/<AAAAMMDDHHMM>_cad_plano_contas/migration.sql`;
-  - `src/modules/cad/application/{importar-estrutura,aplicar-carga}.ts`;
-  - `src/modules/cad/infrastructure/{cliente-sync,processador-cargas,seed,seed-referencia}.ts` e `src/modules/cad/infrastructure/dados/plano-contas-oficial.json`.
+  - `src/modules/cad/application/importar-estrutura.ts` (casca do app, com `exigir`);
+  - `src/modules/cad/infrastructure/aplicar-carga.ts` (núcleo do *merge*, sem `@/shared/authz` nem `next/`, E-N4);
+  - `src/modules/cad/infrastructure/{cliente-sync,processador-cargas}.ts`.
 - Modify:
-  - `src/modules/cad/application/estrutura-financeira.ts` (C1 real das contas);
+  - `src/modules/cad/infrastructure/estrutura-financeira.ts` (C1 real das contas; sai de `application/` para o `servidor.ts` não puxar `authz`, E-N4);
   - `src/modules/cad/index.ts` e `src/modules/cad/servidor.ts`;
   - `worker/index.ts` (processador de cargas);
-  - `docs/operacao/ambientes.md` (`SYNC_DATABASE_URL` só no `worker`; `AMBIENTE` no `app` e no `worker`).
-- Test:
-  - Create: `src/modules/cad/infrastructure/dados-oficiais.test.ts`, `src/modules/cad/application/importar-plano.int.test.ts`, `src/modules/cad/infrastructure/privilegios.int.test.ts`.
+  - `docs/operacao/ambientes.md`: `SYNC_DATABASE_URL` só no `worker`; `AMBIENTE` no `app`, no `worker` e no serviço de migração; checklist do PO para a R25.
+- Test: Create `src/modules/cad/application/importar-plano.int.test.ts`, `src/modules/cad/infrastructure/processador-cargas.int.test.ts`, `src/modules/cad/infrastructure/privilegios.int.test.ts`
 
 **Modelos:**
 - **`ContaContabil` (`conta_contabil`):**
@@ -919,12 +993,13 @@ export function sanearDescricao(texto: string): { texto: string; retirou: boolea
   - situação: `ativa`, `inativadaEm?`;
   - lote e controle: `cargaId`, `criadoEm`, `atualizadoEm`.
 - **`CargaEstrutura` (`carga_estrutura`):**
-  - identificação: `id`, `tipo` (`PLANO_CONTAS` | `CENTROS_CUSTO` | `CARGOS` | `CARGOS_RECIFRA`), `situacao` (`PENDENTE` | `PROCESSANDO` | `CONCLUIDA` | `FALHOU`);
+  - identificação: `id`, `tipo` (`PLANO_CONTAS` | `CENTROS_CUSTO` | `CARGOS` | `CARGOS_RECIFRA`) e `grupo` (gerado: `CARGOS_RECIFRA` vira `CARGOS`, m5);
+  - situação: `situacao` (`PENDENTE` | `PROCESSANDO` | `CONCLUIDA` | `FALHOU`), com *default* `PENDENTE`;
   - arquivo: `arquivoNome` (saneado), `arquivoSha256`, `linhas`;
-  - resultado: `incluidas`, `alteradas`, `inativadas`, `inalteradas`, `avisos` (jsonb), `erro?` (sem valores);
+  - resultado: `incluidas?`, `alteradas?`, `inativadas?`, `inalteradas?`, `avisos?` (jsonb), `erros?` (jsonb, `ErroLinha[]`) e `erro?` (sem valores);
   - aprovação e provisório: `provisoria`, `aprovacaoData?`, `aprovacaoDocumento?`;
-  - auditoria: `contextoAuditoria` (jsonb: usuário, rótulo, sessão, IP), `criadoEm`, `concluidoEm?`.
-  - Índice único parcial em `tipo WHERE situacao IN ('PENDENTE','PROCESSANDO')`.
+  - auditoria e datas: `contextoAuditoria` (jsonb), `criadoEm`, `processandoDesde?`, `concluidoEm?`.
+  - Índice único parcial em `grupo WHERE situacao IN ('PENDENTE','PROCESSANDO')`.
 - **`CargaEstruturaLinha`:** `cargaId`, `numero`, `dados` (jsonb). Pk (`cargaId`, `numero`).
 
 **Migration:**
@@ -933,77 +1008,119 @@ export function sanearDescricao(texto: string): { texto: string; retirou: boolea
   - nível = número de segmentos;
   - `(tipo = 'ANALITICA') = (nivel = 5)`;
   - `(tipo = 'ANALITICA') = (codigo_reduzido IS NOT NULL)`.
-- **Constraint trigger** `DEFERRABLE INITIALLY DEFERRED`: pai com nível − 1; analítica sem filho; sintética ativa com filho ativo.
-- **Trigger que recusa `UPDATE` de `classificacao`, `nivel`, `tipo`, `pai_id` e `codigo_reduzido`** (R5 imposta no banco).
-- **Privilégios (tabela da R6):** `REVOKE ALL` dos dois papéis e depois só os `GRANT` da tabela. Nenhum `DELETE`, exceto o do `sgo_sync` em `carga_estrutura_linha`.
+- **Constraint trigger** `DEFERRABLE INITIALLY DEFERRED`:
+  - pai com nível − 1;
+  - analítica sem filho;
+  - sintética ativa com filho ativo;
+  - **registro ativo com pai ativo** (M-n3).
+- **Trigger que recusa `UPDATE`** de `classificacao`, `nivel`, `tipo`, `pai_id` e `codigo_reduzido` (R5).
+- **Trigger `BEFORE INSERT` em `carga_estrutura`:** exige `situacao = 'PENDENTE'` e o resultado nulo (S-N3).
+- **Privilégios (tabela da R6):** `REVOKE ALL` dos dois papéis e, depois, só os `GRANT` da tabela, com `INSERT (colunas de entrada)` para o `sgo_app` em `carga_estrutura`.
 
 **Interfaces — Produces:**
 
 ```ts
 export type ArquivoCarga = { nome: string; conteudo: Uint8Array };
-export type EstadoCarga = { cargaId: string; situacao: 'PENDENTE' | 'PROCESSANDO' | 'CONCLUIDA' | 'FALHOU';
-  linhas: number; incluidas: number; alteradas: number; inativadas: number; inalteradas: number;
-  avisos: readonly ErroLinha[]; erro: string | null };
-// app (sgo_app): exigir(ctx,'cad.plano_contas','executar') → lê, valida, grava o staging e audita "importação solicitada".
-// Erros por linha em ErroCampo { campo: 'linhas.<n>.<coluna>' }; carga do mesmo tipo em andamento → erro geral.
+export type EstadoCarga = { cargaId: string; tipo: TipoCarga; situacao: 'PENDENTE' | 'PROCESSANDO' | 'CONCLUIDA' | 'FALHOU';
+  linhas: number; incluidas: number | null; alteradas: number | null; inativadas: number | null; inalteradas: number | null;
+  avisos: readonly ErroLinha[]; erros: readonly ErroLinha[]; erro: string | null };
+// app (sgo_app): exigir → ler/validar → planejarCarga contra o banco (E-N2) → staging (createMany sem RETURNING) → auditar.
+// Erros por linha em ErroCampo { campo: 'linhas.<n>.<coluna>' }; carga do mesmo grupo em andamento → erro geral.
 export function solicitarCargaPlanoContas(ctx: ContextoRequisicao, arquivo: ArquivoCarga, deps?: { cliente?: PrismaClient }): Promise<Resultado<{ cargaId: string }>>;
+// A permissão vem do tipo do lote (M-n1): PLANO_CONTAS → cad.plano_contas:executar; CENTROS_CUSTO → cad.centros_custo:executar;
+// CARGOS e CARGOS_RECIFRA → cad.cargos:executar. Lote de outro tipo, sem a permissão → null (sem revelar a existência).
 export function consultarCarga(ctx: ContextoRequisicao, cargaId: string, deps?): Promise<EstadoCarga | null>;
-// núcleo do merge (sem papel nem lote; R6): usado pelo worker e pela seed
+// infrastructure/aplicar-carga.ts — núcleo (sem papel nem lote; R6): worker e seed
 export function aplicarCarga(tx: TxCliente, contexto: ContextoAuditoria, tipo: 'PLANO_CONTAS', linhas: readonly LinhaPlanoValidada[]):
-  Promise<Omit<EstadoCarga, 'cargaId' | 'situacao' | 'erro'>>;
+  Promise<{ incluidas: number; alteradas: number; inativadas: number; inalteradas: number; avisos: readonly ErroLinha[] }>;
 // @/modules/cad/servidor: worker
-export function iniciarProcessadorCargas(deps: { clienteSync: PrismaClient | null; intervaloMs?: number }): { parar(): Promise<void> };
-export const seedCad: Seed;                // nesta tarefa, só a funcionalidade cad.plano_contas
-export const seedDadosReferenciaCad: Seed; // R15
+export function iniciarProcessadorCargas(deps: { clienteSync: PrismaClient | null; agora?: () => Date; intervaloMs?: number;
+  limiteProcessandoMs?: number /* 15 min */; validadePendenteMs?: number /* 24 h */ }): { executarCiclo(): Promise<void>; parar(): Promise<void> };
 ```
 
-**Funcionalidade (C6):** `cad.plano_contas`
+**Funcionalidade (C6), declarada na Task 4c:** `cad.plano_contas`
 - local: módulo `CADASTROS`, grupo "Plano de Contas", nome "Plano de Contas", rota `/cad/plano-contas`;
 - ações: `consultar` e `executar`, com `nivelLog` `SIMPLES`;
 - perfis: GFIN `['consultar', 'executar']`; ORCAMENTISTA, ANALISTA_GRH, OPERADOR_VIAGENS, AUDITOR, GESTOR_DIRETORIA e DIREX `['consultar']`.
 
-- [ ] **Step 1: `dados-oficiais.test.ts` (falha):** acha `especificacao/Plano_de_Contas_5_Niveis_*.xlsx` por *glob* (falha se não achar), lê com `lerPlanilhaSegura` e compara com o JSON. A única diferença aceita é a descrição saneada da 4.1.1.8.005.
-- [ ] **Step 2: Integração (falha)**, com `iniciarBancoTeste()`, as URLs do `sgo_app` e do `sgo_sync` montadas no teste e o processador chamado direto (um ciclo):
-  - **fluxo completo:** `solicitarCargaPlanoContas` (GFIN) → lote `PENDENTE` → um ciclo do processador → `CONCLUIDA`, com 174 contas, o Histórico `INSERCAO` com o usuário do lote e o *staging* vazio;
-  - **`carga só como sgo_sync`:** o processador com o cliente do `sgo_app` → lote `FALHOU`, com "A carga exige o papel de sincronismo", e nada aplicado;
-  - **`recarga idempotente`:** nenhuma conta muda (`atualizado_em` igual), e `inalteradas = 174`;
-  - **`recarga não muda classificação`:**
-    - o reduzido 900 numa classificação nova → a antiga inativa, a nova criada e o aviso no lote;
+Os testes desta tarefa inserem a permissão direto no banco de teste.
+
+- [ ] **Step 1: Integração (falha)**, com `iniciarBancoTeste()`, as URLs do `sgo_app` e do `sgo_sync` montadas no teste, `AMBIENTE=dev` e `executarCiclo()` chamado direto:
+  - **fluxo completo:** `solicitarCargaPlanoContas` (GFIN) → lote `PENDENTE` → um ciclo → `CONCLUIDA`, com 174 contas, o Histórico `INSERCAO` com o usuário do lote e o *staging* vazio;
+  - **`carga só como sgo_sync` (S-N1):** o processador com o cliente do `sgo_app` → `[CARGA_PAPEL_INVALIDO]` no log. O lote **continua `PENDENTE`**, nada é aplicado nem gravado, e as linhas continuam no *staging*;
+  - **`recarga idempotente` (M-n2):** nenhuma conta muda (`atualizado_em` igual), `inalteradas = 174`, e o Histórico ganha **só** o evento "importação solicitada";
+  - **`recarga não muda classificação` (R5):**
+    - o reduzido 900 numa classificação nova → a antiga inativa, a nova criada e o aviso no lote. A ordem "inativar antes de incluir" é provada pelo índice parcial (M-n3);
     - um `UPDATE conta_contabil SET classificacao = …` como `sgo_sync` → recusado pelo *trigger*;
+  - **erro da R5 por linha na tela (E-N2):** a mesma classificação com outro reduzido → `solicitarCargaPlanoContas` devolve `linhas.<n>.Conta Reduzida`, sem lote;
+  - **divergência sob o *lock* (E-N2):** o banco é mudado entre a solicitação e o ciclo → `FALHOU`, com `erros` por linha no `EstadoCarga`;
+  - **pai ativo (M-n3):** inativar uma sintética deixando um filho ativo → o *merge* falha pelo *trigger* deferido;
   - **`conta ausente inativa`:** a analítica ausente fica inativa;
-  - **`carga atômica`:** linha inválida → nada no *staging*; falha do *trigger* no *merge* → lote `FALHOU` e nada aplicado;
+  - **`carga atômica`:** linha inválida → nada no *staging*;
   - **`carga concorrente`:** a segunda solicitação com uma `PENDENTE` → "Já existe uma carga do plano de contas em andamento. Tente de novo em instantes.";
+  - **`queda no meio` (S-N2):** um lote `PROCESSANDO` com `processandoDesde` de 16 min atrás → o ciclo seguinte o deixa `FALHOU` "processamento interrompido", com o *staging* apagado;
+  - **`falha não reprocessa` (S-N2, E-N1):** um lote que falha no *merge* → `FALHOU`, gravado numa transação nova; os 3 ciclos seguintes não o tocam;
+  - **`pendente expirado`:** `PENDENTE` com 25 h → `FALHOU` "expirada";
+  - **`staging apagado no FALHOU`:** em todos os casos de `FALHOU`, `carga_estrutura_linha` fica vazia;
+  - **revalidação no worker (S-N3):**
+    - uma linha adulterada no *staging* (como migrator, com o nível trocado ou um campo a mais) → `FALHOU`, com o erro na linha;
+    - um `UPDATE carga_estrutura SET situacao = 'CONCLUIDA'` como `sgo_app` → recusado;
+    - um `INSERT` como `sgo_app` com `incluidas = 5` → recusado;
   - **desempenho (RNF_DES_003):** 10.000 linhas sintéticas da solicitação até `CONCLUIDA` em menos de 30 s. Rodar sozinho (D12) e registrar o tempo;
-  - **§10.2, itens 1 e 3:** com o `auditar` falhando no *merge*, nada é aplicado e o lote fica `FALHOU`; ORCAMENTISTA → `ErroPermissao`;
+  - **§10.2, itens 1 e 3:** com o `auditar` falhando no *merge*, o lote fica `FALHOU` e nada é aplicado; ORCAMENTISTA → `ErroPermissao`;
+  - **`consultarCarga` (M-n1):** um ANALISTA_GRH consulta um lote `PLANO_CONTAS` → `null`;
   - **C1 real:** árvore com 162 folhas; `ehContaAnaliticaAtiva` para ativa e inativa; `contasAnaliticasSob('4.1.1.1')` com 25 contas; `nosContas` passa no `totalizar`;
-  - **`privilegios.int.test.ts`:** a matriz de `information_schema` igual à tabela da R6 nas 3 tabelas;
-  - **seed:**
-    - `seedCad` duas vezes → *dump* idêntico;
-    - `seedDadosReferenciaCad` com `CARGA_DADOS_REFERENCIA` vazia, `0` ou `true` → não faz nada; com `1` → 174 contas e auditoria "Sistema";
-    - com `AMBIENTE=producao` e `1` → erro (M1).
-- [ ] **Step 3:** sozinho, `npx vitest run --project integracao src/modules/cad` e `npx vitest run --project unidade src/modules/cad` → FAIL.
-- [ ] **Step 4: Implementar.**
+  - **`privilegios.int.test.ts`:** a matriz de `information_schema` (tabela e coluna) igual à tabela da R6 nas 3 tabelas.
+- [ ] **Step 2:** sozinho, `npx vitest run --project integracao src/modules/cad` → FAIL.
+- [ ] **Step 3: Implementar.**
   - **Migration:** `npm run db:migrate -- --name cad_plano_contas --create-only` (**escreve** no banco de dev local 56432, depois de conferir as URLs). Renomear para o carimbo maior que o da última migration da `main` e acrescentar à mão os `CHECK`, os *triggers* e os privilégios.
-  - **Merge:** `createMany` das novas, `UPDATE … FROM (VALUES …)` das descrições, inativação, e `SET CONSTRAINTS ALL IMMEDIATE` antes do commit.
+  - **Merge (M-n3):** na ordem, inativação, `createMany` das novas e das reativações, e `UPDATE … FROM (VALUES …)` das descrições. `SET CONSTRAINTS ALL IMMEDIATE` antes de gravar `CONCLUIDA`, tudo na mesma transação (S-N2).
   - **`worker/index.ts`:** `iniciarProcessadorCargas({ clienteSync })` com `criarPrisma(SYNC_DATABASE_URL)`, via `@/modules/cad/servidor`; o encerramento chama `parar()`.
-- [ ] **Step 5:** suítes + `npm run lint && npm run typecheck && npm run test:arq` → PASS. No dev local, `npm run db:deploy` (**escreve**) e `migrate diff` sem diferença. O `worker/bundle.test.ts` continua verde.
-- [ ] **Step 6: PR** "[US-043] Plano de contas: staging, merge no worker como sgo_sync e contrato C1 real (parte 2/3)", `Refs #65`, labels `frente:B` e `migration`. **PO:** `SYNC_DATABASE_URL` e `AMBIENTE` no `worker`; `AMBIENTE` no `app` de hml e prod. Lentes: plano/spec, testes, segurança, `security-review` e `silent-failure-hunter`.
+- [ ] **Step 4:** suítes + `npm run lint && npm run typecheck && npm run test:arq` → PASS. No dev local, `npm run db:deploy` (**escreve**) e `migrate diff` sem diferença. O `worker/bundle.test.ts` continua verde.
+- [ ] **Step 5: PR** "[US-043] Plano de contas: staging, merge no worker como sgo_sync e contrato C1 real (parte 2/4)", `Refs #65`, labels `frente:B` e `migration`. **PO:** `SYNC_DATABASE_URL` e `AMBIENTE` no `worker`; `AMBIENTE` no `app` e no serviço de migração de hml e prod. Lentes: plano/spec, testes, segurança, `security-review` e `silent-failure-hunter`.
 
-### Task 4c: PR compartilhado — seeds do `cad` no orquestrador
+### Task 4c: Seeds do `cad` (US-043 parte 3, `Refs #65`; M-n6)
 
-- [ ] **Files:** Modify `prisma/seed.ts`: `seedCad` e `seedDadosReferenciaCad` **depois** de `seedAdm` (C6).
+**Files:**
+- Create: `src/modules/cad/infrastructure/{seed,seed-referencia}.ts` e `src/modules/cad/infrastructure/dados/plano-contas-oficial.json`
+- Modify: `src/modules/cad/servidor.ts` (exporta as seeds, R22)
+- Test: `src/modules/cad/infrastructure/dados-oficiais.test.ts`, `src/modules/cad/infrastructure/seed.int.test.ts`
+
+**Interfaces — Produces (`@/modules/cad/servidor`):**
+
+```ts
+export const seedCad: Seed;                // C6 (cad.plano_contas nesta tarefa) e padrões; sem @/shared/authz nem next/
+export const seedDadosReferenciaCad: Seed; // R15: aplicarCarga com o tx do migrator e o contexto "Sistema"
+```
+
+- [ ] **Step 1: Testes (falham):**
+  - **`dados-oficiais.test.ts`:** acha `especificacao/Plano_de_Contas_5_Niveis_*.xlsx` por *glob* (falha se não achar), lê com `lerPlanilhaSegura` e compara com o JSON. A única diferença aceita é a descrição saneada da 4.1.1.8.005;
+  - **`seedCad`:** duas vezes → *dump* idêntico das tabelas do `cad`, do catálogo e do Histórico;
+  - **`seedDadosReferenciaCad`:**
+    - com `CARGA_DADOS_REFERENCIA` vazia, `0` ou `true` → não faz nada;
+    - com `1` → 174 contas e auditoria "Sistema";
+    - com `AMBIENTE=producao` e `1` → erro (R15);
+    - com `NODE_ENV=production` e sem `AMBIENTE` → erro (R25).
+- [ ] **Step 2:** testes → FAIL.
+- [ ] **Step 3: Implementar.**
+- [ ] **Step 4:** suíte + lint + typecheck → PASS.
+- [ ] **Step 5: PR** "[US-043] Seeds do cad e dados de referência (parte 3/4)", `Refs #65`, label `frente:B`. Lentes: plano/spec, testes e segurança.
+
+### Task 4d: PR compartilhado — seeds do `cad` no orquestrador
+
+- [ ] **Files:** Modify `prisma/seed.ts`. Ele importa `seedCad` e `seedDadosReferenciaCad` de **`@/modules/cad/servidor`** (nunca do `index.ts`, E-N3) e os põe **depois** de `seedAdm` (C6).
 - [ ] **Teste:** `npm run db:seed` duas vezes no dev local da frente B (**escreve** no dev local) → a segunda não grava nada.
 - [ ] **PR** "Compartilhado: seeds do cad no orquestrador", labels `compartilhado` e `frente:B`, `Refs #65`. Na issue de "seed no deploy" (P5 Task 1), registrar:
-  - o serviço de migração de hml precisa de `CARGA_DADOS_REFERENCIA=1`;
+  - o serviço de migração de hml precisa de `AMBIENTE=hml` e `CARGA_DADOS_REFERENCIA=1`;
   - o `app` de hml precisa de `CC_CARGA_PROVISORIA=1`;
-  - prod tem `AMBIENTE=producao` e nenhuma das duas (R15, R16, R25).
+  - prod tem `AMBIENTE=producao` em todos os serviços e nenhuma das duas (R15, R16, R25).
 
 ### Task 5: Centros de custo — validação, *merge* e C1 real dos CCs (US-046 parte 1, `Refs #68`)
 
 **Files:**
 - Modify: `prisma/schema/cad.prisma`; Create: `prisma/migrations/<AAAAMMDDHHMM>_cad_centros_custo/migration.sql`
 - Create: `src/modules/cad/domain/centros-custo.ts`, `src/modules/cad/infrastructure/dados/cc-minuta-rev23102026.json`
-- Modify: `src/modules/cad/application/{importar-estrutura,aplicar-carga,estrutura-financeira}.ts`, `src/modules/cad/infrastructure/{seed,seed-referencia}.ts`, `src/modules/cad/index.ts`
+- Modify: `src/modules/cad/application/importar-estrutura.ts`, `src/modules/cad/infrastructure/{aplicar-carga,estrutura-financeira,processador-cargas,seed,seed-referencia}.ts`, `src/modules/cad/index.ts`
 - Test: `src/modules/cad/domain/centros-custo.test.ts`, `src/modules/cad/application/importar-cc.int.test.ts`; Modify: `dados-oficiais.test.ts`, `privilegios.int.test.ts`
 
 **Modelo `CentroCusto` (`centro_custo`):**
@@ -1043,6 +1160,10 @@ export function solicitarCargaCentrosCusto(
   - **R5:** reduzido movido de classificação → o antigo inativado, o novo criado e o aviso; mesma classificação com outro tipo → erro na linha;
   - **idempotência e concorrência:** recarga idempotente, ausente inativado e segunda carga recusada;
   - **papel:** a carga só roda como `sgo_sync`;
+  - **revalidação no worker (S-N3):**
+    - com `AMBIENTE=producao`, um lote de CC com `provisoria = true`, ou sem data e documento da DIREX, gravado direto no *staging* (como migrator) → `FALHOU`;
+    - uma linha de CC adulterada → `FALHOU`, com o erro na linha;
+  - **erro da R5 por linha na tela (E-N2):** mesma classificação com outro tipo → `linhas.<n>.Tipo` já na solicitação;
   - **C1 real:**
     - `ehCentroCustoAnalitico('4.4')` → `true`;
     - `centrosCustoAnaliticosSob('4.3')` → os 14 analíticos da DAF (4.3.0 e os 13 de nível 4 das três gerências);
@@ -1155,7 +1276,7 @@ export function lerFiltrosSalvos(texto: string | null, escopo: string | undefine
 - [ ] **Step 4:** suíte + lint + typecheck e, sozinho, `npm run build` → PASS.
 - [ ] **Step 5: PR** "[US-021] Filtros da Tree Grid retidos na sessão (parte 3/3)", `Closes #43`, label `frente:B`. No corpo, o link de cada prova: medição (6a ou passo do PO), retenção e componente único. Lentes: plano/spec, testes e segurança.
 
-### Task 7a: Tela de importação do plano de contas (US-043 parte 3, `Closes #65`)
+### Task 7a: Tela de importação do plano de contas (US-043 parte 4, `Closes #65`)
 
 **Files:**
 - Create: `src/modules/cad/application/acoes-plano.ts` (`'use server'`, com `import 'server-only'`), `src/modules/cad/ui/importar-estrutura.tsx`, `src/app/(sistema)/cad/plano-contas/importar/page.tsx`
@@ -1168,7 +1289,10 @@ export function lerFiltrosSalvos(texto: string | null, escopo: string | undefine
 // definirAcao({ funcionalidade: 'cad.plano_contas', acao: 'executar', entrada }): z.preprocess do FormData → ArquivoCarga
 // (File .xlsx, ≤ 1 MB, assinatura PK conferida no leitor, nome saneado).
 export const acaoImportarPlanoContas: (entrada: unknown) => Promise<RespostaAcao<{ cargaId: string }>>;
-export const acaoConsultarCarga: (entrada: unknown) => Promise<RespostaAcao<EstadoCarga | null>>; // cad.plano_contas:executar
+// M-n1: uma ação por grupo de lote, com a permissão do tipo; o caso de uso só devolve lote do mesmo grupo.
+export const acaoConsultarCargaPlano: (entrada: unknown) => Promise<RespostaAcao<EstadoCarga | null>>;  // cad.plano_contas:executar
+// acaoConsultarCargaCc (Task 8, cad.centros_custo:executar) e acaoConsultarCargaCargos (Task 12b, cad.cargos:executar)
+// usam a mesma fábrica: criarAcaoConsultarCarga(grupo).
 ```
 
 - [ ] **Step 1: Testes (falham):**
@@ -1182,11 +1306,14 @@ export const acaoConsultarCarga: (entrada: unknown) => Promise<RespostaAcao<Esta
     - avisos separados dos erros;
     - o estado do lote é atualizado a cada 2 s até `CONCLUIDA` ou `FALHOU`;
     - a mensagem final é "Plano de contas importado: X incluídas, Y alteradas, Z inativadas, W sem alteração.";
+  - **consulta de lote (M-n1):** `acaoConsultarCargaPlano` com o id de um lote de CC → `null`;
   - **página:** começa com `exigirPagina('cad.plano_contas', 'executar')`.
 - [ ] **Step 2:** testes → FAIL.
-- [ ] **Step 3: Implementar** com o `Formulario` do C3 e a grade plana para os erros.
-- [ ] **Step 4:** suíte + lint + typecheck + `test:arq` e, sozinho, `npm run build` → PASS. No dev, importar a planilha oficial pela tela, com o worker no perfil `app`.
-- [ ] **Step 5: PR** "[US-043] Tela de importação do plano de contas (parte 3/3)", `Closes #65`, label `frente:B`. Os 4 critérios provados nas Tasks 4a, 4b e 7a. Lentes: plano/spec, testes, segurança e `security-review`.
+- [ ] **Step 3: Implementar** com o `Formulario` do C3 e a grade plana para os erros, incluindo os `erros` de um lote `FALHOU`.
+- [ ] **Step 4:** suíte + lint + typecheck + `test:arq` e, sozinho, `npm run build` → PASS.
+  - **Seed fora do Next (E-N3):** como esta tarefa acrescenta ações com `server-only` ao `index.ts`, rodar de novo `npm run db:seed` no dev local (**escreve** no dev local) e conferir que o orquestrador não as alcança.
+  - **No dev:** importar a planilha oficial pela tela, com o worker no perfil `app`.
+- [ ] **Step 5: PR** "[US-043] Tela de importação do plano de contas (parte 4/4)", `Closes #65`, label `frente:B`. Os 4 critérios provados nas Tasks 4a, 4b, 4c e 7a. Lentes: plano/spec, testes, segurança e `security-review`.
 
 ### Task 7b: Consulta do plano de contas em árvore (US-044, `Closes #66`)
 
@@ -1208,7 +1335,7 @@ export const acaoConsultarCarga: (entrada: unknown) => Promise<RespostaAcao<Esta
 
 **Files:** Create `src/modules/cad/application/acoes-cc.ts`, `src/modules/cad/ui/{arvore-cc,importar-cc}.tsx`, `src/app/(sistema)/cad/centros-custo/{page,importar/page}.tsx`; Test `acoes-cc.int.test.ts`, `arvore-cc.test.ts`
 
-**Interfaces — Produces:** `acaoImportarCentrosCusto` (`cad.centros_custo:executar`; o `FormData` traz o arquivo, `aprovacaoData` e `aprovacaoDocumento`) e `consultarArvoreCentrosCusto(ctx)`.
+**Interfaces — Produces:** `acaoImportarCentrosCusto` (`cad.centros_custo:executar`; o `FormData` traz o arquivo, `aprovacaoData` e `aprovacaoDocumento`), `acaoConsultarCargaCc` (`criarAcaoConsultarCarga('CENTROS_CUSTO')`, M-n1) e `consultarArvoreCentrosCusto(ctx)`.
 
 - [ ] **Step 1: Testes (falham):**
   - **trava da DIREX (Review Focus 7):** com `AMBIENTE=producao` e `CC_CARGA_PROVISORIA=1` → a variável é ignorada, com o log `[CC_CARGA_PROVISORIA_IGNORADA]`. Sem aprovação, o erro é "Informe a data e o documento de aprovação da DIREX. A carga de centros de custo em produção só acontece depois dessa aprovação (GAP-CC-001).";
@@ -1225,8 +1352,8 @@ export const acaoConsultarCarga: (entrada: unknown) => Promise<RespostaAcao<Esta
 
 **Files:**
 - Modify: `prisma/schema/cad.prisma`; Create: `prisma/migrations/<AAAAMMDDHHMM>_cad_parametros/migration.sql`
-- Create: `src/modules/cad/domain/{parametros,semaforo}.ts`, `src/modules/cad/application/parametros.ts`
-- Modify: `src/modules/cad/application/premissas.ts` (`garantir`/`congelar` reais), `src/modules/cad/infrastructure/seed.ts`, `src/modules/cad/index.ts`, `src/modules/cad/servidor.ts`
+- Create: `src/modules/cad/domain/{parametros,semaforo}.ts`, `src/modules/cad/application/parametros.ts` (casos de uso), `src/modules/cad/infrastructure/parametro-sistema.ts` (`obterParametroSistema` e `tocarVersaoExercicio`, sem `authz`, R22)
+- Modify: `src/modules/cad/infrastructure/premissas.ts` (`garantir`/`congelar` reais), `src/modules/cad/infrastructure/seed.ts`, `src/modules/cad/index.ts`, `src/modules/cad/servidor.ts`
 - Test: `src/modules/cad/domain/{parametros,semaforo}.test.ts`, `src/modules/cad/application/parametros.int.test.ts`; Modify: `privilegios.int.test.ts`
 
 **Modelos:**
@@ -1314,7 +1441,8 @@ export function tocarVersaoExercicio(tx: TxCliente, ano: number, versaoEsperada?
   - **worker:** o `obterNomeExibicao` lê `parametro_sistema` (unidade, com cliente falso).
 - [ ] **Step 2:** testes → FAIL.
 - [ ] **Step 3: Implementar.** No `worker/index.ts`: `obterNomeExibicao: () => prisma.$transaction((tx) => obterParametroSistema(tx, 'instituicao.nome_exibicao'))`, via `@/modules/cad/servidor`.
-- [ ] **Step 4:** suíte + lint + typecheck + `test:arq` e, sozinho, `npm run build` → PASS; o `worker/bundle.test.ts` continua verde.
+- [ ] **Step 4:** suíte + lint + typecheck + `test:arq` e, sozinho, `npm run build` → PASS.
+  - **Bundle do worker (E-N4):** o `worker/bundle.test.ts` passa a importar `obterParametroSistema` pelo `@/modules/cad/servidor` e continua reprovando `src/shared/authz`, `next/`, `server-only`, `react` e `.tsx` no *metafile*. Isso prova que o `parametro-sistema.ts` não puxa os casos de uso.
 - [ ] **Step 5: PR** "[US-053] Telas de parâmetros do exercício e do SMN (parte 2/2)", `Closes #75`, label `frente:B`. Lentes: plano/spec, testes e segurança.
 
 ### Task 10: Tabela Mestre de Benefícios por exercício (US-050 parte 1, `Refs #72`)
@@ -1322,7 +1450,7 @@ export function tocarVersaoExercicio(tx: TxCliente, ano: number, versaoEsperada?
 **Files:**
 - Modify: `prisma/schema/cad.prisma`; Create: `prisma/migrations/<AAAAMMDDHHMM>_cad_beneficios/migration.sql`
 - Create: `src/modules/cad/domain/beneficios.ts`, `src/modules/cad/application/{beneficios,acoes-beneficios}.ts`, `src/modules/cad/ui/tabela-mestre.tsx`, `src/app/(sistema)/cad/beneficios/page.tsx`
-- Modify: `src/modules/cad/application/premissas.ts` (`garantir` copia a Tabela Mestre, I5), `src/modules/cad/infrastructure/seed.ts`, `src/modules/cad/index.ts`
+- Modify: `src/modules/cad/infrastructure/premissas.ts` (`garantir` copia a Tabela Mestre, I5), `src/modules/cad/infrastructure/seed.ts`, `src/modules/cad/index.ts`
 - Test: `src/modules/cad/domain/beneficios.test.ts`, `src/modules/cad/application/beneficios.int.test.ts`; Modify: `privilegios.int.test.ts`
 
 **Modelo `BeneficioMestre` (`beneficio_mestre`):**
@@ -1387,7 +1515,7 @@ Os itens padrão seguem a pendência P6.
 
 ### Task 11: `MotorCustoPessoal` real e premissas completas (US-051 parte 1, `Refs #73`; **C2 real**)
 
-**Files:** Create `src/modules/cad/domain/motor-custo-pessoal.ts`; Modify `src/modules/cad/application/premissas.ts`, `src/modules/cad/index.ts`, `src/modules/cad/servidor.ts`; Test `src/modules/cad/domain/motor-custo-pessoal.test.ts`, `src/modules/cad/application/premissas.int.test.ts`, Modify `contrato-c2.test.ts`
+**Files:** Create `src/modules/cad/domain/motor-custo-pessoal.ts`; Modify `src/modules/cad/infrastructure/premissas.ts`, `src/modules/cad/index.ts`, `src/modules/cad/servidor.ts`; Test `src/modules/cad/domain/motor-custo-pessoal.test.ts`, `src/modules/cad/infrastructure/premissas.int.test.ts`, Modify `contrato-c2.test.ts`
 
 **Interfaces:**
 - Consumes: kernel; o índice do C1; as tabelas das Tasks 9a e 10.
@@ -1454,7 +1582,7 @@ export function calcularEncargo(base: Dinheiro, encargos: PremissasExercicio['en
 **Files:**
 - Modify: `prisma/schema/cad.prisma`; Create: `prisma/migrations/<AAAAMMDDHHMM>_cad_cargos/migration.sql`
 - Create: `src/modules/cad/domain/cargo.ts`, `src/modules/cad/infrastructure/cifra-salarios.ts` (com `import 'server-only'`), `src/modules/cad/infrastructure/dados/cargos-sinteticos.json`
-- Modify: `src/modules/cad/application/{importar-estrutura,aplicar-carga}.ts`, `src/modules/cad/infrastructure/seed-referencia.ts`, `src/modules/cad/index.ts`, `docs/operacao/ambientes.md` (chaves no `app`, cópia fora da VPS, roteiro de rotação da R7)
+- Modify: `src/modules/cad/application/importar-estrutura.ts`, `src/modules/cad/infrastructure/{aplicar-carga,processador-cargas,seed-referencia}.ts`, `src/modules/cad/index.ts`, `docs/operacao/ambientes.md` (chaves no `app`, cópia fora da VPS, roteiro de rotação da R7)
 - Test: `src/modules/cad/domain/cargo.test.ts`, `src/modules/cad/infrastructure/cifra-salarios.test.ts`, `src/modules/cad/application/importar-cargos.int.test.ts`; Modify: `privilegios.int.test.ts`
 
 **Modelos:**
@@ -1471,7 +1599,8 @@ export function calcularEncargo(base: Dinheiro, encargos: PremissasExercicio['en
   - `REVOKE ALL` dos dois papéis;
   - `GRANT SELECT` aos dois;
   - `GRANT UPDATE (<colunas manuais>, versao, atualizado_em) TO sgo_app`;
-  - `GRANT INSERT, UPDATE (<colunas Rubi>, ativo, versao, atualizado_em, carga_id) TO sgo_sync`.
+  - `GRANT INSERT (<colunas Rubi>, ativo, versao, atualizado_em, carga_id) TO sgo_sync` e `GRANT UPDATE (<as mesmas colunas>) TO sgo_sync` (m2). O `id` e o `criado_em` vêm do *default*; o `sgo_sync` nunca insere coluna manual;
+  - **lock:** `CARGOS` e `CARGOS_RECIFRA` usam o mesmo `sync-cargos` e o mesmo grupo no índice parcial (m5).
 - **Privilégios em `senioridade` e `faixa_salarial`:** `REVOKE DELETE FROM sgo_app` e `REVOKE ALL FROM sgo_sync`.
 
 **Interfaces — Produces:**
@@ -1516,7 +1645,8 @@ export function solicitarCargaCargos(ctx: ContextoRequisicao, arquivo: ArquivoCa
     - a linha com salário inválido dá erro **sem repetir o valor** (I9): a mensagem cita só a linha e a coluna "Salário Real";
   - **recarga:** idempotente pelo código; não toca nos campos manuais; o cargo ausente fica inativo;
   - **papel:** a carga só roda como `sgo_sync`;
-  - **matriz de privilégios por coluna** (`column_privileges`) de `cargo`, igual à da migration;
+  - **matriz de privilégios por coluna** (`column_privileges`) de `cargo`, igual à da migration, inclusive o `INSERT` do `sgo_sync` só nas colunas Rubi e de controle (m2): um `INSERT` com `salario_definido_cifrado` como `sgo_sync` é recusado;
+  - **m5:** com um lote `CARGOS` `PENDENTE`, a solicitação de `CARGOS_RECIFRA` é recusada;
   - **Histórico:** tem o envelope, nunca o valor;
   - **seed:** com `CARGA_DADOS_REFERENCIA=1`, os cargos sintéticos entram **sem salário**, e a seed roda sem a chave.
 - [ ] **Step 4:** testes → FAIL.
@@ -1579,7 +1709,7 @@ export function regravarCifraSalarios(ctx: ContextoRequisicao, deps?): Promise<R
   - **tela:** os campos Rubi desabilitados; as 5 fontes; o desvio com cor **e** texto; sem botão Novo.
 - [ ] **Step 2:** testes → FAIL.
 - [ ] **Step 3: Implementar.** A decifra é feita só no servidor e só com `cad.salarios`; o regravar só acontece quando o valor muda.
-- [ ] **Step 4:** suíte + lint + typecheck + `test:arq` e, sozinho, `npm run build` → PASS.
+- [ ] **Step 4:** suíte + lint + typecheck + `test:arq` e, sozinho, `npm run build` → PASS. Rodar de novo `npm run db:seed` no dev local (**escreve**), porque o `index.ts` ganhou ações com `server-only` (E-N3). A `acaoConsultarCargaCargos` usa `criarAcaoConsultarCarga('CARGOS')` (M-n1).
 - [ ] **Step 5: PR** "[US-049] Telas de cargos com salários mascarados por permissão e rotação da chave (parte 2/3)", `Refs #71`, label `frente:B`. Lentes: plano/spec, testes, segurança e `security-review`.
 
 ### Task 12c: Tabela salarial e senioridades (US-049 parte 3, `Closes #71`)
@@ -1659,10 +1789,13 @@ export function calcularCustoCargo(ctx: ContextoRequisicao, cargoId: string, ano
 ## Riscos
 
 - **SMTP de prod indefinido (GAP-INF-001):** até o PO decidir (P7), cada e-mail falha "SMTP não configurado" e termina em falha definitiva, com os dados apagados (R23). A US-038 da frente A não entrega senha em hml. O administrador gera a senha de novo depois que o SMTP existir.
-- **E-mail duplicado:** a entrega é "pelo menos uma vez" (queda entre o aceite do SMTP e o fim do job). Aceito: a senha é a mesma e vale 24 h.
+- **E-mail duplicado:** a entrega é "pelo menos uma vez" só na janela entre o aceite do SMTP e a gravação do marcador "enviado" (m1). Aceito: a senha é a mesma e vale 24 h. Depois do marcador, uma nova execução só apaga o job.
+- **Job sensível não apagado na última execução:** se o `apagarJob` falhar duas vezes, os dados ficam no job até a remoção manual pelo roteiro de `docs/operacao/` (o log `[EMAIL_JOB_NAO_APAGADO]` traz o id).
 - **Senha temporária no WAL e nos backups:** já aceito na §11.2a.
 - **Perda ou vazamento da chave de salários:** sem a cópia do PO, o backup restaura salários ilegíveis. A cifra não protege uma VPS comprometida (R7). Mitigação: a cópia fora da VPS, o *keyring* e a regravação documentados em `docs/operacao/ambientes.md`.
-- **Carga assíncrona:** o *merge* depende do worker e do `SYNC_DATABASE_URL`. Com o worker parado, os lotes ficam `PENDENTE` e visíveis na tela; não há carga parcial.
+- **Carga assíncrona:** o *merge* depende do worker e do `SYNC_DATABASE_URL`. Com o worker parado, os lotes ficam `PENDENTE` e visíveis na tela, até vencer em 24 h e virar `FALHOU`; não há carga parcial.
+- **Contexto de auditoria do lote gravado pelo app (m3, risco aceito):** o worker audita com o usuário, a sessão e o IP que o app gravou no lote. A confiança é a mesma da auditoria feita pelo próprio app.
+- **Lote preso:** um lote em `PROCESSANDO` por queda do worker só é liberado depois de 15 min, quando vira `FALHOU` e a GFIN importa de novo.
 - **Medição de 60 FPS:** depende do usuário GFIN no `global-setup` (frente A). Sem ele, a medição é o passo do PO em hml (Task 6a).
 - **Classificação imutável (R5):** uma reclassificação real no ERP vira registro novo, e o antigo é inativado. Se a frente A já tiver valores na classificação antiga, a US-121 recusa o lançamento (o C1 só aceita ativo) e a GFIN relança. Esse é o custo de manter a chave estável.
 - **Minuta de CC mudando depois de 16/11:** o reduzido trocado (GAP-CC-003) vira CC novo, e o antigo é inativado.
@@ -1687,8 +1820,10 @@ export function calcularCustoCargo(ctx: ContextoRequisicao, cargoId: string, ano
   - R11, R13, R14, R18 (§4.2) e R19;
   - C7 por exercício (P12);
   - C2 com `Resultado` e `tx` (R3);
-  - `AMBIENTE` (R25);
+  - `AMBIENTE` obrigatório em produção (R25);
+  - *staging* com revalidação no worker e expiração dos lotes (R6);
   - o `Refs #n` pendente do P3.
 - [ ] Plano-mestre: as assinaturas do C1/C2 da R3.
+- [ ] Checklist do PO em `docs/operacao/ambientes.md` cumprido em hml: `AMBIENTE` em app, worker e migração; `SYNC_DATABASE_URL` e `URL_PUBLICA` no worker; e o passo 8 do `testar-imagem.sh` verde.
 - [ ] Atualizar `docs/memoria/memoria-do-projeto.md` (estado, pendências e diário).
 - [ ] Detalhar o P7 (US-115 a US-117) com o writing-plans.
