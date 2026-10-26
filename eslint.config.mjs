@@ -86,6 +86,14 @@ export default tseslint.config(
               from: { element: { type: MODULO } },
               allow: { to: { element: { type: MODULO, captured: MESMO_MODULO } } },
             },
+            // O servidor.ts expõe funções sem a guarda (exigir): só worker, seed e casos de uso de
+            // outros módulos. Vem depois da regra do próprio módulo: vale também para a ui/ do mesmo
+            // módulo. Páginas, ações de app/ e componentes de ui/ usam o index.ts (R22).
+            {
+              from: { element: { type: ['app', 'mod-ui'] } },
+              disallow: { to: { element: { type: 'mod-raiz', fileInternalPath: 'servidor.ts' } } },
+              message: 'O servidor.ts é só para worker, seed e casos de uso; app/ e ui/ importam o index.ts (R22).',
+            },
             // domain/: só o próprio módulo e o kernel.
             {
               from: { element: { type: 'mod-domain' } },

@@ -28,7 +28,12 @@ describe('fronteiras de módulo', () => {
     ['src/modules/cad/application/a.ts', "import { x } from '@/modules/cad/lib/repo';", false],
     // Segunda entrada pública, só de servidor (plano do P4, R22): worker, seed e outros módulos.
     ['src/modules/orc/application/a.ts', "import { x } from '@/modules/cad/servidor';", false],
-    ['src/app/x/page.tsx', "import { x } from '@/modules/cad/servidor';", false],
+    ['src/modules/cad/application/a.ts', "import { x } from '@/modules/ger/servidor';", false],
+    // ...mas não para páginas, ações de app/ e componentes: lá não há a guarda (exigir).
+    ['src/app/x/page.tsx', "import { x } from '@/modules/cad/servidor';", true],
+    ['src/app/x/acoes.ts', "import { x } from '@/modules/cad/servidor';", true],
+    ['src/modules/orc/ui/x.tsx', "import { x } from '@/modules/cad/servidor';", true],
+    ['src/modules/cad/ui/x.tsx', "import { x } from '@/modules/cad/servidor';", true],
     ['src/modules/orc/application/a.ts', "import { x } from '@/modules/cad/servidores';", true],
     ['src/modules/orc/application/a.ts', "import { x } from '@/modules/cad/lib/servidor';", true],
     ['src/modules/orc/application/a.ts', "import { x } from '@/modules/cad/infrastructure/servidor';", true],
