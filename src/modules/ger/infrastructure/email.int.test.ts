@@ -24,9 +24,9 @@ let porta = 0;
 let recusar = false;
 const recebidas: string[] = [];
 
-function trabalhador(agora = () => new Date()) {
+function trabalhador(agora = () => new Date(), filaDoTrabalhador: FilaGerenciada = fila) {
   return criarTrabalhadorEmail({
-    fila,
+    fila: filaDoTrabalhador,
     transporte: criarTransporteSmtp({
       host: '127.0.0.1',
       porta,
@@ -166,4 +166,56 @@ describe('e-mail de ponta a ponta', () => {
     ).rejects.toMatchObject({ codigo: 'email.destinatario_invalido' });
     expect(await prisma.outboxMensagem.count()).toBe(antes);
   });
+
+  it('marcador: depois de enviado, a falha ao apagar relança e a nova execução só apaga, sem reenviar', async () => {
+    const job = await enfileirar();
+    let primeira = true;
+    const filaInstavel: FilaGerenciada = {
+      ...fila,
+      apagarJob: async (nome, id) => {
+        if (primeira) {
+          primeira = false;
+          throw new Error('banco fora');
+        }
+        await fila.apagarJob(nome, id);
+      },
+    };
+    await expect(trabalhador(undefined, filaInstavel)(job.data, { id: job.id })).rejects.toThrow('banco fora');
+    expect(recebidas).toHaveLength(1);
+    await trabalhador()(job.data, { id: job.id });
+    expect(recebidas).toHaveLength(1);
+    expect(await ocorrenciasDaSenha()).toBe(0);
+  });
+
+  it('pelo pg-boss real: 4 recusas com a contagem de tentativas da fila e o job some no fim', async () => {
+    recusar = true;
+    const filaReal = await criarFila(banco.urlFila);
+    try {
+      await filaReal.registrarTrabalhador('email.enviar', trabalhador(undefined, filaReal));
+      const job = await enfileirar({ email: 'recusado@ex.org', nome: 'R' });
+      const limite = Date.now() + 90_000;
+      for (;;) {
+        const { rows } = await filaSql.query<{ state: string }>(`SELECT state FROM pgboss.job WHERE id = $1::uuid`, [job.id]);
+        if (rows.length === 0) break;
+        if (Date.now() > limite) throw new Error(`o job não terminou (estado ${rows[0]?.state})`);
+        // Antecipa a nova tentativa (o backoff é de 30 s); a contagem continua sendo a do pg-boss.
+        if (rows[0]?.state === 'retry') await filaSql.query(`UPDATE pgboss.job SET start_after = now() WHERE id = $1::uuid`, [job.id]);
+        await new Promise((ok) => setTimeout(ok, 300));
+      }
+      const historico = await prisma.historicoOperacao.findMany({
+        where: { funcionalidade: 'ger.email', registroId: job.id },
+        orderBy: { id: 'asc' },
+      });
+      expect(historico.map((h) => (h.depois as { tentativa: number; resultado: string }))).toMatchObject([
+        { tentativa: 0, resultado: 'falha_temporaria' },
+        { tentativa: 1, resultado: 'falha_temporaria' },
+        { tentativa: 2, resultado: 'falha_temporaria' },
+        { tentativa: 3, resultado: 'falha_definitiva' },
+      ]);
+      expect(recebidas).toEqual([]);
+      expect(await ocorrenciasDaSenha()).toBe(0);
+    } finally {
+      await filaReal.parar();
+    }
+  }, 120_000);
 });

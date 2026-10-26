@@ -69,13 +69,22 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 - **Novas tentativas:** até 3 depois da primeira, também quando o servidor recusa o endereço (EP083). Cada tentativa fica no Histórico de Operações (funcionalidade `ger.email`, tipo SISTEMA), com o destinatário mascarado e o resultado: `enviado`, `falha_temporaria`, `falha_definitiva` ou `expirada`.
 - **Falha definitiva:** o log mostra `[EMAIL_FALHA_DEFINITIVA]`. O caminho de recuperação é **redefinir a senha** do usuário, que gera outra senha e outro e-mail. Mensagem com senha temporária de mais de 24 h nunca é enviada (`expirada`).
-- **`[EMAIL_JOB_NAO_APAGADO]` com o id do job:** o envio terminou, mas o job com os dados (que podem ter a senha temporária) não foi apagado da fila. Em geral, a próxima execução apaga sozinha. Se o log se repetir para o mesmo id, apague à mão, no console do serviço `db` do ambiente (Easypanel), como superusuário:
+- **`[EMAIL_JOB_NAO_APAGADO]` com o id do job:** o job com os dados (que podem ter a senha temporária) não foi apagado da fila. O worker tenta de novo e, se já tinha enviado, só apaga, sem reenviar. **Todo `[EMAIL_JOB_NAO_APAGADO]` exige conferir o job à mão** um minuto depois (abaixo).
+- **`[EMAIL_HISTORICO_FALHOU]`:** o Histórico daquela tentativa não foi gravado. O job é apagado mesmo assim no resultado final. Se o resultado era `enviado`, não ficou o marcador: uma queda do worker antes de apagar o job reenviaria o e-mail (a entrega é "pelo menos uma vez").
+- **`[EMAIL_TENTATIVA_FALHOU]` repetido para o mesmo job:** o trabalhador falha antes de decidir (banco instável, por exemplo). Depois das tentativas da fila, o job pode terminar `failed` com os dados. Confira à mão.
+- **Conferir e apagar à mão,** no console do serviço `db` do ambiente (Easypanel), como superusuário. Este comando só lê:
 
   ```sh
-  psql -U postgres -d sgo -c "DELETE FROM pgboss.job WHERE name = 'email.enviar' AND id = '<id do log>'"
+  psql -U postgres -d sgo -c "SELECT id, state, created_on FROM pgboss.job WHERE name = 'email.enviar' AND (state IN ('completed', 'failed') OR id = '<id do log>')"
   ```
 
-  Confira o id antes. O comando só **apaga** aquele job.
+  Para cada id listado, este comando **apaga** só aquele job:
+
+  ```sh
+  psql -U postgres -d sgo -c "DELETE FROM pgboss.job WHERE name = 'email.enviar' AND id = '<id>'"
+  ```
+
+  Um e-mail com falha definitiva se recupera redefinindo a senha do usuário.
 
 ## A imagem
 

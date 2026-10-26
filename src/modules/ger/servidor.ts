@@ -23,15 +23,27 @@ export async function registrarTrabalhadoresGer(
 ): Promise<void> {
   const config = lerConfigSmtp();
   if (!config) console.warn('[EMAIL_SEM_SMTP] SMTP_HOST não definido: os e-mails falham até a configuração.');
-  await fila.registrarTrabalhador(
-    'email.enviar',
-    criarTrabalhadorEmail({
-      fila,
-      transporte: config ? criarTransporteSmtp(config) : null,
-      cliente: deps.cliente,
-      urlPublica: lerEnvAcesso().urlPublica,
-      agora: () => new Date(),
-      obterNomeExibicao: deps.obterNomeExibicao ?? (async () => ''),
-    }),
-  );
+  const trabalhar = criarTrabalhadorEmail({
+    fila,
+    transporte: config ? criarTransporteSmtp(config) : null,
+    cliente: deps.cliente,
+    urlPublica: lerEnvAcesso().urlPublica,
+    agora: () => new Date(),
+    obterNomeExibicao: deps.obterNomeExibicao ?? (async () => ''),
+  });
+  // Todo erro que volta para a fila fica no log, só com o nome e o código (nunca a mensagem, que
+  // pode ter o endereço): a fila não registra os erros dos trabalhadores.
+  await fila.registrarTrabalhador('email.enviar', async (m: unknown, job) => {
+    try {
+      await trabalhar(m, job);
+    } catch (erro) {
+      const e = erro as { name?: unknown; code?: unknown; codigo?: unknown };
+      console.error('[EMAIL_TENTATIVA_FALHOU]', {
+        job: job.id,
+        tipo: typeof e?.name === 'string' ? e.name : 'desconhecido',
+        ...(typeof e?.codigo === 'string' ? { codigo: e.codigo } : typeof e?.code === 'string' ? { codigo: e.code } : {}),
+      });
+      throw erro;
+    }
+  });
 }

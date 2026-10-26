@@ -6,8 +6,10 @@ import type { TransporteEmail } from './smtp';
 import { criarTrabalhadorEmail, NOVAS_TENTATIVAS_EMAIL } from './trabalhador-email';
 
 const eventos: EventoAuditoria[] = [];
+let historicoFalha = false;
 vi.mock('@/shared/audit', () => ({
   auditar: vi.fn(async (_tx: unknown, e: EventoAuditoria) => {
+    if (historicoFalha) throw new Error('banco fora');
     eventos.push(e);
   }),
 }));
@@ -24,7 +26,13 @@ const mensagem = {
 };
 const JOB = { id: '0f2c1a6e-2b3d-4c5e-8f90-1a2b3c4d5e6f' };
 
-type Cenario = { tentativas?: number; marcador?: boolean; transporte?: TransporteEmail | null; apagarFalha?: boolean };
+type Cenario = {
+  tentativas?: number;
+  marcador?: boolean;
+  transporte?: TransporteEmail | null;
+  apagarFalha?: boolean;
+  historicoFalha?: boolean;
+};
 
 function montar(c: Cenario = {}) {
   const enviados: unknown[] = [];
@@ -43,8 +51,10 @@ function montar(c: Cenario = {}) {
     consultar: vi.fn(async () => ({ estado: 'active', tentativas: c.tentativas ?? 0 })),
     apagarJob,
   } as unknown as FilaGerenciada;
+  historicoFalha = c.historicoFalha ?? false;
+  const findFirst = vi.fn(async () => (c.marcador ? { id: 1n } : null));
   const cliente = {
-    historicoOperacao: { findFirst: vi.fn(async () => (c.marcador ? { id: 1n } : null)) },
+    historicoOperacao: { findFirst },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})),
   } as unknown as PrismaClient;
   const trabalhar = criarTrabalhadorEmail({
@@ -55,7 +65,7 @@ function montar(c: Cenario = {}) {
     agora: () => AGORA,
     obterNomeExibicao: async () => '',
   });
-  return { trabalhar, enviados, apagarJob, transporte };
+  return { trabalhar, enviados, apagarJob, transporte, findFirst };
 }
 
 const ultimoResultado = () => (eventos.at(-1)?.depois as { resultado?: string } | undefined)?.resultado;
@@ -103,7 +113,9 @@ describe('trabalhador de e-mail', () => {
 
   it('falha na tentativa 1: relança, sem apagar o job (os dados ficam para a nova tentativa)', async () => {
     const t = montar({ tentativas: 1, transporte: { enviar: vi.fn(async () => Promise.reject(erroSmtp(421))) } });
-    await expect(t.trabalhar(mensagem, JOB)).rejects.toThrow('Envio de e-mail falhou (tentativa 2 de 4)');
+    const erro = await t.trabalhar(mensagem, JOB).catch((e: unknown) => e as Error);
+    // Mensagem exata: o erro que vai para a fila (e para o output do job) não leva dado do e-mail.
+    expect((erro as Error).message).toBe('Envio de e-mail falhou (tentativa 2 de 4)');
     expect(ultimoResultado()).toBe('falha_temporaria');
     expect(t.apagarJob).not.toHaveBeenCalled();
   });
@@ -161,11 +173,47 @@ describe('trabalhador de e-mail', () => {
     expect(t.apagarJob).toHaveBeenCalledTimes(1);
   });
 
-  it('m1: envio com sucesso e apagarJob falhando → log, sem relançar (sem reenvio)', async () => {
+  it('envio com sucesso e apagarJob falhando → log e relança (o marcador já está gravado)', async () => {
     const t = montar({ apagarFalha: true });
-    await t.trabalhar(mensagem, JOB);
+    await expect(t.trabalhar(mensagem, JOB)).rejects.toThrow('banco fora');
     expect(t.enviados).toHaveLength(1);
+    expect(ultimoResultado()).toBe('enviado');
     expect(logs.some((l) => l.includes('[EMAIL_JOB_NAO_APAGADO]'))).toBe(true);
+  });
+
+  it('o marcador procura só o "enviado" deste job', async () => {
+    const t = montar();
+    await t.trabalhar(mensagem, JOB);
+    expect(t.findFirst).toHaveBeenCalledWith({
+      where: { funcionalidade: 'ger.email', registroId: JOB.id, depois: { path: ['resultado'], equals: 'enviado' } },
+      select: { id: true },
+    });
+  });
+
+  it('marcador encontrado e apagarJob falhando → relança, para a próxima execução apagar', async () => {
+    const t = montar({ marcador: true, apagarFalha: true });
+    await expect(t.trabalhar(mensagem, JOB)).rejects.toThrow('banco fora');
+    expect(t.enviados).toEqual([]);
+  });
+
+  it('criadoEm no futuro (mensagem adulterada): falha definitiva, sem envio', async () => {
+    const t = montar();
+    await t.trabalhar({ ...mensagem, criadoEm: '2026-10-26T13:00:00.000Z' }, JOB);
+    expect(t.enviados).toEqual([]);
+    expect(eventos[0]?.depois).toMatchObject({ resultado: 'falha_definitiva', motivo: { codigo: 'email.criado_no_futuro' } });
+  });
+
+  it('Histórico falhando num resultado final: o job é apagado e a falha fica no log', async () => {
+    const t = montar({ historicoFalha: true });
+    await t.trabalhar(mensagem, JOB);
+    expect(t.apagarJob).toHaveBeenCalledTimes(1);
+    expect(logs.some((l) => l.includes('[EMAIL_HISTORICO_FALHOU]'))).toBe(true);
+  });
+
+  it('Histórico falhando numa falha temporária: relança, sem apagar', async () => {
+    const t = montar({ historicoFalha: true, transporte: { enviar: vi.fn(async () => Promise.reject(erroSmtp(421))) } });
+    await expect(t.trabalhar(mensagem, JOB)).rejects.toThrow('banco fora');
+    expect(t.apagarJob).not.toHaveBeenCalled();
   });
 
   it('m1: nova execução do mesmo job com o marcador "enviado" só apaga, sem enviar', async () => {

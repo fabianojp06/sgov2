@@ -19,13 +19,16 @@ import type { TransporteEmail } from './smtp';
 // Trabalhador da fila email.enviar (US-025; plano do P4, Task 1b, R9 e R23).
 // Sem server-only: roda no worker.
 
-// Novas tentativas depois da primeira (EP083, UC0.06 E1). A fila tem mais (5, padrão da US-010):
-// as duas últimas nunca são usadas, porque a 4ª execução já é a definitiva.
+// Novas tentativas depois da primeira (EP083, UC0.06 E1). A fila tem 5 (padrão da US-010): as
+// duas últimas só são usadas quando o próprio trabalhador falha antes de decidir (banco fora), e
+// nesse caso o job pode terminar "failed" com os dados (roteiro em docs/operacao/deploy.md).
 export const NOVAS_TENTATIVAS_EMAIL = 3;
 
 const FILA = 'email.enviar' as const;
 const FUNCIONALIDADE = 'ger.email';
 const SISTEMA = { usuarioId: null, usuarioRotulo: 'Sistema', sessaoUid: null, ip: null } as const;
+// Folga para relógios: criadoEm além disso no futuro é mensagem adulterada.
+const FOLGA_RELOGIO_MS = 5 * 60 * 1000;
 
 export type DepsTrabalhadorEmail = {
   fila: FilaGerenciada;
@@ -105,23 +108,28 @@ const DESCRICAO: Record<Resultado, string> = {
  * 5. o Histórico (SISTEMA) guarda modelo, versão, destinatário mascarado, tentativa, resultado e
  *    o motivo sem texto livre, nunca os dados. O "enviado" é gravado antes de apagar o job;
  * 6. em resultado final (enviado, definitiva, expirada) o job é apagado num finally. Se apagar
- *    falhar depois de um envio, só registra [EMAIL_JOB_NAO_APAGADO]: relançar reenviaria.
+ *    falhar, registra [EMAIL_JOB_NAO_APAGADO] e relança, também depois de um envio: a nova
+ *    execução encontra o marcador e só apaga, sem reenviar. Sem relançar, o pg-boss marcaria o job
+ *    como concluído e os dados ficariam nele (revisão do #208);
+ * 7. falha ao gravar o Histórico num resultado final não impede a limpeza e fica no log
+ *    ([EMAIL_HISTORICO_FALHOU]). Num envio, isso significa que não há marcador: uma queda antes de
+ *    apagar o job reenviaria o e-mail (entrega "pelo menos uma vez").
  */
 export function criarTrabalhadorEmail(deps: DepsTrabalhadorEmail): (m: unknown, job: { id: string }) => Promise<void> {
   const { fila, cliente } = deps;
 
-  async function apagar(idJob: string, aposEnvio: boolean): Promise<void> {
+  async function apagar(idJob: string): Promise<void> {
     try {
       await fila.apagarJob(FILA, idJob);
     } catch (erro) {
       console.error('[EMAIL_JOB_NAO_APAGADO]', { job: idJob, ...motivoDoErro(erro) });
-      if (!aposEnvio) throw erro;
+      throw erro;
     }
   }
 
   return async (m, job) => {
     if (await jaEnviado(cliente, job.id)) {
-      await apagar(job.id, true);
+      await apagar(job.id);
       return;
     }
 
@@ -140,7 +148,10 @@ export function criarTrabalhadorEmail(deps: DepsTrabalhadorEmail): (m: unknown, 
 
     if (mensagem) {
       const idade = deps.agora().getTime() - Date.parse(mensagem.criadoEm);
-      if (MODELOS_SENSIVEIS.has(mensagem.modelo) && idade > VALIDADE_MENSAGEM_SENSIVEL_MS) {
+      if (idade < -FOLGA_RELOGIO_MS) {
+        resultado = 'falha_definitiva';
+        motivo = { codigo: 'email.criado_no_futuro' };
+      } else if (MODELOS_SENSIVEIS.has(mensagem.modelo) && idade > VALIDADE_MENSAGEM_SENSIVEL_MS) {
         resultado = 'expirada';
       } else {
         try {
@@ -171,8 +182,13 @@ export function criarTrabalhadorEmail(deps: DepsTrabalhadorEmail): (m: unknown, 
           depois: { modelo, versao: mensagem?.versao ?? null, destinatario, tentativa, resultado, motivo },
         }),
       );
+    } catch (erro) {
+      console.error('[EMAIL_HISTORICO_FALHOU]', { job: job.id, modelo, destinatario, tentativa, resultado, ...motivoDoErro(erro) });
+      // Falha temporária sem Histórico: relança, para a fila tentar de novo. Resultado final: segue
+      // para a limpeza, que é o que importa (o dado sai do job).
+      if (!final) throw erro;
     } finally {
-      if (final) await apagar(job.id, resultado === 'enviado');
+      if (final) await apagar(job.id);
     }
 
     if (resultado === 'falha_definitiva') {
