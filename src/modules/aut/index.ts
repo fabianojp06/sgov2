@@ -6,7 +6,7 @@ export { registrarAutenticacao } from './application/registrar';
 export { avaliarAntesDaSenha, avaliarFalha } from './domain/autenticacao';
 export { MENSAGENS } from './domain/mensagens';
 export { gerarSessaoUid } from './domain/sessao';
-export { COOKIE_UNIDADE, nomeCookieSessao } from './infrastructure/cookies';
+export { nomeCookieSessao, nomeCookieUnidade } from './infrastructure/cookies';
 export { entrar } from './application/acoes-login';
 export { FormLogin } from './ui/form-login';
 export { responderSair, sair } from './application/sair';

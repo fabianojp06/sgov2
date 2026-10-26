@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { definirAcao } from '@/shared/authz';
-import { COOKIE_UNIDADE, lerEnvAcesso } from '@/shared/config';
+import { lerEnvAcesso, nomeCookieUnidade } from '@/shared/config';
 import { ok } from '@/shared/kernel';
 import { validarTrocaUnidade } from './tela-principal';
 
@@ -14,7 +14,7 @@ export const trocarUnidade = definirAcao(
   async (e, ctx) => {
     await validarTrocaUnidade(ctx, e.unidadeId);
     const env = lerEnvAcesso();
-    (await cookies()).set(COOKIE_UNIDADE, e.unidadeId, { httpOnly: true, sameSite: 'lax', path: '/', secure: env.seguro });
+    (await cookies()).set(nomeCookieUnidade(env), e.unidadeId, { httpOnly: true, sameSite: 'lax', path: '/', secure: env.seguro });
     revalidatePath('/', 'layout');
     return ok(undefined);
   },

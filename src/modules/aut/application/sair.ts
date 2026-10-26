@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { auditar } from '@/shared/audit';
 import type { ContextoRequisicao } from '@/shared/authz';
-import { COOKIE_UNIDADE, lerEnvAcesso, nomeCookieSessao } from '@/shared/config';
+import { lerEnvAcesso, nomeCookieSessao, nomeCookieUnidade } from '@/shared/config';
 import { prisma } from '@/shared/db';
 
 type DepsSair = { cliente: PrismaClient };
@@ -35,7 +35,7 @@ export function responderSair(deps: Partial<DepsSair> = {}) {
     const resposta = new NextResponse(null, { status: 204 });
     const opcoes = { maxAge: 0, path: '/', httpOnly: true, secure: env.seguro, sameSite: 'lax' as const };
     resposta.cookies.set(nomeCookieSessao(env), '', opcoes);
-    resposta.cookies.set(COOKIE_UNIDADE, '', opcoes);
+    resposta.cookies.set(nomeCookieUnidade(env), '', opcoes);
     resposta.headers.set('Clear-Site-Data', '"storage"');
     return resposta;
   };

@@ -4,8 +4,8 @@ import { auditar } from '@/shared/audit';
 import type { ContextoRequisicao, ProvedorContexto } from '@/shared/authz';
 import { CABECALHO_IP } from '@/shared/authz';
 import { prisma } from '@/shared/db';
-import { COOKIE_UNIDADE, resolverUnidadeAtiva } from '@/shared/unidade';
-import { nomeCookieSessao } from '../infrastructure/cookies';
+import { resolverUnidadeAtiva } from '@/shared/unidade';
+import { nomeCookieSessao, nomeCookieUnidade } from '../infrastructure/cookies';
 import { hashDoToken } from './autenticar';
 
 // Permissões de toda sessão válida (R5), fora do menu e dos perfis.
@@ -83,7 +83,7 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
       // Unidade ativa: o cookie só escolhe dentro da lista do usuário (nunca é confiado).
       const unidadeId = sessao.trocaSenhaPendente
         ? null
-        : resolverUnidadeAtiva(await listarUnidadesDoUsuario(cliente, sessao.usuarioId), (await lerCookie(COOKIE_UNIDADE)) ?? null);
+        : resolverUnidadeAtiva(await listarUnidadesDoUsuario(cliente, sessao.usuarioId), (await lerCookie(nomeCookieUnidade())) ?? null);
       return {
         usuarioId: sessao.usuarioId,
         usuarioRotulo: usuario.login,

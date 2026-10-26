@@ -1,8 +1,8 @@
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AjudaConteudo } from './ajuda';
-import { ErroCarregamento } from './erro-carregamento';
+import { ErroCarregamento, MENSAGENS_CARREGAMENTO } from './erro-carregamento';
 import { SeletorUnidade } from './seletor-unidade';
 import { TelaPrincipal } from './tela-principal';
 
@@ -22,7 +22,7 @@ describe('TelaPrincipal (UC01.03)', () => {
     const html = renderToString(createElement(TelaPrincipal, { ...base, menu }, 'conteúdo'));
     expect(html).toContain('SGO 2.0 – Sistema de Gestão Orçamentária');
     expect(html).toContain('Ana Maria');
-    expect(html).toContain('11/11/2026');
+    expect(html).toContain('11/11/2026, 09:00'); // horário de Brasília
     expect(html).toContain('Ajuda');
     expect(html).toMatch(/href="\/troca-senha"[^>]*>Alterar senha/);
     expect(html).toContain('Sair');
@@ -38,15 +38,18 @@ describe('TelaPrincipal (UC01.03)', () => {
 
 describe('SeletorUnidade (§6.7)', () => {
   const u = (id: string) => ({ id, codigo: id, nome: `TP ${id}` });
-  it('com 0 ou 1 unidade não aparece', () => {
+  it('sem unidade não aparece; com 1, só o nome do TP, sem select', () => {
     expect(renderToString(createElement(SeletorUnidade, { unidades: [], unidadeAtiva: null, trocar: trocarUnidade }))).toBe('');
-    expect(renderToString(createElement(SeletorUnidade, { unidades: [u('a')], unidadeAtiva: 'a', trocar: trocarUnidade }))).toBe('');
+    const uma = renderToString(createElement(SeletorUnidade, { unidades: [u('a')], unidadeAtiva: 'a', trocar: trocarUnidade }));
+    expect(uma).toContain('TP a');
+    expect(uma).not.toContain('<select');
   });
   it('com 2, um select com as duas', () => {
     const html = renderToString(createElement(SeletorUnidade, { unidades: [u('a'), u('b')], unidadeAtiva: 'b', trocar: trocarUnidade }));
     expect(html).toContain('<select');
     expect(html).toContain('TP a');
     expect(html).toContain('TP b');
+    expect(html).toMatch(/<option value="b" selected=""/);
   });
 });
 
@@ -71,10 +74,30 @@ describe('ErroCarregamento (UC01.03 E1, E2)', () => {
   });
 });
 
-describe('error.tsx do (sistema)', () => {
-  it('usa o ErroCarregamento de módulos', async () => {
+describe('error.tsx do (sistema) (UC01.03 E1)', () => {
+  it('mensagem igual à do ErroCarregamento de módulos, com Tentar novamente e Sair', async () => {
     const { default: Erro } = await import('../../../app/(sistema)/error');
-    const html = renderToString(createElement(Erro, { error: new Error('x'), reset: () => {} }));
-    expect(html).toContain('Não foi possível carregar os módulos do sistema.');
+    const html = renderToString(createElement(Erro, { error: new Error('x'), reset: () => {}, retry: () => {} }));
+    expect(html).toContain(MENSAGENS_CARREGAMENTO.modulos);
+    expect(html).toContain('Tentar novamente');
+    expect(html).toContain('Sair');
+  });
+
+  it('a saída encerra a sessão no servidor como o sairDoSistema (E1.3)', async () => {
+    const { sairComErro } = await import('../../../app/(sistema)/sair-erro');
+    const fetchFalso = vi.fn(async () => new Response(null, { status: 204 }));
+    const location = { replace: vi.fn() };
+    const dados = new Map([['sgo:filtro', 'x'], ['outro', 'x']]);
+    const armazenamento = {
+      get length() {
+        return dados.size;
+      },
+      key: (i: number) => [...dados.keys()][i] ?? null,
+      removeItem: (c: string) => void dados.delete(c),
+    };
+    await sairComErro(fetchFalso, location, armazenamento);
+    expect(fetchFalso).toHaveBeenCalledWith('/aut/sair', expect.objectContaining({ method: 'POST', credentials: 'same-origin' }));
+    expect(location.replace).toHaveBeenCalledWith('/login?saiu=1');
+    expect([...dados.keys()]).toEqual(['outro']);
   });
 });

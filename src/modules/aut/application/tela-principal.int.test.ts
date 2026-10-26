@@ -15,7 +15,7 @@ const SENHA = `Certa${Date.now()}x`;
 const AGORA = new Date('2026-11-11T12:00:00.000Z');
 let unidades: { a: string; b: string; inativa: string };
 
-async function logado(login: string, perfil: string, unidadesDoUsuario: string[], cookieUnidade?: string): Promise<ContextoRequisicao> {
+async function logado(login: string, perfil: string, unidadesDoUsuario: string[], cookieUnidade?: string, trocaSenhaObrigatoria = false): Promise<ContextoRequisicao> {
   const p = await migrator.perfil.findUniqueOrThrow({ where: { codigo: perfil } });
   await migrator.usuario.create({
     data: {
@@ -24,7 +24,7 @@ async function logado(login: string, perfil: string, unidadesDoUsuario: string[]
       login,
       loginNormalizado: login,
       senhaHash: await hashSenha(SENHA),
-      trocaSenhaObrigatoria: false,
+      trocaSenhaObrigatoria,
       perfis: { create: { perfilId: p.id } },
       unidades: { create: unidadesDoUsuario.map((unidadeId) => ({ unidadeId })) },
     },
@@ -90,6 +90,10 @@ describe('unidade ativa no contexto', () => {
     expect((await logado('edu', 'ORCAMENTISTA', [unidades.a, unidades.b], unidades.b)).unidadeId).toBe(unidades.b));
   it('cookie fora da lista → nula', async () =>
     expect((await logado('fabi', 'ORCAMENTISTA', [unidades.a, unidades.b], unidades.inativa)).unidadeId).toBeNull());
+  it('cookie com unidade inativa do próprio usuário → ignorado (sobra a única ativa)', async () =>
+    expect((await logado('ivo', 'ORCAMENTISTA', [unidades.a, unidades.inativa], unidades.inativa)).unidadeId).toBe(unidades.a));
+  it('troca de senha pendente → sem unidade ativa, mesmo com uma só', async () =>
+    expect((await logado('juca', 'ORCAMENTISTA', [unidades.a], undefined, true)).unidadeId).toBeNull());
 });
 
 describe('validarTrocaUnidade', () => {

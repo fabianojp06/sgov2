@@ -26,8 +26,10 @@ ALTER TABLE "usuario_unidade" ADD CONSTRAINT "usuario_unidade_usuario_id_fkey" F
 ALTER TABLE "usuario_unidade" ADD CONSTRAINT "usuario_unidade_unidade_id_fkey" FOREIGN KEY ("unidade_id") REFERENCES "unidade"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Privilégios (spec §11.5): o sincronismo do ERP não toca em unidades de acesso; a aplicação não
--- apaga unidade (inativação por status); o código da unidade não muda.
+-- apaga unidade (inativação por status); o código da unidade não muda; o vínculo usuário × unidade
+-- só entra e sai (não é reatribuído por UPDATE).
 REVOKE ALL ON "unidade", "usuario_unidade" FROM sgo_sync;
 REVOKE DELETE ON "unidade" FROM sgo_app;
 REVOKE UPDATE ON "unidade" FROM sgo_app;
 GRANT UPDATE ("nome", "ativo") ON "unidade" TO sgo_app;
+REVOKE UPDATE ON "usuario_unidade" FROM sgo_app;

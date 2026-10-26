@@ -1,15 +1,41 @@
 'use client';
 
-// Falha numa página da área logada (UC01.03 E1). Componente cliente: não importa @/modules/* (o
-// index do módulo carrega código de servidor); o texto é o mesmo do ErroCarregamento do aut.
-export default function Erro({ reset }: { error: Error; reset: () => void }) {
+import { useState } from 'react';
+import { MENSAGEM_ERRO_PAGINA, sairComErro } from './sair-erro';
+
+// Falha numa página da área logada (UC01.03 E1). Tentar novamente usa o retry do Next, que pede a
+// página de novo ao servidor (o reset só limparia o estado no cliente). Sair pede confirmação
+// (RN0028) e encerra a sessão no servidor (E1.3).
+export default function Erro({ retry }: { error: Error; reset: () => void; retry: () => void }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [saindo, setSaindo] = useState(false);
   return (
     <div role="alert">
-      <p>Não foi possível carregar os módulos do sistema. Tente novamente ou contate o Administrador.</p>
-      <button type="button" onClick={reset}>
+      <p>{MENSAGEM_ERRO_PAGINA}</p>
+      <button type="button" onClick={retry}>
         Tentar novamente
       </button>
-      <a href="/login?saiu=1">Sair</a>
+      <button type="button" onClick={() => setConfirmando(true)}>
+        Sair
+      </button>
+      {confirmando ? (
+        <div role="alertdialog" aria-modal="true" aria-labelledby="sair-erro-pergunta">
+          <p id="sair-erro-pergunta">Deseja realmente sair?</p>
+          <button
+            type="button"
+            disabled={saindo}
+            onClick={() => {
+              setSaindo(true);
+              void sairComErro(fetch, window.location, window.sessionStorage);
+            }}
+          >
+            Sim
+          </button>
+          <button type="button" onClick={() => setConfirmando(false)}>
+            Não
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

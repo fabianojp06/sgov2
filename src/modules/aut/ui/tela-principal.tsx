@@ -14,7 +14,7 @@ type Props = {
   unidades: readonly { id: string; codigo: string; nome: string }[];
   unidadeAtiva: string | null;
   usuario: { nome: string; acessoEm: string };
-  trocarUnidade: (d: { unidadeId: string }) => Promise<{ ok: true } | { ok: false; erros: readonly ErroCampo[] }>;
+  trocarUnidade: (d: { unidadeId: string }) => Promise<{ ok: true } | { ok: false; status?: number; erros: readonly ErroCampo[] }>;
   children?: ReactNode;
 };
 
@@ -46,7 +46,8 @@ export function TelaPrincipal({ menu, unidades, unidadeAtiva, usuario, trocarUni
         <BotaoSair />
       </footer>
       <style>{`
-        .sgo-tela { min-height: 100vh; display: flex; flex-direction: column; font-family: system-ui, sans-serif; min-width: 1280px; }
+        body { margin: 0; }
+        .sgo-tela { min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; font-family: system-ui, sans-serif; }
         .sgo-cabecalho { background: #1F3864; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; }
         .sgo-corpo { flex: 1; display: flex; }
         .sgo-menu { width: 280px; background: #f3f6fa; border-right: 3px solid #2E75B6; padding: 12px; overflow-y: auto; }
