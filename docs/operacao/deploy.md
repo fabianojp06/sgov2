@@ -65,14 +65,28 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 - **Logo depois do primeiro push em `sgov2-prod`:** em *Package settings → Manage Actions access*, deixe o repositório com **só leitura**. Assim, um workflow de branch com o `GITHUB_TOKEN` não grava no pacote de prod.
 - **Credencial de leitura do GHCR para o Easypanel:** use uma por ambiente, só de leitura.
 
+## E-mail com falha (US-025)
+
+- **Novas tentativas:** até 3 depois da primeira, também quando o servidor recusa o endereço (EP083). Cada tentativa fica no Histórico de Operações (funcionalidade `ger.email`, tipo SISTEMA), com o destinatário mascarado e o resultado: `enviado`, `falha_temporaria`, `falha_definitiva` ou `expirada`.
+- **Falha definitiva:** o log mostra `[EMAIL_FALHA_DEFINITIVA]`. O caminho de recuperação é **redefinir a senha** do usuário, que gera outra senha e outro e-mail. Mensagem com senha temporária de mais de 24 h nunca é enviada (`expirada`).
+- **`[EMAIL_JOB_NAO_APAGADO]` com o id do job:** o envio terminou, mas o job com os dados (que podem ter a senha temporária) não foi apagado da fila. Em geral, a próxima execução apaga sozinha. Se o log se repetir para o mesmo id, apague à mão, no console do serviço `db` do ambiente (Easypanel), como superusuário:
+
+  ```sh
+  psql -U postgres -d sgo -c "DELETE FROM pgboss.job WHERE name = 'email.enviar' AND id = '<id do log>'"
+  ```
+
+  Confira o id antes. O comando só **apaga** aquele job.
+
 ## A imagem
 
 - `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
 - `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
 - Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`), `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `URL_PUBLICA` (o endereço público com `https`, que o app exige em produção desde a US-026; ver `CONFIAR_PROXY` no `.env.example`).
-- **Serviço `worker`:** a mesma imagem, com `worker` no campo de **argumentos** (o CMD) do Easypanel, sem trocar o *entrypoint*. O *healthcheck* e o `tini` dependem do *entrypoint* da imagem. Variáveis: `DATABASE_URL` (`sgo_app`) e `FILA_DATABASE_URL` (`sgo_fila`), sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
+- **Serviço `worker`:** a mesma imagem, com `worker` no campo de **argumentos** (o CMD) do Easypanel, sem trocar o *entrypoint*. O *healthcheck* e o `tini` dependem do *entrypoint* da imagem. Variáveis: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), `AMBIENTE` (`hml` ou `producao`) e `URL_PUBLICA` (a **mesma** do app), além das de e-mail abaixo. Sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
+  - **Partida:** sem `AMBIENTE` válido ou sem `URL_PUBLICA`, o worker não parte (`AMBIENTE ausente ou inválido`, `[URL_PUBLICA_AUSENTE]`, `[URL_PUBLICA_INVALIDA]`). Uma `URL_PUBLICA` diferente da do app faz todo e-mail ser recusado na revalidação (falha definitiva no Histórico), nunca sair com link errado.
+  - **E-mail (US-025):** `SMTP_HOST`, `SMTP_PORTA`, `SMTP_SEGURANCA` (`tls` ou `starttls`; `nenhuma` só no Mailpit de dev), `SMTP_USUARIO`, `SMTP_SENHA` e `EMAIL_REMETENTE` (`Nome <nao-responda@dominio>`), **só no serviço `worker`**. Sem `SMTP_HOST`, o log mostra `[EMAIL_SEM_SMTP]` e cada e-mail falha até a configuração (pendência P7 do plano do P4, GAP-INF-001).
   - O worker roda o bundle `/app/worker/index.mjs`, gerado pelo `worker/build.mjs` com esbuild no build da imagem. O *source map* traz só arquivo e linha, sem o código-fonte. Ele também desce para o usuário `node` com `setpriv`.
-  - Na partida, o log mostra `worker pronto` e, enquanto nenhum módulo registrar trabalhador, `[WORKER_SEM_TRABALHADORES]`.
+  - Na partida, o log mostra `worker pronto`, com o ambiente e as filas com trabalhador (hoje, `email.enviar`).
   - Sem a `FILA_DATABASE_URL`, ele sai com o código 64. Com 6 falhas seguidas no outbox (banco fora, schema ainda não migrado), ou com um ciclo preso por mais de 5 minutos (`[OUTBOX_TRAVADO]`), ele sai sozinho, e o Easypanel o reinicia.
   - **Healthcheck** (`docker/saude.sh`): no app, testa o `/login`. No worker, exige o sinal de vida `/tmp/sgo-worker-vivo` com menos de 60 s. Ele é gravado a cada tique depois do primeiro ciclo do outbox com sucesso, e deixa de ser gravado com um ciclo em curso há mais de 60 s. Por isso, uma versão nova do worker que não consegue publicar nunca fica saudável. Limite: com o outbox vazio, o pg-boss não é chamado, e uma conexão dele quebrada não aparece no *healthcheck*.
   - O encerramento no SIGTERM cabe nos 10 s do `stop_grace_period` padrão quando não há mensagem sendo publicada. Com uma conexão presa, o worker sai à força em 9 s (`[WORKER_ENCERRAMENTO_FORCADO]`).

@@ -34,15 +34,15 @@ const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
 // Nome de exibição sem caracteres de controle nem os que permitiriam montar outro endereço.
 const NOME_PROIBIDO = /[<>,;"]/;
 
-// Mascara o endereço para os detalhes do erro, que podem ir para log.
-const mascarar = (email: string) => `${email.slice(0, 2)}***(${email.length})`;
+// Mascara o endereço para os detalhes do erro, o log e o Histórico.
+export const mascararEmail = (email: string) => `${email.slice(0, 2)}***(${email.length})`;
 
 export function validarDestinatario(destinatario: Destinatario): void {
   const { email, nome } = destinatario;
   const emailInvalido = email.length > 254 || !EMAIL.test(email);
   const nomeInvalido = nome !== undefined && (NOME_PROIBIDO.test(nome) || temCaractereDeControle(nome));
   if (emailInvalido || nomeInvalido) {
-    throw new ErroDominio('email.destinatario_invalido', 'Destinatário de e-mail inválido.', { email: mascarar(email) });
+    throw new ErroDominio('email.destinatario_invalido', 'Destinatário de e-mail inválido.', { email: mascararEmail(email) });
   }
 }
 
