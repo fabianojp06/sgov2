@@ -3,8 +3,8 @@ import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { normalizarLogin } from './login';
 import { CODIGOS_PERFIL } from './perfis';
 
-// Mensagens do cadastro de usuários (UC02.12, UC02.13). O EP085 não fixa o texto: [PROVISÓRIAS],
-// exceto "Login já cadastrado" (plano do P5).
+// Mensagens do cadastro de usuários (UC02.12, UC02.13). O EP085 não fixa o texto: todas são
+// [PROVISÓRIAS]; as que o plano do P5 já lista (Global Constraints) usam o texto de lá.
 export const MENSAGENS_USUARIO = {
   NOME: 'Informe o nome completo (até 120 caracteres, sem < > , ; " nem quebras de linha)',
   EMAIL: 'E-mail inválido',
@@ -14,26 +14,46 @@ export const MENSAGENS_USUARIO = {
   PERFIL_INVALIDO: 'Perfil de acesso inexistente ou inativo',
   UNIDADE_INVALIDA: 'Termo de Parceria inexistente ou inativo',
   CC_OBRIGATORIO: 'Informe o centro de custo de escopo do Gestor de Diretoria',
+  CC_INVALIDO: 'Centro de custo de escopo inválido (até 60 caracteres, sem caracteres de controle)',
   CC_SEM_PERFIL: 'O centro de custo de escopo só se aplica ao perfil Gestor de Diretoria',
-  ULTIMO_ADMINISTRADOR: 'O sistema precisa de pelo menos um Administrador ativo. Associe outro Administrador antes.',
+  ULTIMO_ADMINISTRADOR: 'O sistema precisa de pelo menos um Administrador ativo',
   ALTERADO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
-  DESBLOQUEIO_INATIVO: 'Só é possível desbloquear um usuário ativo e bloqueado',
+  DESBLOQUEIO_INATIVO: 'O desbloqueio só é possível para usuário bloqueado e ativo',
   RESET_INATIVO: 'Só é possível gerar nova senha para um usuário ativo',
+  RESET_PROPRIO: 'Para trocar a sua própria senha, use Alterar senha',
+  INEXISTENTE: 'Usuário não encontrado',
+  UNIDADES_DEMAIS: 'Selecione no máximo 200 Termos de Parceria',
 } as const;
 
-// Mesmos limites do destinatário do e-mail da senha (contrato C4): o cadastro não pode falhar no
-// envio. E-mail num conjunto seguro de caracteres, com domínio de dois rótulos ou mais.
+// Limites do destinatário do e-mail da senha (contrato C4), para o cadastro e o reset não falharem
+// no envio: e-mail num conjunto seguro de caracteres, com domínio de dois rótulos ou mais; nome sem
+// < > , ; " nem caracteres de controle ou de formatação (C0, C1, bidi, largura zero, separadores de
+// linha e parágrafo), um conjunto que contém o do C4. Os invisíveis também disfarçariam o nome no
+// Histórico.
 const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
-const NOME_PROIBIDO = /[<>,;"\p{Cc}‎‏‪-‮⁦-⁩]/u;
+const CONTROLE = /[\p{Cc}\p{Cf}\u2028\u2029]/u;
+const NOME_PROIBIDO = /[<>,;"]/;
+
+const texto = (max: number, mensagem: string) =>
+  z
+    .string()
+    .trim()
+    .transform((t) => t.normalize('NFC'))
+    .pipe(
+      z
+        .string()
+        .max(max, mensagem)
+        .refine((t) => !CONTROLE.test(t), mensagem),
+    );
 
 // Entrada do formulário: sem nenhuma chave de senha (RN0059, o Administrador nunca digita senha).
 export const esquemaUsuario = z.object({
-  nome: z
-    .string()
-    .trim()
-    .min(1, MENSAGENS_USUARIO.NOME)
-    .max(120, MENSAGENS_USUARIO.NOME)
-    .refine((n) => !NOME_PROIBIDO.test(n), MENSAGENS_USUARIO.NOME),
+  nome: texto(120, MENSAGENS_USUARIO.NOME).pipe(
+    z
+      .string()
+      .min(1, MENSAGENS_USUARIO.NOME)
+      .refine((n) => !NOME_PROIBIDO.test(n), MENSAGENS_USUARIO.NOME),
+  ),
   email: z.string().trim().max(254, MENSAGENS_USUARIO.EMAIL).regex(EMAIL, MENSAGENS_USUARIO.EMAIL),
   login: z.string().trim(),
   ativo: z.boolean(),
@@ -41,20 +61,24 @@ export const esquemaUsuario = z.object({
     .array(z.enum(CODIGOS_PERFIL, { error: MENSAGENS_USUARIO.PERFIL_INVALIDO }))
     .min(1, MENSAGENS_USUARIO.PERFIL_OBRIGATORIO)
     .transform((p) => [...new Set(p)]),
-  unidades: z.array(z.uuid(MENSAGENS_USUARIO.UNIDADE_INVALIDA)).transform((u) => [...new Set(u)]),
-  ccEscopo: z
-    .string()
-    .trim()
-    .max(60, MENSAGENS_USUARIO.CC_OBRIGATORIO)
+  unidades: z
+    .array(z.uuid(MENSAGENS_USUARIO.UNIDADE_INVALIDA))
+    .max(200, MENSAGENS_USUARIO.UNIDADES_DEMAIS)
+    .transform((u) => [...new Set(u)]),
+  // Classificação do CC raiz, validada contra o cadastro de CC no P6 (R8 do plano).
+  ccEscopo: texto(60, MENSAGENS_USUARIO.CC_INVALIDO)
     .nullable()
     .transform((c) => (c ? c : null)),
 });
+
+// Campo ausente ou de tipo errado também recebe mensagem em português (o padrão do Zod é inglês).
+const PORTUGUES = z.locales.pt().localeError;
 
 export type EntradaUsuario = z.input<typeof esquemaUsuario>;
 export type UsuarioValidado = z.output<typeof esquemaUsuario> & { loginNormalizado: string };
 
 export function validarUsuario(entrada: unknown): Resultado<UsuarioValidado> {
-  const r = esquemaUsuario.safeParse(entrada);
+  const r = esquemaUsuario.safeParse(entrada, { error: PORTUGUES });
   if (!r.success) {
     const erros: ErroCampo[] = [];
     for (const issue of r.error.issues) {

@@ -63,6 +63,49 @@ describe('validarUsuario (UC02.12, UC02.13)', () => {
   });
 
   it('unidade que não é uuid: erro em unidades', () => expect(campos(validarUsuario({ ...base, unidades: ['x'] }))).toEqual(['unidades']));
+
+  it('separadores de linha e invisíveis no nome são recusados, como no contrato de e-mail (C4)', () => {
+    for (const codigo of [0x2028, 0x2029, 0x200b, 0x200e, 0x202e, 0xfeff, 0x061c]) {
+      expect(campos(validarUsuario({ ...base, nome: `Ana${String.fromCharCode(codigo)}Maria` }))).toEqual(['nome']);
+    }
+    expect(campos(validarUsuario({ ...base, nome: 'Ana, Maria' }))).toEqual(['nome']);
+  });
+
+  it('nome normalizado em NFC e com 120 caracteres aceito', () => {
+    const decomposto = 'Jose' + String.fromCharCode(0x0301);
+    const r = validarUsuario({ ...base, nome: decomposto });
+    expect(r.ok && r.valor.nome).toBe('Jos' + String.fromCharCode(0xe9));
+    expect(validarUsuario({ ...base, nome: 'x'.repeat(120) }).ok).toBe(true);
+  });
+
+  it('CC de escopo: só espaços vira null; longo ou com controle dá CC_INVALIDO', () => {
+    expect(validarUsuario({ ...base, ccEscopo: '   ' }).ok).toBe(true);
+    const gestor = { ...base, perfis: ['GESTOR_DIRETORIA'] };
+    expect(validarUsuario({ ...gestor, ccEscopo: '1'.repeat(61) })).toEqual({
+      ok: false,
+      erros: [{ campo: 'ccEscopo', mensagem: MENSAGENS_USUARIO.CC_INVALIDO }],
+    });
+    expect(campos(validarUsuario({ ...gestor, ccEscopo: `1.2${String.fromCharCode(0x0a)}3` }))).toEqual(['ccEscopo']);
+  });
+
+  it('unidades repetidas saem uma vez; mais de 200 dá erro', () => {
+    const u = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+    const r = validarUsuario({ ...base, unidades: [u, u] });
+    expect(r.ok && r.valor.unidades).toEqual([u]);
+    expect(campos(validarUsuario({ ...base, unidades: Array.from({ length: 201 }, () => u) }))).toEqual(['unidades']);
+  });
+
+  it('campo ausente: mensagem em português', () => {
+    const semAtivo: Record<string, unknown> = { ...base };
+    delete semAtivo.ativo;
+    const r = validarUsuario(semAtivo);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.erros[0]).toMatchObject({ campo: 'ativo' });
+    expect(!r.ok && r.erros[0]?.mensagem).not.toMatch(/Invalid|expected/);
+  });
+
+  it('e-mail com mais de 254 caracteres: erro em email', () =>
+    expect(campos(validarUsuario({ ...base, email: `${'a'.repeat(250)}@example.org` }))).toEqual(['email']));
 });
 
 describe('perdeUltimoAdministrador', () => {
