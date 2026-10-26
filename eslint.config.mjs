@@ -17,11 +17,13 @@ const raiz = fileURLToPath(new URL('.', import.meta.url));
 
 const MSG_DINHEIRO = 'Use Dinheiro/Percentual (spec §5): number não serve para dinheiro.';
 
-// Tudo o que fica dentro de um módulo, exceto o index.ts da raiz, é privado para os outros módulos.
+// Tudo o que fica dentro de um módulo, exceto o index.ts e o servidor.ts da raiz, é privado para os
+// outros módulos.
 const CAMADAS = ['mod-domain', 'mod-application', 'mod-infrastructure', 'mod-ui'];
 const MODULO = [...CAMADAS, 'mod-raiz'];
-// A API pública: o arquivo index.ts na raiz do módulo (caminho relativo ao elemento mod-raiz).
-const INDEX = { type: 'mod-raiz', fileInternalPath: 'index.ts' };
+// A API pública: o index.ts na raiz do módulo e, só para código de servidor (worker, seed, casos de
+// uso de outros módulos), o servidor.ts (plano do P4, R22). Caminho relativo ao elemento mod-raiz.
+const INDEX = { type: 'mod-raiz', fileInternalPath: ['index.ts', 'servidor.ts'] };
 const MESMO_MODULO = { modulo: '{{ from.element.captured.modulo }}' };
 
 export default tseslint.config(
@@ -69,11 +71,11 @@ export default tseslint.config(
         {
           default: 'allow',
           policies: [
-            // Entre módulos: tudo de outro módulo é privado, exceto o index.ts da raiz.
+            // Entre módulos: tudo de outro módulo é privado, exceto o index.ts e o servidor.ts da raiz.
             {
               from: { element: { type: ['app', 'shared', 'kernel', ...MODULO] } },
               disallow: { to: { element: { type: MODULO } } },
-              message: 'Um módulo só pode ser importado pelo index.ts dele (spec §4.1).',
+              message: 'Um módulo só pode ser importado pelo index.ts ou pelo servidor.ts dele (spec §4.1).',
             },
             {
               from: { element: { type: ['app', 'shared', 'kernel', ...MODULO] } },

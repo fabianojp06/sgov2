@@ -70,6 +70,15 @@ services:
       NODE_OPTIONS: "--max-old-space-size=384"
       DATABASE_URL: "postgresql://sgo_app:sgo_app@db:5432/sgo_dev"
       FILA_DATABASE_URL: "postgresql://sgo_fila:sgo_fila@db:5432/sgo_dev"
+      # P4: as cargas de estrutura são aplicadas pelo worker como sgo_sync (só ele tem esta URL).
+      SYNC_DATABASE_URL: "postgresql://sgo_sync:sgo_sync@db:5432/sgo_dev"
+      # P4 (US-025): e-mail pelo Mailpit, na rede interna do compose; a porta SMTP não é publicada.
+      SMTP_HOST: mailpit
+      SMTP_PORTA: "1025"
+      SMTP_SEGURANCA: nenhuma
+      EMAIL_REMETENTE: "SGO 2.0 (dev) <nao-responda@sgo.local>"
+      URL_PUBLICA: "http://127.0.0.1:${APP_PORT:?defina APP_PORT no .env}"
+      AMBIENTE: dev
     volumes:
       - .:/app
     depends_on:
