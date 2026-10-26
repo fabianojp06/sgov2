@@ -1,11 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TxCliente } from '@/shared/db';
 import { ErroDominio } from '@/shared/kernel';
-import { emailFalso, enviarEmail, MODELOS_SENSIVEIS, type DadosModeloEmail } from '@/modules/ger';
+import { emailFalso as criarEmailFalso, enviarEmail, MODELOS_SENSIVEIS, VERSAO_ATUAL, type DadosModeloEmail } from '@/modules/ger';
 
-// Contrato C4 (plano do P3, Tarefa 3): e-mail por outbox do módulo ger.
-// O contrato não toca o banco antes da US-025: um objeto vazio serve de tx.
-const tx = {} as TxCliente;
+// Contrato C4 (plano do P3, Tarefa 3; real na US-025, plano do P4, Task 1a): e-mail por outbox.
+// O tx falso só registra o que o registrarNoOutbox grava.
+const criados: { tipo: string; dados: unknown }[] = [];
+const tx = {
+  outboxMensagem: {
+    create: async ({ data }: { data: { tipo: string; dados: unknown } }) => {
+      criados.push(data);
+      return data;
+    },
+  },
+} as unknown as TxCliente;
+const URL_PUBLICA = 'https://sgo.exemplo';
+const emailFalso = () => criarEmailFalso({ urlPublica: URL_PUBLICA });
+
+beforeEach(() => {
+  criados.length = 0;
+  vi.stubEnv('URL_PUBLICA', URL_PUBLICA);
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 const dados: DadosModeloEmail['usuario.senha_inicial'] = {
   nome: 'Maria',
   login: 'maria.silva',
@@ -87,17 +105,55 @@ describe('nome do destinatário', () => {
   });
 });
 
-describe('enviarEmail (real, antes da US-025)', () => {
-  it('valida o destinatário antes de tudo', async () => {
+describe('enviarEmail (real)', () => {
+  it('valida o destinatário antes de tudo, sem gravar nada', async () => {
     expect(await codigoDoErro(enviarEmail(tx, 'usuario.senha_inicial', { email: 'sem-arroba' }, dados))).toBe(
       'email.destinatario_invalido',
     );
+    expect(criados).toEqual([]);
   });
 
-  it('com destinatário válido, avisa que o envio ainda não existe', async () => {
-    expect(await codigoDoErro(enviarEmail(tx, 'usuario.senha_redefinida', { email: 'a@b.org' }, dados))).toBe(
-      'email.indisponivel',
+  it('grava no outbox a mensagem com modelo, versão, destinatário, dados e criadoEm', async () => {
+    const antes = Date.now();
+    await enviarEmail(tx, 'usuario.senha_redefinida', { email: 'a@b.org', nome: 'Maria' }, dados);
+    expect(criados).toHaveLength(1);
+    const [{ tipo, dados: mensagem }] = criados as [{ tipo: string; dados: Record<string, unknown> }];
+    expect(tipo).toBe('email.enviar');
+    expect(mensagem).toMatchObject({
+      modelo: 'usuario.senha_redefinida',
+      versao: VERSAO_ATUAL['usuario.senha_redefinida'],
+      destinatario: { email: 'a@b.org', nome: 'Maria' },
+      dados,
+    });
+    const criadoEm = Date.parse(String(mensagem.criadoEm));
+    expect(criadoEm).toBeGreaterThanOrEqual(antes);
+    expect(criadoEm).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('grava só os campos do modelo e do destinatário, sem chaves a mais', async () => {
+    const comExtra = { ...dados, cpf: '123' } as typeof dados;
+    const destinatario = { email: 'a@b.org', telefone: '9' } as { email: string };
+    await enviarEmail(tx, 'usuario.senha_inicial', destinatario, comExtra);
+    const mensagem = criados[0]?.dados as Record<string, unknown>;
+    expect(Object.keys(mensagem.dados as object).sort()).toEqual(['login', 'nome', 'senhaTemporaria', 'urlAcesso']);
+    expect(mensagem.destinatario).toEqual({ email: 'a@b.org' });
+  });
+
+  it('recusa link de outra origem que a URL_PUBLICA, sem gravar nada', async () => {
+    const outro = { ...dados, urlAcesso: 'https://atacante.exemplo/login' };
+    expect(await codigoDoErro(enviarEmail(tx, 'usuario.senha_inicial', { email: 'a@b.org' }, outro))).toBe(
+      'email.dados_invalidos',
     );
+    expect(criados).toEqual([]);
+  });
+
+  it('o falso aplica a mesma validação dos dados', async () => {
+    const falso = emailFalso();
+    const outro = { ...dados, urlAcesso: 'https://sgo.exemplo/login?x=1' };
+    expect(await codigoDoErro(falso.enviarEmail(tx, 'usuario.senha_inicial', { email: 'a@b.org' }, outro))).toBe(
+      'email.dados_invalidos',
+    );
+    expect(falso.enviados).toEqual([]);
   });
 });
 
@@ -114,10 +170,12 @@ describe('modelos', () => {
     else expect.unreachable();
   });
 
-  it('dados do modelo sem senhaTemporaria não compilam', async () => {
+  it('dados do modelo sem senhaTemporaria não compilam (e, forçados, são recusados)', async () => {
     const falso = emailFalso();
+    const semSenha = { nome: 'x', login: 'y', urlAcesso: `${URL_PUBLICA}/login` };
     // @ts-expect-error senhaTemporaria é obrigatória no modelo usuario.senha_inicial
-    await falso.enviarEmail(tx, 'usuario.senha_inicial', { email: 'a@b.org' }, { nome: 'x', login: 'y', urlAcesso: 'z' });
-    expect(falso.enviados).toHaveLength(1);
+    const envio = falso.enviarEmail(tx, 'usuario.senha_inicial', { email: 'a@b.org' }, semSenha);
+    expect(await codigoDoErro(envio)).toBe('email.dados_invalidos');
+    expect(falso.enviados).toEqual([]);
   });
 });
