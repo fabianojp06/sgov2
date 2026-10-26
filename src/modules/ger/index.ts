@@ -33,8 +33,11 @@ export { emailFalso, exportarXlsxFalso, type EnvioFalso } from './falsos';
 export {
   MODELOS_SENSIVEIS,
   SENSIBILIDADE_MODELO,
+  VALIDADE_MENSAGEM_SENSIVEL_MS,
+  VERSAO_ATUAL,
   type DadosModeloEmail,
   type Destinatario,
+  type MensagemEmail,
   type ModeloEmail,
 } from './domain/modelos-email';
 export { enviarEmail } from './application/email';

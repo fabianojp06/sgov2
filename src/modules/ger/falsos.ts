@@ -1,6 +1,13 @@
+import { lerEnvAcesso } from '@/shared/config';
 import { ok } from '@/shared/kernel';
 import type { enviarEmail } from './application/email';
-import { validarDestinatario, type DadosModeloEmail, type Destinatario, type ModeloEmail } from './domain/modelos-email';
+import {
+  validarDadosModelo,
+  validarDestinatario,
+  type DadosModeloEmail,
+  type Destinatario,
+  type ModeloEmail,
+} from './domain/modelos-email';
 import type { exportarXlsx, PlanilhaExportacao } from './infrastructure/exportar-xlsx';
 
 // Adaptadores falsos dos contratos do ger, só para testes dos módulos consumidores (spec §12.6).
@@ -24,11 +31,12 @@ export type EnvioFalso = {
   [M in ModeloEmail]: { modelo: M; destinatario: Destinatario; dados: DadosModeloEmail[M] };
 }[ModeloEmail];
 
-// Mesma validação de destinatário do real; guarda os envios em memória.
+// Mesma validação do real (destinatário e dados do modelo, com o link `${urlPublica}/login`);
+// guarda os envios em memória. Sem `urlPublica`, usa a URL_PUBLICA do ambiente, como o real.
 // Limitação: o falso ignora a transação. Um envio feito antes de o caso de uso desfazer a
 // transação continua em `enviados`; para provar "rollback, nenhum e-mail", use o teste de
 // integração da US-025.
-export function emailFalso(): {
+export function emailFalso(opcoes: { urlPublica?: string } = {}): {
   enviarEmail: typeof enviarEmail;
   enviados: EnvioFalso[];
 } {
@@ -37,6 +45,7 @@ export function emailFalso(): {
     enviados,
     enviarEmail: async (_tx, modelo, destinatario, dados) => {
       validarDestinatario(destinatario);
+      validarDadosModelo(modelo, dados, opcoes.urlPublica ?? lerEnvAcesso().urlPublica);
       enviados.push({ modelo, destinatario, dados } as EnvioFalso);
     },
   };

@@ -12,9 +12,11 @@ export type DadosModeloEmail = {
 export type ModeloEmail = keyof DadosModeloEmail;
 
 // Modelo sensível = os dados levam senha, token ou equivalente. O publicarOutbox (US-010, #181,
-// src/shared/filas/outbox.ts) já esvazia os dados da linha ao publicar; para esses modelos, a
-// US-025 apaga os dados do job depois do envio e na falha definitiva, e também os da linha do
-// outbox abandonada (MAX_TENTATIVAS_OUTBOX), que o publicarOutbox mantém.
+// src/shared/filas/outbox.ts) já esvazia os dados da linha ao publicar; para esses modelos, o
+// trabalhador de e-mail (US-025) apaga os dados do job depois do envio, na falha definitiva e na
+// expiração (VALIDADE_MENSAGEM_SENSIVEL_MS). A linha de outbox abandonada (MAX_TENTATIVAS_OUTBOX)
+// só acontece com fila desconhecida ou chave inválida, o que não ocorre com email.enviar (plano do
+// P4, R23).
 export const SENSIBILIDADE_MODELO = {
   'usuario.senha_inicial': true,
   'usuario.senha_redefinida': true,
@@ -42,4 +44,60 @@ export function validarDestinatario(destinatario: Destinatario): void {
   if (emailInvalido || nomeInvalido) {
     throw new ErroDominio('email.destinatario_invalido', 'Destinatário de e-mail inválido.', { email: mascarar(email) });
   }
+}
+
+// Versão vigente de cada modelo (plano do P4, R8). As versões publicadas são imutáveis: mudar o
+// texto exige criar a v<n+1> em domain/modelos/ e apontar para ela aqui. A mensagem guarda a
+// versão, para a nova tentativa renderizar igual.
+export const VERSAO_ATUAL = {
+  'usuario.senha_inicial': 1,
+  'usuario.senha_redefinida': 1,
+} as const satisfies Record<ModeloEmail, number>;
+
+// O que vai ao outbox e ao job (payload de email.enviar).
+export type MensagemEmail = {
+  [M in ModeloEmail]: {
+    modelo: M;
+    versao: number;
+    destinatario: Destinatario;
+    dados: DadosModeloEmail[M];
+    criadoEm: string; // ISO 8601, do servidor
+  };
+}[ModeloEmail];
+
+// Mensagem sensível com mais tempo que isto não é enviada (a senha temporária vale 24 h, C21).
+export const VALIDADE_MENSAGEM_SENSIVEL_MS = 24 * 60 * 60 * 1000;
+
+export type EmailRenderizado = { assunto: string; texto: string; html: string };
+
+const TAMANHO_MAXIMO = { nome: 120, login: 100, senhaTemporaria: 128 } as const;
+
+function invalido(campo: string): never {
+  throw new ErroDominio('email.dados_invalidos', 'Dados do e-mail inválidos.', { campo });
+}
+
+function textoCurto(dados: Record<string, unknown>, campo: keyof typeof TAMANHO_MAXIMO): void {
+  const v = dados[campo];
+  if (typeof v !== 'string' || v.trim() === '' || v.length > TAMANHO_MAXIMO[campo] || temCaractereDeControle(v)) {
+    invalido(campo);
+  }
+}
+
+/**
+ * Valida os dados do modelo antes do outbox e de novo no trabalhador, antes de renderizar.
+ * O link de acesso é exatamente `${urlPublica}/login`: sem query, fragmento, credencial nem outra
+ * origem, para o e-mail não levar a senha a outro endereço nem carregar dado na URL.
+ * O detalhe do erro tem só o nome do campo, nunca o valor.
+ * @throws ErroDominio('email.modelo_desconhecido') | ErroDominio('email.dados_invalidos')
+ */
+export function validarDadosModelo(modelo: ModeloEmail, dados: unknown, urlPublica: string): void {
+  if (!Object.hasOwn(SENSIBILIDADE_MODELO, modelo)) {
+    throw new ErroDominio('email.modelo_desconhecido', 'Modelo de e-mail desconhecido.', { modelo: String(modelo) });
+  }
+  if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) invalido('dados');
+  const d = dados as Record<string, unknown>;
+  textoCurto(d, 'nome');
+  textoCurto(d, 'login');
+  textoCurto(d, 'senhaTemporaria');
+  if (d.urlAcesso !== `${urlPublica}/login`) invalido('urlAcesso');
 }
