@@ -33,7 +33,7 @@ const MENSAGEM_VERSAO = 'Versão do registro inválida. Recarregue a tela.';
 export const entradaAlteracao = z.preprocess(
   (v) =>
     v instanceof FormData
-      ? { id: texto(v, 'id'), versao: texto(v, 'versao') === '' ? NaN : Number(texto(v, 'versao')), dados: usuarioDeFormulario(v) }
+      ? { id: texto(v, 'id'), versao: /^\d{1,9}$/.test(texto(v, 'versao')) ? Number(texto(v, 'versao')) : NaN, dados: usuarioDeFormulario(v) }
       : v,
   z.object({
     id: z.string(),

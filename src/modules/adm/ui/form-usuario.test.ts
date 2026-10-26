@@ -36,7 +36,7 @@ describe('FormUsuario: cadastro (UC02.12)', () => {
   it('campos nome, e-mail, login, status, perfis, TPs e CC de escopo; login editável', () => {
     const h = html();
     for (const nome of ['nome', 'email', 'login', 'ativo', 'perfis', 'unidades', 'ccEscopo']) expect(h).toContain(`name="${nome}"`);
-    expect(h).not.toMatch(/name="login"[^>]*disabled/);
+    expect(/<input[^>]*name="login"[^>]*>/.exec(h)?.[0]).not.toContain('disabled');
   });
 
   it('não existe campo de senha (RN0059)', () => {
@@ -60,7 +60,7 @@ describe('FormUsuario: cadastro (UC02.12)', () => {
 describe('FormUsuario: alteração (UC02.13)', () => {
   it('login desabilitado (RN0066), id e versão ocultos, dados preenchidos', () => {
     const h = alteracao();
-    expect(h).toMatch(/name="login"[^>]*disabled|disabled[^>]*name="login"/);
+    expect(/<input[^>]*name="login"[^>]*>/.exec(h)?.[0]).toContain('disabled');
     expect(h).toMatch(/type="hidden" name="id" value="0b1e6f1a/);
     expect(h).toMatch(/type="hidden" name="versao" value="4"/);
     expect(h).toContain('value="Ana Maria"');
@@ -101,6 +101,7 @@ describe('AcaoConfirmada (UC02.13 A2, A3)', () => {
   it('aberta: pergunta com Sim e Não', () => {
     const h = renderToString(createElement(AcaoConfirmada, { ...props, aberto: true }));
     expect(h).toContain('role="alertdialog"');
+    expect(h).not.toContain('aria-modal'); // não é modal: o resto da página continua acessível
     expect(h).toContain('Deseja realmente resetar a senha deste usuário?');
     expect(h).toContain('>Sim<');
     expect(h).toContain('>Não<');

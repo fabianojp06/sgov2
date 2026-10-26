@@ -1,7 +1,8 @@
 import { GradeArvore, type ColunaGrade, type NoGrade } from '@/modules/ger';
 
-// UC02.11: listagem de usuários com Nome e Status (REQ0078). A primeira célula leva à alteração
-// (UC02.13: o "clicar duas vezes" do EP vira link, que também funciona pelo teclado).
+// UC02.11: listagem de usuários com Nome e Status (REQ0078). Para quem pode alterar, a primeira
+// célula leva à alteração (UC02.13: o "clicar duas vezes" do EP vira link, que também funciona
+// pelo teclado); quem só consulta não recebe link que daria 404.
 type ItemLista = { id: string; nome: string; ativo: boolean; bloqueado: boolean };
 
 // Mensagens de confirmação depois do redirecionamento das ações (UC02.12, UC02.13, A3). A URL leva
@@ -25,17 +26,19 @@ const COLUNAS: readonly ColunaGrade<'nome' | 'status'>[] = [
 export function ListaUsuarios({
   usuarios,
   podeIncluir,
+  podeAlterar,
   aviso,
 }: {
   usuarios: readonly ItemLista[];
   podeIncluir: boolean;
+  podeAlterar: boolean;
   aviso?: string | undefined;
 }) {
   const textoAviso = aviso !== undefined && Object.hasOwn(AVISOS, aviso) ? AVISOS[aviso] : undefined;
   const nos: NoGrade<'nome' | 'status'>[] = usuarios.map((u) => ({
     id: u.id,
     linha: { nome: u.nome, status: statusUsuario(u) },
-    href: `/adm/usuarios/${u.id}`,
+    ...(podeAlterar ? { href: `/adm/usuarios/${u.id}` } : {}),
   }));
   return (
     <main>

@@ -6,6 +6,8 @@ import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 
 // Fora do Next, connection() não tem requisição.
 vi.mock('next/server', () => ({ connection: async () => undefined }));
+// A listagem passa da guarda no segundo caso: sem banco no teste de unidade.
+vi.mock('@/modules/adm', async (original) => ({ ...(await original<typeof import('@/modules/adm')>()), listarUsuarios: async () => [] }));
 
 const { default: Lista } = await import('../../../app/(sistema)/adm/usuarios/page');
 const { default: Novo } = await import('../../../app/(sistema)/adm/usuarios/novo/page');
@@ -42,6 +44,8 @@ describe('páginas de usuário sem permissão', () => {
 
   it('só consultar: a listagem passa da guarda, cadastro e alteração dão 404', async () => {
     contexto = ctx(['adm.usuarios:consultar']);
+    expect(await digest(Lista({ searchParams }))).toBe('sem erro');
+    expect(negacoes).toEqual([]);
     expect(await digest(Novo())).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
     expect(await digest(Alterar({ params }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
   });

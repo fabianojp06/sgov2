@@ -18,6 +18,12 @@ test('orçamentista em /adm/usuarios recebe 404', async ({ page }) => {
   expect((await page.goto('/adm/usuarios/novo'))?.status()).toBe(404);
 });
 
+test('administrador: id inexistente ou fora do formato dá 404', async ({ page }) => {
+  await entrarNaTelaPrincipal(page, USUARIOS.cadastro.login);
+  expect((await page.goto('/adm/usuarios/00000000-0000-4000-8000-000000000000'))?.status()).toBe(404);
+  expect((await page.goto('/adm/usuarios/x'))?.status()).toBe(404);
+});
+
 test('administrador: listagem, cadastro, alteração e nova senha com confirmação', async ({ page }) => {
   await abrirListagem(page);
   await expect(grade(page).getByRole('link', { name: USUARIOS.admin.nome })).toBeVisible();
@@ -43,7 +49,12 @@ test('administrador: listagem, cadastro, alteração e nova senha com confirmaç
   await grade(page).getByRole('link', { name: 'E2E Novo Alterado' }).click();
   await page.getByRole('button', { name: 'Resetar Senha' }).click();
   await expect(page.getByRole('alertdialog')).toContainText('Deseja realmente resetar a senha deste usuário?');
+  await expect(page.getByRole('button', { name: 'Não' })).toBeFocused(); // a opção segura
   await page.getByRole('button', { name: 'Não' }).click(); // A8
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Resetar Senha' })).toBeFocused();
+  await page.getByRole('button', { name: 'Resetar Senha' }).click();
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Resetar Senha' }).click();
   await page.getByRole('button', { name: 'Sim' }).click();

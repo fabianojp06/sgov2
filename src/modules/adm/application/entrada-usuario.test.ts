@@ -65,7 +65,7 @@ describe('entradaAlteracao', () => {
     expect(r.dados).not.toHaveProperty('versao');
   });
 
-  it.each([['x'], [''], ['-1'], ['1.5']])('versão inválida %j: erro', (versao) => {
+  it.each([['x'], [''], ['-1'], ['1.5'], [' '], ['1e2'], [' 3']])('versão inválida %j: erro', (versao) => {
     const r = entradaAlteracao.safeParse(formulario([['id', UNIDADE], ['versao', versao]]));
     expect(r.success).toBe(false);
   });

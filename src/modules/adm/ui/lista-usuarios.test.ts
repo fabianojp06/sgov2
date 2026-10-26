@@ -10,7 +10,7 @@ const usuarios = [
 ];
 
 const html = (props: Partial<Parameters<typeof ListaUsuarios>[0]> = {}) =>
-  renderToString(createElement(ListaUsuarios, { usuarios, podeIncluir: true, ...props }));
+  renderToString(createElement(ListaUsuarios, { usuarios, podeIncluir: true, podeAlterar: true, ...props }));
 
 // UC02.11: listagem com Nome e Status (REQ0078), o bloqueio visível no status.
 describe('ListaUsuarios', () => {
@@ -28,6 +28,12 @@ describe('ListaUsuarios', () => {
     expect(statusUsuario(usuarios[2]!)).toBe('Inativo');
     expect(statusUsuario({ ativo: false, bloqueado: true })).toBe('Inativo (bloqueado)');
     expect(html()).toContain('Ativo (bloqueado)');
+  });
+
+  it('sem a permissão de alterar: nomes sem link (a alteração daria 404)', () => {
+    const h = html({ podeAlterar: false });
+    expect(h).toContain('Ana Maria');
+    expect(h).not.toContain('href="/adm/usuarios/a1"');
   });
 
   it('botão Novo só com a permissão de incluir', () => {

@@ -51,7 +51,7 @@ const campos = (login: string, extra: Record<string, string | string[]> = {}) =>
 });
 
 // O Next sinaliza redirect lançando um erro com digest próprio.
-const digest = (p: Promise<unknown>) => p.then((r) => r, (e: { digest?: string }) => e.digest ?? String(e));
+const digest = (p: Promise<unknown>) => p.then((r) => JSON.stringify(r), (e: { digest?: string }) => e.digest ?? String(e));
 
 const porLogin = (login: string) =>
   migrator.usuario.findUniqueOrThrow({ where: { loginNormalizado: login }, include: { perfis: { include: { perfil: true } }, unidades: true } });
@@ -165,6 +165,26 @@ describe('alterar (UC02.13)', () => {
     expect(r).toMatchObject({ ok: false, erros: [{ mensagem: MENSAGENS_USUARIO.INEXISTENTE }] });
   });
 
+  it('perfil e TP inativos já vinculados: o Salvar mantém os vínculos', async () => {
+    const id = await criarDireto('mantem');
+    const gfin = await migrator.perfil.findUniqueOrThrow({ where: { codigo: 'GFIN' } });
+    await migrator.usuarioPerfil.create({ data: { usuarioId: id, perfilId: gfin.id } });
+    await migrator.usuarioUnidade.create({ data: { usuarioId: id, unidadeId: unidadeInativa } });
+    // O catálogo de perfis é fixo (US-037 fora da trilha): o inativo é um dos oito, desativado.
+    await migrator.perfil.update({ where: { id: gfin.id }, data: { ativo: false } });
+    try {
+      const u = await porLogin('mantem');
+      const dadosForm = campos('mantem', { nome: 'Mantém Vínculos', perfis: ['ORCAMENTISTA', 'GFIN'], unidades: [unidadeInativa] });
+      expect(await digest(alterar(formulario({ ...dadosForm, id, versao: String(u.versao) })))).toMatch(/aviso=alterado;/);
+      const depois = await porLogin('mantem');
+      expect(depois.nome).toBe('Mantém Vínculos');
+      expect(depois.perfis.map((p) => p.perfil.codigo).sort()).toEqual(['GFIN', 'ORCAMENTISTA']);
+      expect(depois.unidades.map((x) => x.unidadeId)).toEqual([unidadeInativa]);
+    } finally {
+      await migrator.perfil.update({ where: { id: gfin.id }, data: { ativo: true } });
+    }
+  });
+
   it('TP inativo enviado no formulário: erro de unidade', async () => {
     const u = await porLogin('ana');
     const r = await alterar(formulario({ ...campos('ana', { unidades: [unidadeInativa] }), id: u.id, versao: String(u.versao) }));
@@ -207,6 +227,28 @@ describe('sem permissão', () => {
     expect(await migrator.usuario.count({ where: { loginNormalizado: 'intruso' } })).toBe(0);
     expect(await migrator.usuario.findUniqueOrThrow({ where: { id: u.id } })).toEqual(antes);
     expect(correio.enviados).toEqual([]);
+    // A janela de negações audita uma vez por usuário, funcionalidade e ação: incluir e alterar.
+    expect(negacoes).toHaveLength(2);
+    expect(negacoes.every((n) => n.funcionalidade === 'adm.usuarios')).toBe(true);
+  });
+
+  // Cada ação exige a ação certa: quem só consulta não grava nada; quem inclui não altera.
+  it.each([
+    ['só consultar', ['adm.usuarios:consultar'], ['cadastrar', 'alterar', 'gerarNovaSenha', 'desbloquear']],
+    ['consultar e incluir', ['adm.usuarios:consultar', 'adm.usuarios:incluir'], ['alterar', 'gerarNovaSenha', 'desbloquear']],
+    ['consultar e alterar', ['adm.usuarios:consultar', 'adm.usuarios:alterar'], ['cadastrar']],
+  ])('%s: 403 nas ações sem a permissão', async (_nome, permissoes, negadas) => {
+    contexto = { ...admin, permissoes: new Set(permissoes) };
+    const u = await porLogin('ana');
+    const chamadas: Record<string, () => Promise<{ ok: boolean }>> = {
+      cadastrar: () => cadastrar(formulario(campos('negado'))),
+      alterar: () => alterar(formulario({ ...campos('ana'), id: u.id, versao: String(u.versao) })),
+      gerarNovaSenha: () => gerarNovaSenha(formulario({ id: u.id })),
+      desbloquear: () => desbloquear(formulario({ id: u.id })),
+    };
+    for (const nome of negadas) expect(await chamadas[nome]!(), nome).toMatchObject({ ok: false, status: 403 });
+    // Uma negação auditada por ação distinta (a janela suprime as repetidas).
+    expect(negacoes).toHaveLength(new Set(negadas.map((n) => (n === 'cadastrar' ? 'incluir' : 'alterar'))).size);
   });
 });
 
