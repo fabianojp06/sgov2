@@ -181,11 +181,19 @@ describe('trabalhador de e-mail', () => {
     expect(logs.some((l) => l.includes('[EMAIL_JOB_NAO_APAGADO]'))).toBe(true);
   });
 
-  it('o marcador procura só o "enviado" deste job', async () => {
+  it('o marcador procura um resultado final deste job (nunca a falha temporária)', async () => {
     const t = montar();
     await t.trabalhar(mensagem, JOB);
     expect(t.findFirst).toHaveBeenCalledWith({
-      where: { funcionalidade: 'ger.email', registroId: JOB.id, depois: { path: ['resultado'], equals: 'enviado' } },
+      where: {
+        funcionalidade: 'ger.email',
+        registroId: JOB.id,
+        OR: [
+          { depois: { path: ['resultado'], equals: 'enviado' } },
+          { depois: { path: ['resultado'], equals: 'falha_definitiva' } },
+          { depois: { path: ['resultado'], equals: 'expirada' } },
+        ],
+      },
       select: { id: true },
     });
   });

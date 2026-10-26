@@ -82,9 +82,17 @@ function lerMensagem(m: unknown, urlPublica: string): MensagemEmail {
   } as MensagemEmail;
 }
 
-async function jaEnviado(cliente: PrismaClient, idJob: string): Promise<boolean> {
+// Marcador: um resultado final já gravado para este job (enviado, falha definitiva ou expirada).
+// Com ele, a nova execução só apaga o job: nem reenvia, nem tenta além das novas tentativas.
+const RESULTADOS_FINAIS = ['enviado', 'falha_definitiva', 'expirada'] as const;
+
+async function jaFinalizado(cliente: PrismaClient, idJob: string): Promise<boolean> {
   const marcador = await cliente.historicoOperacao.findFirst({
-    where: { funcionalidade: FUNCIONALIDADE, registroId: idJob, depois: { path: ['resultado'], equals: 'enviado' } },
+    where: {
+      funcionalidade: FUNCIONALIDADE,
+      registroId: idJob,
+      OR: RESULTADOS_FINAIS.map((resultado) => ({ depois: { path: ['resultado'], equals: resultado } })),
+    },
     select: { id: true },
   });
   return marcador !== null;
@@ -99,8 +107,8 @@ const DESCRICAO: Record<Resultado, string> = {
 
 /**
  * Regras (plano do P4, Task 1b):
- * 1. com o marcador "enviado" no Histórico para este job, só apaga o job (nova execução depois de
- *    uma queda não reenvia);
+ * 1. com um resultado final já no Histórico para este job (o marcador), só apaga o job: nova
+ *    execução depois de uma queda ou de uma falha ao apagar não reenvia nem tenta de novo;
  * 2. revalida destinatário e dados; mensagem inválida é falha definitiva, sem envio;
  * 3. modelo sensível com mais de 24 h é "expirada", sem envio (a senha temporária venceu);
  * 4. falha de envio (inclusive 5xx e "SMTP não configurado") com tentativa < 3 relança para a fila
@@ -128,7 +136,7 @@ export function criarTrabalhadorEmail(deps: DepsTrabalhadorEmail): (m: unknown, 
   }
 
   return async (m, job) => {
-    if (await jaEnviado(cliente, job.id)) {
+    if (await jaFinalizado(cliente, job.id)) {
       await apagar(job.id);
       return;
     }

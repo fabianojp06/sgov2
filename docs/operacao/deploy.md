@@ -78,7 +78,9 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
   psql -U postgres -d sgo -c "SELECT id, state, created_on FROM pgboss.job WHERE name = 'email.enviar' AND (state IN ('completed', 'failed') OR id = '<id do log>')"
   ```
 
-  Para cada id listado, este comando **apaga** só aquele job:
+  Apague só os jobs em `completed` ou `failed`. Um job em `retry`, `created` ou `active` ainda é do worker: apagá-lo cancela uma tentativa legítima, e o e-mail pode se perder sem Histórico final. Confira de novo depois de alguns minutos.
+
+  Para cada id em `completed` ou `failed`, este comando **apaga** só aquele job:
 
   ```sh
   psql -U postgres -d sgo -c "DELETE FROM pgboss.job WHERE name = 'email.enviar' AND id = '<id>'"
