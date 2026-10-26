@@ -115,4 +115,25 @@ describe('docker-compose.yml de dev (D12)', () => {
     expect(heap, 'NODE_OPTIONS sem --max-old-space-size').toBeDefined();
     expect(Number(heap)).toBeLessThanOrEqual(Math.min(1536, megabytes(servico.mem_limit ?? '0m')));
   });
+
+  // P4 (US-025 e cargas): o worker envia pelo Mailpit e faz o merge das cargas como sgo_sync.
+  it('o worker envia e-mail pelo Mailpit, sem TLS só porque é a rede interna do compose', () => {
+    const env = ambiente(compose.services.worker!);
+    expect(env.SMTP_HOST).toBe('mailpit');
+    expect(env.SMTP_PORTA).toBe('1025');
+    expect(env.SMTP_SEGURANCA).toBe('nenhuma');
+    expect(env.EMAIL_REMETENTE).toMatch(/<nao-responda@sgo\.local>$/);
+    expect(env.URL_PUBLICA).toMatch(/^http:\/\/127\.0\.0\.1:/);
+    expect(env.AMBIENTE).toBe('dev');
+  });
+
+  it('só o worker tem a SYNC_DATABASE_URL, com o papel sgo_sync no banco de dev', () => {
+    expect(ambiente(compose.services.worker!).SYNC_DATABASE_URL).toBe('postgresql://sgo_sync:sgo_sync@db:5432/sgo_dev');
+    expect(ambiente(compose.services.app!).SYNC_DATABASE_URL).toBeUndefined();
+  });
+
+  it('o Mailpit não publica a porta SMTP (1025)', () => {
+    const portas = (compose.services.mailpit!.ports ?? []).map((p) => (typeof p === 'object' ? String(p.target) : String(p)));
+    expect(portas.some((p) => /(^|:)1025$/.test(p))).toBe(false);
+  });
 });

@@ -17,11 +17,13 @@ const raiz = fileURLToPath(new URL('.', import.meta.url));
 
 const MSG_DINHEIRO = 'Use Dinheiro/Percentual (spec §5): number não serve para dinheiro.';
 
-// Tudo o que fica dentro de um módulo, exceto o index.ts da raiz, é privado para os outros módulos.
+// Tudo o que fica dentro de um módulo, exceto o index.ts e o servidor.ts da raiz, é privado para os
+// outros módulos.
 const CAMADAS = ['mod-domain', 'mod-application', 'mod-infrastructure', 'mod-ui'];
 const MODULO = [...CAMADAS, 'mod-raiz'];
-// A API pública: o arquivo index.ts na raiz do módulo (caminho relativo ao elemento mod-raiz).
-const INDEX = { type: 'mod-raiz', fileInternalPath: 'index.ts' };
+// A API pública: o index.ts na raiz do módulo e, só para código de servidor (worker, seed, casos de
+// uso de outros módulos), o servidor.ts (plano do P4, R22). Caminho relativo ao elemento mod-raiz.
+const INDEX = { type: 'mod-raiz', fileInternalPath: ['index.ts', 'servidor.ts'] };
 const MESMO_MODULO = { modulo: '{{ from.element.captured.modulo }}' };
 
 export default tseslint.config(
@@ -69,11 +71,11 @@ export default tseslint.config(
         {
           default: 'allow',
           policies: [
-            // Entre módulos: tudo de outro módulo é privado, exceto o index.ts da raiz.
+            // Entre módulos: tudo de outro módulo é privado, exceto o index.ts e o servidor.ts da raiz.
             {
               from: { element: { type: ['app', 'shared', 'kernel', ...MODULO] } },
               disallow: { to: { element: { type: MODULO } } },
-              message: 'Um módulo só pode ser importado pelo index.ts dele (spec §4.1).',
+              message: 'Um módulo só pode ser importado pelo index.ts ou pelo servidor.ts dele (spec §4.1).',
             },
             {
               from: { element: { type: ['app', 'shared', 'kernel', ...MODULO] } },
@@ -83,6 +85,14 @@ export default tseslint.config(
             {
               from: { element: { type: MODULO } },
               allow: { to: { element: { type: MODULO, captured: MESMO_MODULO } } },
+            },
+            // O servidor.ts expõe funções sem a guarda (exigir): só worker, seed e casos de uso de
+            // outros módulos. Vem depois da regra do próprio módulo: vale também para a ui/ do mesmo
+            // módulo. Páginas, ações de app/ e componentes de ui/ usam o index.ts (R22).
+            {
+              from: { element: { type: ['app', 'mod-ui'] } },
+              disallow: { to: { element: { type: 'mod-raiz', fileInternalPath: 'servidor.ts' } } },
+              message: 'O servidor.ts é só para worker, seed e casos de uso; app/ e ui/ importam o index.ts (R22).',
             },
             // domain/: só o próprio módulo e o kernel.
             {
