@@ -57,3 +57,15 @@ model OutboxMensagem {
 
   @@map("outbox_mensagem")
 }
+
+// Unidade = Termo de Parceria (spec §5, C31). O cadastro de TPs é da F3; na trilha, a tabela existe
+// para o seletor de TP (US-031) e para o acesso por TP do usuário (US-038).
+model Unidade {
+  id       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo   String           @unique
+  nome     String
+  ativo    Boolean          @default(true)
+  usuarios UsuarioUnidade[]
+
+  @@map("unidade")
+}

@@ -80,6 +80,7 @@ model Usuario {
   atualizadoEm          DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
   perfis                UsuarioPerfil[]
   sessoes               SessaoUsuario[]
+  unidades              UsuarioUnidade[]
 
   @@map("usuario")
 }
@@ -120,4 +121,15 @@ model PermissaoPadraoAplicada {
 
   @@id([perfilCodigo, funcionalidadeCodigo, acao])
   @@map("permissao_padrao_aplicada")
+}
+
+// TPs que o usuário pode acessar (spec §5, UsuarioUnidade).
+model UsuarioUnidade {
+  usuarioId String  @map("usuario_id") @db.Uuid
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  unidadeId String  @map("unidade_id") @db.Uuid
+  unidade   Unidade @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, unidadeId])
+  @@map("usuario_unidade")
 }

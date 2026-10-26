@@ -14,3 +14,8 @@ export { BotaoSair } from './ui/botao-sair';
 export { trocar } from './application/acoes-senha';
 export { trocarSenha, type EntradaTroca } from './application/trocar-senha';
 export { FormTrocaSenha } from './ui/form-troca-senha';
+export { trocarUnidade } from './application/acoes-unidade';
+export { ajudaDaRota, filtrarMenu, montarMenu, type ItemMenu, type MenuModulo } from './application/menu';
+export { carregarTelaPrincipal, type DadosTelaPrincipal } from './application/tela-principal';
+export { ErroCarregamento } from './ui/erro-carregamento';
+export { TelaPrincipal } from './ui/tela-principal';
