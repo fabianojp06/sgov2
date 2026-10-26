@@ -45,7 +45,13 @@ function linhaHtml(l: LinhaCorpo): string {
  * @throws ErroDominio('email.modelo_desconhecido') | ErroDominio('email.nome_exibicao_invalido')
  */
 export function renderizarEmail(m: MensagemEmail, contexto: { nomeExibicao: string }): EmailRenderizado {
-  const versao = VERSOES_MODELO[m.modelo]?.[m.versao] as VersaoModelo<typeof m.modelo> | undefined;
+  // Object.hasOwn nos dois níveis: um modelo ou versão vindo do job como "constructor" ou
+  // "__proto__" não pode resolver para algo do protótipo.
+  const versoes = Object.hasOwn(VERSOES_MODELO, m.modelo) ? VERSOES_MODELO[m.modelo] : undefined;
+  const versao =
+    versoes && Number.isInteger(m.versao) && Object.hasOwn(versoes, m.versao)
+      ? (versoes[m.versao] as VersaoModelo<typeof m.modelo>)
+      : undefined;
   if (!versao) {
     throw new ErroDominio('email.modelo_desconhecido', 'Modelo de e-mail desconhecido.', {
       modelo: String(m.modelo),

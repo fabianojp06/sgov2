@@ -40,6 +40,13 @@ describe('lerConfigSmtp', () => {
     expect(lerConfigSmtp({ ...base, SMTP_PORTA: '2525' })?.porta).toBe(2525);
   });
 
+  it('na imagem, SMTP sem TLS só com AMBIENTE=hml ou dev declarado', () => {
+    expect(
+      lerConfigSmtp({ SMTP_HOST: 'mailpit', SMTP_SEGURANCA: 'nenhuma', EMAIL_REMETENTE: 'a@sgo.local', NODE_ENV: 'production', AMBIENTE: 'hml' })
+        ?.seguranca,
+    ).toBe('nenhuma');
+  });
+
   it('Mailpit sem TLS, sem autenticação e remetente só com o e-mail', () => {
     expect(
       lerConfigSmtp({ SMTP_HOST: 'mailpit', SMTP_PORTA: '1025', SMTP_SEGURANCA: 'nenhuma', EMAIL_REMETENTE: 'a@sgo.local', AMBIENTE: 'dev' }),
@@ -51,6 +58,11 @@ describe('lerConfigSmtp', () => {
     [{ SMTP_SEGURANCA: 'ssl' }, 'SMTP_SEGURANCA'],
     [{ SMTP_SEGURANCA: 'nenhuma' }, 'SMTP_SEGURANCA'],
     [{ SMTP_HOST: 'mailpit', SMTP_SEGURANCA: 'nenhuma', AMBIENTE: 'producao' }, 'AMBIENTE=producao'],
+    [{ SMTP_HOST: 'mailpit', SMTP_SEGURANCA: 'nenhuma', NODE_ENV: 'production' }, 'NODE_ENV=production'],
+    [{ SMTP_HOST: 'mailpit', SMTP_SEGURANCA: 'nenhuma', NODE_ENV: 'production', AMBIENTE: 'teste' }, 'NODE_ENV=production'],
+    [{ EMAIL_REMETENTE: `${'x'.repeat(121)} <a@b.org>` }, 'EMAIL_REMETENTE'],
+    [{ EMAIL_REMETENTE: 'suporte@banco.com <a@b.org>' }, 'EMAIL_REMETENTE'],
+    [{ EMAIL_REMETENTE: `${' '.repeat(5000)}<a@b.org>` }, 'EMAIL_REMETENTE'],
     [{ SMTP_PORTA: '0' }, 'SMTP_PORTA'],
     [{ SMTP_PORTA: '70000' }, 'SMTP_PORTA'],
     [{ SMTP_PORTA: '58a' }, 'SMTP_PORTA'],

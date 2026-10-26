@@ -15,8 +15,10 @@ const SEGURANCAS = ['tls', 'starttls', 'nenhuma'] as const;
 const PORTA_PADRAO = { tls: 465, starttls: 587, nenhuma: 25 } as const;
 // Sem TLS só para o Mailpit do compose de dev ou um servidor local.
 const HOSTS_SEM_TLS = new Set(['127.0.0.1', 'localhost', '::1', 'mailpit']);
-// "Nome <email@dominio>" ou só o e-mail.
+// "Nome <email@dominio>" ou só o e-mail. O tamanho é limitado antes da regex.
 const REMETENTE = /^\s*(?:([^<>]*?)\s*<([^<>\s]+)>|([^<>\s]+))\s*$/;
+const TAMANHO_REMETENTE = 300;
+const TAMANHO_NOME_REMETENTE = 120;
 
 function erro(variavel: string, motivo: string): never {
   throw new Error(`${variavel} ${motivo} (veja o .env.example)`);
@@ -34,7 +36,12 @@ export function lerConfigSmtp(fonte: Readonly<Record<string, string | undefined>
   const seg = seguranca as ConfigSmtp['seguranca'];
   if (seg === 'nenhuma') {
     if (!HOSTS_SEM_TLS.has(host)) erro('SMTP_SEGURANCA', '= nenhuma só vale para o Mailpit ou um SMTP local');
-    if (fonte.AMBIENTE?.trim() === 'producao') erro('SMTP_SEGURANCA', '= nenhuma não vale com AMBIENTE=producao');
+    const ambiente = fonte.AMBIENTE?.trim() ?? '';
+    if (ambiente === 'producao') erro('SMTP_SEGURANCA', '= nenhuma não vale com AMBIENTE=producao');
+    // Na imagem (NODE_ENV=production), só dev e hml declarados aceitam o SMTP sem TLS.
+    if (fonte.NODE_ENV === 'production' && ambiente !== 'dev' && ambiente !== 'hml') {
+      erro('SMTP_SEGURANCA', '= nenhuma com NODE_ENV=production exige AMBIENTE=dev ou hml');
+    }
   }
 
   const portaBruta = fonte.SMTP_PORTA?.trim() ?? '';
@@ -47,9 +54,14 @@ export function lerConfigSmtp(fonte: Readonly<Record<string, string | undefined>
   const senha = fonte.SMTP_SENHA || undefined;
   if (Boolean(usuario) !== Boolean(senha)) erro('SMTP_USUARIO e SMTP_SENHA', 'vêm juntos ou nenhum dos dois');
 
-  const casado = REMETENTE.exec(fonte.EMAIL_REMETENTE ?? '');
+  const bruto = fonte.EMAIL_REMETENTE ?? '';
+  const casado = bruto.length <= TAMANHO_REMETENTE ? REMETENTE.exec(bruto) : null;
   if (!casado) erro('EMAIL_REMETENTE', 'é obrigatório, no formato "Nome <email@dominio>"');
   const remetente = { nome: (casado[1] ?? '').trim(), email: casado[2] ?? casado[3] ?? '' };
+  // Nome com @ faria o nome exibido parecer outro endereço.
+  if (remetente.nome.length > TAMANHO_NOME_REMETENTE || remetente.nome.includes('@')) {
+    erro('EMAIL_REMETENTE', 'tem nome ou endereço inválido');
+  }
   try {
     validarDestinatario(remetente.nome ? { email: remetente.email, nome: remetente.nome } : { email: remetente.email });
   } catch {

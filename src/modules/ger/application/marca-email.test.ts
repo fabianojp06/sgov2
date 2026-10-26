@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { encontrarMarcaVedada } from '@/shared/config';
-import { MODELOS_SENSIVEIS, type MensagemEmail, type ModeloEmail } from '../domain/modelos-email';
+import { SENSIBILIDADE_MODELO, type MensagemEmail, type ModeloEmail } from '../domain/modelos-email';
 import { renderizarEmail, VERSOES_MODELO } from '../domain/renderizar-email';
 
 // Marca neutra (spec §6.7): nenhuma saída de nenhuma versão de modelo traz o nome vedado. Fica em
@@ -13,7 +13,7 @@ describe('marca neutra nos e-mails', () => {
   );
 
   it('há versões para todos os modelos', () => {
-    expect(new Set(versoes.map(([m]) => m))).toEqual(new Set(MODELOS_SENSIVEIS));
+    expect(new Set(versoes.map(([m]) => m))).toEqual(new Set(Object.keys(SENSIBILIDADE_MODELO)));
   });
 
   it.each(versoes)('%s v%i não tem a marca vedada no assunto, no texto nem no HTML', (modelo, versao) => {

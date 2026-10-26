@@ -35,6 +35,9 @@ describe('criarTransporteSmtp', () => {
       tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       logger: false,
       debug: false,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 30_000,
     });
   });
 

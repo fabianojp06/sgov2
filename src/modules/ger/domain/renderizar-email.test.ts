@@ -75,6 +75,14 @@ describe('renderizarEmail', () => {
     expect(codigo(() => renderizarEmail({ ...base, modelo: 'x.y' } as never, { nomeExibicao: '' }))).toBe('email.modelo_desconhecido');
   });
 
+  it.each(['constructor', '__proto__', 'toString', 1.5, '1'])('versão %j do protótipo ou não inteira → modelo_desconhecido', (versao) => {
+    expect(codigo(() => renderizarEmail({ ...base, versao } as never, { nomeExibicao: '' }))).toBe('email.modelo_desconhecido');
+  });
+
+  it('modelo "constructor" → modelo_desconhecido', () => {
+    expect(codigo(() => renderizarEmail({ ...base, modelo: 'constructor' } as never, { nomeExibicao: '' }))).toBe('email.modelo_desconhecido');
+  });
+
   it.each(['Inst\r\nBcc: x@y.org', 'Inst\u0000', 'x'.repeat(121)])('nome de exibição %j → erro', (nomeExibicao) => {
     expect(codigo(() => renderizarEmail(base, { nomeExibicao }))).toBe('email.nome_exibicao_invalido');
   });

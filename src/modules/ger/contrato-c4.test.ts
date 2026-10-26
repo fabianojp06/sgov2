@@ -130,6 +130,15 @@ describe('enviarEmail (real)', () => {
     expect(criadoEm).toBeLessThanOrEqual(Date.now());
   });
 
+  it('grava só os campos do modelo e do destinatário, sem chaves a mais', async () => {
+    const comExtra = { ...dados, cpf: '123' } as typeof dados;
+    const destinatario = { email: 'a@b.org', telefone: '9' } as { email: string };
+    await enviarEmail(tx, 'usuario.senha_inicial', destinatario, comExtra);
+    const mensagem = criados[0]?.dados as Record<string, unknown>;
+    expect(Object.keys(mensagem.dados as object).sort()).toEqual(['login', 'nome', 'senhaTemporaria', 'urlAcesso']);
+    expect(mensagem.destinatario).toEqual({ email: 'a@b.org' });
+  });
+
   it('recusa link de outra origem que a URL_PUBLICA, sem gravar nada', async () => {
     const outro = { ...dados, urlAcesso: 'https://atacante.exemplo/login' };
     expect(await codigoDoErro(enviarEmail(tx, 'usuario.senha_inicial', { email: 'a@b.org' }, outro))).toBe(
