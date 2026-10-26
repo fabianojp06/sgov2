@@ -13,6 +13,9 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     nome: 'Usuários',
     rota: '/adm/usuarios',
     ordem: 1,
+    ajuda:
+      'Cadastre e altere os usuários do sistema: dados, status, perfis de acesso e Termos de Parceria. ' +
+      'A senha é gerada pelo sistema e enviada por e-mail; na alteração, gere nova senha ou desbloqueie a conta.',
     acoes: ['consultar', 'incluir', 'alterar'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar'] },
   },

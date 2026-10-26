@@ -348,3 +348,22 @@ export async function obterUsuario(ctx: ContextoRequisicao, id: string, deps: Pa
   if (!u) return null;
   return { ...u, perfis: u.perfis.map((p) => p.perfil.codigo).sort(), unidades: u.unidades.map((x) => x.unidadeId).sort() };
 }
+
+export type OpcoesUsuario = {
+  perfis: readonly { codigo: string; nome: string; ativo: boolean }[];
+  unidades: readonly { id: string; nome: string; ativo: boolean }[];
+};
+
+// Opções dos painéis de perfis e TPs do formulário: as ativas e, na alteração, também as inativas
+// já vinculadas ao usuário, para o Salvar não desfazer o vínculo sem o Administrador ver.
+export async function listarOpcoesUsuario(ctx: ContextoRequisicao, usuarioId?: string, deps: Partial<DepsAdm> = {}): Promise<OpcoesUsuario> {
+  exigir(ctx, FUNCIONALIDADE, 'consultar');
+  const { cliente } = resolver(deps);
+  const vinculado = usuarioId !== undefined && idValido(usuarioId) ? { usuarios: { some: { usuarioId } } } : undefined;
+  const filtro = vinculado ? { OR: [{ ativo: true }, vinculado] } : { ativo: true };
+  const [perfis, unidades] = await Promise.all([
+    cliente.perfil.findMany({ where: filtro, select: { codigo: true, nome: true, ativo: true }, orderBy: { nome: 'asc' } }),
+    cliente.unidade.findMany({ where: filtro, select: { id: true, nome: true, ativo: true }, orderBy: { nome: 'asc' } }),
+  ]);
+  return { perfis, unidades };
+}
