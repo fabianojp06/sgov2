@@ -7,9 +7,11 @@ export {
   obterUsuarioParaSessao,
   registrarFalhaLogin,
   travarUsuarioParaLogin,
+  travarUsuarioPorId,
   zerarFalhasLogin,
   type UsuarioParaLogin,
 } from './application/login';
+export { gravarNovaSenha } from './application/senhas';
 export { normalizarLogin } from './domain/login';
 export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { validarSenha, type PoliticaSenha } from './domain/politica-senha';

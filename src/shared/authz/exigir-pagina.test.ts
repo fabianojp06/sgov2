@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventoAuditoria } from '@/shared/audit';
 import { configurarAuditorNegacao, configurarProvedorContexto } from './configuracao';
 import { exigirPagina } from './exigir-pagina';
 import { limparJanelaNegacoes } from './guarda';
 import type { ContextoRequisicao } from './tipos';
+
+// Fora do Next, connection() não tem requisição: no teste, só registra a chamada.
+const conexao = vi.hoisted(() => ({ chamadas: 0 }));
+vi.mock('next/server', () => ({ connection: async () => void conexao.chamadas++ }));
 
 const base: ContextoRequisicao = {
   usuarioId: '0b1e6f1a-5c39-4c2b-9e0a-3d6f1f2a4b5c',
@@ -52,4 +56,10 @@ describe('exigirPagina', () => {
 
   it('com a permissão → devolve o contexto', async () =>
     expect(await exigirPagina('adm.usuarios', 'consultar')).toBe(base));
+
+  it('marca a página como dinâmica (connection)', async () => {
+    conexao.chamadas = 0;
+    await exigirPagina('adm.usuarios', 'consultar');
+    expect(conexao.chamadas).toBe(1);
+  });
 });

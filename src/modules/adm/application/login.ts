@@ -21,11 +21,16 @@ type Linha = Omit<UsuarioParaLogin, 'ehAdministrador'> & { eh_administrador: boo
 // travar = true: a linha fica presa até o fim da transação (FOR NO KEY UPDATE, RNF0011), e duas
 // tentativas simultâneas não passam do limite. NO KEY não bloqueia as FKs de outras tabelas.
 // travar = false: leitura sem trava, para conferir a senha fora da transação.
-export async function travarUsuarioParaLogin(
-  tx: TxCliente,
-  loginNormalizado: string,
-  travar = true,
-): Promise<UsuarioParaLogin | null> {
+export function travarUsuarioParaLogin(tx: TxCliente, loginNormalizado: string, travar = true): Promise<UsuarioParaLogin | null> {
+  return buscar(tx, Prisma.sql`u.login_normalizado = ${loginNormalizado}`, travar);
+}
+
+// O mesmo, pelo id (troca de senha do usuário logado).
+export function travarUsuarioPorId(tx: TxCliente, usuarioId: string, travar = true): Promise<UsuarioParaLogin | null> {
+  return buscar(tx, Prisma.sql`u.id = ${usuarioId}::uuid`, travar);
+}
+
+async function buscar(tx: TxCliente, condicao: Prisma.Sql, travar: boolean): Promise<UsuarioParaLogin | null> {
   const trava = travar ? Prisma.sql`FOR NO KEY UPDATE OF u` : Prisma.empty;
   const linhas = await tx.$queryRaw<Linha[]>`
     SELECT u.id, u.nome, u.login_normalizado AS login, u.ativo, u.bloqueado,
@@ -36,7 +41,7 @@ export async function travarUsuarioParaLogin(
         SELECT 1 FROM usuario_perfil up JOIN perfil p ON p.id = up.perfil_id
         WHERE up.usuario_id = u.id AND p.codigo = 'ADMINISTRADOR' AND p.ativo
       ) AS eh_administrador
-    FROM usuario u WHERE u.login_normalizado = ${loginNormalizado}
+    FROM usuario u WHERE ${condicao}
     ${trava}`;
   const l = linhas[0];
   if (!l) return null;
@@ -48,7 +53,9 @@ export async function travarUsuarioParaLogin(
 export async function registrarFalhaLogin(tx: TxCliente, usuarioId: string, novoContador: number, bloquear: boolean): Promise<void> {
   await tx.usuario.update({
     where: { id: usuarioId },
-    data: { tentativasFalhas: novoContador, ...(bloquear ? { bloqueado: true } : {}) },
+    // O bloqueio também muda a versão de acesso: as sessões abertas caem e não voltam a valer num
+    // desbloqueio futuro.
+    data: { tentativasFalhas: novoContador, ...(bloquear ? { bloqueado: true, acessoVersao: { increment: 1 } } : {}) },
   });
 }
 
