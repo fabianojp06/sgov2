@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MENSAGEM_ERRO_PAGINA, sairComErro } from './sair-erro';
+import { MENSAGEM_ERRO_PAGINA, sairComErro } from './aut/sair-erro';
 
 // Falha numa página da área logada (UC01.03 E1). Tentar novamente usa o retry do Next, que pede a
 // página de novo ao servidor (o reset só limparia o estado no cliente). Sair pede confirmação

@@ -84,7 +84,7 @@ describe('error.tsx do (sistema) (UC01.03 E1)', () => {
   });
 
   it('a saída encerra a sessão no servidor como o sairDoSistema (E1.3)', async () => {
-    const { sairComErro } = await import('../../../app/(sistema)/sair-erro');
+    const { sairComErro } = await import('../../../app/(sistema)/aut/sair-erro');
     const fetchFalso = vi.fn(async () => new Response(null, { status: 204 }));
     const location = { replace: vi.fn() };
     const dados = new Map([['sgo:filtro', 'x'], ['outro', 'x']]);
