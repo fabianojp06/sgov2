@@ -1,4 +1,4 @@
-import { hashSenha, seedAdm, seedAdministradorInicial } from '@/modules/adm';
+import { hashSenha, normalizarLogin, seedAdm, seedAdministradorInicial } from '@/modules/adm';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { SENHA, USUARIOS } from './apoio';
 
@@ -16,9 +16,9 @@ try {
     await cliente.usuario.create({
       data: {
         nome: u.nome,
-        email: `${u.login}@exemplo.org`,
+        email: `${u.login}@example.org`,
         login: u.login,
-        loginNormalizado: u.login,
+        loginNormalizado: normalizarLogin(u.login) ?? u.login,
         senhaHash,
         trocaSenhaObrigatoria: false,
         perfis: { create: { perfilId: perfil.id } },

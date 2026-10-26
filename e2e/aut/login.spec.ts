@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
-import { ADMIN_INICIAL, entrar, NOVA_SENHA, SENHA, USUARIOS } from './apoio';
+import { ADMIN_INICIAL, entrar, NOVA_SENHA, SENHA, urlMigratorDoTeste, USUARIOS } from './apoio';
 
 // Login (UC01.01, US-026) e troca obrigatória no primeiro acesso (US-030).
 const mensagem = (page: import('@playwright/test').Page) => page.locator('#mensagem-login');
 
-test('senha errada: "Login ou senha inválidos"', async ({ page }) => {
-  await entrar(page, 'nao.existe', 'QualquerSenha1');
+test('senha errada de um usuário existente e login inexistente: a mesma mensagem genérica (RN0015)', async ({ page }) => {
+  await entrar(page, USUARIOS.senhaErrada.login, 'SenhaErrada2026');
   await expect(mensagem(page)).toHaveText('Login ou senha inválidos');
   await expect(page).toHaveURL(/\/login/);
+  await entrar(page, 'nao.existe', 'QualquerSenha1');
+  await expect(mensagem(page)).toHaveText('Login ou senha inválidos');
 });
 
 test('administrador inicial: troca obrigatória e depois a tela principal', async ({ page }) => {
@@ -36,10 +38,10 @@ test('5 senhas erradas bloqueiam a conta: aviso na última, mensagem genérica e
 });
 
 test('manutenção ligada: "Sistema está em manutenção" para quem não é Administrador', async ({ page }) => {
-  const migrator = new pg.Client({ connectionString: process.env.E2E_MIGRATOR_URL });
+  const migrator = new pg.Client({ connectionString: urlMigratorDoTeste() });
   await migrator.connect();
   try {
-    await migrator.query('UPDATE configuracao_acesso SET manutencao = true');
+    expect((await migrator.query('UPDATE configuracao_acesso SET manutencao = true')).rowCount).toBe(1);
     await entrar(page, USUARIOS.manutencao.login, SENHA);
     await expect(mensagem(page)).toHaveText('Sistema está em manutenção');
   } finally {

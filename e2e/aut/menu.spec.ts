@@ -19,8 +19,11 @@ test('administrador: Administração › Operadores e Permissões › Usuários,
   expect(altura).toBeLessThanOrEqual(720);
 });
 
-test('orçamentista sem funcionalidade: mensagem do RN0521 e nenhum módulo', async ({ page }) => {
+// Depende do catálogo atual: hoje o ORCAMENTISTA não recebe funcionalidade nenhuma. Quando o orc
+// declarar a seed dele (C6), este cenário passa a usar um perfil sem permissões (US-037).
+test('orçamentista sem funcionalidade: mensagem do RN0521 e nenhum item de menu', async ({ page }) => {
   await entrarNaTelaPrincipal(page, USUARIOS.orcamentista.login);
   await expect(page.getByText('Nenhuma funcionalidade disponível para o seu perfil de acesso. Contate o Administrador.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Administração' })).toHaveCount(0);
+  await expect(page.getByRole('navigation')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Usuários' })).toHaveCount(0);
 });

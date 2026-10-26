@@ -1,20 +1,33 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createConnection } from 'node:net';
+import { dirname } from 'node:path';
 import { iniciarBancoTeste } from '../tests/integracao/banco';
 import { ADMIN_INICIAL, BASE } from './aut/apoio';
 
-// E2E mínimo de acesso (P5, Task 7; D12). Sobe, nesta ordem:
-// 1. o banco efêmero do Testcontainers (127.0.0.1, 512 MB, sem o Ryuk) com as seeds reais;
-// 2. o `next start` do build atual em 127.0.0.1:3190;
-// 3. o Chromium no contêiner oficial do Playwright (decisão do PO: sem apt no host), com o
-//    run-server só em 127.0.0.1 da rede do host, 1 GB e oom_score_adj 500. Os testes rodam no
-//    host e conectam nele por PW_TEST_CONNECT_WS_ENDPOINT. Se essa variável já vier definida ou
-//    com E2E_NAVEGADOR_LOCAL=1 (CI com o navegador instalado), o contêiner não sobe.
-// O teardown derruba o que subiu, em ordem inversa, mesmo se uma etapa falhar.
-const VERSAO_PLAYWRIGHT: string = createRequire(import.meta.url)('@playwright/test/package.json').version;
-const IMAGEM = `mcr.microsoft.com/playwright:v${VERSAO_PLAYWRIGHT}-noble`;
+// E2E mínimo de acesso (P5, Task 7) na VPS de produção (D12). Sobe, nesta ordem:
+// 1. o banco efêmero do Testcontainers (127.0.0.1, 512 MB, oom 500, sem o Ryuk) com as seeds reais;
+// 2. o `next start` do build atual em 127.0.0.1:3190, com oom 500, heap limitado e só as variáveis
+//    do teste (o .env.local completa o que faltar, por isso as sensíveis vão vazias);
+// 3. o Chromium no contêiner oficial do Playwright (decisão do PO: sem apt no host), numa rede
+//    bridge própria sem comunicação entre contêineres, sem capabilities, 1 GB, oom 500 e prazo de
+//    45 min. O run-server é o playwright-core do node_modules (versão do lock, sem npm), publicado
+//    só em 127.0.0.1 com caminho aleatório. O navegador chega ao app pelo túnel do cliente
+//    (exposeNetwork <loopback>), sem a rede do host. Com PW_TEST_CONNECT_WS_ENDPOINT já definida
+//    ou E2E_NAVEGADOR_LOCAL=1 (CI com o navegador instalado), o contêiner não sobe.
+// O teardown derruba tudo em ordem inversa, mesmo com falha no meio. Se o processo morrer antes
+// (SIGKILL, OOM), a próxima execução remove o que tiver a label sgo-e2e=1; o banco órfão sai com:
+//   docker rm -f $(docker ps -aq --filter label=org.testcontainers=true)
+const exigir = createRequire(import.meta.url);
+const VERSAO_PLAYWRIGHT: string = exigir('playwright-core/package.json').version;
+const DIR_PLAYWRIGHT_CORE = dirname(exigir.resolve('playwright-core/package.json'));
+const IMAGEM = `mcr.microsoft.com/playwright:v${VERSAO_PLAYWRIGHT}-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f`;
+const ROTULO = 'sgo-e2e=1';
+const PORTA_APP = Number(new URL(BASE).port);
 const PORTA_NAVEGADOR = 3191;
+const PRAZO_NAVEGADOR_S = 45 * 60;
 
 async function esperar(condicao: () => Promise<boolean>, prazoMs: number, descricao: string, morreu?: () => boolean): Promise<void> {
   const fim = Date.now() + prazoMs;
@@ -33,6 +46,31 @@ const portaAberta = (porta: number) =>
     s.once('error', () => ok(false));
   });
 
+async function exigirPortaLivre(porta: number): Promise<void> {
+  if (await portaAberta(porta)) {
+    throw new Error(`porta ${porta} ocupada em 127.0.0.1 (outra execução do E2E ou processo órfão); libere-a antes`);
+  }
+}
+
+const docker = (args: string[], timeout = 60_000) =>
+  execFileSync('docker', args, { encoding: 'utf8', timeout, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+const tolerante = (args: string[]) => () => {
+  try {
+    docker(args);
+  } catch {
+    // já não existe
+  }
+};
+
+// Restos de uma execução que morreu antes do teardown (só o que tem a label do E2E).
+function removerOrfaos(): void {
+  const conteineres = docker(['ps', '-aq', '--filter', `label=${ROTULO}`]).split('\n').filter(Boolean);
+  if (conteineres.length > 0) docker(['rm', '-f', ...conteineres]);
+  const redes = docker(['network', 'ls', '-q', '--filter', `label=${ROTULO}`]).split('\n').filter(Boolean);
+  if (redes.length > 0) docker(['network', 'rm', ...redes]);
+}
+
 function pararServidor(servidor: ChildProcess): Promise<void> {
   if (servidor.exitCode !== null) return Promise.resolve();
   return new Promise((ok) => {
@@ -43,6 +81,7 @@ function pararServidor(servidor: ChildProcess): Promise<void> {
 }
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
+  if (!existsSync('.next/BUILD_ID')) throw new Error('sem build: rode `npm run build` antes do E2E, e não ao mesmo tempo (D12)');
   const limpezas: (() => unknown)[] = [];
   const derrubar = async () => {
     for (const limpar of limpezas.reverse()) {
@@ -54,6 +93,11 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     }
   };
   try {
+    const usarConteiner = !process.env.PW_TEST_CONNECT_WS_ENDPOINT && process.env.E2E_NAVEGADOR_LOCAL !== '1';
+    if (usarConteiner) removerOrfaos();
+    await exigirPortaLivre(PORTA_APP);
+    if (usarConteiner) await exigirPortaLivre(PORTA_NAVEGADOR);
+
     const banco = await iniciarBancoTeste();
     limpezas.push(() => banco.parar());
     execFileSync('npx', ['tsx', 'e2e/aut/semear.ts'], {
@@ -68,37 +112,69 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       timeout: 120_000,
     });
 
-    const ambiente = { ...process.env };
-    delete ambiente.SHADOW_DATABASE_URL;
-    const servidor = spawn('node_modules/.bin/next', ['start', '--hostname', '127.0.0.1', '--port', new URL(BASE).port], {
+    const servidor = spawn('choom', ['-n', '500', '--', 'node_modules/.bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(PORTA_APP)], {
       env: {
-        ...ambiente,
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG ?? 'C.UTF-8',
         NODE_ENV: 'production',
+        NODE_OPTIONS: '--max-old-space-size=768',
+        NEXT_TELEMETRY_DISABLED: '1',
         DATABASE_URL: banco.urlApp,
         FILA_DATABASE_URL: banco.urlFila,
-        // Sem texto vazio: o lerEnv recusa URL vazia. O app não usa o migrator, mas o .env.local do
-        // dev completaria a variável com o banco de dev.
+        // O app não usa o migrator; a chave vai definida para o .env.local não pôr a do dev.
         MIGRATE_DATABASE_URL: banco.urlMigrator,
         URL_PUBLICA: BASE,
         CONFIAR_PROXY: '',
+        ADMIN_INICIAL_LOGIN: '',
+        ADMIN_INICIAL_EMAIL: '',
+        ADMIN_INICIAL_SENHA: '',
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     });
     limpezas.push(() => pararServidor(servidor));
-    await esperar(async () => (await fetch(`${BASE}/login`)).ok, 60_000, 'next start', () => servidor.exitCode !== null);
+    await esperar(
+      async () => (await fetch(`${BASE}/login`, { signal: AbortSignal.timeout(3000) })).ok,
+      60_000,
+      'next start',
+      () => servidor.exitCode !== null,
+    );
 
-    if (!process.env.PW_TEST_CONNECT_WS_ENDPOINT && process.env.E2E_NAVEGADOR_LOCAL !== '1') {
+    if (usarConteiner) {
+      try {
+        docker(['image', 'inspect', IMAGEM]);
+      } catch {
+        docker(['pull', IMAGEM], 900_000);
+      }
       const nome = `sgo-e2e-navegador-${process.pid}`;
-      execFileSync('docker', [
-        'run', '-d', '--rm', '--name', nome, '--init', '--network', 'host', '--user', 'pwuser',
-        '--memory', '1g', '--memory-swap', '1g', '--oom-score-adj', '500', IMAGEM,
-        '/bin/sh', '-c', `npx -y playwright@${VERSAO_PLAYWRIGHT} run-server --port ${PORTA_NAVEGADOR} --host 127.0.0.1`,
-      ], { stdio: 'ignore', timeout: 60_000 });
-      limpezas.push(() => execFileSync('docker', ['rm', '-f', nome], { stdio: 'ignore' }));
-      await esperar(() => portaAberta(PORTA_NAVEGADOR), 180_000, 'navegador do Playwright');
-      process.env.PW_TEST_CONNECT_WS_ENDPOINT = `ws://127.0.0.1:${PORTA_NAVEGADOR}/`;
+      const caminho = `/${randomBytes(16).toString('hex')}`;
+      // A limpeza vem antes do docker run: um run interrompido no meio não deixa nada para trás.
+      limpezas.push(tolerante(['network', 'rm', nome]));
+      limpezas.push(tolerante(['rm', '-f', nome]));
+      docker(['network', 'create', '--label', ROTULO, '-o', 'com.docker.network.bridge.enable_icc=false', nome]);
+      docker([
+        'run', '-d', '--rm', '--name', nome, '--label', ROTULO, '--network', nome, '--init', '--user', 'pwuser',
+        '-p', `127.0.0.1:${PORTA_NAVEGADOR}:${PORTA_NAVEGADOR}`,
+        '--memory', '1g', '--memory-swap', '1g', '--oom-score-adj', '500', '--pids-limit', '512',
+        '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+        '-v', `${DIR_PLAYWRIGHT_CORE}:/pw:ro`,
+        IMAGEM, 'timeout', String(PRAZO_NAVEGADOR_S),
+        'node', '/pw/cli.js', 'run-server', '--host', '0.0.0.0', '--port', String(PORTA_NAVEGADOR), '--path', caminho,
+      ]);
+      const rodando = () => {
+        try {
+          return docker(['inspect', '-f', '{{.State.Running}}', nome]) === 'true';
+        } catch {
+          return false;
+        }
+      };
+      // Com -p, o docker-proxy aceita a conexão antes do run-server escutar: vale só resposta HTTP.
+      const responde = async () => (await fetch(`http://127.0.0.1:${PORTA_NAVEGADOR}/`, { signal: AbortSignal.timeout(3000) }), true);
+      await esperar(responde, 60_000, 'navegador do Playwright', () => !rodando());
+      process.env.PW_TEST_CONNECT_WS_ENDPOINT = `ws://127.0.0.1:${PORTA_NAVEGADOR}${caminho}`;
+      process.env.PW_TEST_CONNECT_EXPOSE_NETWORK = '<loopback>';
     }
-    // Os specs alteram a configuração de acesso (manutenção) direto pelo migrator.
+    // Os specs alteram a configuração de acesso (manutenção) direto pelo migrator do banco efêmero.
     process.env.E2E_MIGRATOR_URL = banco.urlMigrator;
   } catch (erro) {
     await derrubar();
