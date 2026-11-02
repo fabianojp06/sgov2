@@ -10,3 +10,7 @@ export { FORMAS_BENEFICIO, valorMensalPorPessoa, type BeneficioMestre, type Entr
 // Importação do plano de contas (US-043 parte 4): ações e tela.
 export { acaoConsultarCargaPlano, acaoImportarPlanoContas } from './application/acoes-plano';
 export { ImportarEstrutura } from './ui/importar-estrutura';
+
+// Consulta do plano de contas em árvore (US-044): caso de uso e tela.
+export { consultarArvoreContas, escopoDaSessao } from './application/consultar-estrutura';
+export { ArvoreContas } from './ui/arvore-contas';
