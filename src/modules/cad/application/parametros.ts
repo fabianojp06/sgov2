@@ -25,13 +25,13 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
 });
 
 // A violação é auditada numa transação própria: a operação em si não acontece.
-async function recusarOrigemBlindada(cliente: PrismaClient, ctx: ContextoRequisicao, funcionalidade: string, ano: number, campos: string[]): Promise<never> {
+async function recusarOrigemBlindada(cliente: PrismaClient, ctx: ContextoRequisicao, funcionalidade: string, ano: number | null, campos: string[]): Promise<never> {
   await cliente.$transaction((tx) =>
     auditar(tx, {
       contexto: contextoDe(ctx),
       funcionalidade,
       tipo: 'SISTEMA',
-      registroId: String(ano),
+      registroId: ano === null ? 'ano_invalido' : String(ano),
       descricao: 'cad.violacao_governanca: campo de origem blindada no pedido',
       depois: { campos },
     }),
@@ -64,7 +64,8 @@ export async function conferirOrigemBlindada(ctx: ContextoRequisicao, funcionali
   void _v;
   const blindados = camposBlindados(resto);
   if (blindados.length > 0) {
-    await recusarOrigemBlindada(deps.cliente ?? prisma, ctx, funcionalidade, typeof ano === 'number' && Number.isInteger(ano) ? ano : 0, blindados);
+    const anoRegistro = typeof ano === 'number' && Number.isInteger(ano) && ano >= 2000 && ano <= 2099 ? ano : null;
+    await recusarOrigemBlindada(deps.cliente ?? prisma, ctx, funcionalidade, anoRegistro, blindados);
   }
 }
 
@@ -99,6 +100,8 @@ export async function alterarParametrosExercicio(
   exigir(ctx, 'cad.parametros', 'alterar');
   const cliente = deps.cliente ?? prisma;
   if (!anoEVersaoValidos(ano, versao)) return ERRO_ANO_VERSAO;
+  // Defesa em profundidade: a ação já confere no pedido bruto (conferirOrigemBlindada) e o schema
+  // .strict() dela não deixa esses campos chegarem aqui; outros chamadores continuam cobertos.
   const blindados = camposBlindados(dados);
   if (blindados.length > 0) return recusarOrigemBlindada(cliente, ctx, 'cad.parametros', ano, blindados);
   try {

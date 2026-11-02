@@ -184,6 +184,10 @@ describe('acaoAlterarSalarioMinimo', () => {
     expect(await versao()).toBe(v);
   });
 
+  it('valor de tipo errado (schema) também sai no campo salarioMinimo', async () => {
+    expect(await acaoAlterarSalarioMinimo({ ano: 2027, versao: await versao(), valor: 1518 })).toMatchObject({ ok: false, erros: [{ campo: 'salarioMinimo' }] });
+  });
+
   it('valor inválido: erro no campo salarioMinimo', async () => {
     expect(await acaoAlterarSalarioMinimo({ ano: 2027, versao: await versao(), valor: '0' })).toMatchObject({
       ok: false,

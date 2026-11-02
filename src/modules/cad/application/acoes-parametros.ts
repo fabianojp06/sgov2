@@ -49,7 +49,8 @@ export const acaoAlterarParametros = definirAcao({ funcionalidade: 'cad.parametr
 export const acaoAlterarSalarioMinimo = definirAcao({ funcionalidade: 'cad.salario_minimo', acao: 'alterar', entrada: z.unknown() }, async (bruto, ctx) => {
   await conferirOrigemBlindada(ctx, 'cad.salario_minimo', bruto);
   const e = esquemaSalarioMinimo.safeParse(bruto, { error: PORTUGUES });
-  if (!e.success) return falha(errosDo(e.error));
+  // O campo da tela é salarioMinimo, o mesmo nome dos erros do domínio.
+  if (!e.success) return falha(errosDo(e.error).map((x) => (x.campo === 'valor' ? { ...x, campo: 'salarioMinimo' } : x)));
   const r = await alterarSalarioMinimo(ctx, e.data.ano, e.data.versao, e.data.valor);
   // A versão do ano é uma só (R10): a tela de parâmetros também precisa da nova.
   if (r.ok) {
