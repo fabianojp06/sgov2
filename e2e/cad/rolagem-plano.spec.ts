@@ -8,6 +8,7 @@ import { expect, test } from '@playwright/test';
 // 5.000 linhas todo expandido; conferir FPS médio ≥ 55 e nenhuma tarefa longa acima de 50 ms.
 test.fixme('rolagem do plano de contas de 5.000 linhas a ≥ 55 FPS, sem tarefa longa acima de 50 ms', async ({ page }) => {
   // 1 e 2: login como GFIN e importação do plano sintético pela tela (Task 7a).
+  // O parâmetro de expansão total é confirmado na Task 7a.
   await page.goto('/cad/plano-contas?expandir=todos');
   await expect(page.getByRole('treegrid')).toBeVisible();
 
@@ -21,6 +22,9 @@ test.fixme('rolagem do plano de contas de 5.000 linhas a ≥ 55 FPS, sem tarefa 
 
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable');
+  const metrica = async (nome: string) =>
+    ((await cdp.send('Performance.getMetrics')) as { metrics: { name: string; value: number }[] }).metrics.find((m) => m.name === nome)?.value ?? 0;
+  const framesAntes = await metrica('Frames');
   const quadros: number[] = [];
   cdp.on('Tracing.dataCollected', ({ value }: { value: { name?: string; ts?: number }[] }) => {
     for (const e of value) if (e.name === 'DrawFrame' && e.ts !== undefined) quadros.push(e.ts);
@@ -41,8 +45,10 @@ test.fixme('rolagem do plano de contas de 5.000 linhas a ≥ 55 FPS, sem tarefa 
 
   const segundos = quadros.length > 1 ? (quadros.at(-1)! - quadros[0]!) / 1e6 : 0;
   const fps = segundos > 0 ? (quadros.length - 1) / segundos : 0;
+  const frames = (await metrica('Frames')) - framesAntes;
   const longas = await page.evaluate(() => (window as unknown as { __tarefasLongas: number[] }).__tarefasLongas);
-  console.log(`[ROLAGEM] ${fps.toFixed(1)} FPS em ${segundos.toFixed(1)} s; tarefas longas: ${longas.length}`);
+  console.log(`[ROLAGEM] ${fps.toFixed(1)} FPS (trace) em ${segundos.toFixed(1)} s; ${frames} quadros (getMetrics); tarefas longas: ${longas.length}`);
   expect(fps).toBeGreaterThanOrEqual(55);
-  expect(longas.filter((d) => d > 50)).toEqual([]);
+  // Toda longtask já passa de 50 ms: nenhuma pode aparecer.
+  expect(longas).toEqual([]);
 });

@@ -74,6 +74,9 @@ describe('GradeArvore virtualizada (SSR)', () => {
     expect(linhas).toBeGreaterThan(10);
     expect(linhas).toBeLessThanOrEqual(40);
     expect(html).toContain('aria-rowcount="5001"');
+    // O virtualizer desenha a mesma janela que a função de referência.
+    const j = janelaVisivel({ total: 5000, topo: 0, alturaLinha: 32, alturaVisivel: 600, folga: 10 });
+    expect((corpo.match(/data-id="/g) ?? []).length).toBe(j.fim - j.inicio + 1);
     expect(html).toContain('aria-rowindex="2"');
     expect(html).toContain('Conta 0');
     expect(html).not.toContain('Conta 4999');

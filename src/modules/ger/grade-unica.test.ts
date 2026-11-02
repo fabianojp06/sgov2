@@ -17,7 +17,8 @@ describe('grade única', () => {
   it('só ger/ui/grade-arvore.tsx contém role="treegrid" em src/', () => {
     const raiz = join(process.cwd(), 'src');
     const comTreegrid = arquivos(raiz)
-      .filter((f) => /role=["']treegrid["']/.test(readFileSync(f, 'utf8')))
+      // JSX (role="treegrid", role={'treegrid'}) e createElement (role: 'treegrid').
+      .filter((f) => /role\s*[=:]\s*\{?\s*["'`]treegrid/.test(readFileSync(f, 'utf8')))
       .map((f) => f.slice(raiz.length + 1));
     expect(comTreegrid).toEqual(['modules/ger/ui/grade-arvore.tsx']);
   });

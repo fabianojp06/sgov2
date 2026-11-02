@@ -6,6 +6,9 @@ export const ALTURA_VISIVEL_PADRAO = 600;
 export const FOLGA_PADRAO = 10;
 
 /**
+ * Referência do cálculo de janela (a grade usa o @tanstack/react-virtual, que faz a mesma conta): o
+ * teste do SSR confere que o virtualizer desenha no máximo o que esta função manda.
+ *
  * Faixa de linhas a desenhar para a rolagem `topo` (px), com `folga` linhas antes e depois, e os
  * espaçadores que mantêm a altura total (total × alturaLinha) para a barra de rolagem.
  */

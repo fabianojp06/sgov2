@@ -47,6 +47,8 @@ export function GradeArvore<C extends string = string>({
   const [, iniciarTransicao] = useTransition();
   const linhas = useMemo(() => visiveis(nos, abertos), [nos, abertos]);
   const [focoId, setFocoId] = useState<string | null>(null);
+  // O foco só é movido depois de uma tecla na grade; um nos novo (revalidação) não puxa o foco de volta.
+  const focoPendente = useRef(false);
   const rolagem = useRef<HTMLDivElement>(null);
   // initialRect: no servidor (sem elemento de rolagem), a primeira janela já sai desenhada.
   const virtual = useVirtualizer({
@@ -55,6 +57,9 @@ export function GradeArvore<C extends string = string>({
     estimateSize: () => alturaLinha,
     overscan: FOLGA_PADRAO,
     initialRect: { width: 0, height: alturaVisivel },
+    // O cabeçalho fixo cobre a primeira linha da área de rolagem.
+    scrollPaddingStart: alturaLinha,
+    useFlushSync: false,
   });
 
   // Sem sessionStorage (janela privada, bloqueio), segue com a expansão inicial.
@@ -69,7 +74,8 @@ export function GradeArvore<C extends string = string>({
 
   // O foco segue o teclado: rola até a linha e foca o <tr> depois de desenhado.
   useEffect(() => {
-    if (focoId === null) return;
+    if (focoId === null || !focoPendente.current) return;
+    focoPendente.current = false;
     const i = linhas.findIndex((l) => l.no.id === focoId);
     if (i < 0) return;
     virtual.scrollToIndex(i, { align: 'auto' });
@@ -93,17 +99,33 @@ export function GradeArvore<C extends string = string>({
 
   if (nos.length === 0) return <p>{textoVazio ?? 'Nenhum registro.'}</p>;
 
+  const focavel = focoId !== null && linhas.some((l) => l.no.id === focoId) ? focoId : linhas[0]?.no.id;
+
   const aoTeclar = (e: KeyboardEvent<HTMLTableSectionElement>) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const atual = focavel === undefined ? undefined : linhas.find((l) => l.no.id === focavel)?.no;
+    if ((e.key === 'Enter' || e.key === ' ') && atual) {
+      // Enter/Espaço na linha: segue o link da primeira célula ou seleciona (a acaoSelecionar).
+      const href = atual.href !== undefined && ehCaminhoInterno(atual.href) ? atual.href : undefined;
+      if (e.key === 'Enter' && href) {
+        e.preventDefault();
+        window.location.assign(href);
+      } else if (acaoSelecionar) {
+        e.preventDefault();
+        iniciarTransicao(() => acaoSelecionar(atual.id));
+      }
+      return;
+    }
     if (!TECLAS.includes(e.key)) return;
     e.preventDefault();
-    const r = navegar(linhas, focoId ?? linhas[0]!.no.id, e.key as Tecla, abertos);
+    const r = navegar(linhas, focavel ?? linhas[0]!.no.id, e.key as Tecla, abertos);
     if (r.alternar) alternar(r.alternar);
+    focoPendente.current = true;
     setFocoId(r.foco);
   };
   const itens = virtual.getVirtualItems();
   const espacoAntes = itens[0]?.start ?? 0;
   const espacoDepois = virtual.getTotalSize() - (itens.at(-1)?.end ?? 0);
-  const focavel = focoId ?? linhas[0]?.no.id;
 
   return (
     <div ref={rolagem} style={{ maxHeight: alturaVisivel, overflowY: 'auto' }}>
@@ -118,7 +140,11 @@ export function GradeArvore<C extends string = string>({
         </tr>
       </thead>
       <tbody onKeyDown={aoTeclar}>
-        {espacoAntes > 0 && <tr aria-hidden="true" style={{ height: espacoAntes }} />}
+        {espacoAntes > 0 && (
+          <tr aria-hidden="true">
+            <td colSpan={colunas.length} style={{ height: espacoAntes, padding: 0, border: 0 }} />
+          </tr>
+        )}
         {itens.map((item) => {
           const { no, nivel } = linhas[item.index]!;
           const temFilhos = Boolean(no.filhos?.length);
@@ -140,12 +166,18 @@ export function GradeArvore<C extends string = string>({
                 const texto = formatarCelula(c.tipo, no.linha[c.campo] ?? null);
                 const numerico = c.tipo === 'dinheiro' || c.tipo === 'percentual';
                 return (
-                  <td key={i} style={numerico ? { textAlign: 'right' } : undefined}>
+                  // Altura fixa (R18): o texto não quebra linha; o excedente vira reticências.
+                  <td
+                    key={i}
+                    style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...(numerico ? { textAlign: 'right' } : {}) }}
+                  >
                     {i === 0 && (
                       <span style={{ paddingLeft: `${(nivel - 1) * 1.25}rem` }}>
                         {temFilhos && (
                           <button
                             type="button"
+                            tabIndex={-1}
+                            style={{ padding: 0, margin: 0, lineHeight: 1 }}
                             aria-label={aberto ? 'Recolher' : 'Expandir'}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -159,7 +191,8 @@ export function GradeArvore<C extends string = string>({
                     )}
                     {i === 0 && href ? (
                       // O link navega; não dispara também a acaoSelecionar da linha.
-                      <a href={href} onClick={(e) => e.stopPropagation()}>
+                      // Fora da ordem de Tab: a grade é uma parada só; Enter na linha segue o link.
+                      <a href={href} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
                         {texto}
                       </a>
                     ) : (
@@ -171,7 +204,11 @@ export function GradeArvore<C extends string = string>({
             </tr>
           );
         })}
-        {espacoDepois > 0 && <tr aria-hidden="true" style={{ height: espacoDepois }} />}
+        {espacoDepois > 0 && (
+          <tr aria-hidden="true">
+            <td colSpan={colunas.length} style={{ height: espacoDepois, padding: 0, border: 0 }} />
+          </tr>
+        )}
       </tbody>
     </table>
     </div>
