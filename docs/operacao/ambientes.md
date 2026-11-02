@@ -9,7 +9,7 @@ Como o banco de `sgo-hml` e de `sgo-prod` é preparado (US-014; plano do P3, Tar
 | `sgo_admin` | não | Dono do banco `sgo` | Nada no dia a dia. O PO entra como `postgres` e usa `SET ROLE` se precisar |
 | `sgo_migrator` | sim | `MIGRATE_DATABASE_URL` (migrations) | Dono do schema `public`: cria e altera tabelas. Não altera o banco nem cria schema |
 | `sgo_app` | sim | `DATABASE_URL` (app) | Lê e grava dados pelos privilégios que as migrations dão. Não cria objetos |
-| `sgo_sync` | sim | Sincronização (US futura) | O mesmo que o `sgo_app` |
+| `sgo_sync` | sim | `SYNC_DATABASE_URL` (**só no worker**): *merge* das cargas de estrutura (plano do P4, R6) e sincronização futura | Só o que cada migration dá. No `cad`: grava o plano de contas e o resultado dos lotes, e lê e apaga o *staging* |
 | `sgo_fila` | sim | `FILA_DATABASE_URL` (worker, pg-boss) | Dono só do schema `pgboss` |
 | `sgo_leitura` | sim | Consultas *ad hoc* (spec §11.5 item 5) | Só `SELECT` no `public`, sujeito à RLS, numa sessão só de leitura. Vê o Histórico de Operações inteiro (IP, antes e depois), que não tem RLS |
 
@@ -58,6 +58,19 @@ O script é `deploy/postgres/01-papeis-ambiente.sql`. Ele roda como superusuári
    Na primeira execução, sem saída é sucesso. Se faltar uma senha ou se uma for curta, o script para e diz o nome da variável, sem mostrar o valor. Se houver senhas repetidas, ele para e diz isso.
 
 Rodar de novo é seguro: o script cria só o que falta e reaplica os atributos, as configurações e os privilégios. Ele **não troca** a senha de papel que já existe: nessa execução, a única saída é o aviso dos papéis que mantiveram a senha.
+
+## Cargas de estrutura (plano de contas, CC e cargos)
+
+O app grava o pedido (lote `PENDENTE` e as linhas no *staging*) como `sgo_app`; o worker aplica como `sgo_sync`. Por isso:
+
+- **`SYNC_DATABASE_URL` só no serviço `worker`.** O `app` **não** recebe essa variável: com ela, o app poderia gravar estrutura sem passar pelo lote.
+- **Sem a variável no worker**, o log mostra `[CARGA_SEM_SYNC]` e os lotes ficam `PENDENTE` (visíveis na tela, que não avança). Com a variável apontando para outro papel, o log mostra `[CARGA_PAPEL_INVALIDO]` e nada é aplicado.
+- **Lote que falha** fica `FALHOU`, com os erros por linha, e nunca é reprocessado: corrija a planilha e peça uma carga nova. Um lote preso em `PROCESSANDO` por mais de 15 min, ou `PENDENTE` por mais de 24 h, vira `FALHOU` sozinho.
+- **Checklist do PO, por ambiente (hml e prod):**
+  - [ ] `worker`: `SYNC_DATABASE_URL` com o `sgo_sync` e o banco `sgo`;
+  - [ ] `app`, `worker` e serviço de migração: `AMBIENTE` (`hml` ou `producao`), obrigatório com `NODE_ENV=production` (R25);
+  - [ ] `app`: **sem** `SYNC_DATABASE_URL`;
+  - [ ] depois do deploy, o log do worker mostra `worker pronto` com `cargas: 'sgo_sync'`.
 
 ## Trocar a senha de um papel
 

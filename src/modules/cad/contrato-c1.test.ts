@@ -5,15 +5,12 @@ import { totalizar } from '@/shared/totalizer';
 import * as cad from '@/modules/cad';
 import * as cadServidor from '@/modules/cad/servidor';
 import {
-  carregarIndiceEstrutura,
   CENTROS_CUSTO_EXEMPLO,
   compararClassificacao,
   CONTAS_EXEMPLO,
   ehCentroCustoAnalitico,
-  ehContaAnaliticaAtiva,
   estruturaFinanceiraFalsa,
   listarArvoreCentrosCusto,
-  listarArvoreContas,
   type NoCentroCusto,
   type NoConta,
 } from '@/modules/cad';
@@ -169,13 +166,11 @@ describe('C1 — falso', () => {
   });
 });
 
-describe('C1 — reais antes da Task 4b', () => {
+describe('C1 — reais dos centros de custo antes da Task 5', () => {
+  // As contas já são reais (Task 4b); a prova delas é o importar-plano.int.test.ts.
   it.each([
-    ['listarArvoreContas', () => listarArvoreContas(tx)],
     ['listarArvoreCentrosCusto', () => listarArvoreCentrosCusto(tx)],
-    ['ehContaAnaliticaAtiva', () => ehContaAnaliticaAtiva(tx, '4.1.1.1.001')],
     ['ehCentroCustoAnalitico', () => ehCentroCustoAnalitico(tx, '4.4')],
-    ['carregarIndiceEstrutura', () => carregarIndiceEstrutura(tx)],
   ])('%s → cad.estrutura_indisponivel', async (_nome, chamar) => {
     await expect(chamar()).rejects.toMatchObject({ name: 'ErroDominio', codigo: 'cad.estrutura_indisponivel' });
   });
