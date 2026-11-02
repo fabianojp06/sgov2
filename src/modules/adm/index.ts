@@ -1,5 +1,5 @@
 // API pública do módulo adm (spec §4.1). Contrato C6: catálogo de funcionalidades e perfis padrão.
-export { listarCatalogoAtivo, listarUnidadesDoUsuario } from './application/catalogo-ativo';
+export { listarCatalogoDoMenu, listarUnidadesDoUsuario } from './application/catalogo-ativo';
 export { MODULOS_MENU, type CodigoModuloMenu, type DeclaracaoFuncionalidade } from './application/catalogo';
 export { obterConfiguracaoAcesso, type ConfiguracaoAcesso } from './application/configuracao';
 export { instalarFuncionalidades } from './application/instalar-funcionalidades';

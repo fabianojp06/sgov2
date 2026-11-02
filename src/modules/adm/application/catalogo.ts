@@ -25,7 +25,9 @@ export type DeclaracaoFuncionalidade = {
   ordem: number;
   ajuda?: string;
   nivelLog?: 'SIMPLES' | 'AVANCADO';
-  exibirNoMenu?: boolean; // padrão true; false: permissão vale, mas fora do menu e da busca (R24 do P4)
+  // Padrão true. Com false, as permissões valem, mas a funcionalidade fica fora do menu, da busca
+  // e da ajuda contextual (a ajuda sai do menu); a rota continua servindo à navegação (R24 do P4).
+  exibirNoMenu?: boolean;
   acoes: readonly Acao[];
   perfisPadrao: Partial<Record<CodigoPerfil, readonly Acao[]>>; // subconjunto de acoes
 };
