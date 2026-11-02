@@ -3,7 +3,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificação Oficial de Desenvolvimento (design spec) |
-| Versão | 1.5 — 25/10/2026 |
+| Versão | 1.6 — 02/11/2026 |
 | Status | Vigente para desenvolvimento. Decisões marcadas **[PROVISÓRIA]** valem até validação do SME indicado |
 | Elaboração | Revisão técnica conduzida com Claude a pedido de Fabiano Garcia (BA/PO — CTCEA/GIA) |
 | Repositório | `fabianojp06/sgov2` |
@@ -19,6 +19,7 @@
 | 1.3 | 25/10/2026 | §12.3: `src/shared/{config,db,filas}/` e `tests/integracao/` passam a ser da frente A; testes de integração dos módulos ficam junto do código, com o dono do módulo (decisão do PO no fim do período de fundação) |
 | 1.4 | 25/10/2026 | §12.3: `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`) é da frente A |
 | 1.5 | 25/10/2026 | Decisões do PO no plano do P5: §3.3 traz para a trilha o bloqueio de conta, a sessão única, o indicador de manutenção e o limite de taxa no login; §11.2a com as regras de acesso decididas (senha atual na troca voluntária, formato do login, parâmetros provisórios, riscos aceitos); §12.3 com os caminhos novos da frente A e o menu montado do catálogo no banco; §12.6 com o contrato C6 (catálogo de funcionalidades) |
+| 1.6 | 02/11/2026 | §11.2a: o limite por IP conta só as falhas de credencial (decisão do PO de 25/10, por causa do NAT da instituição); o limite por login conta todo pedido |
 
 ---
 
@@ -711,7 +712,7 @@ O **primeiro plano** cobre a trilha 2027 (§3.3), que usa parte desta seção. O
   - inatividade de 30 min e teto da sessão de 12 h;
   - senha temporária de 24 h;
   - senha com no mínimo 10 caracteres, letra e dígito;
-  - limite de 10 tentativas por IP e 20 por login a cada 5 min;
+  - limite de 10 falhas de credencial por IP e de 20 pedidos por login a cada 5 min (o limite por IP conta só as falhas, por causa do NAT da instituição; o por login conta todo pedido);
   - senha do administrador inicial com no mínimo 16 caracteres, válida por 7 dias.
 - **Administrador inicial:** criado pela seed a partir de variáveis que ficam só no serviço de migração do Easypanel. A mesma seed serve de *break-glass* quando não há administrador ativo.
 - **Riscos aceitos:**
