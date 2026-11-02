@@ -11,6 +11,7 @@ import { MSG_CONCORRENCIA, tocarVersaoExercicio } from '../infrastructure/parame
 // Casos de uso da Tabela Mestre (US-050; plano do P4, Task 10). Permissão primeiro, auditoria no
 // mesmo tx com Dinheiro/Percentual, versão única do ano (R10) e recusa de origem blindada (M4).
 const FUNCIONALIDADE = 'cad.beneficios';
+// `ano` e `versao` vêm como parâmetros do caso de uso, nunca dentro dos dados.
 const CAMPOS_ORIGEM_BLINDADA = ['provisorio', 'versao', 'ano', 'atualizadoEm'] as const;
 type Deps = { cliente?: PrismaClient };
 
@@ -78,10 +79,11 @@ export async function incluirBeneficioMestre(ctx: ContextoRequisicao, ano: numbe
       const indice = await carregarIndiceEstrutura(tx);
       const v = validarBeneficio(dados, (c) => indice.contaAnaliticaAtiva(c));
       if (!v.ok) return v;
+      // A versão do ano primeiro: trava o ano e serializa duas inclusões do mesmo código.
+      await tocarVersaoExercicio(tx, ano);
       if (await tx.beneficioMestre.findUnique({ where: { ano_codigo: { ano, codigo: v.valor.codigo } }, select: { codigo: true } })) {
         return falha([{ campo: 'codigo', mensagem: 'Já existe um benefício com esse código neste exercício.' }]);
       }
-      await tocarVersaoExercicio(tx, ano);
       await tx.beneficioMestre.create({ data: { ano, codigo: v.valor.codigo, forma: v.valor.forma, ...dadosGravaveis(v.valor) } });
       await auditar(tx, {
         contexto: contextoDe(ctx),

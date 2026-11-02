@@ -44,6 +44,9 @@ describe('validarBeneficio', () => {
     ['código fora do formato', { codigo: 'vr' }, 'codigo'],
     ['código com maiúscula', { codigo: 'beneficio.VR' }, 'codigo'],
     ['nome vazio', { nome: '  ' }, 'nome'],
+    ['nome com 121 caracteres', { nome: 'n'.repeat(121) }, 'nome'],
+    ['código com sobra depois', { codigo: 'beneficio.vr!' }, 'codigo'],
+    ['percentual num item em valor', { percentual: '2' }, 'percentual'],
   ] as const)('%s → erro', (_caso, e, campo) => {
     expect(campos(e as Partial<EntradaBeneficio>)).toContain(campo);
   });

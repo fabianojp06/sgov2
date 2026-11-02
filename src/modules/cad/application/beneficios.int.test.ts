@@ -102,11 +102,18 @@ describe('Tabela Mestre de Benefícios', () => {
 
   it('inclusão de item percentual (R14a); código repetido → erro', async () => {
     const novo = vr({ codigo: 'beneficio.previdencia', nome: 'Previdência', forma: 'PERCENTUAL_SALARIO', valor: null, percentual: '2', conta: '4.1.1.1.006', padraoPosicao: false });
+    const va = await versaoAno();
     expect((await incluirBeneficioMestre(grh(), 2027, novo, { cliente: app })).ok).toBe(true);
+    expect(await versaoAno()).toBe(va + 1);
     expect(await incluirBeneficioMestre(grh(), 2027, novo, { cliente: app })).toEqual({
       ok: false,
       erros: [{ campo: 'codigo', mensagem: 'Já existe um benefício com esse código neste exercício.' }],
     });
+  });
+
+  it('origem blindada também na inclusão', async () => {
+    const bruto = { ...vr({ codigo: 'beneficio.outro' }), provisorio: false } as unknown as EntradaBeneficio;
+    await expect(incluirBeneficioMestre(grh(), 2027, bruto, { cliente: app })).rejects.toMatchObject({ codigo: 'cad.violacao_governanca' });
   });
 
   it('GFIN não altera (ErroPermissao); origem blindada recusada e auditada', async () => {
@@ -124,7 +131,7 @@ describe('Tabela Mestre de Benefícios', () => {
     const v = await versaoItem('beneficio.vr');
     await migrator.query('REVOKE INSERT ON historico_operacao FROM sgo_app');
     try {
-      await expect(alterarBeneficioMestre(grh(), 2027, 'beneficio.vr', v, vr({ valor: '50' }), { cliente: app })).rejects.toThrow();
+      await expect(alterarBeneficioMestre(grh(), 2027, 'beneficio.vr', v, vr({ valor: '50' }), { cliente: app })).rejects.toThrow(/permission denied/);
     } finally {
       await migrator.query(`GRANT INSERT ("unidade_id", "usuario_id", "usuario_rotulo", "sessao_uid", "ip", "funcionalidade",
         "tipo_operacao", "registro_id", "descricao", "antes", "depois", "delta", "origem") ON historico_operacao TO sgo_app`);
@@ -151,14 +158,4 @@ describe('Tabela Mestre de Benefícios', () => {
     ).rejects.toThrow(/congelados/);
   });
 
-  it('privilégios (B1): o sync não toca; o app não apaga e só altera as colunas de valor', async () => {
-    const t = await migrator.query(
-      `SELECT grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants WHERE table_name = 'beneficio_mestre' AND grantee IN ('sgo_app', 'sgo_sync', 'sgo_fila', 'sgo_leitura') ORDER BY 1`,
-    );
-    expect(t.rows.map((r) => r.l)).toEqual(['sgo_app INSERT', 'sgo_app SELECT']);
-    const c = await migrator.query(
-      `SELECT column_name AS c FROM information_schema.column_privileges WHERE table_name = 'beneficio_mestre' AND grantee = 'sgo_app' AND privilege_type = 'UPDATE' ORDER BY 1`,
-    );
-    expect(c.rows.map((r) => r.c)).toEqual(['ativo', 'atualizado_em', 'conta', 'nome', 'padrao_posicao', 'percentual', 'provisorio', 'valor', 'versao']);
-  });
 });

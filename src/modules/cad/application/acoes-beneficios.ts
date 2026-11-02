@@ -1,5 +1,6 @@
 'use server';
 
+import 'server-only';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { definirAcao } from '@/shared/authz';
@@ -8,15 +9,15 @@ import { alterarBeneficioMestre, incluirBeneficioMestre } from './beneficios';
 
 // Server Actions da Tabela Mestre (US-050). A negação (403) é auditada pela definirAcao (C5). Campos de
 // origem blindada passam pelo schema só para o caso de uso recusá-los e auditar (M4/M-n4).
-const blindados = { provisorio: z.unknown().optional(), versaoItem: z.unknown().optional(), atualizadoEm: z.unknown().optional() };
+const blindados = { provisorio: z.unknown().optional(), atualizadoEm: z.unknown().optional() };
 const item = {
   ano: z.number().int().min(2000).max(2099),
-  codigo: z.string().max(60),
-  nome: z.string().max(200),
+  codigo: z.string().max(60, 'O código deve ter até 60 caracteres.'),
+  nome: z.string().max(120, 'O nome deve ter até 120 caracteres.'),
   forma: z.enum(FORMAS_BENEFICIO),
-  valor: z.string().max(30).nullable(),
-  percentual: z.string().max(30).nullable(),
-  conta: z.string().max(40),
+  valor: z.string().max(30, 'Valor inválido.').nullable(),
+  percentual: z.string().max(30, 'Percentual inválido.').nullable(),
+  conta: z.string().max(40, 'Conta inválida.'),
   padraoPosicao: z.boolean(),
   ativo: z.boolean(),
 };

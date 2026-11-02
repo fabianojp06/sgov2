@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { GradeArvore, type NoGrade } from '@/modules/ger';
 import type { ErroCampo } from '@/shared/kernel';
 
@@ -41,6 +41,15 @@ export function TabelaMestre({
   const [editando, setEditando] = useState<ItemTela | null>(null);
   const [erros, setErros] = useState<readonly ErroCampo[]>([]);
   const [salvando, iniciar] = useTransition();
+  const titulo = useRef<HTMLHeadingElement>(null);
+  // O foco vai para o formulário quando ele abre (teclado e leitor de tela).
+  useEffect(() => {
+    if (editando) titulo.current?.focus();
+  }, [editando?.codigo]);
+  const abrir = (codigo: string) => {
+    setErros([]);
+    setEditando(itens.find((i) => i.codigo === codigo) ?? null);
+  };
 
   const nos: NoGrade<Colunas>[] = itens.map((i) => ({
     id: i.codigo,
@@ -84,9 +93,23 @@ export function TabelaMestre({
           { campo: 'conta', titulo: 'Conta', tipo: 'texto' },
           { campo: 'situacao', titulo: 'Situação', tipo: 'texto' },
         ]}
-        {...(podeAlterar ? { acaoSelecionar: async (id: string) => setEditando(itens.find((i) => i.codigo === id) ?? null) } : {})}
+        {...(podeAlterar ? { acaoSelecionar: async (id: string) => abrir(id) } : {})}
         textoVazio="Nenhum benefício cadastrado neste exercício."
       />
+      {podeAlterar && itens.length > 0 && (
+        // Caminho pelo teclado para abrir a edição (a seleção pela linha da grade é só pelo mouse).
+        <label>
+          Alterar o benefício{' '}
+          <select value={editando?.codigo ?? ''} onChange={(e) => (e.target.value ? abrir(e.target.value) : setEditando(null))}>
+            <option value="">Escolha um item</option>
+            {itens.map((i) => (
+              <option key={i.codigo} value={i.codigo}>
+                {i.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {podeAlterar && editando && (
         <form
           onSubmit={(e) => {
@@ -95,28 +118,24 @@ export function TabelaMestre({
           }}
           aria-label={`Alterar ${editando.nome}`}
         >
-          <h2>Alterar {editando.codigo}</h2>
+          <h2 ref={titulo} tabIndex={-1}>
+            Alterar {editando.nome} ({editando.codigo})
+          </h2>
           {erroDe('_') && <p role="alert">{erroDe('_')}</p>}
-          <label>
-            Nome <input value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })} aria-invalid={Boolean(erroDe('nome'))} />
-          </label>
-          {erroDe('nome') && <span>{erroDe('nome')}</span>}
+          <Campo id="nome" rotulo="Nome" erro={erroDe('nome')} valor={editando.nome} mudar={(v) => setEditando({ ...editando, nome: v })} />
           {editando.forma === 'PERCENTUAL_SALARIO' ? (
-            <label>
-              % do salário{' '}
-              <input inputMode="decimal" value={editando.percentual ?? ''} onChange={(e) => setEditando({ ...editando, percentual: e.target.value })} />
-            </label>
+            <Campo id="percentual" rotulo="% do salário" erro={erroDe('percentual')} valor={editando.percentual ?? ''} decimal mudar={(v) => setEditando({ ...editando, percentual: v })} />
           ) : (
-            <label>
-              {editando.forma === 'VALOR_DIARIO' ? 'Valor por dia útil' : 'Valor mensal'}{' '}
-              <input inputMode="decimal" value={editando.valor ?? ''} onChange={(e) => setEditando({ ...editando, valor: e.target.value })} />
-            </label>
+            <Campo
+              id="valor"
+              rotulo={editando.forma === 'VALOR_DIARIO' ? 'Valor por dia útil' : 'Valor mensal'}
+              erro={erroDe('valor')}
+              valor={editando.valor ?? ''}
+              decimal
+              mudar={(v) => setEditando({ ...editando, valor: v })}
+            />
           )}
-          {(erroDe('valor') || erroDe('percentual')) && <span>{erroDe('valor')} {erroDe('percentual')}</span>}
-          <label>
-            Conta <input value={editando.conta} onChange={(e) => setEditando({ ...editando, conta: e.target.value })} />
-          </label>
-          {erroDe('conta') && <span>{erroDe('conta')}</span>}
+          <Campo id="conta" rotulo="Conta" erro={erroDe('conta')} valor={editando.conta} mudar={(v) => setEditando({ ...editando, conta: v })} />
           <label>
             <input type="checkbox" checked={editando.padraoPosicao} onChange={(e) => setEditando({ ...editando, padraoPosicao: e.target.checked })} /> Padrão da posição
           </label>
@@ -126,11 +145,39 @@ export function TabelaMestre({
           <button type="submit" disabled={salvando}>
             Salvar
           </button>
-          <button type="button" onClick={() => setEditando(null)}>
+          <button
+            type="button"
+            onClick={() => {
+              setEditando(null);
+              setErros([]);
+            }}
+          >
             Cancelar
           </button>
         </form>
       )}
     </section>
+  );
+}
+
+// Campo com rótulo, erro ligado por aria-describedby e role="alert" (padrão do form-troca-senha).
+function Campo({ id, rotulo, erro, valor, mudar, decimal }: { id: string; rotulo: string; erro: string; valor: string; mudar: (v: string) => void; decimal?: boolean }) {
+  const idCampo = `beneficio-${id}`;
+  return (
+    <div>
+      <label htmlFor={idCampo}>{rotulo}</label>{' '}
+      <input
+        id={idCampo}
+        value={valor}
+        onChange={(e) => mudar(e.target.value)}
+        {...(decimal ? { inputMode: 'decimal' as const } : {})}
+        {...(erro ? { 'aria-invalid': true, 'aria-describedby': `${idCampo}-erro` } : {})}
+      />
+      {erro && (
+        <span id={`${idCampo}-erro`} role="alert">
+          {erro}
+        </span>
+      )}
+    </div>
   );
 }
