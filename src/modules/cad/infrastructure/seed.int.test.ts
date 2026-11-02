@@ -108,7 +108,9 @@ describe('seedDadosReferenciaCad', () => {
     vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
     vi.stubEnv('AMBIENTE', 'producao');
     const antes = await retrato();
-    await expect(executarSeeds(cliente, [seedDadosReferenciaCad])).rejects.toThrow();
+    await expect(executarSeeds(cliente, [seedDadosReferenciaCad])).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: 'CARGA_DADOS_REFERENCIA não pode ser usada em produção (R15)' }),
+    });
     expect(await retrato()).toEqual(antes);
   });
 });
