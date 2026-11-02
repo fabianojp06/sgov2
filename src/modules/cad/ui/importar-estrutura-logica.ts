@@ -118,6 +118,14 @@ export type EventoTela =
   | { tipo: 'falhaEnvio' }
   | Acompanhamento;
 
+const chaveAviso = (a: ErroLinha) => `${a.linha}\u0000${a.coluna ?? ''}\u0000${a.mensagem}`;
+
+/** Avisos do envio e do lote, sem repetir o mesmo (linha, coluna, mensagem). */
+export function juntarAvisos(antes: readonly ErroLinha[], lote: readonly ErroLinha[]): readonly ErroLinha[] {
+  const vistos = new Set(antes.map(chaveAviso));
+  return [...antes, ...lote.filter((a) => !vistos.has(chaveAviso(a)))];
+}
+
 export function reduzirTela(s: EstadoTela, e: EventoTela): EstadoTela {
   switch (e.tipo) {
     case 'enviar':
@@ -134,8 +142,9 @@ export function reduzirTela(s: EstadoTela, e: EventoTela): EstadoTela {
     case 'estado': {
       const lote = e.estado;
       if (lote.situacao === 'FALHOU') return { ...s, fase: 'fim', lote, errosLinha: lote.erros, gerais: lote.erro ? [lote.erro] : [] };
-      // Os avisos do lote incluem os da R5 (reduzido que mudou de conta, inativação), que só o worker conhece.
-      if (lote.situacao === 'CONCLUIDA') return { ...s, fase: 'fim', lote, avisos: lote.avisos };
+      // Os avisos do lote trazem os da R5 (reduzido que mudou de conta, inativação), que só o worker
+      // conhece; os do saneamento só vêm na resposta do envio (o staging já vai saneado). Junta os dois.
+      if (lote.situacao === 'CONCLUIDA') return { ...s, fase: 'fim', lote, avisos: juntarAvisos(s.avisos, lote.avisos) };
       return { ...s, lote };
     }
     case 'erro':

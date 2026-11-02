@@ -162,12 +162,13 @@ describe('reduzirTela', () => {
     expect(textoStatus(s)).toBe('Importando 174 linhas…');
   });
 
-  it('CONCLUIDA: libera o botão e mostra os avisos do lote (R5), que só o worker conhece', () => {
+  it('CONCLUIDA: libera o botão e junta os avisos do envio (saneamento) com os do lote (R5), sem repetir', () => {
     const avisoR5 = { linha: 9, coluna: 'Código reduzido', mensagem: 'O reduzido 900 passou de uma conta para outra: a antiga foi inativada.' };
-    const s = passar({ tipo: 'enviar' }, enviado, { tipo: 'estado', estado: estado('CONCLUIDA', { avisos: [avisoR5], incluidas: 1, inalteradas: 173 }) });
+    const repetido = { linha: 3, mensagem: 'Nome retirado.' };
+    const s = passar({ tipo: 'enviar' }, enviado, { tipo: 'estado', estado: estado('CONCLUIDA', { avisos: [repetido, avisoR5], incluidas: 1, inalteradas: 173 }) });
     expect(s.fase).toBe('fim');
     expect(podeEnviar(s)).toBe(true);
-    expect(s.avisos).toEqual([avisoR5]);
+    expect(s.avisos).toEqual([{ linha: 3, mensagem: 'Nome retirado.' }, avisoR5]);
     expect(textoStatus(s)).toMatch(/^Plano de contas importado: 1 incluídas/);
   });
 
@@ -198,7 +199,7 @@ describe('reduzirTela', () => {
     expect(textoStatus(esgotado)).toBe(MSG_ESGOTADO);
   });
 
-  it('novo envio limpa o resultado anterior; arquivo recusado no cliente não chama a ação', () => {
+  it('novo envio limpa o resultado anterior; arquivo recusado no cliente fica só no campo', () => {
     const antes = passar({ tipo: 'enviar' }, enviado, { tipo: 'estado', estado: estado('FALHOU', { erros: [{ linha: 2, mensagem: 'x' }] }) });
     expect(reduzirTela(antes, { tipo: 'enviar' })).toEqual({ ...TELA_INICIAL, fase: 'enviando' });
     expect(reduzirTela(antes, { tipo: 'arquivoRecusado', mensagem: MSG_ARQUIVO.tamanho })).toEqual({ ...TELA_INICIAL, erroArquivo: [MSG_ARQUIVO.tamanho] });
@@ -215,6 +216,8 @@ describe('ImportarEstrutura (SSR)', () => {
     expect(html).toMatch(/<input id="importar-arquivo" type="file" accept="\.xlsx,[^"]*" name="arquivo"\/>/);
     expect(html).toContain('role="status"');
     expect(html).not.toContain('role="alert"');
+    // O botão começa livre (um disabled invertido o deixaria bloqueado).
+    expect(html).toMatch(/<button type="submit">Importar<\/button>/);
   });
 
   it('a lista mostra o total e avisa quando corta em 200', () => {
