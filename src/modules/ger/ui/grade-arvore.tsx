@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from 'react';
 import { formatarCelula } from '../domain/celula';
 import { ehCaminhoInterno } from '../domain/navegacao';
 import {
@@ -12,12 +13,13 @@ import {
   type Expansao,
   type NoGrade,
 } from './grade-logica';
+import { ALTURA_LINHA_PADRAO, ALTURA_VISIVEL_PADRAO, FOLGA_PADRAO, navegar, TECLAS, type Tecla } from './grade-virtual';
 
 export type { ColunaGrade, LinhaGrade, NoGrade } from './grade-logica';
 
-// Contrato C3: Tree Grid do sistema. Esta é a versão mínima do contrato, sem virtualização nem
-// navegação por teclado; a US-021 (P4) troca a implementação mantendo as props (props novas
-// entram como opcionais). C liga os campos das colunas às chaves das linhas.
+// Contrato C3: Tree Grid do sistema (US-021, R18): virtualizada (linhas de altura fixa e
+// espaçadores, @tanstack/react-virtual), com navegação por teclado de treegrid (WAI-ARIA) e foco
+// itinerante. As props novas são opcionais; o C3 não muda. C liga os campos das colunas às linhas.
 export type PropsGradeArvore<C extends string = string> = {
   idGrade: string; // chave da expansão (e, na US-021, dos filtros) retida na sessão (RNF0005)
   rotulo?: string; // nome acessível da grade
@@ -26,6 +28,8 @@ export type PropsGradeArvore<C extends string = string> = {
   expandidos?: Expansao;
   acaoSelecionar?: (id: string) => Promise<void>; // Server Action, opcional; erros vão ao error boundary
   textoVazio?: string;
+  alturaLinha?: number; // px, padrão 32
+  alturaVisivel?: number; // px, padrão 600
 };
 
 export function GradeArvore<C extends string = string>({
@@ -36,9 +40,22 @@ export function GradeArvore<C extends string = string>({
   expandidos,
   acaoSelecionar,
   textoVazio,
+  alturaLinha = ALTURA_LINHA_PADRAO,
+  alturaVisivel = ALTURA_VISIVEL_PADRAO,
 }: PropsGradeArvore<C>) {
   const [abertos, setAbertos] = useState(() => expansaoInicial(nos, expandidos));
   const [, iniciarTransicao] = useTransition();
+  const linhas = useMemo(() => visiveis(nos, abertos), [nos, abertos]);
+  const [focoId, setFocoId] = useState<string | null>(null);
+  const rolagem = useRef<HTMLDivElement>(null);
+  // initialRect: no servidor (sem elemento de rolagem), a primeira janela já sai desenhada.
+  const virtual = useVirtualizer({
+    count: linhas.length,
+    getScrollElement: () => rolagem.current,
+    estimateSize: () => alturaLinha,
+    overscan: FOLGA_PADRAO,
+    initialRect: { width: 0, height: alturaVisivel },
+  });
 
   // Sem sessionStorage (janela privada, bloqueio), segue com a expansão inicial.
   useEffect(() => {
@@ -49,6 +66,16 @@ export function GradeArvore<C extends string = string>({
       // sem armazenamento de sessão
     }
   }, [idGrade]);
+
+  // O foco segue o teclado: rola até a linha e foca o <tr> depois de desenhado.
+  useEffect(() => {
+    if (focoId === null) return;
+    const i = linhas.findIndex((l) => l.no.id === focoId);
+    if (i < 0) return;
+    virtual.scrollToIndex(i, { align: 'auto' });
+    const raf = requestAnimationFrame(() => rolagem.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(focoId)}"]`)?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [focoId, linhas, virtual]);
 
   const alternar = (id: string) => {
     setAbertos((atual) => {
@@ -66,26 +93,46 @@ export function GradeArvore<C extends string = string>({
 
   if (nos.length === 0) return <p>{textoVazio ?? 'Nenhum registro.'}</p>;
 
+  const aoTeclar = (e: KeyboardEvent<HTMLTableSectionElement>) => {
+    if (!TECLAS.includes(e.key)) return;
+    e.preventDefault();
+    const r = navegar(linhas, focoId ?? linhas[0]!.no.id, e.key as Tecla, abertos);
+    if (r.alternar) alternar(r.alternar);
+    setFocoId(r.foco);
+  };
+  const itens = virtual.getVirtualItems();
+  const espacoAntes = itens[0]?.start ?? 0;
+  const espacoDepois = virtual.getTotalSize() - (itens.at(-1)?.end ?? 0);
+  const focavel = focoId ?? linhas[0]?.no.id;
+
   return (
-    <table role="treegrid" aria-label={rotulo ?? idGrade}>
+    <div ref={rolagem} style={{ maxHeight: alturaVisivel, overflowY: 'auto' }}>
+    <table role="treegrid" aria-label={rotulo ?? idGrade} aria-rowcount={linhas.length + 1}>
       <thead>
-        <tr>
+        <tr aria-rowindex={1}>
           {colunas.map((c, i) => (
-            <th key={i} scope="col" style={c.largura ? { width: c.largura } : undefined}>
+            <th key={i} scope="col" style={{ position: 'sticky', top: 0, ...(c.largura ? { width: c.largura } : {}) }}>
               {c.titulo}
             </th>
           ))}
         </tr>
       </thead>
-      <tbody>
-        {visiveis(nos, abertos).map(({ no, nivel }) => {
+      <tbody onKeyDown={aoTeclar}>
+        {espacoAntes > 0 && <tr aria-hidden="true" style={{ height: espacoAntes }} />}
+        {itens.map((item) => {
+          const { no, nivel } = linhas[item.index]!;
           const temFilhos = Boolean(no.filhos?.length);
           const aberto = abertos.has(no.id);
           const href = no.href !== undefined && ehCaminhoInterno(no.href) ? no.href : undefined;
           return (
             <tr
               key={no.id}
+              data-id={no.id}
+              aria-rowindex={item.index + 2}
               aria-level={nivel}
+              tabIndex={no.id === focavel ? 0 : -1}
+              onFocus={() => setFocoId(no.id)}
+              style={{ height: alturaLinha }}
               {...(temFilhos ? { 'aria-expanded': aberto } : {})}
               onClick={acaoSelecionar ? () => iniciarTransicao(() => acaoSelecionar(no.id)) : undefined}
             >
@@ -124,7 +171,9 @@ export function GradeArvore<C extends string = string>({
             </tr>
           );
         })}
+        {espacoDepois > 0 && <tr aria-hidden="true" style={{ height: espacoDepois }} />}
       </tbody>
     </table>
+    </div>
   );
 }
