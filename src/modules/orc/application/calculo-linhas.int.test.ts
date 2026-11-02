@@ -158,7 +158,7 @@ describe('recalcularExercicio', () => {
   it('exercício não editável: ErroRecalculo com a mensagem da situação (antes de qualquer escrita)', async () => {
     const e = await exercicio();
     await app.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
-    await app.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    await app.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = ${USUARIO}::uuid WHERE id = ${e.id}::uuid`;
     await expect(app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(deps(e.ano).d)))).rejects.toBeInstanceOf(ErroRecalculo);
   });
 
@@ -232,7 +232,7 @@ describe('recalcular (caso de uso)', () => {
       await tx.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
     });
     await app.$transaction(async (tx) => {
-      await tx.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+      await tx.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = ${USUARIO}::uuid WHERE id = ${e.id}::uuid`;
     });
     expect(await recalcular(ctx(), e.id, deps(e.ano).d)).toEqual({
       ok: false,
