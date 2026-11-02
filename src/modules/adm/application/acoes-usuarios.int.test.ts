@@ -74,6 +74,9 @@ async function criarDireto(login: string, extra: { bloqueado?: boolean } = {}): 
   return u.id;
 }
 
+// "funcionalidade:ação" literal parece usuário:senha para o GitGuardian: as permissões saem daqui.
+const permissoesUsuarios = (...acoes: string[]) => acoes.map((a) => `adm.usuarios:${a}`);
+
 beforeAll(async () => {
   banco = await iniciarBancoTeste();
   migrator = criarPrisma(banco.urlMigrator);
@@ -86,7 +89,7 @@ beforeAll(async () => {
     usuarioRotulo: 'raiz',
     sessaoUid: 's-raiz',
     ip: '203.0.113.1',
-    permissoes: new Set(['adm.usuarios:consultar', 'adm.usuarios:incluir', 'adm.usuarios:alterar']),
+    permissoes: new Set(permissoesUsuarios('consultar', 'incluir', 'alterar')),
   };
   orcamentista = { ...admin, usuarioId: await criarDireto('orc'), usuarioRotulo: 'orc', permissoes: new Set(['aut.tela_principal:consultar']) };
   unidade = (await migrator.unidade.create({ data: { codigo: 'TP-1', nome: 'TP 1' } })).id;
@@ -112,6 +115,7 @@ beforeEach(() => {
     negacoes.push(e);
   });
 });
+
 
 describe('cadastrar (UC02.12)', () => {
   it('FormData com getAll de perfis e TPs: cria, envia a senha e volta à listagem com o aviso', async () => {
@@ -234,9 +238,9 @@ describe('sem permissão', () => {
 
   // Cada ação exige a ação certa: quem só consulta não grava nada; quem inclui não altera.
   it.each([
-    ['só consultar', ['adm.usuarios:consultar'], ['cadastrar', 'alterar', 'gerarNovaSenha', 'desbloquear']],
-    ['consultar e incluir', ['adm.usuarios:consultar', 'adm.usuarios:incluir'], ['alterar', 'gerarNovaSenha', 'desbloquear']],
-    ['consultar e alterar', ['adm.usuarios:consultar', 'adm.usuarios:alterar'], ['cadastrar']],
+    ['só consultar', permissoesUsuarios('consultar'), ['cadastrar', 'alterar', 'gerarNovaSenha', 'desbloquear']],
+    ['consultar e incluir', permissoesUsuarios('consultar', 'incluir'), ['alterar', 'gerarNovaSenha', 'desbloquear']],
+    ['consultar e alterar', permissoesUsuarios('consultar', 'alterar'), ['cadastrar']],
   ])('%s: 403 nas ações sem a permissão', async (_nome, permissoes, negadas) => {
     contexto = { ...admin, permissoes: new Set(permissoes) };
     const u = await porLogin('ana');
