@@ -126,6 +126,16 @@ describe('seedAdm', () => {
     expect(f).toMatchObject({ nome: 'Cargos e salários', ativo: false });
   });
 
+  it('trocar só o exibirNoMenu atualiza e audita, sem reativar o que o Administrador desligou (C6, RN_SEED_002)', async () => {
+    const salarios = { ...cargos, codigo: 'cad.salarios', nome: 'Salários', rota: '/cad/salarios' };
+    await executarSeeds(cliente, [seedCom([salarios])]);
+    await cliente.funcionalidade.update({ where: { codigo: 'cad.salarios' }, data: { ativo: false } });
+    await executarSeeds(cliente, [seedCom([{ ...salarios, exibirNoMenu: false }])]);
+    const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'cad.salarios' } });
+    expect(f).toMatchObject({ exibirNoMenu: false, ativo: false });
+    expect(await cliente.historicoOperacao.count({ where: { descricao: 'Seed: funcionalidade cad.salarios atualizada' } })).toBe(1);
+  });
+
   it('ação padrão nova vai para quem ainda tem acesso; a removida não volta (R12)', async () => {
     const v2 = { ...cargos, perfisPadrao: { ANALISTA_GRH: ['consultar', 'incluir'], AUDITOR: ['consultar'] } } as const;
     await executarSeeds(cliente, [seedCom([v2])]);

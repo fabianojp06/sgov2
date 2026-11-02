@@ -1,7 +1,9 @@
 import type { TxCliente } from '@/shared/db';
 
-// Catálogo para o menu (RN0030/RN0031): só funcionalidades ativas de módulos ativos.
-export async function listarCatalogoAtivo(tx: TxCliente): Promise<
+// Catálogo para o menu (RN0030/RN0031): só funcionalidades ativas de módulos ativos e exibidas no
+// menu (exibirNoMenu, C6). A permissão de uma funcionalidade fora do menu continua valendo; tela de
+// permissões ou de perfis não usa esta função (esconderia as funcionalidades fora do menu).
+export async function listarCatalogoDoMenu(tx: TxCliente): Promise<
   readonly {
     modulo: { codigo: string; nome: string; ordem: number };
     grupo: string;
@@ -9,7 +11,7 @@ export async function listarCatalogoAtivo(tx: TxCliente): Promise<
   }[]
 > {
   const linhas = await tx.funcionalidade.findMany({
-    where: { ativo: true, modulo: { ativo: true } },
+    where: { ativo: true, exibirNoMenu: true, modulo: { ativo: true } },
     include: { modulo: true },
     orderBy: [{ modulo: { ordem: 'asc' } }, { ordem: 'asc' }],
   });

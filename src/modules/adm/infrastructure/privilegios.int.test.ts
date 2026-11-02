@@ -51,6 +51,7 @@ describe('privilégios do adm', () => {
     await expect(app.query(`UPDATE funcionalidade SET ativo = false WHERE codigo = 'xxx.f'`)).resolves.toBeDefined();
     await expect(app.query(`UPDATE modulo SET codigo = 'Y'`)).rejects.toEqual(negado);
     await expect(app.query(`UPDATE funcionalidade SET modulo_codigo = 'X', acoes = '{consultar}'`)).rejects.toEqual(negado);
+    await expect(app.query(`UPDATE funcionalidade SET exibir_no_menu = false`)).rejects.toEqual(negado);
     await expect(app.query(`INSERT INTO modulo (codigo, nome, ordem) VALUES ('Z', 'Z', 1)`)).rejects.toEqual(negado);
   });
 

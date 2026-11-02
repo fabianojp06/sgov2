@@ -30,6 +30,7 @@ model Funcionalidade {
   acoes        String[]
   nivelLog     NivelLog          @default(SIMPLES) @map("nivel_log")
   ativo        Boolean           @default(true)
+  exibirNoMenu Boolean           @default(true) @map("exibir_no_menu")
   permissoes   PerfilPermissao[]
 
   @@map("funcionalidade")

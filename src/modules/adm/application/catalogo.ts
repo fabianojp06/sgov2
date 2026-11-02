@@ -25,6 +25,9 @@ export type DeclaracaoFuncionalidade = {
   ordem: number;
   ajuda?: string;
   nivelLog?: 'SIMPLES' | 'AVANCADO';
+  // Padrão true. Com false, as permissões valem, mas a funcionalidade fica fora do menu, da busca
+  // e da ajuda contextual (a ajuda sai do menu); a rota continua servindo à navegação (R24 do P4).
+  exibirNoMenu?: boolean;
   acoes: readonly Acao[];
   perfisPadrao: Partial<Record<CodigoPerfil, readonly Acao[]>>; // subconjunto de acoes
 };
@@ -48,6 +51,9 @@ export function validarDeclaracoes(itens: readonly DeclaracaoFuncionalidade[]): 
     // servir de atalho para dar administração a outro perfil.
     if (item.codigo.startsWith('adm.') !== (item.modulo === MODULO_EXCLUSIVO_ADMIN)) {
       throw new ErroDominio('seed.perfil_proibido', `${item.codigo}: funcionalidade do adm só no módulo de Administração (RN_SEED_003)`);
+    }
+    if (item.exibirNoMenu !== undefined && typeof item.exibirNoMenu !== 'boolean') {
+      throw new ErroDominio('seed.exibir_no_menu_invalido', `exibirNoMenu precisa ser booleano em ${item.codigo}`);
     }
     if (new Set(item.acoes).size !== item.acoes.length) {
       throw new ErroDominio('seed.acao_invalida', `Ação repetida em ${item.codigo}`);

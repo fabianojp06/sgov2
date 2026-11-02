@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@/generated/prisma/client';
-import { listarCatalogoAtivo, listarUnidadesDoUsuario, obterUsuarioParaSessao } from '@/modules/adm';
+import { listarCatalogoDoMenu, listarUnidadesDoUsuario, obterUsuarioParaSessao } from '@/modules/adm';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { montarMenu, type MenuModulo } from './menu';
@@ -17,7 +17,7 @@ export type DadosTelaPrincipal = {
 export async function carregarTelaPrincipal(ctx: ContextoRequisicao, deps: Partial<DepsTela> = {}): Promise<DadosTelaPrincipal> {
   const cliente = deps.cliente ?? prisma;
   const [catalogo, unidades, usuario, sessao] = await Promise.all([
-    listarCatalogoAtivo(cliente),
+    listarCatalogoDoMenu(cliente),
     listarUnidadesDoUsuario(cliente, ctx.usuarioId),
     obterUsuarioParaSessao(cliente, ctx.usuarioId),
     cliente.sessaoUsuario.findFirst({ where: { usuarioId: ctx.usuarioId, sessaoUid: ctx.sessaoUid }, select: { criadaEm: true } }),
