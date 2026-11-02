@@ -13,14 +13,15 @@ export async function exportarXlsx(planilhas: readonly PlanilhaExportacao[]): Pr
   if (!v.ok) return falha(v.erros);
   try {
     return ok(await gerar(planilhas));
-  } catch {
-    // O ExcelJS ainda pode recusar algo que a validação não previu: vira erro, nunca rejeição.
+  } catch (e) {
+    // O ExcelJS ainda pode recusar algo que a validação não previu: vira erro, nunca rejeição. No log,
+    // só a classe e a mensagem do ExcelJS, sem os dados das células.
+    console.error('[XLSX_FALHOU]', { erro: e instanceof Error ? `${e.name}: ${e.message.slice(0, 200)}` : 'desconhecido' });
     return falha([{ campo: 'planilhas', mensagem: 'Não foi possível gerar a planilha.' }]);
   }
 }
 
 async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Array> {
-
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   for (const p of planilhas) {
