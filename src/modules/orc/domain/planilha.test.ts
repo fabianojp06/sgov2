@@ -68,9 +68,14 @@ describe('lerValor (Review Focus 2)', () => {
     ['1234.5599999999999', '1234.56'],
   ])('%s → %s', (entrada, saida) => expect((lerValor(entrada) as Dinheiro).paraString()).toBe(saida));
 
-  it.each(['7.500', '7.500,00', 'R$ 350', '1.5e3', '10.123', '7500.004999999', '1 000', 'abc', '--1'])('%j → INVALIDO', (v) =>
+  it.each(['7.500', '7.500,00', 'R$ 350', '1.5e3', '10.123', '7500.004999999', '1234.5612345678901', '1234.559999999999999', '12345678901234567', '1 000', 'abc', '--1'])('%j → INVALIDO', (v) =>
     expect(lerValor(v)).toBe('INVALIDO'),
   );
+
+  it('"0" e "-0" são zero', () => {
+    expect((lerValor('0') as Dinheiro).paraString()).toBe('0.00');
+    expect((lerValor('-0') as Dinheiro).ehNegativo()).toBe(false);
+  });
 
   it('vazio e null → null; negativo é lido (a regra do campo decide)', () => {
     expect(lerValor('')).toBeNull();
@@ -108,6 +113,9 @@ describe('validarPlanilha: Pessoal', () => {
         pessoal(17, { 'Mês de início (1–12)': '5', 'Mês de saída (1–12)': '4' }),
         pessoal(18, { 'Salário mensal (R$)': '7.500,00' }),
         pessoal(19, { Cargo: '=1+1' }),
+        pessoal(20, { Observação: '@soma' }),
+        pessoal(21, { Observação: 'x'.repeat(501) }),
+        pessoal(22, { 'Salário mensal (R$)': '0' , Quantidade: '0', Cargo: null }),
       ],
     });
     expect(erros(r)).toEqual([
@@ -126,6 +134,11 @@ describe('validarPlanilha: Pessoal', () => {
       'Pessoal:17:Mês de início (1–12):Mês de início depois do mês de saída.',
       'Pessoal:18:Salário mensal (R$):Valor em formato inválido. Digite o número na célula, com até 2 casas decimais.',
       'Pessoal:19:Cargo:Texto não pode começar com =, + ou @.',
+      'Pessoal:20:Observação:Texto não pode começar com =, + ou @.',
+      'Pessoal:21:Observação:Observação com mais de 500 caracteres.',
+      'Pessoal:22:Cargo:Cargo obrigatório.',
+      'Pessoal:22:Quantidade:Quantidade inteira, de 1 a 9.999.',
+      'Pessoal:22:Salário mensal (R$):Salário maior que zero.',
     ]);
   });
 });
@@ -139,6 +152,13 @@ describe('validarPlanilha: Pacotes base zero', () => {
         quantidade: 12, valorUnitario: Dinheiro.de('350'), corrigirIpca: false, distribuicao: 'MENSAL', mesOcorrencia: null,
       },
     ]);
+  });
+
+  it('opções com caixa e acento ("DESEJÁVEL", "NÃO"); linha vazia ignorada', () => {
+    const vazia = linha(9, Object.fromEntries(COLUNAS_PACOTES.map((c) => [c, ' '])));
+    const r = validar({ pacotes: [pacote(5, { Prioridade: 'DESEJÁVEL', 'Corrigir pelo IPCA?': 'NÃO' }), vazia] });
+    expect(r.ok && r.conteudo.pacotes).toHaveLength(1);
+    expect(r.ok && r.conteudo.pacotes[0]).toMatchObject({ prioridade: 'DESEJAVEL', corrigirIpca: false });
   });
 
   it('pontual com mês; descrição começando com "-" é aceita', () => {
@@ -160,6 +180,8 @@ describe('validarPlanilha: Pacotes base zero', () => {
         pacote(12, { Distribuição: 'Anual' }),
         pacote(13, { 'Valor unitário (R$)': '0' }),
         pacote(14, { [J]: '+cmd reposição' }),
+        pacote(15, { Prioridade: 'constructor', 'Corrigir pelo IPCA?': '__proto__', Distribuição: 'toString' }),
+        pacote(16, { 'Valor unitário (R$)': '100000000' }),
       ],
     });
     expect(erros(r)).toEqual([
@@ -173,6 +195,10 @@ describe('validarPlanilha: Pacotes base zero', () => {
       'Pacotes base zero:12:Distribuição:Distribuição obrigatória: Mensal ou Pontual.',
       'Pacotes base zero:13:Valor unitário (R$):Valor unitário maior que zero.',
       `Pacotes base zero:14:${J}:Texto não pode começar com =, + ou @.`,
+      'Pacotes base zero:15:Prioridade:Prioridade obrigatória: Essencial, Importante ou Desejável.',
+      'Pacotes base zero:15:Corrigir pelo IPCA?:Informe Sim ou Não em Corrigir pelo IPCA.',
+      'Pacotes base zero:15:Distribuição:Distribuição obrigatória: Mensal ou Pontual.',
+      'Pacotes base zero:16:Valor unitário (R$):Valor unitário precisa ser menor que R$ 100.000.000,00.',
     ]);
   });
 });
@@ -184,16 +210,35 @@ describe('validarPlanilha: Receitas', () => {
     expect(r.ok && r.conteudo.receitas[0]!.meses.map((m) => m.paraString())[2]).toBe('0.00');
   });
 
-  it('TP vazio, situação inválida, mês negativo e TP repetido nas duas linhas', () => {
+  it('TP vazio, situação inválida, mês negativo, limites, fórmula e TP repetido mesmo com outro erro', () => {
+    const vazia = linha(4, Object.fromEntries(COLUNAS_RECEITAS.map((c) => [c, null])));
     const r = validar({
-      receitas: [receita(5, { 'TP / versão': ' ' }), receita(6, { Situação: 'Talvez' }), receita(7, { Fev: '-1' }), receita(8, { 'TP / versão': '002/2026' }), receita(9, { 'TP / versão': '002/2026' })],
+      receitas: [
+        vazia,
+        receita(5, { 'TP / versão': ' ' }),
+        receita(6, { 'TP / versão': '006', Situação: 'Talvez' }),
+        receita(7, { 'TP / versão': '007', Fev: '-1' }),
+        receita(8, { 'TP / versão': '002/2026', Mar: 'abc' }),
+        receita(9, { 'TP / versão': '002/2026' }),
+        receita(10, { 'TP / versão': '@x' }),
+        receita(11, { 'TP / versão': 'x'.repeat(61) }),
+        receita(12, { 'TP / versão': '003', Descrição: '=HYPERLINK()' }),
+        receita(13, { 'TP / versão': '004', Abr: '100000000000' }),
+        receita(14, { 'TP / versão': '005', Situação: 'constructor' }),
+      ],
     });
     expect(erros(r)).toEqual([
       'Receitas:5:TP / versão:TP / versão obrigatório.',
       'Receitas:6:Situação:Situação obrigatória: Confirmado ou Previsto.',
       'Receitas:7:Fev:Valor do mês não pode ser negativo.',
+      'Receitas:8:Mar:Valor em formato inválido. Digite o número na célula, com até 2 casas decimais.',
       'Receitas:8:TP / versão:TP / versão repetido nas linhas 8 e 9.',
       'Receitas:9:TP / versão:TP / versão repetido nas linhas 8 e 9.',
+      'Receitas:10:TP / versão:Texto não pode começar com =, + ou @.',
+      'Receitas:11:TP / versão:TP / versão com mais de 60 caracteres.',
+      'Receitas:12:Descrição:Texto não pode começar com =, + ou @.',
+      'Receitas:13:Abr:Valor do mês precisa ser menor que R$ 100.000.000.000,00.',
+      'Receitas:14:Situação:Situação obrigatória: Confirmado ou Previsto.',
     ]);
   });
 

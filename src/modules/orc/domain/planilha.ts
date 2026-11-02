@@ -56,6 +56,10 @@ export type Aba = 'Pessoal' | 'Pacotes base zero' | 'Receitas';
 export type ErroPlanilha = ErroLinha & { aba: Aba };
 
 const SALARIO_LIMITE = Dinheiro.de('1000000');
+// Tetos para o cálculo caber em NUMERIC(15,2): 9.999 × valor unitário × (1 + IPCA) e 12 meses de receita.
+const VALOR_UNITARIO_LIMITE = Dinheiro.de('100000000');
+const MES_RECEITA_LIMITE = Dinheiro.de('100000000000');
+const DIGITOS_MAXIMOS = 17;
 const NUMERO = /^-?\d+(\.\d+)?$/;
 const INTEIRO = /^\d+$/;
 const FORMULA = /^[=+@]/; // R17: o "-" fica permitido
@@ -71,7 +75,7 @@ export function lerValor(celula: string | null): Dinheiro | null | 'INVALIDO' {
   try {
     if ((t.split('.')[1]?.length ?? 0) <= 2) return Dinheiro.de(t);
     const significativos = t.replace(/^-/, '').replace('.', '').replace(/^0+/, '').length;
-    if (significativos < 15) return 'INVALIDO';
+    if (significativos < 15 || significativos > DIGITOS_MAXIMOS) return 'INVALIDO';
     const exato = new Decimal(t);
     const duasCasas = exato.toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN);
     return exato.minus(duasCasas).abs().lessThan('1e-9') ? Dinheiro.de(duasCasas) : 'INVALIDO';
@@ -87,6 +91,10 @@ const opcao = (c: string | null | undefined): string =>
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .toLowerCase();
+// Opção pela tabela própria (Map): "constructor" ou "__proto__" não viram opção válida.
+function escolher<T>(opcoes: ReadonlyMap<string, T>, c: string | null | undefined): T | undefined {
+  return opcoes.get(opcao(c));
+}
 const inteiro = (c: string | null | undefined): number | null => (INTEIRO.test(texto(c)) ? Number(texto(c)) : null);
 const mes = (c: string | null | undefined): number | null => {
   const n = inteiro(c);
@@ -156,7 +164,23 @@ function validarPessoal(l: LinhaPlanilha, estrutura: ConsultaEstrutura, limites:
   };
 }
 
-const PRIORIDADES: Readonly<Record<string, Prioridade>> = { essencial: 'ESSENCIAL', importante: 'IMPORTANTE', desejavel: 'DESEJAVEL' };
+const PRIORIDADES = new Map<string, Prioridade>([
+  ['essencial', 'ESSENCIAL'],
+  ['importante', 'IMPORTANTE'],
+  ['desejavel', 'DESEJAVEL'],
+]);
+const SIM_NAO = new Map([
+  ['sim', true],
+  ['nao', false],
+]);
+const DISTRIBUICOES = new Map<string, 'MENSAL' | 'PONTUAL'>([
+  ['mensal', 'MENSAL'],
+  ['pontual', 'PONTUAL'],
+]);
+const SITUACOES = new Map<string, 'CONFIRMADO' | 'PREVISTO'>([
+  ['confirmado', 'CONFIRMADO'],
+  ['previsto', 'PREVISTO'],
+]);
 const JUSTIFICATIVA = 'Atividade / justificativa (mín. 10 caracteres)';
 
 function validarPacote(l: LinhaPlanilha, estrutura: ConsultaEstrutura, limites: LimitesPlanilha, lista: ErroPlanilha[]): PacoteValidado | null {
@@ -168,13 +192,14 @@ function validarPacote(l: LinhaPlanilha, estrutura: ConsultaEstrutura, limites: 
   if (!estrutura.contaPermitida(conta)) erro(e, 'Conta analítica', M.CONTA_NAO_PERMITIDA);
   let justificativa = lerTexto(e, c, JUSTIFICATIVA, { obrigatorio: M.JUSTIFICATIVA_CURTA, maximo: 1000, rotulo: 'Justificativa' });
   if (justificativa !== undefined && justificativa.length < 10) justificativa = void erro(e, JUSTIFICATIVA, M.JUSTIFICATIVA_CURTA);
-  const prioridade = PRIORIDADES[opcao(c['Prioridade'])];
+  const prioridade = escolher(PRIORIDADES, c['Prioridade']);
   if (!prioridade) erro(e, 'Prioridade', M.PRIORIDADE);
   const quantidade = lerQuantidade(e, c, limites);
-  const valorUnitario = lerPositivo(e, c, 'Valor unitário (R$)', M.VALOR_UNITARIO_ZERO);
-  const ipca = { sim: true, nao: false }[opcao(c['Corrigir pelo IPCA?'])];
+  let valorUnitario = lerPositivo(e, c, 'Valor unitário (R$)', M.VALOR_UNITARIO_ZERO);
+  if (valorUnitario && valorUnitario.comparar(VALOR_UNITARIO_LIMITE) >= 0) valorUnitario = void erro(e, 'Valor unitário (R$)', M.VALOR_UNITARIO_LIMITE);
+  const ipca = escolher(SIM_NAO, c['Corrigir pelo IPCA?']);
   if (ipca === undefined) erro(e, 'Corrigir pelo IPCA?', M.IPCA);
-  const distribuicao = ({ mensal: 'MENSAL', pontual: 'PONTUAL' } as const)[opcao(c['Distribuição'])];
+  const distribuicao = escolher(DISTRIBUICOES, c['Distribuição']);
   if (!distribuicao) erro(e, 'Distribuição', M.DISTRIBUICAO);
   const mesOcorrencia = distribuicao === 'PONTUAL' ? mes(c['Mês (se pontual)']) : null;
   if (distribuicao === 'PONTUAL' && mesOcorrencia === null) erro(e, 'Mês (se pontual)', M.MES_INVALIDO);
@@ -199,12 +224,13 @@ export function validarReceita(celulas: LinhaPlanilha['celulas']): Resultado<Omi
   const e: Erros = { linha: 0, aba: 'Receitas', lista };
   const tp = lerTexto(e, celulas, 'TP / versão', { obrigatorio: M.TP_OBRIGATORIO, maximo: 60, rotulo: 'TP / versão' });
   const descricao = lerTexto(e, celulas, 'Descrição', { maximo: 200, rotulo: 'Descrição' });
-  const situacao = ({ confirmado: 'CONFIRMADO', previsto: 'PREVISTO' } as const)[opcao(celulas['Situação'])];
+  const situacao = escolher(SITUACOES, celulas['Situação']);
   if (!situacao) erro(e, 'Situação', M.SITUACAO_RECEITA);
   const meses = MESES.map((m) => {
     const v = lerValor(celulas[m] ?? null);
     if (v === 'INVALIDO') return void erro(e, m, M.VALOR_FORMATO);
     if (v?.ehNegativo()) return void erro(e, m, M.MES_NEGATIVO);
+    if (v && v.comparar(MES_RECEITA_LIMITE) >= 0) return void erro(e, m, M.MES_RECEITA_LIMITE);
     return v ?? Dinheiro.zero();
   });
   if (lista.length > 0) return falha(lista.map((x): ErroCampo => ({ campo: x.coluna ?? '_', mensagem: x.mensagem })));
@@ -233,13 +259,15 @@ export function validarPlanilha(
   const linhasPorTp = new Map<string, number[]>();
   for (const l of abas.receitas) {
     if (vazia(l, COLUNAS_RECEITAS)) continue;
+    // A repetição de TP aparece mesmo se a linha tiver outro erro.
+    const tp = texto(l.celulas['TP / versão']);
+    if (tp !== '') linhasPorTp.set(tp, [...(linhasPorTp.get(tp) ?? []), l.numero]);
     const r = validarReceita(l.celulas);
     if (!r.ok) {
       for (const x of r.erros) lista.push({ aba: 'Receitas', linha: l.numero, coluna: x.campo, mensagem: x.mensagem });
       continue;
     }
     receitas.push({ linha: l.numero, ...r.valor });
-    linhasPorTp.set(r.valor.tp, [...(linhasPorTp.get(r.valor.tp) ?? []), l.numero]);
   }
   for (const linhas of linhasPorTp.values()) {
     if (linhas.length < 2) continue;

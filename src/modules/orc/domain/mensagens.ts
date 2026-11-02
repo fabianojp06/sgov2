@@ -28,6 +28,8 @@ export const MENSAGENS_ORC = {
   IPCA: 'Informe Sim ou Não em Corrigir pelo IPCA.',
   DISTRIBUICAO: 'Distribuição obrigatória: Mensal ou Pontual.',
   VALOR_UNITARIO_ZERO: 'Valor unitário maior que zero.',
+  VALOR_UNITARIO_LIMITE: 'Valor unitário precisa ser menor que R$ 100.000.000,00.',
+  MES_RECEITA_LIMITE: 'Valor do mês precisa ser menor que R$ 100.000.000.000,00.',
   VALOR_FORMATO: 'Valor em formato inválido. Digite o número na célula, com até 2 casas decimais.',
   TEXTO_FORMULA: 'Texto não pode começar com =, + ou @.',
   TP_OBRIGATORIO: 'TP / versão obrigatório.',
