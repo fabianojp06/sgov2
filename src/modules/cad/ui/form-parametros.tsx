@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useTransition, type ReactNode } from 'react';
-import type { ErroCampo } from '@/shared/kernel';
 import { ROTULO_COMPONENTE, totalEncargos, type ComponenteComConta, type OpcaoConta, type ParametrosTela } from '../domain/parametros-tela';
+import { campoExibido, depoisDeSalvar, diasUteisDoTexto, type EstadoSalvar, type RespostaSalvar } from './form-parametros-logica';
 
 // Parâmetros do exercício (US-053 parte 2; plano do P4, Task 9b): premissas, semáforo, encargos com
 // o total e as contas por componente, escolhidas entre as analíticas ativas. Com o ano congelado ou
 // sem a permissão de alterar, tudo fica desabilitado. Valores como texto (ponto ou vírgula decimal).
-type Resposta = { ok: true; valor: { versao: number } } | { ok: false; erros: readonly ErroCampo[] };
-type Editavel = Omit<ParametrosTela, 'ano' | 'versao' | 'congelado' | 'provisorio' | 'provisorios'>;
-export type EntradaAlterarParametros = Omit<Editavel, 'encargos'> & {
+type Editavel = Omit<ParametrosTela, 'ano' | 'versao' | 'congelado' | 'provisorio' | 'provisorios' | 'diasUteisMes'> & { diasUteisMes: string };
+export type EntradaAlterarParametros = Omit<Editavel, 'encargos' | 'diasUteisMes'> & {
+  diasUteisMes: number;
   ano: number;
   versao: number;
   encargos: { componente: ParametrosTela['encargos'][number]['componente']; percentual: string; conta: string }[];
@@ -19,6 +19,7 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julh
 const COMPONENTES: readonly ComponenteComConta[] = ['salario', 'adicional', 'ferias', 'decimo_terceiro'];
 
 export const mensagemCongelado = (ano: number) => `Os parâmetros de ${ano} estão congelados: o exercício foi oficializado e nada pode ser alterado.`;
+export const MSG_SO_CONSULTA = 'Você tem acesso só para consulta.';
 
 export function FormParametros({
   tela,
@@ -29,20 +30,19 @@ export function FormParametros({
   tela: ParametrosTela;
   contas: readonly OpcaoConta[];
   podeAlterar: boolean;
-  alterar: (e: EntradaAlterarParametros) => Promise<Resposta>;
+  alterar: (e: EntradaAlterarParametros) => Promise<RespostaSalvar>;
 }) {
   const [dados, setDados] = useState<Editavel>(() => ({
     reajuste: tela.reajuste,
     mesDataBase: tela.mesDataBase,
     ipca: tela.ipca,
-    diasUteisMes: tela.diasUteisMes,
+    diasUteisMes: String(tela.diasUteisMes),
     semaforo: tela.semaforo,
     encargos: tela.encargos,
     contas: tela.contas,
   }));
-  const [versao, setVersao] = useState(tela.versao);
-  const [erros, setErros] = useState<readonly ErroCampo[]>([]);
-  const [salvo, setSalvo] = useState(false);
+  const [estadoSalvar, setEstadoSalvar] = useState<EstadoSalvar>({ versao: tela.versao, erros: [], salvo: false });
+  const { erros, salvo } = estadoSalvar;
   const [salvando, iniciar] = useTransition();
   const bloqueado = tela.congelado || !podeAlterar;
   const erroDe = (campo: string) => erros.filter((e) => e.campo === campo).map((e) => e.mensagem).join(' ');
@@ -51,16 +51,18 @@ export function FormParametros({
 
   const salvar = () =>
     iniciar(async () => {
-      setSalvo(false);
+      setEstadoSalvar((antes) => ({ ...antes, salvo: false }));
       try {
-        const r = await alterar({ ...dados, ano: tela.ano, versao, encargos: dados.encargos.map(({ componente, percentual, conta }) => ({ componente, percentual, conta })) });
-        if (r.ok) {
-          setVersao(r.valor.versao);
-          setErros([]);
-          setSalvo(true);
-        } else setErros(r.erros);
+        const r = await alterar({
+          ...dados,
+          diasUteisMes: diasUteisDoTexto(dados.diasUteisMes),
+          ano: tela.ano,
+          versao: estadoSalvar.versao,
+          encargos: dados.encargos.map(({ componente, percentual, conta }) => ({ componente, percentual, conta })),
+        });
+        setEstadoSalvar((antes) => depoisDeSalvar(antes, r));
       } catch {
-        setErros([{ campo: '_', mensagem: 'Não foi possível salvar. Confira a conexão e tente de novo.' }]);
+        setEstadoSalvar((antes) => ({ ...antes, salvo: false, erros: [{ campo: '_', mensagem: 'Não foi possível salvar. Confira a conexão e tente de novo.' }] }));
       }
     });
 
@@ -77,40 +79,48 @@ export function FormParametros({
       noValidate
     >
       {erros.length > 0 && (
+        // O resumo anuncia que há erros; os de campo ficam ao lado de cada um, os outros aqui.
         <ul role="alert">
-          {erros.map((e, i) => (
+          {(erros.some((e) => !campoExibido(e.campo)) ? erros.filter((e) => !campoExibido(e.campo)) : [{ campo: '_', mensagem: 'Corrija os campos marcados.' }]).map((e, i) => (
             <li key={i}>{e.mensagem}</li>
           ))}
         </ul>
       )}
       <p role="status">{salvo ? `Parâmetros de ${tela.ano} salvos.` : ''}</p>
       {tela.congelado && <p>{mensagemCongelado(tela.ano)}</p>}
+      {!tela.congelado && !podeAlterar && <p>{MSG_SO_CONSULTA}</p>}
       <fieldset disabled={bloqueado}>
         <legend>Premissas</legend>
         <Campo id="reajuste" rotulo="Reajuste (%)" erro={erroDe('reajuste')} valor={dados.reajuste} mudar={(v) => setDados({ ...dados, reajuste: v })} />
         <div>
           <label htmlFor="param-mesDataBase">Mês da data-base</label>{' '}
-          <select id="param-mesDataBase" value={dados.mesDataBase} onChange={(e) => setDados({ ...dados, mesDataBase: Number(e.target.value) })}>
+          <select
+            id="param-mesDataBase"
+            value={dados.mesDataBase}
+            onChange={(e) => setDados({ ...dados, mesDataBase: Number(e.target.value) })}
+            {...(erroDe('mesDataBase') ? { 'aria-invalid': true, 'aria-describedby': 'param-mesDataBase-erro' } : {})}
+          >
             {MESES.map((m, i) => (
               <option key={m} value={i + 1}>
                 {m}
               </option>
             ))}
           </select>
+          {erroDe('mesDataBase') && <span id="param-mesDataBase-erro">{erroDe('mesDataBase')}</span>}
         </div>
         <Campo id="ipca" rotulo="IPCA (%)" erro={erroDe('ipca')} valor={dados.ipca} mudar={(v) => setDados({ ...dados, ipca: v })} />
         <Campo
           id="diasUteisMes"
           rotulo="Dias úteis por mês"
           erro={erroDe('diasUteisMes')}
-          valor={String(dados.diasUteisMes)}
+          valor={dados.diasUteisMes}
           numerico
-          mudar={(v) => setDados({ ...dados, diasUteisMes: /^\d{1,2}$/.test(v) ? Number(v) : 0 })}
+          mudar={(v) => setDados({ ...dados, diasUteisMes: v })}
         />
       </fieldset>
-      <fieldset disabled={bloqueado}>
+      <fieldset disabled={bloqueado} {...(erroDe('semaforo') ? { 'aria-describedby': 'param-semaforo-erro' } : {})}>
         <legend>Semáforo da execução (% do orçado)</legend>
-        {erroDe('semaforo') && <p>{erroDe('semaforo')}</p>}
+        {erroDe('semaforo') && <p id="param-semaforo-erro">{erroDe('semaforo')}</p>}
         {(['verdeAte', 'amareloAte', 'laranjaAte'] as const).map((f) => (
           <Campo
             key={f}
@@ -122,9 +132,9 @@ export function FormParametros({
           />
         ))}
       </fieldset>
-      <fieldset disabled={bloqueado}>
+      <fieldset disabled={bloqueado} {...(erroDe('encargos') ? { 'aria-describedby': 'param-encargos-erro' } : {})}>
         <legend>Encargos</legend>
-        {erroDe('encargos') && <p>{erroDe('encargos')}</p>}
+        {erroDe('encargos') && <p id="param-encargos-erro">{erroDe('encargos')}</p>}
         <table>
           <thead>
             <tr>
@@ -143,7 +153,7 @@ export function FormParametros({
                 <td>
                   <Campo
                     id={`encargos.${i}.percentual`}
-                    rotulo={`Percentual de ${e.nome}`}
+                    rotulo={`Percentual de ${e.nome}${provisorio(e.componente) ? ' (provisório)' : ''}`}
                     oculto
                     erro={erroDe(`encargos.${i}.percentual`)}
                     valor={e.percentual}
@@ -153,7 +163,7 @@ export function FormParametros({
                 <td>
                   <SeletorConta
                     id={`encargos.${i}.conta`}
-                    rotulo={`Conta de ${e.nome}`}
+                    rotulo={`Conta de ${e.nome}${provisorio(e.componente) ? ' (provisório)' : ''}`}
                     erro={erroDe(`encargos.${i}.conta`)}
                     valor={e.conta}
                     contas={contas}
@@ -259,8 +269,10 @@ function SeletorConta({
   const fora = valor !== '' && !contas.some((c) => c.classificacao === valor);
   return (
     <>
-      <label htmlFor={idCampo}>{rotulo}</label>
-      {selo}{' '}
+      <label htmlFor={idCampo}>
+        {rotulo}
+        {selo}
+      </label>{' '}
       <select
         id={idCampo}
         value={valor}

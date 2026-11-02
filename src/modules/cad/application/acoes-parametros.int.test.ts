@@ -136,9 +136,26 @@ describe('acaoAlterarParametros', () => {
     expect(await versao()).toBe(e.versao);
   });
 
-  it('campo desconhecido: recusado pelo schema (.strict); versão velha: aviso de concorrência', async () => {
+  it('M-n4: blindado junto com outro erro de schema, ou dentro dos encargos e das contas, também é auditado', async () => {
     const e = await entrada();
-    expect((await acaoAlterarParametros({ ...e, outro: 1 })).ok).toBe(false);
+    for (const bruto of [
+      { ...e, congelado: true, reajuste: 5 },
+      { ...e, provisorio: false, outro: 1 },
+      { ...e, encargos: e.encargos.map((x, i) => (i === 0 ? { ...x, nome: 'Outro' } : x)) },
+      { ...e, contas: { ...e.contas, provisorio: false } },
+    ]) {
+      const antes = await historicos();
+      expect(await acaoAlterarParametros(bruto)).toMatchObject({ ok: false, erros: [{ mensagem: 'O pedido tem campos que não podem ser alterados pela tela.' }] });
+      expect(await historicos()).toBe(antes + 1);
+    }
+    expect(await versao()).toBe(e.versao);
+  });
+
+  it('campo desconhecido: recusado pelo schema (.strict), em português; versão velha: aviso de concorrência', async () => {
+    const e = await entrada();
+    const r = await acaoAlterarParametros({ ...e, outro: 1 });
+    expect(r.ok).toBe(false);
+    expect(r.ok ? '' : r.erros[0]?.mensagem).not.toMatch(/Unrecognized|Invalid/);
     expect(await acaoAlterarParametros({ ...e, versao: e.versao - 1 })).toMatchObject({
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }],
@@ -154,6 +171,17 @@ describe('acaoAlterarSalarioMinimo', () => {
     contexto = auditor();
     expect(await acaoAlterarSalarioMinimo({ ano: 2027, versao: v + 1, valor: '1600' })).toMatchObject({ ok: false, status: 403 });
     expect(negacoes).toEqual([expect.objectContaining({ funcionalidade: 'cad.salario_minimo' })]);
+  });
+
+  it('M4: campo blindado no pedido do salário mínimo é recusado e auditado, sem gravar', async () => {
+    const v = await versao();
+    const antes = await historicos();
+    expect(await acaoAlterarSalarioMinimo({ ano: 2027, versao: v, valor: '1700', congeladoEm: null })).toMatchObject({
+      ok: false,
+      erros: [{ mensagem: 'O pedido tem campos que não podem ser alterados pela tela.' }],
+    });
+    expect(await historicos()).toBe(antes + 1);
+    expect(await versao()).toBe(v);
   });
 
   it('valor inválido: erro no campo salarioMinimo', async () => {

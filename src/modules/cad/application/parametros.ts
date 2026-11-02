@@ -53,6 +53,21 @@ function camposBlindados(bruto: unknown): string[] {
   return achados;
 }
 
+/**
+ * M-n4 na casca da Server Action: confere o pedido bruto (ano e versão à parte, que vêm da tela)
+ * antes de qualquer parse, para que um campo blindado nunca escape da auditoria só porque veio junto
+ * com outro erro de schema. Com campo blindado, audita e lança cad.violacao_governanca.
+ */
+export async function conferirOrigemBlindada(ctx: ContextoRequisicao, funcionalidade: 'cad.parametros' | 'cad.salario_minimo', bruto: unknown, deps: Deps = {}): Promise<void> {
+  if (bruto === null || typeof bruto !== 'object' || Array.isArray(bruto)) return;
+  const { ano, versao: _v, ...resto } = bruto as Record<string, unknown>;
+  void _v;
+  const blindados = camposBlindados(resto);
+  if (blindados.length > 0) {
+    await recusarOrigemBlindada(deps.cliente ?? prisma, ctx, funcionalidade, typeof ano === 'number' && Number.isInteger(ano) ? ano : 0, blindados);
+  }
+}
+
 // ano e versao vêm da tela: inteiros, ou erro de formulário (nunca 500 nem concorrência desligada).
 function anoEVersaoValidos(ano: number, versao: number): boolean {
   return Number.isInteger(ano) && ano >= 2000 && ano <= 2099 && Number.isInteger(versao) && versao >= 1;

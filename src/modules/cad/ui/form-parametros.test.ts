@@ -5,13 +5,23 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/authz/configuracao';
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import { totalEncargos, type OpcaoConta, type ParametrosTela } from '../domain/parametros-tela';
-import { FormParametros, mensagemCongelado } from './form-parametros';
+import { FormParametros, MSG_SO_CONSULTA, mensagemCongelado } from './form-parametros';
+import { campoExibido, depoisDeSalvar, diasUteisDoTexto } from './form-parametros-logica';
 import { FormSalarioMinimo } from './form-salario-minimo';
 import { SeletorAno } from './seletor-ano';
 
 // Telas de parâmetros do exercício e do salário mínimo (plano do P4, Task 9b, Step 1).
 // Fora do Next, connection() não tem requisição.
 vi.mock('next/server', () => ({ connection: async () => undefined }));
+const telaFalsa = vi.hoisted(() => ({ provisorio: true }));
+vi.mock('@/modules/cad', async (original) => {
+  const real = await original<typeof import('@/modules/cad')>();
+  return {
+    ...real,
+    obterTelaParametros: async () => ({ anos: [2027], ano: 2027, parametros: { ...tela, provisorio: telaFalsa.provisorio }, contas }),
+    obterTelaSalarioMinimo: async () => ({ anos: [2027], ano: 2027, dados: { ano: 2027, versao: 1, congelado: false, valor: '1518.00' } }),
+  };
+});
 const tela: ParametrosTela = {
   ano: 2027,
   versao: 3,
@@ -50,6 +60,28 @@ describe('totalEncargos', () => {
   });
 });
 
+describe('lógica dos formulários', () => {
+  it('depois de salvar, a versão nova fica para a próxima gravação; com erro, a anterior', () => {
+    const inicio = { versao: 3, erros: [], salvo: false };
+    const depois = depoisDeSalvar(inicio, { ok: true, valor: { versao: 4 } });
+    expect(depois).toEqual({ versao: 4, erros: [], salvo: true });
+    expect(depoisDeSalvar(depois, { ok: true, valor: { versao: 5 } }).versao).toBe(5);
+    const erro = [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }];
+    expect(depoisDeSalvar(depois, { ok: false, erros: erro })).toEqual({ versao: 4, erros: erro, salvo: false });
+  });
+
+  it('campos mostrados ao lado de controles; o resto vai para o resumo', () => {
+    for (const c of ['reajuste', 'mesDataBase', 'semaforo', 'semaforo.verdeAte', 'encargos', 'encargos.3.percentual', 'contas.ferias']) expect(campoExibido(c)).toBe(true);
+    for (const c of ['_', 'encargos.0.componente', 'contas.outro', 'ano']) expect(campoExibido(c)).toBe(false);
+  });
+
+  it('dias úteis: o texto é guardado; fora do formato vai 0, que o domínio recusa', () => {
+    expect(diasUteisDoTexto(' 21 ')).toBe(21);
+    expect(diasUteisDoTexto('')).toBe(0);
+    expect(diasUteisDoTexto('2a')).toBe(0);
+  });
+});
+
 describe('FormParametros (SSR)', () => {
   it('o bloco de encargos com o total e as contas entre as analíticas', () => {
     const h = html();
@@ -66,7 +98,9 @@ describe('FormParametros (SSR)', () => {
   it('o selo "Provisório" nos componentes que ainda têm o padrão provisório', () => {
     const h = html();
     expect(h).toMatch(/Obrigações Trabalhistas<strong> Provisório<\/strong>/);
-    expect(h).toMatch(/>Adicional<\/label><strong> Provisório<\/strong>/);
+    // Dentro do rótulo (lido junto com o campo) e no aria-label do percentual.
+    expect(h).toMatch(/>Adicional<strong> Provisório<\/strong><\/label>/);
+    expect(h).toContain('aria-label="Percentual de Obrigações Trabalhistas (provisório)"');
     expect(h).not.toMatch(/INSS<strong> Provisório/);
   });
 
@@ -82,6 +116,7 @@ describe('FormParametros (SSR)', () => {
     expect(h.match(/<fieldset disabled="">/g)).toHaveLength(4);
     expect(h).not.toContain('Salvar');
     expect(h).not.toContain(mensagemCongelado(2027));
+    expect(h).toContain(MSG_SO_CONSULTA);
   });
 });
 
@@ -91,6 +126,8 @@ describe('SeletorAno e FormSalarioMinimo (SSR)', () => {
     expect(h).toMatch(/<form action="\/cad\/parametros" method="get">/);
     expect(h).toContain('<option value="2027" selected="">2027</option>');
     expect(renderToString(createElement(SeletorAno, { acao: '/x', anos: [], ano: null }))).toBe('');
+    // O ano pedido sem parâmetros também aparece, escolhido.
+    expect(renderToString(createElement(SeletorAno, { acao: '/x', anos: [2027], ano: 2031 }))).toContain('<option value="2031" selected="">2031</option>');
   });
 
   it('salário mínimo: valor, "ainda não informado" e congelado', () => {
@@ -100,6 +137,9 @@ describe('SeletorAno e FormSalarioMinimo (SSR)', () => {
     const congelado = renderToString(createElement(FormSalarioMinimo, { ...base, valor: '1518.00', congelado: true }));
     expect(congelado).toContain('<fieldset disabled="">');
     expect(congelado).not.toContain('Salvar');
+    const consulta = renderToString(createElement(FormSalarioMinimo, { ...base, valor: '1518.00', podeAlterar: false }));
+    expect(consulta).toContain(MSG_SO_CONSULTA);
+    expect(consulta).not.toContain('Salvar');
   });
 });
 
@@ -118,6 +158,25 @@ describe('páginas', () => {
     limparJanelaNegacoes();
     configurarProvedorContexto({ obter: async () => contexto });
     configurarAuditorNegacao(async () => undefined);
+  });
+
+  const html = async (p: Promise<unknown>) => renderToString((await p) as Parameters<typeof renderToString>[0]);
+
+  it('"Salvar" só com a permissão de alterar; o selo "Provisório" do exercício no título', async () => {
+    const { default: Parametros } = await import('../../../app/(sistema)/cad/parametros/page');
+    const { default: Smn } = await import('../../../app/(sistema)/cad/salario-minimo/page');
+    contexto = ctx(['cad.parametros', 'consultar']);
+    const consulta = await html(Parametros({ searchParams }));
+    expect(consulta).not.toContain('Salvar');
+    expect(consulta).toMatch(/<h1>Parâmetros do exercício <!-- -->2027<strong> Provisório<\/strong><\/h1>/);
+    contexto = ctx(['cad.parametros', 'consultar'], ['cad.parametros', 'alterar']);
+    expect(await html(Parametros({ searchParams }))).toContain('>Salvar</button>');
+    telaFalsa.provisorio = false;
+    expect(await html(Parametros({ searchParams }))).not.toContain('<strong> Provisório</strong></h1>');
+    contexto = ctx(['cad.salario_minimo', 'consultar']);
+    expect(await html(Smn({ searchParams }))).not.toContain('Salvar');
+    contexto = ctx(['cad.salario_minimo', 'consultar'], ['cad.salario_minimo', 'alterar']);
+    expect(await html(Smn({ searchParams }))).toContain('>Salvar</button>');
   });
 
   it('cada página exige o consultar da sua funcionalidade', async () => {

@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import type { ErroCampo } from '@/shared/kernel';
-import { mensagemCongelado } from './form-parametros';
+import { MSG_SO_CONSULTA, mensagemCongelado } from './form-parametros';
+import { depoisDeSalvar, type EstadoSalvar, type RespostaSalvar } from './form-parametros-logica';
 
 // Salário mínimo nacional do exercício (US-053 parte 2; RN_CAR_11, base da insalubridade). Valor como
 // texto (ponto ou vírgula decimal); com o ano congelado ou sem a permissão de alterar, só leitura.
-type Resposta = { ok: true; valor: { versao: number } } | { ok: false; erros: readonly ErroCampo[] };
 
 export function FormSalarioMinimo({
   ano,
@@ -21,12 +20,11 @@ export function FormSalarioMinimo({
   valor: string | null;
   congelado: boolean;
   podeAlterar: boolean;
-  alterar: (e: { ano: number; versao: number; valor: string }) => Promise<Resposta>;
+  alterar: (e: { ano: number; versao: number; valor: string }) => Promise<RespostaSalvar>;
 }) {
   const [valor, setValor] = useState(valorInicial ?? '');
-  const [versao, setVersao] = useState(versaoInicial);
-  const [erros, setErros] = useState<readonly ErroCampo[]>([]);
-  const [salvo, setSalvo] = useState(false);
+  const [estado, setEstado] = useState<EstadoSalvar>({ versao: versaoInicial, erros: [], salvo: false });
+  const { erros, salvo } = estado;
   const [salvando, iniciar] = useTransition();
   const bloqueado = congelado || !podeAlterar;
   const erroCampo = erros.filter((e) => e.campo === 'salarioMinimo').map((e) => e.mensagem).join(' ');
@@ -37,16 +35,12 @@ export function FormSalarioMinimo({
       onSubmit={(e) => {
         e.preventDefault();
         iniciar(async () => {
-          setSalvo(false);
+          setEstado((antes) => ({ ...antes, salvo: false }));
           try {
-            const r = await alterar({ ano, versao, valor });
-            if (r.ok) {
-              setVersao(r.valor.versao);
-              setErros([]);
-              setSalvo(true);
-            } else setErros(r.erros);
+            const r = await alterar({ ano, versao: estado.versao, valor });
+            setEstado((antes) => depoisDeSalvar(antes, r));
           } catch {
-            setErros([{ campo: '_', mensagem: 'Não foi possível salvar. Confira a conexão e tente de novo.' }]);
+            setEstado((antes) => ({ ...antes, salvo: false, erros: [{ campo: '_', mensagem: 'Não foi possível salvar. Confira a conexão e tente de novo.' }] }));
           }
         });
       }}
@@ -62,6 +56,7 @@ export function FormSalarioMinimo({
       )}
       <p role="status">{salvo ? `Salário mínimo de ${ano} salvo.` : ''}</p>
       {congelado && <p>{mensagemCongelado(ano)}</p>}
+      {!congelado && !podeAlterar && <p>{MSG_SO_CONSULTA}</p>}
       <fieldset disabled={bloqueado}>
         <legend>Salário mínimo nacional de {ano}</legend>
         <label htmlFor="salario-minimo">Valor (R$)</label>{' '}
