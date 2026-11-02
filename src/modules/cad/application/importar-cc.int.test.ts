@@ -241,6 +241,17 @@ describe('carga dos centros de custo', () => {
     expect(await sync.centroCusto.count({ where: { provisorio: true } })).toBe(35);
   });
 
+  it('documento só com espaços (ou curto) conta como sem a DIREX: entra provisório', async () => {
+    const legitimo = await carregar();
+    await migrator.query(`UPDATE carga_estrutura SET situacao = 'FALHOU', erro = 'teste' WHERE id = $1`, [legitimo]);
+    const { rows } = await migrator.query(`INSERT INTO carga_estrutura (tipo, arquivo_nome, arquivo_sha256, linhas, provisoria, aprovacao_data, aprovacao_documento, contexto_auditoria)
+      SELECT 'CENTROS_CUSTO', 'f.xlsx', 'x', linhas, false, DATE '2026-10-30', '  a ', contexto_auditoria FROM carga_estrutura WHERE id = $1 RETURNING id`, [legitimo]);
+    await migrator.query(`INSERT INTO carga_estrutura_linha (carga_id, numero, dados) SELECT $2, numero, dados FROM carga_estrutura_linha WHERE carga_id = $1`, [legitimo, rows[0].id]);
+    await processador().executarCiclo();
+    expect((await estado(rows[0].id)).situacao).toBe('CONCLUIDA');
+    expect(await sync.centroCusto.count({ where: { provisorio: false } })).toBe(0);
+  });
+
   it('carga provisória e depois aprovada: 35 alteradas, provisorio = false e o Histórico com antes e depois', async () => {
     await carregar(MINUTA, null, true);
     await processador().executarCiclo();
