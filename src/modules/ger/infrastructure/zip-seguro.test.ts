@@ -149,7 +149,38 @@ describe('lerZipSeguro', () => {
 
   it('duas entradas apontando para os mesmos bytes (zip sobreposto) são recusadas', () => {
     const z = montarZip([entrada('a', texto('abc')), entrada('b', texto('abc'))], { deslocamentos: () => 0 });
-    expect(motivo(() => lerZipSeguro(z, LIMITES))).not.toBe('');
+    expect(motivo(() => lerZipSeguro(z, LIMITES))).toBe('entradas sobrepostas');
+  });
+
+  // Campos do fim do diretório central: 4 número do disco, 6 disco do diretório, 8 e 10 contagens,
+  // 12 tamanho e 16 início do diretório.
+  const comFim = (z: Uint8Array, mexer: (fim: Buffer) => void): Uint8Array => {
+    const b = Buffer.from(z);
+    mexer(b.subarray(b.length - 22));
+    return b;
+  };
+
+  it('zip64, vários volumes e diretório fora do lugar são recusados', () => {
+    const z = montarZip([entrada('a', texto('abc'))]);
+    expect(motivo(() => lerZipSeguro(comFim(z, (f) => (f.writeUInt16LE(0xffff, 8), f.writeUInt16LE(0xffff, 10))), LIMITES))).toBe('zip64');
+    expect(motivo(() => lerZipSeguro(comFim(z, (f) => f.writeUInt16LE(1, 4)), LIMITES))).toBe('zip em vários volumes');
+    expect(motivo(() => lerZipSeguro(comFim(z, (f) => f.writeUInt32LE(f.readUInt32LE(16) - 1, 16)), LIMITES))).toBe('diretório central fora do lugar');
+    const e = entrada('a', texto('abc'));
+    expect(motivo(() => lerZipSeguro(montarZip([{ ...e, descompactado: 0xffffffff }]), LIMITES))).toBe('zip64');
+  });
+
+  it('sem compressão com tamanhos diferentes, nome UTF-8 inválido e cabeçalho local divergente são recusados', () => {
+    const dados = texto('abc');
+    expect(motivo(() => lerZipSeguro(montarZip([{ nome: 'a', comprimido: dados, metodo: 0, crc: crc32(dados) >>> 0, descompactado: 4 }]), LIMITES))).toBe(
+      'entrada sem compressão com tamanhos diferentes',
+    );
+    const invalido = Buffer.from(montarZip([entrada('ab', dados)]));
+    // O nome no diretório central: troca o primeiro byte por um byte UTF-8 inválido.
+    invalido[invalido.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])) + 46] = 0xff;
+    expect(motivo(() => lerZipSeguro(invalido, LIMITES))).toBe('nome de entrada inválido');
+    const divergente = Buffer.from(montarZip([entrada('a', dados)]));
+    divergente.writeUInt16LE(0, 8); // método no cabeçalho local
+    expect(motivo(() => lerZipSeguro(divergente, LIMITES))).toBe('cabeçalho local diverge do central');
   });
 
   it('lixo depois do fim do diretório é recusado', () => {

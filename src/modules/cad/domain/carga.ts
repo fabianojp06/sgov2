@@ -38,22 +38,33 @@ export function planejarCarga(atuais: readonly Atual[], novas: readonly Atual[])
     const atual = porClassificacao.get(nova.classificacao);
     if (!atual) {
       const anterior = nova.codigoReduzido === null ? undefined : ativasPorReduzido.get(nova.codigoReduzido);
-      if (anterior && !vieram.has(anterior.classificacao)) {
+      if (anterior && vieram.has(anterior.classificacao)) {
+        // O reduzido continua na classificação antiga no mesmo arquivo: seria repetido entre as ativas.
+        erros.push({
+          linha,
+          coluna: 'Conta Reduzida',
+          mensagem: `O reduzido ${nova.codigoReduzido} já pertence a ${anterior.classificacao}, que continua no arquivo.`,
+        });
+        continue;
+      }
+      if (anterior) {
         avisos.push({
           linha,
           coluna: 'Classificação',
-          mensagem: `O reduzido ${nova.codigoReduzido} passa da classificação ${anterior.classificacao} para esta: a antiga será inativada e esta, incluída.`,
+          mensagem: `O reduzido ${nova.codigoReduzido} passou de ${anterior.classificacao} para ${nova.classificacao}: a antiga foi inativada.`,
         });
       }
       incluir.push({ ...nova, ativo: true });
       continue;
     }
-    if (atual.codigoReduzido !== nova.codigoReduzido) {
-      erros.push({ linha, coluna: 'Conta Reduzida', mensagem: 'A classificação já existe com outro reduzido; a classificação nunca muda de reduzido.' });
-      continue;
-    }
-    if (atual.tipo !== nova.tipo) {
-      erros.push({ linha, coluna: 'Tipo', mensagem: 'A classificação já existe com outro tipo; a estrutura de uma classificação nunca muda.' });
+    if (atual.codigoReduzido !== nova.codigoReduzido || atual.tipo !== nova.tipo) {
+      const coluna = atual.codigoReduzido !== nova.codigoReduzido ? 'Conta Reduzida' : 'Tipo';
+      // Texto da R5 (D7).
+      erros.push({
+        linha,
+        coluna,
+        mensagem: `A carga não muda a estrutura de um registro existente (D7): ${atual.classificacao} já existe com o reduzido ${atual.codigoReduzido ?? '(nenhum)'}/tipo ${atual.tipo}.`,
+      });
       continue;
     }
     if (!atual.ativo) reativar.push({ ...atual, descricao: nova.descricao, ativo: true });
