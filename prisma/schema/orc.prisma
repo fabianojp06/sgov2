@@ -29,18 +29,19 @@ model OrcamentoExercicio {
 
 // Posição de pessoal (driver): cargo em texto livre na trilha (C34); salário sem cifra (D-P6-1).
 model PosicaoOrcada {
-  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  exercicioId   String             @map("exercicio_id") @db.Uuid
-  exercicio     OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId   String              @map("exercicio_id") @db.Uuid
+  exercicio     OrcamentoExercicio  @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
   cc            String
   cargo         String
   quantidade    Int
-  salarioMensal Decimal            @map("salario_mensal") @db.Decimal(15, 2)
-  mesInicio     Int                @map("mes_inicio")
-  mesSaida      Int                @map("mes_saida")
+  salarioMensal Decimal             @map("salario_mensal") @db.Decimal(15, 2)
+  mesInicio     Int                 @map("mes_inicio")
+  mesSaida      Int                 @map("mes_saida")
   observacao    String?
   origem        String
-  importacaoId  String?            @map("importacao_id") @db.Uuid
+  importacaoId  String?             @map("importacao_id") @db.Uuid
+  importacao    ImportacaoPlanilha? @relation(fields: [importacaoId], references: [id], onDelete: Restrict)
   linhas        LinhaOrcada[]
 
   @@index([exercicioId, cc])
@@ -48,20 +49,21 @@ model PosicaoOrcada {
 }
 
 model PacoteBaseZero {
-  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  exercicioId   String             @map("exercicio_id") @db.Uuid
-  exercicio     OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId   String              @map("exercicio_id") @db.Uuid
+  exercicio     OrcamentoExercicio  @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
   cc            String
   conta         String
   justificativa String
   prioridade    String
   quantidade    Int
-  valorUnitario Decimal            @map("valor_unitario") @db.Decimal(15, 2)
-  corrigirIpca  Boolean            @map("corrigir_ipca")
+  valorUnitario Decimal             @map("valor_unitario") @db.Decimal(15, 2)
+  corrigirIpca  Boolean             @map("corrigir_ipca")
   distribuicao  String
-  mesOcorrencia Int?               @map("mes_ocorrencia")
+  mesOcorrencia Int?                @map("mes_ocorrencia")
   origem        String
-  importacaoId  String?            @map("importacao_id") @db.Uuid
+  importacaoId  String?             @map("importacao_id") @db.Uuid
+  importacao    ImportacaoPlanilha? @relation(fields: [importacaoId], references: [id], onDelete: Restrict)
   linhas        LinhaOrcada[]
 
   @@index([exercicioId, cc])
@@ -85,22 +87,25 @@ model LinhaOrcada {
   total       Decimal            @db.Decimal(15, 2)
 
   @@index([exercicioId, cc])
+  @@index([posicaoId])
+  @@index([pacoteId])
   @@map("orc_linha")
 }
 
 // Rateio de um TP digitado na transição (C35): origem MANUAL_TRANSICAO, substituído na F3 (US-073).
 model ReceitaRateio {
-  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  exercicioId  String             @map("exercicio_id") @db.Uuid
-  exercicio    OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId  String              @map("exercicio_id") @db.Uuid
+  exercicio    OrcamentoExercicio  @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
   tp           String
   descricao    String
   situacao     String
-  origem       String             @default("MANUAL_TRANSICAO")
-  meses        Decimal[]          @db.Decimal(15, 2)
-  total        Decimal            @db.Decimal(15, 2)
-  versao       Int                @default(0)
-  importacaoId String?            @map("importacao_id") @db.Uuid
+  origem       String              @default("MANUAL_TRANSICAO")
+  meses        Decimal[]           @db.Decimal(15, 2)
+  total        Decimal             @db.Decimal(15, 2)
+  versao       Int                 @default(0)
+  importacaoId String?             @map("importacao_id") @db.Uuid
+  importacao   ImportacaoPlanilha? @relation(fields: [importacaoId], references: [id], onDelete: Restrict)
 
   @@unique([exercicioId, tp])
   @@map("orc_receita")
@@ -115,6 +120,9 @@ model ImportacaoPlanilha {
   resumo        Json
   criadoPor     String             @map("criado_por") @db.Uuid
   criadoEm      DateTime           @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  posicoes      PosicaoOrcada[]
+  pacotes       PacoteBaseZero[]
+  receitas      ReceitaRateio[]
 
   @@map("orc_importacao")
 }

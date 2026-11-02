@@ -1,5 +1,6 @@
 // Mensagens do orçamento da Adm. Central [PROVISÓRIAS]: o UC04.17 ainda não é EP (GAP-ORC-004).
-// Os textos são os das Global Constraints do plano do P6; os com parâmetro viram função.
+// Textos das Global Constraints do plano do P6; cada tarefa acrescenta os que usa, e os com
+// parâmetro viram função.
 export const MENSAGENS_ORC = {
   EXERCICIO_DUPLICADO: (ano: number) => `Já existe um exercício para o ano ${ano}.`,
   ANO_INVALIDO: 'Informe um ano entre 2000 e 2099.',
