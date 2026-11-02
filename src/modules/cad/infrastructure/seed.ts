@@ -1,5 +1,5 @@
-import type { DeclaracaoFuncionalidade } from '@/modules/adm';
-import { instalarFuncionalidades } from '@/modules/adm';
+import type { DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
+import { instalarFuncionalidades } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 import { CHAVES_PARAMETRO_SISTEMA, criarParametrosDoAno } from './parametro-sistema';
 
