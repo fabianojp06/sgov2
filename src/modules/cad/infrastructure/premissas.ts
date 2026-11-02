@@ -1,45 +1,55 @@
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
-import { ErroDominio, type Resultado } from '@/shared/kernel';
-import type { PosicaoPessoal, PremissasExercicio, SerieMensalComponentes } from '../domain/custo-pessoal';
-
+import { ErroDominio } from '@/shared/kernel';
+import { valorMensalPorPessoa } from '../domain/beneficios';
+import type { BeneficioPremissa, PremissasExercicio } from '../domain/custo-pessoal';
+import { calcularCustoPosicao as motor } from '../domain/motor-custo-pessoal';
+import { lerBeneficiosMestre } from './beneficios-mestre';
+import { carregarIndiceEstrutura } from './estrutura-financeira';
 import { criarParametrosDoAno, lerParametrosExercicio } from './parametro-sistema';
 
-// Implementações reais do C2 (plano do P4, Tasks 3 e 9a). garantir e congelar já são reais; obter
-// e o cálculo ficam indisponíveis até a Tabela Mestre (Task 10) e o MotorCustoPessoal (Task 11).
+// Implementações reais do C2 (plano do P4, Tasks 3, 9a e 11): o motor, as premissas completas do
+// exercício, o garantir e o congelar.
 //
 // R3: recebem o `tx` do consumidor e não têm guarda própria; nunca são expostas como Server Action.
 // R22: este arquivo não importa @/shared/authz nem next/, porque o servidor.ts o reexporta.
 
-async function indisponivelAssincrono(): Promise<never> {
-  throw new ErroDominio('cad.custo_pessoal_indisponivel', 'O cálculo do custo de pessoal ainda não está disponível.');
-}
-
-function indisponivel(): never {
-  throw new ErroDominio('cad.custo_pessoal_indisponivel', 'O cálculo do custo de pessoal ainda não está disponível.');
-}
-
 /**
  * Custo mês a mês da posição, por componente e conta, na ordem de operações e com os
  * arredondamentos da R14 (encargos pela R13; benefício percentual pela R14a). Função pura: posição
- * inválida volta como erro por campo (R3), nunca como exceção. Até a Task 11, lança
- * ErroDominio('cad.custo_pessoal_indisponivel'): indisponível não é erro de validação.
+ * ou premissas inválidas voltam como erro por campo (R3), nunca como exceção.
  */
-export const calcularCustoPosicao: (posicao: PosicaoPessoal, premissas: PremissasExercicio) => Resultado<SerieMensalComponentes> =
-  indisponivel;
-
-/** Parâmetros do ano, ou null se o ano ainda não tem parâmetros. */
-export const obterPremissasExercicio: (tx: TxCliente, ano: number) => Promise<PremissasExercicio | null> = indisponivelAssincrono;
+export const calcularCustoPosicao = motor;
 
 /**
- * US-055: cria os parâmetros do ano (e a Tabela Mestre, a partir da Task 10) copiando o último ano
- * anterior, ou os padrões provisórios. Idempotente e auditado.
+ * Premissas completas do ano, ou null se o ano ainda não tem parâmetros. Os benefícios da posição
+ * sem cargo (C34) são os itens ativos da Tabela Mestre marcados como padrão e com valor; o diário vira
+ * mensal pelos dias úteis. Item padrão sem valor e conta que não é mais analítica ativa (recarga do
+ * plano) geram aviso; a conta inválida vai vazia, e o cálculo recusa o componente.
  */
-export async function garantirPremissasExercicio(tx: TxCliente, contexto: ContextoAuditoria, ano: number): Promise<PremissasExercicio> {
-  await criarParametrosDoAno(tx, contexto, ano);
+export async function obterPremissasExercicio(tx: TxCliente, ano: number): Promise<PremissasExercicio | null> {
+  if (!Number.isInteger(ano)) return null;
   const p = await lerParametrosExercicio(tx, ano);
-  if (!p) throw new ErroDominio('cad.premissas_inexistentes', `O exercício ${ano} não tem parâmetros.`);
-  // Os benefícios vêm da Tabela Mestre (Task 10); até lá, nenhum.
+  if (!p) return null;
+  const indice = await carregarIndiceEstrutura(tx);
+  const avisos: string[] = [];
+  const conta = (classificacao: string, rotulo: string): string => {
+    if (indice.contaAnaliticaAtiva(classificacao)) return classificacao;
+    avisos.push(`A conta ${classificacao} de ${rotulo} não é mais analítica ativa: corrija os parâmetros de ${ano}.`);
+    return '';
+  };
+  const beneficios: BeneficioPremissa[] = [];
+  for (const b of await lerBeneficiosMestre(tx, ano)) {
+    if (!b.ativo || !b.padraoPosicao) continue;
+    if (b.forma === 'PERCENTUAL_SALARIO') {
+      if (b.percentual === null) avisos.push(`O benefício ${b.nome} é padrão da posição, mas está sem percentual na Tabela Mestre de ${ano}.`);
+      else beneficios.push({ componente: b.codigo, nome: b.nome, forma: 'PERCENTUAL_SALARIO', percentual: b.percentual, conta: conta(b.conta, b.nome) });
+      continue;
+    }
+    const mensal = valorMensalPorPessoa(b, p.diasUteisMes);
+    if (mensal === null) avisos.push(`O benefício ${b.nome} é padrão da posição, mas está sem valor na Tabela Mestre de ${ano}.`);
+    else beneficios.push({ componente: b.codigo, nome: b.nome, forma: 'VALOR_MENSAL', valorMensal: mensal, conta: conta(b.conta, b.nome) });
+  }
   return {
     ano: p.ano,
     versao: p.versao,
@@ -49,11 +59,27 @@ export async function garantirPremissasExercicio(tx: TxCliente, contexto: Contex
     mesDataBase: p.mesDataBase,
     ipca: p.ipca,
     salarioMinimo: p.salarioMinimo,
-    encargos: p.encargos,
-    contas: p.contas,
-    beneficios: [],
-    avisos: ['Tabela Mestre de Benefícios ainda não cadastrada.'],
+    encargos: p.encargos.map((e) => ({ ...e, conta: conta(e.conta, e.nome) })),
+    contas: {
+      salario: conta(p.contas.salario, 'salário'),
+      adicional: conta(p.contas.adicional, 'adicional'),
+      ferias: conta(p.contas.ferias, 'férias'),
+      decimo_terceiro: conta(p.contas.decimo_terceiro, '13º'),
+    },
+    beneficios,
+    avisos,
   };
+}
+
+/**
+ * US-055: cria os parâmetros do ano (e a Tabela Mestre) copiando o último ano anterior, ou os
+ * padrões provisórios. Idempotente e auditado. Devolve as premissas completas.
+ */
+export async function garantirPremissasExercicio(tx: TxCliente, contexto: ContextoAuditoria, ano: number): Promise<PremissasExercicio> {
+  await criarParametrosDoAno(tx, contexto, ano);
+  const p = await obterPremissasExercicio(tx, ano);
+  if (!p) throw new ErroDominio('cad.premissas_inexistentes', `O exercício ${ano} não tem parâmetros.`);
+  return p;
 }
 
 /**

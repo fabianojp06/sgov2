@@ -118,7 +118,7 @@ export function validarPosicao(posicao: PosicaoPessoal, premissas: PremissasExer
     erros.push({ campo: 'mesSaida', mensagem: 'O mês de saída deve ser de 1 a 12 e não pode ser anterior ao de início.' });
   }
   if (posicao.adicional?.tipo === 'INSALUBRIDADE' && premissas.salarioMinimo === null) {
-    erros.push({ campo: 'adicional', mensagem: 'A insalubridade precisa do salário mínimo do exercício, que não está cadastrado.' });
+    erros.push({ campo: 'adicional', mensagem: 'Cadastre o Salário Mínimo Nacional do exercício antes de usar insalubridade.' });
   }
   return erros.length > 0 ? falha(erros) : ok(posicao);
 }
