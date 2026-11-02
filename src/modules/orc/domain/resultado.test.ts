@@ -51,8 +51,10 @@ describe('validarTeto', () => {
     expect(validarTeto(acima, 'Quinze letras!!', receita)).toEqual({ ok: true, valor: { valor: acima, justificativa: 'Quinze letras!!' } });
   });
 
-  it('até a receita: sem justificativa (a informada é guardada); null limpa o teto manual', () => {
+  it('até a receita (inclusive igual): sem justificativa, e a informada é guardada; null limpa o teto manual', () => {
     expect(validarTeto(Dinheiro.de('1000000'), '', receita)).toEqual({ ok: true, valor: { valor: Dinheiro.de('1000000'), justificativa: null } });
+    expect(validarTeto(Dinheiro.de('1200000'), null, receita).ok).toBe(true);
+    expect(validarTeto(Dinheiro.de('1000000'), ' motivo ', receita)).toEqual({ ok: true, valor: { valor: Dinheiro.de('1000000'), justificativa: 'motivo' } });
     expect(validarTeto(null, 'qualquer', receita)).toEqual({ ok: true, valor: { valor: null, justificativa: null } });
   });
 });

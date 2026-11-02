@@ -28,8 +28,9 @@ describe('PainelTeto', () => {
   it('déficit e saldo negativo com o sinal e a classe de alerta; teto manual com a justificativa', () => {
     const h = html(painel('110000', Dinheiro.de('1000000')));
     expect(h).toMatch(/class="negativo">− R\$ 120\.000,00 \(déficit\)/);
-    expect(h).toContain('(manual: Convênio extra assinado)');
-    expect(h).toMatch(/class="negativo">− R\$ 320\.000,00/);
+    expect(h).toContain('(manual: Convênio extra assinado; padrão: R$ 1.200.000,00)');
+    expect(h).toMatch(/class="negativo">− R\$ 320\.000,00 \(acima do teto\)/);
+    expect(h).toContain('padrão: R$ 1.200.000,00');
   });
 
   it('sem receita confirmada nem teto: o texto de sem teto; sem semáforo: traço', () => {

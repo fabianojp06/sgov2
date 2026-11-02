@@ -43,6 +43,7 @@ export const MENSAGENS_ORC = {
   SEMAFORO_SEM_PERMISSAO: 'Sem permissão para ver as faixas do semáforo.',
   SEMAFORO_INDISPONIVEL: 'As faixas do semáforo ainda não estão disponíveis.',
   TETO_DEFINIDO: 'Teto do exercício gravado.',
+  TETO_SEM_JUSTIFICATIVA: 'O teto manual passou da receita confirmada e não tem justificativa: grave o teto de novo com a justificativa (o envio para aprovação é recusado até lá).',
   // Visão (Task 6)
   PREMISSAS_INEXISTENTES: 'O exercício ainda não tem premissas cadastradas.',
   PREMISSAS_INDISPONIVEIS: 'As premissas do exercício ainda não estão disponíveis.',

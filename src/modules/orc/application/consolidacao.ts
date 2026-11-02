@@ -252,7 +252,12 @@ export async function obterVisaoExercicio(
     else if (!ctx.permissoes.has('cad.parametros:consultar')) avisos.push(MENSAGENS_ORC.SEMAFORO_SEM_PERMISSAO);
     else {
       const faixas = await deps.semaforo.faixas(ctx, ex.ano);
-      semaforo = faixas ? deps.semaforo.classificar(base.uso, faixas) : null;
+      if (faixas) semaforo = deps.semaforo.classificar(base.uso, faixas);
+      else avisos.push(MENSAGENS_ORC.SEMAFORO_INDISPONIVEL);
+    }
+    // D-P6-2 vale também depois: receita reduzida pode deixar o teto manual acima dela sem justificativa.
+    if (base.tetoManual && base.tetoManual.comparar(base.tetoPadrao) > 0 && (ex.tetoJustificativa ?? '').trim().length < 15) {
+      avisos.push(MENSAGENS_ORC.TETO_SEM_JUSTIFICATIVA);
     }
     painel = { ...base, semaforo, justificativaTeto: ex.tetoJustificativa };
   }

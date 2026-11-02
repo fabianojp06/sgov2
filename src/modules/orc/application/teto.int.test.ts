@@ -93,6 +93,14 @@ describe('painel na visão', () => {
     expect(v.painel?.semaforo).toBe('LARANJA');
   });
 
+  it('D-P6-2 depois: teto manual sem justificativa que passou da receita → aviso na visão', async () => {
+    const e = await exercicio();
+    await migrator.orcamentoExercicio.update({ where: { id: e.id }, data: { tetoManual: '1100000.00' } });
+    await migrator.receitaRateio.updateMany({ where: { exercicioId: e.id, situacao: 'CONFIRMADO' }, data: { meses: Array(12).fill('80000.00'), total: '960000.00' } });
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps()))!;
+    expect(v.avisos.some((a) => a.startsWith('O teto manual passou da receita confirmada'))).toBe(true);
+  });
+
   it('com escopo: sem painel; sem cad.parametros:consultar: sem semáforo e com aviso; sem provedor: aviso', async () => {
     const e = await exercicio();
     expect((await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ obterEscopo: async () => '4.4' })))!.painel).toBeNull();
@@ -127,6 +135,10 @@ describe('definirTeto', () => {
       erros: [{ campo: 'justificativa', mensagem: 'Teto maior que a receita confirmada exige justificativa com pelo menos 15 caracteres.' }],
     });
     expect((await definirTeto(ctx(), { exercicioId: e.id, versao: '0', teto: '1.300.000,00', justificativa: 'Convênio extra assinado' }, e.deps())).ok).toBe(true);
+    const gravado = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } });
+    expect(gravado.tetoJustificativa).toBe('Convênio extra assinado');
+    const h = await migrator.historicoOperacao.findFirstOrThrow({ where: { registroId: e.id }, orderBy: { id: 'desc' } });
+    expect(h.antes).toMatchObject({ tetoManual: null, justificativa: null });
     expect((await definirTeto(ctx(), { exercicioId: e.id, versao: '1', teto: '' }, e.deps())).ok).toBe(true);
     expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).tetoManual).toBeNull();
   });
@@ -154,9 +166,11 @@ describe('definirTeto', () => {
     const e = await exercicio();
     await expect(definirTeto(ctx(['orc.orcamento:consultar']), { exercicioId: e.id, versao: '0', teto: '10' }, e.deps())).rejects.toBeInstanceOf(ErroPermissao);
     await expect(definirTeto(ctx(), { exercicioId: e.id, versao: '0', teto: '10' }, e.deps({ obterEscopo: async () => '4.3' }))).rejects.toBeInstanceOf(ErroPermissao);
-    await expect(definirTeto(ctx(), { exercicioId: e.id, versao: '0', teto: '10', tetoEfetivo: '1' }, e.deps())).rejects.toEqual(
-      expect.objectContaining({ codigo: 'orc.violacao_governanca' }),
-    );
+    for (const campo of ['tetoEfetivo', 'situacao']) {
+      await expect(definirTeto(ctx(), { exercicioId: e.id, versao: '0', teto: '10', [campo]: '1' }, e.deps())).rejects.toEqual(
+        expect.objectContaining({ codigo: 'orc.violacao_governanca' }),
+      );
+    }
     falhaAuditoria.ligada = true;
     await expect(definirTeto(ctx(), { exercicioId: e.id, versao: '0', teto: '10' }, e.deps())).rejects.toThrow('auditoria indisponível');
     expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).tetoManual).toBeNull();
