@@ -3,6 +3,7 @@ import { registrarTrabalhadoresGer } from '@/modules/ger/servidor';
 import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
+import { iniciarProcessadorCargas } from '@/modules/cad/servidor';
 import { lerConfiguracaoWorker } from './configuracao';
 
 // Worker (US-010): processo separado da aplicação. Publica o outbox a cada 10 s e executa
@@ -44,6 +45,11 @@ async function iniciar(): Promise<void> {
   const prisma = criarPrisma(env.DATABASE_URL);
   const fila = await criarFila(env.FILA_DATABASE_URL);
   await registrarTrabalhadoresGer(fila, { cliente: prisma });
+  // Merge das cargas de estrutura (plano do P4, R6): só o worker tem o sgo_sync. Sem a variável,
+  // o processador avisa [CARGA_SEM_SYNC] e os lotes ficam PENDENTE, visíveis na tela.
+  const urlSync = process.env.SYNC_DATABASE_URL;
+  const clienteSync = urlSync ? criarPrisma(urlSync) : null;
+  const cargas = iniciarProcessadorCargas({ clienteSync });
 
   let emCurso: Promise<unknown> | null = null;
   let inicioCiclo = 0;
@@ -89,9 +95,9 @@ async function iniciar(): Promise<void> {
     clearInterval(temporizador);
     try {
       if (drenar) await emCurso; // drena a publicação em andamento antes de fechar as conexões
-      await fila.parar();
+      await Promise.all([cargas.parar(), fila.parar()]);
     } finally {
-      await prisma.$disconnect();
+      await Promise.allSettled([prisma.$disconnect(), clienteSync?.$disconnect()]);
     }
     process.exit(codigo);
   }
@@ -105,7 +111,7 @@ async function iniciar(): Promise<void> {
 
   const filas = fila.filasComTrabalhador();
   if (filas.length === 0) console.warn('[WORKER_SEM_TRABALHADORES] jobs enviados ficarão pendentes até haver trabalhador');
-  console.log('worker pronto', { ambiente, filas });
+  console.log('worker pronto', { ambiente, filas, cargas: clienteSync ? 'sgo_sync' : 'sem SYNC_DATABASE_URL' });
 }
 
 process.on('unhandledRejection', (erro) => {

@@ -1,0 +1,90 @@
+// Modelos do módulo cad (frente B, spec §12.3): estrutura financeira e cargas de estrutura
+// (plano do P4, Task 4b). Regras que o Prisma não expressa (CHECK, triggers, índices parciais e
+// privilégios) ficam na migration, à mão.
+
+enum TipoConta {
+  SINTETICA
+  ANALITICA
+}
+
+enum TipoCarga {
+  PLANO_CONTAS
+  CENTROS_CUSTO
+  CARGOS
+  CARGOS_RECIFRA
+}
+
+enum SituacaoCarga {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDA
+  FALHOU
+}
+
+// Plano de contas de 5 níveis (spec §6.1). A classificação é a chave entre módulos e nunca muda
+// (R5): a recarga só atualiza descrição e situação. O reduzido é único entre as ativas
+// (índice parcial na migration).
+model ContaContabil {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classificacao  String          @unique
+  codigoReduzido String?         @map("codigo_reduzido")
+  descricao      String
+  nivel          Int             @db.SmallInt
+  tipo           TipoConta
+  paiId          String?         @map("pai_id") @db.Uuid
+  pai            ContaContabil?  @relation("ContaPai", fields: [paiId], references: [id], onDelete: Restrict)
+  filhos         ContaContabil[] @relation("ContaPai")
+  ativa          Boolean         @default(true)
+  inativadaEm    DateTime?       @map("inativada_em") @db.Timestamptz(6)
+  cargaId        String          @map("carga_id") @db.Uuid
+  carga          CargaEstrutura  @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  criadoEm       DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm   DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([paiId])
+  @@map("conta_contabil")
+}
+
+// Lote de carga (R6): gravado PENDENTE pelo app (sgo_app, só as colunas de entrada) e processado
+// pelo worker (sgo_sync). `grupo` é preenchido por trigger (CARGOS_RECIFRA conta como CARGOS, m5).
+model CargaEstrutura {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo                TipoCarga
+  // O app grava o lote por SQL explícito, só nas colunas de entrada (S-N3): o Prisma mandaria
+  // estes defaults estáticos no INSERT, e o sgo_app não tem privilégio nessas colunas.
+  grupo               String                @default("")
+  situacao            SituacaoCarga         @default(PENDENTE)
+  arquivoNome         String                @map("arquivo_nome")
+  arquivoSha256       String                @map("arquivo_sha256")
+  linhas              Int
+  incluidas           Int?
+  alteradas           Int?
+  inativadas          Int?
+  inalteradas         Int?
+  avisos              Json?
+  erros               Json?
+  erro                String?
+  provisoria          Boolean               @default(false)
+  aprovacaoData       DateTime?             @map("aprovacao_data") @db.Date
+  aprovacaoDocumento  String?               @map("aprovacao_documento")
+  contextoAuditoria   Json                  @map("contexto_auditoria")
+  criadoEm            DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  processandoDesde    DateTime?             @map("processando_desde") @db.Timestamptz(6)
+  concluidoEm         DateTime?             @map("concluido_em") @db.Timestamptz(6)
+  linhasStaging       CargaEstruturaLinha[]
+  contas              ContaContabil[]
+
+  @@index([situacao, criadoEm])
+  @@map("carga_estrutura")
+}
+
+// Staging das linhas validadas pelo app; o worker revalida, aplica e apaga.
+model CargaEstruturaLinha {
+  cargaId String         @map("carga_id") @db.Uuid
+  carga   CargaEstrutura @relation(fields: [cargaId], references: [id], onDelete: Cascade)
+  numero  Int
+  dados   Json
+
+  @@id([cargaId, numero])
+  @@map("carga_estrutura_linha")
+}
