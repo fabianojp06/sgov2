@@ -96,7 +96,12 @@ describe('C1 — falso', () => {
       ...CONTAS_EXEMPLO[0]!,
       filhos: [
         // Sintético inativo com uma analítica ativa embaixo: a analítica não vale.
-        contaInativa('4.9', [{ ...contaInativa('4.9.1.1.001'), ativa: true }]),
+        contaInativa('4.9', [
+          {
+            ...contaInativa('4.9.1', [{ ...contaInativa('4.9.1.1', [{ ...contaInativa('4.9.1.1.001'), ativa: true }]), ativa: true }]),
+            ativa: true,
+          },
+        ]),
         ...CONTAS_EXEMPLO[0]!.filhos,
       ],
     },
