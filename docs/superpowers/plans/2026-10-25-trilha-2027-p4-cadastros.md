@@ -328,7 +328,7 @@
   - Dinheiro vai como número com formato `#,##0.00`, convertido do texto decimal.
 - **R22. Entradas públicas `index.ts` e `servidor.ts` (I13).**
   - **Lint:** a Task 0 muda a regra de fronteira (PR compartilhado) para aceitar `src/modules/<mod>/servidor.ts` como segunda entrada pública.
-  - **`servidor.ts`:** exporta só código de servidor sem React (trabalhador de e-mail, processador de cargas, leitor de .xlsx, funções do C1/C2).
+  - **`servidor.ts`:** exporta só código de servidor sem React (trabalhador de e-mail, processador de cargas, leitor de .xlsx, funções do C1/C2 e, desde a Task 6b, o `exportarXlsx` real do C3).
   - **`index.ts`:** reexporta o C1/C2 para os casos de uso, mas nunca o trabalhador, o processador de cargas nem o SMTP.
   - **Worker:** `worker/index.ts` importa só os `servidor.ts`.
   - **Seed (E-N3):** o `prisma/seed.ts` importa as seeds de `@/modules/cad/servidor`, nunca do `index.ts`, que reexporta ações com `server-only` e quebraria fora do Next.
@@ -414,7 +414,7 @@
 9. **Motor com valor errado.** Esperado: os valores conferidos à mão da Task 11 batem ao centavo, inclusive o Half-Even (9.594,375 vira 9.594,38) e o resto do encargo no INSS.
 10. **Bundle errado.** Esperado:
     - nenhum `'use client'` importa o `index.ts` do próprio módulo;
-    - o `index.ts` do `ger` e o do `cad` não alcançam nodemailer, `node:crypto`, `pg`, o trabalhador nem o processador (teste da Task 0);
+    - o `index.ts` do `ger` e o do `cad` não alcançam nodemailer, `node:crypto`, `pg`, o ExcelJS (nem por import dinâmico), o trabalhador nem o processador (teste da Task 0; o ExcelJS desde a Task 6b);
     - o *metafile* do worker não tem React, `next`, `server-only` nem `src/shared/authz` (R22, E-N4);
     - o `prisma/seed.ts` importa só do `servidor.ts` (E-N3).
 11. **Ambiente mal configurado em produção.** Esperado: com `NODE_ENV=production`, `AMBIENTE` ausente ou inválido derruba a partida do app, do worker e da seed; o worker também exige a `URL_PUBLICA` (R25, S-N4, M-n5). Testes nas Tasks 1b e 4c e no passo 8 do `testar-imagem.sh`.
@@ -1219,7 +1219,7 @@ export function janelaVisivel(p: { total: number; topo: number; alturaLinha: num
 
 **Files:** Modify `src/modules/ger/infrastructure/exportar-xlsx.ts`; Test: Modify `contrato-c3.test.ts`; Create `src/modules/ger/infrastructure/exportar-xlsx.test.ts`
 
-**Interfaces:** sem mudança de assinatura; regras da R21.
+**Interfaces:** sem mudança de assinatura; regras da R21. **Atualizado (Task 6b):** o `exportarXlsx` real sai só pelo `@/modules/ger/servidor`; o `index.ts` mantém a forma, o `validarPlanilhas` e o falso. O import dinâmico do ExcelJS não basta para tirá-lo do navegador (o empacotador cria um chunk), e o `bundle-cliente.test.ts` reprova.
 
 - [ ] **Step 1: Testes (falham)** — exportar e ler de volta:
   - 2 abas;

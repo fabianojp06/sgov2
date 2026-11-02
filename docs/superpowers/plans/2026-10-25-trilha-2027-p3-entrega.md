@@ -230,7 +230,7 @@ export function exportarXlsxFalso(): {
   - aba com nome de 32 caracteres → `{ ok: false, erros: [{ campo: 'nome', … }] }`;
   - uma aba com 1 linha → `ok: true` e um `Uint8Array`;
   - `exportarXlsxFalso().exportar(p)` registra `p` em `chamadas`;
-  - `@/modules/ger` exporta `GradeArvore`, `Formulario`, `exportarXlsx`, `exportarXlsxFalso` e `LIMITE_EXPORTACAO_SINCRONA`. **Atualizado no P4 (Task 6b):** o `exportarXlsx` real sai só pelo `@/modules/ger/servidor` (o `index.ts` do ger vai para o navegador e não pode alcançar o ExcelJS, nem por import dinâmico; R22, Review Focus 10 do P4). O `index.ts` mantém a forma (`PlanilhaExportacao`, `LIMITE_EXPORTACAO_SINCRONA`), o `validarPlanilhas` e o `exportarXlsxFalso`. Quem exporta chama de um caso de uso ou de uma ação `'use server'` em `src/modules/<mod>/application/`, nunca de `src/app/`;
+  - `@/modules/ger` exporta `GradeArvore`, `Formulario`, `exportarXlsx`, `exportarXlsxFalso` e `LIMITE_EXPORTACAO_SINCRONA`. **Atualizado no P4 (Task 6b):** o `exportarXlsx` real sai só pelo `@/modules/ger/servidor` (o `index.ts` do ger vai para o navegador e não pode alcançar o ExcelJS, nem por import dinâmico; R22, Review Focus 10 do P4). O `index.ts` mantém a forma (`PlanilhaExportacao`, `LIMITE_EXPORTACAO_SINCRONA`), o `validarPlanilhas` e o `exportarXlsxFalso`. Quem exporta chama de um caso de uso ou de uma ação `'use server'` em `src/modules/<mod>/application/`, nunca de `src/app/` nem de `ui/` (o lint proíbe os dois de importar o `servidor.ts`);
   - `// @ts-expect-error` numa `ColunaGrade` sem `tipo`, verificado pelo `npm run typecheck`.
 
 - [ ] **Step 2: Rodar e ver falhar** — `npx vitest run --project unidade src/modules/ger` → FAIL.
