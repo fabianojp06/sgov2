@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@/generated/prisma/client';
-import { lerPlanilhaSegura } from '@/modules/ger/servidor';
+import { lerAmbiente, lerPlanilhaSegura } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
@@ -9,7 +9,6 @@ import { planejarCarga } from '../domain/carga';
 import { COLUNAS_CENTROS_CUSTO, validarCentrosCusto } from '../domain/centros-custo';
 import { COLUNAS_PLANO_CONTAS, validarPlanoContas, type ErroLinha } from '../domain/plano-contas';
 import { comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from '../infrastructure/aplicar-carga';
-import { ambienteDoCad } from '../infrastructure/ambiente';
 import { sanearDescricao } from './saneamento';
 
 // Importação de estrutura no app (plano do P4, R6; US-043): só o sgo_app. Lê e valida o arquivo
@@ -152,7 +151,7 @@ function validarAprovacao(a: AprovacaoDirex, hoje: Date): ErroCampo[] {
  */
 export function cargaProvisoriaPermitida(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.CC_CARGA_PROVISORIA !== '1') return false;
-  if (ambienteDoCad(env) === 'producao') {
+  if (lerAmbiente(env) === 'producao') {
     console.warn('[CC_CARGA_PROVISORIA_IGNORADA] CC_CARGA_PROVISORIA não vale em produção');
     return false;
   }

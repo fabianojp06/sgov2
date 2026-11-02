@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { Prisma, type PrismaClient } from '@/generated/prisma/client';
+import { lerAmbiente } from '@/modules/ger/servidor';
 import type { ContextoAuditoria } from '@/shared/audit';
 import { sanearDescricao } from '../application/saneamento';
 import { validarCentrosCusto, type LinhaCentroCustoValidada } from '../domain/centros-custo';
 import { validarPlanoContas, type ErroLinha, type LinhaPlanoValidada } from '../domain/plano-contas';
-import { ambienteDoCad } from './ambiente';
 import { aplicarCarga, aplicarCargaCentrosCusto, ErroCargaLinhas } from './aplicar-carga';
 import { centroParaLinhaLida, paraLinhaLida } from './staging';
 
@@ -215,7 +215,7 @@ export function iniciarProcessadorCargas(deps: {
             // R16 (S-N3): sem a DIREX (gravada por fora, inclusive), o lote é provisório; em produção, recusado.
             const semAprovacao = lote.aprovacao_data === null || (lote.aprovacao_documento ?? '').trim().length < 3;
             const provisoria = lote.provisoria || semAprovacao;
-            if (ambienteDoCad() === 'producao' && provisoria) {
+            if (lerAmbiente() === 'producao' && provisoria) {
               throw new ErroStaging([{ linha: 0, mensagem: 'Em produção, a carga de centros de custo exige a aprovação da DIREX.' }]);
             }
             const v = revalidarCentrosCusto(staging, lote.linhas);
