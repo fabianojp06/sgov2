@@ -18,6 +18,9 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     rota: '/cad/plano-contas',
     ordem: 1,
     nivelLog: 'SIMPLES',
+    ajuda:
+      'Consulte o plano de contas de 5 níveis. A estrutura só muda pela importação da planilha .xlsx (não há inclusão nem ' +
+      'alteração manual): o arquivo é validado inteiro, e qualquer erro o reprova sem gravar nada.',
     acoes: ['consultar', 'executar'],
     perfisPadrao: {
       GFIN: ['consultar', 'executar'],
