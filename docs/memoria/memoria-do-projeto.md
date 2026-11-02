@@ -144,18 +144,17 @@
 - **Plano na `main` (#238):** `docs/superpowers/plans/2026-11-02-trilha-2027-p6-orcamento.md`.
   - Decisões D-P6-1 a D-P6-7 pendentes do PO; vale a recomendação quando houver dúvida.
   - O schema da Task 1 tem o CHECK do `enviado_por` em Em Aprovação.
-- **Tasks 0 a 8 implementadas**, cada uma com a revisão 12.12 e as correções, numa pilha de branches locais:
-  - `c6-exibir-no-menu` (`Closes #211`);
-  - `us-055-orcamento-schema`;
-  - `us-121-calculo-linhas`;
-  - `us-121-validacao-planilha`;
-  - `us-055-exercicios` (`Closes #77`);
-  - `us-060-receitas` (`Closes #82`);
-  - `us-121-importacao` (`Closes #143`);
-  - `us-058-visao-cc` (`Closes #80`);
-  - `us-059-teto` (`Refs #81`);
-  - `us-061-aprovacao` (`Closes #83`);
-  - mais `compartilhado-seed-orc`.
+- **Tasks 0 a 8 implementadas**, cada uma com a revisão 12.12 e as correções, numa pilha de branches locais, nesta ordem:
+  - Task 0: `c6-exibir-no-menu` (`Closes #211`);
+  - Task 1: `us-055-orcamento-schema`, com a `compartilhado-seed-orc` (seed do `orc` no orquestrador);
+  - Task 2: `us-121-calculo-linhas`;
+  - Task 4a: `us-121-validacao-planilha`;
+  - Task 3: `us-055-exercicios` (`Closes #77`);
+  - Task 5: `us-060-receitas` (`Closes #82`);
+  - Task 4b: `us-121-importacao` (`Closes #143`);
+  - Task 6: `us-058-visao-cc` (`Closes #80`);
+  - Task 7: `us-059-teto` (`Refs #81`);
+  - Task 8: `us-061-aprovacao` (`Closes #83`).
 - A pilha leva por merge versões antigas do C1, do C2 e do leitor. Esses PRs já estão na `main` (#209, #210, #212 e o C2 real no #226), então falta rebasear tudo antes do primeiro PR.
 - Suítes da pilha: unidade 814, arquitetura 293, integração do `orc` 107, build com as 8 páginas `/orc`.
 - **Bloqueios:**
@@ -238,7 +237,7 @@
 **Frente A (P5/P6, 02/11)**
 - [ ] PO: validar as decisões D-P6-1 a D-P6-7 e os textos [PROVISÓRIOS] da US-038.
 - [ ] PO: marcar como falso positivo, no painel do GitGuardian, os incidentes 39442399 e 39442400 (#237).
-- [ ] Fechar a #213, que o #236 resolveu.
+- [ ] Fechar a #213, que o #236 resolveu, e avisar a frente B: as linhas dela sobre o stub do argon2 (seções 5 e 7) ficaram desatualizadas, porque o stub já saiu no #236.
 - [ ] P6: rebasear a pilha na `main` e abrir os PRs na ordem da pilha, um por vez, cada um com a confirmação do PO.
 - [ ] PR compartilhado do encerramento do P5:
   - `test-results/`, `playwright-report/` e `blob-report/` no `.gitignore`;
