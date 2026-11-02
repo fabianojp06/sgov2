@@ -6,7 +6,8 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/authz/configuracao';
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import { ArvoreContas } from './arvore-contas';
-import { FILTROS_CONTAS, podarInativas, type NoContaTela } from './arvore-contas-logica';
+import { nosVisiveis, podarInativas, textoVazioContas, type NoContaTela } from '../domain/arvore-tela';
+import { FILTROS_CONTAS } from './arvore-contas-logica';
 
 // Consulta do plano de contas (plano do P4, Task 7b, Step 1).
 vi.mock('next/server', () => ({ connection: async () => undefined }));
@@ -29,10 +30,24 @@ const arvore: NoContaTela[] = [
 ];
 const ids = (ns: readonly NoContaTela[]): string[] => ns.flatMap((n) => [n.id, ...ids(n.filhos ?? [])]);
 
-describe('podarInativas', () => {
-  it('tira as inativas e o que está abaixo delas', () => {
+describe('"Mostrar inativas"', () => {
+  it('desmarcada, tira as inativas e o que está abaixo delas; marcada, mostra tudo', () => {
     expect(ids(podarInativas(arvore))).toEqual(['4', '4.1', '4.1.1.1.001']);
+    expect(ids(nosVisiveis(arvore, false))).toEqual(['4', '4.1', '4.1.1.1.001']);
+    expect(ids(nosVisiveis(arvore, true))).toEqual(ids(arvore));
     expect(ids(arvore)).toHaveLength(8);
+  });
+
+  it('texto da grade vazia: sem contas ou com todas inativas', () => {
+    expect(textoVazioContas([])).toMatch(/^Nenhuma conta cadastrada/);
+    expect(textoVazioContas([no('9', 'X', null, 'Inativa')])).toBe('Nenhuma conta ativa. Marque "Mostrar inativas" para ver as inativas.');
+  });
+});
+
+describe('filtro Tipo', () => {
+  it('"Analítica" deixa só as analíticas e os ancestrais delas', () => {
+    expect(ids(aplicarFiltros(arvore, FILTROS_CONTAS, { tipo: 'Analítica' }).nos)).toEqual(['4', '4.1', '4.1.1.1.001', '4.1.1.1.003', '4.9', '4.9.1.1.001', '9', '9.1.1.1.001']);
+    expect(ids(aplicarFiltros(arvore, FILTROS_CONTAS, { tipo: 'Sintética' }).nos)).toEqual(['4', '4.1', '4.9', '9']);
   });
 });
 

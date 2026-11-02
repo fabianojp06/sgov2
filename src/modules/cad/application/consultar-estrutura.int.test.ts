@@ -8,7 +8,7 @@ import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { COLUNAS_PLANO_CONTAS } from '../domain/plano-contas';
 import oficial from '../infrastructure/dados/plano-contas-oficial.json';
 import { iniciarProcessadorCargas } from '../infrastructure/processador-cargas';
-import type { NoContaTela } from '../ui/arvore-contas-logica';
+import { podarInativas, type NoContaTela } from '../domain/arvore-tela';
 import { consultarArvoreContas } from './consultar-estrutura';
 import { solicitarCargaPlanoContas } from './importar-estrutura';
 
@@ -68,6 +68,10 @@ describe('consultarArvoreContas (US-044)', () => {
     expect(nos[0]?.linha).toMatchObject({ nivel: '1', tipo: 'Sintética', reduzido: null });
     const classificacoes = nos.map((n) => n.id);
     expect(classificacoes.indexOf('4.1.1.1.001')).toBeLessThan(classificacoes.indexOf('4.1.1.1.003'));
+    // Sem "Mostrar inativas", a tela poda a inativa: 173.
+    const ativas = todos(podarInativas(await consultarArvoreContas(ctx('consultar'), { cliente: app })));
+    expect(ativas).toHaveLength(173);
+    expect(ativas.some((n) => n.id === '4.1.1.1.003')).toBe(false);
     // Serializável para o componente cliente.
     expect(JSON.parse(JSON.stringify(nos))).toEqual(nos);
   });
