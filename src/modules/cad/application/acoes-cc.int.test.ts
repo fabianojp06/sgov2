@@ -137,6 +137,21 @@ describe('acaoImportarCentrosCusto: trava da DIREX (R16, GAP-CC-001)', () => {
     expect(mensagens(await acaoImportarCentrosCusto(await formulario(null)))).toEqual([`aprovacao: ${MSG_DIREX}`]);
   });
 
+  it('produção: data e documento só com espaços contam como sem aprovação', async () => {
+    vi.stubEnv('AMBIENTE', 'producao');
+    expect(mensagens(await acaoImportarCentrosCusto(await formulario({ data: '   ', documento: '  ' })))).toEqual([`aprovacao: ${MSG_DIREX}`]);
+  });
+
+  it('a data com espaços em volta é aceita; antes de 2000, recusada no campo', async () => {
+    const r = await acaoImportarCentrosCusto(await formulario({ data: ' 2026-10-30 ', documento: 'Ata DIREX 12/2026' }));
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    expect((await lote(r.valor.cargaId)).data).toBe('2026-10-30');
+    await migrator.query('DELETE FROM carga_estrutura');
+    expect(mensagens(await acaoImportarCentrosCusto(await formulario({ data: '0000-01-01', documento: 'Ata antiga' })))).toEqual([
+      'aprovacao.data: A data da aprovação deve ser de 2000 em diante.',
+    ]);
+  });
+
   it('só a data, sem o documento: erro no documento, sem lote', async () => {
     expect(mensagens(await acaoImportarCentrosCusto(await formulario({ data: '2026-10-30', documento: '' })))).toEqual([
       'aprovacao.documento: Informe a referência do documento de aprovação (3 a 120 caracteres).',
@@ -165,6 +180,15 @@ describe('acaoConsultarCargaCc', () => {
     if (!c.ok || !c.valor) throw new Error('lote não encontrado');
     expect(c.valor.situacao).toBe('CONCLUIDA');
     expect(c.valor.avisos.filter(r3)).toEqual(r.valor.avisos.filter(r3));
+  });
+
+  it('a consulta exige cad.centros_custo:executar, não a do plano de contas', async () => {
+    const r = await acaoImportarCentrosCusto(await formulario(APROVACAO));
+    if (!r.ok) throw new Error('importação recusada');
+    contexto = { ...gfin(), permissoes: permissoes(['cad.centros_custo', 'executar']) };
+    expect(await acaoConsultarCargaCc({ cargaId: r.valor.cargaId })).toMatchObject({ ok: true, valor: { tipo: 'CENTROS_CUSTO' } });
+    contexto = { ...gfin(), permissoes: permissoes(['cad.plano_contas', 'executar']) };
+    expect(await acaoConsultarCargaCc({ cargaId: r.valor.cargaId })).toMatchObject({ ok: false, status: 403 });
   });
 
   it('M-n1: lote do plano de contas, mesmo com a permissão dele, volta null', async () => {

@@ -14,20 +14,25 @@ const texto = (v: FormDataEntryValue | null) => (typeof v === 'string' ? v : '')
 const entradaCc = z.preprocess(
   (v) =>
     v instanceof FormData
-      ? { arquivo: v.get('arquivo'), aprovacaoData: texto(v.get('aprovacaoData')), aprovacaoDocumento: texto(v.get('aprovacaoDocumento')) }
+      ? { arquivo: v.get('arquivo'), aprovacao: { data: texto(v.get('aprovacaoData')), documento: texto(v.get('aprovacaoDocumento')) } }
       : v,
+  // Os erros saem em aprovacao.data e aprovacao.documento, as mesmas chaves do caso de uso.
   z
     .object({
       arquivo: campoArquivoCarga,
-      aprovacaoData: z.string().max(10, 'Informe a data da aprovação (AAAA-MM-DD).'),
-      aprovacaoDocumento: z.string().max(200, 'Informe a referência do documento de aprovação (3 a 120 caracteres).'),
+      aprovacao: z
+        .object({
+          data: z.string().max(12, 'Informe a data da aprovação (AAAA-MM-DD).'),
+          documento: z.string().max(200, 'Informe a referência do documento de aprovação (3 a 120 caracteres).'),
+        })
+        .strict(),
     })
     .strict(),
 );
 
 export const acaoImportarCentrosCusto = definirAcao({ funcionalidade: 'cad.centros_custo', acao: 'executar', entrada: entradaCc }, (e, ctx) => {
-  const semAprovacao = e.aprovacaoData.trim() === '' && e.aprovacaoDocumento.trim() === '';
-  return solicitarCargaCentrosCusto(ctx, e.arquivo, semAprovacao ? null : { data: e.aprovacaoData.trim(), documento: e.aprovacaoDocumento });
+  const semAprovacao = e.aprovacao.data.trim() === '' && e.aprovacao.documento.trim() === '';
+  return solicitarCargaCentrosCusto(ctx, e.arquivo, semAprovacao ? null : { data: e.aprovacao.data.trim(), documento: e.aprovacao.documento });
 });
 
 // M-n1: só devolve lote de centros de custo.

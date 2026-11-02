@@ -13,7 +13,7 @@ export default async function ImportarCentrosCusto() {
         importação terminar sem erros.
       </p>
       <ImportarEstrutura rotulo="Planilha dos centros de custo (.xlsx)" importar={acaoImportarCentrosCusto} consultar={acaoConsultarCargaCc}>
-        <CamposAprovacaoDirex provisoriaPermitida={cargaProvisoriaPermitida()} />
+        <CamposAprovacaoDirex provisoriaPermitida={cargaProvisoriaPermitida(process.env, { registrar: false })} />
       </ImportarEstrutura>
     </main>
   );

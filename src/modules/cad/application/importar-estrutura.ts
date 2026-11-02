@@ -135,6 +135,8 @@ function validarAprovacao(a: AprovacaoDirex, hoje: Date): ErroCampo[] {
   const data = /^\d{4}-\d{2}-\d{2}$/.test(a.data) ? new Date(`${a.data}T00:00:00Z`) : null;
   if (!data || Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== a.data) {
     erros.push({ campo: 'aprovacao.data', mensagem: 'Informe a data da aprovação (AAAA-MM-DD).' });
+  } else if (a.data < '2000-01-01') {
+    erros.push({ campo: 'aprovacao.data', mensagem: 'A data da aprovação deve ser de 2000 em diante.' });
   } else if (a.data > new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(hoje)) {
     erros.push({ campo: 'aprovacao.data', mensagem: 'A data da aprovação não pode ser futura.' });
   }
@@ -149,10 +151,11 @@ function validarAprovacao(a: AprovacaoDirex, hoje: Date): ErroCampo[] {
  * Carga provisória (sem a DIREX) só com CC_CARGA_PROVISORIA=1, e nunca em produção (R16, M1): lá a
  * variável é ignorada, com [CC_CARGA_PROVISORIA_IGNORADA]. Variável ausente = exige aprovação.
  */
-export function cargaProvisoriaPermitida(env: NodeJS.ProcessEnv = process.env): boolean {
+export function cargaProvisoriaPermitida(env: NodeJS.ProcessEnv = process.env, opcoes: { registrar?: boolean } = {}): boolean {
   if (env.CC_CARGA_PROVISORIA !== '1') return false;
   if (lerAmbiente(env) === 'producao') {
-    console.warn('[CC_CARGA_PROVISORIA_IGNORADA] CC_CARGA_PROVISORIA não vale em produção');
+    // A tela só pergunta para mostrar o aviso (registrar: false); o log fica para a carga pedida.
+    if (opcoes.registrar !== false) console.warn('[CC_CARGA_PROVISORIA_IGNORADA] CC_CARGA_PROVISORIA não vale em produção');
     return false;
   }
   return true;

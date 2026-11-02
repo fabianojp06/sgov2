@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer, useRef, useTransition, type FormEvent, type ReactNode, type Ref } from 'react';
+import { createContext, useContext, useEffect, useReducer, useRef, useTransition, type FormEvent, type ReactNode, type Ref } from 'react';
 import { GradeArvore, type NoGrade } from '@/modules/ger';
 import { problemaArquivoCarga } from '../domain/arquivo-carga';
 import type { ErroLinha } from '../domain/plano-contas';
@@ -9,6 +9,7 @@ import {
   podeEnviar,
   reduzirTela,
   resumir,
+  resumoErros,
   TELA_INICIAL,
   textoStatus,
   type EstadoCargaTela,
@@ -20,6 +21,10 @@ import {
 // próprio, como a Tabela Mestre: o Formulario do C3 não devolve o resultado da ação (o id do lote)
 // e listaria todos os erros no resumo. O estado da tela é o redutor puro de importar-estrutura-logica.
 type Colunas = 'linha' | 'coluna' | 'mensagem';
+
+// Erros dos campos extras (children), por campo: cada um mostra os seus ao lado (ex.: aprovacao.data).
+export const ContextoErrosCampos = createContext<Readonly<Record<string, readonly string[]>>>({});
+export const useErrosDoCampo = (campo: string): readonly string[] => useContext(ContextoErrosCampos)[campo] ?? [];
 
 export function ImportarEstrutura({
   rotulo,
@@ -78,6 +83,7 @@ export function ImportarEstrutura({
   };
 
   const erros = resumir(s.errosLinha);
+  const resumo = resumoErros(s);
   const avisos = resumir(s.avisos);
   const idErroArquivo = 'importar-arquivo-erro';
 
@@ -97,15 +103,15 @@ export function ImportarEstrutura({
             {s.erroArquivo.join(' ')}
           </span>
         )}
-        {children}{' '}
+        <ContextoErrosCampos.Provider value={s.campos}>{children}</ContextoErrosCampos.Provider>{' '}
         <button type="submit" disabled={!podeEnviar(s)}>
           Importar
         </button>
       </form>
       <p role="status">{textoStatus(s)}</p>
-      {s.gerais.length > 0 && (
+      {resumo.length > 0 && (
         <ul role="alert">
-          {s.gerais.map((m, i) => (
+          {resumo.map((m, i) => (
             <li key={i}>{m}</li>
           ))}
         </ul>

@@ -12,6 +12,7 @@ import {
   podeEnviar,
   reduzirTela,
   resumir,
+  resumoErros,
   separarErros,
   TELA_INICIAL,
   textoSituacao,
@@ -47,6 +48,7 @@ describe('separarErros', () => {
         { campo: 'linhas.12.Classificação', mensagem: 'Classificação repetida.' },
         { campo: 'linhas.3', mensagem: 'Linha sem dados.' },
         { campo: '_', mensagem: 'Sessão expirada.' },
+        { campo: 'aprovacao.data', mensagem: 'Data inválida.' },
       ]),
     ).toEqual({
       arquivo: ['O arquivo deve ser .xlsx.'],
@@ -55,6 +57,7 @@ describe('separarErros', () => {
         { linha: 3, mensagem: 'Linha sem dados.' },
       ],
       gerais: ['Sessão expirada.'],
+      campos: { 'aprovacao.data': ['Data inválida.'] },
     });
   });
 });
@@ -189,6 +192,11 @@ describe('reduzirTela', () => {
       { tipo: 'resposta', resposta: { ok: false, erros: [{ campo: 'arquivo', mensagem: 'Planilha inválida.' }, { campo: 'linhas.5.Nível', mensagem: 'Nível inválido.' }, { campo: '_', mensagem: 'Outro.' }] } },
     );
     expect(s).toMatchObject({ fase: 'ocioso', erroArquivo: ['Planilha inválida.'], errosLinha: [{ linha: 5, coluna: 'Nível' }], gerais: ['Outro.'] });
+    const comCampo = reduzirTela(s, { tipo: 'resposta', resposta: { ok: false, erros: [{ campo: '_', mensagem: 'Geral.' }, { campo: 'aprovacao', mensagem: 'DIREX.' }] } });
+    expect(comCampo.campos).toEqual({ aprovacao: ['DIREX.'] });
+    // O resumo do topo leva os erros gerais e os dos campos extras.
+    expect(resumoErros(comCampo)).toEqual(['Geral.', 'DIREX.']);
+    expect(reduzirTela(comCampo, { tipo: 'enviar' }).campos).toEqual({});
     expect(podeEnviar(s)).toBe(true);
   });
 

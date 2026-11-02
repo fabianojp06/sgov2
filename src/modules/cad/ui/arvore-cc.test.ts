@@ -8,6 +8,7 @@ import { nosVisiveis, paraNoTelaCc, textoVazioCc, type NoCcTela } from '../domai
 import type { NoCentroCusto } from '../domain/estrutura';
 import { ArvoreCc } from './arvore-cc';
 import { CamposAprovacaoDirex } from './importar-cc';
+import { ContextoErrosCampos } from './importar-estrutura';
 
 // Telas de centros de custo (plano do P4, Task 8, Step 1).
 vi.mock('next/server', () => ({ connection: async () => undefined }));
@@ -62,14 +63,30 @@ describe('CamposAprovacaoDirex (SSR)', () => {
   it('com a carga provisória: o aviso "Carga provisória (minuta)" e os campos opcionais', () => {
     const html = renderToString(createElement(CamposAprovacaoDirex, { provisoriaPermitida: true }));
     expect(html).toContain('Carga provisória (minuta).');
-    expect(html).not.toContain('required');
+    expect(html).not.toContain('aria-required');
   });
 
-  it('sem ela: data e documento obrigatórios, sem o aviso', () => {
+  it('sem ela: data e documento marcados como obrigatórios (aria-required; quem decide é o servidor), sem o aviso', () => {
     const html = renderToString(createElement(CamposAprovacaoDirex, { provisoriaPermitida: false }));
     expect(html).not.toContain('Carga provisória');
-    expect(html).toMatch(/<input id="aprovacao-data" type="date" required="" name="aprovacaoData"\/>/);
-    expect(html).toMatch(/<input id="aprovacao-documento" type="text" maxLength="120" required="" name="aprovacaoDocumento"\/>/);
+    expect(html).toMatch(/<label for="aprovacao-data">Aprovado pela DIREX em<\/label> <input id="aprovacao-data" type="date" aria-required="true" name="aprovacaoData"\/>/);
+    expect(html).toMatch(/<input id="aprovacao-documento" type="text" maxLength="120" aria-required="true" name="aprovacaoDocumento"\/>/);
+    expect(html).not.toContain('aria-invalid');
+  });
+
+  it('os erros do caso de uso aparecem ao lado de cada campo, com aria-invalid e aria-describedby', () => {
+    const erros = {
+      aprovacao: ['Informe a data e o documento de aprovação da DIREX.'],
+      'aprovacao.documento': ['Informe a referência do documento de aprovação (3 a 120 caracteres).'],
+    };
+    const html = renderToString(
+      createElement(ContextoErrosCampos.Provider, { value: erros }, createElement(CamposAprovacaoDirex, { provisoriaPermitida: false })),
+    );
+    expect(html).toMatch(/<fieldset aria-describedby="aprovacao-erro">/);
+    expect(html).toContain('<p id="aprovacao-erro">Informe a data e o documento de aprovação da DIREX.</p>');
+    expect(html).toMatch(/<input id="aprovacao-documento" type="text" maxLength="120" aria-required="true" aria-invalid="true" aria-describedby="aprovacao-documento-erro" name="aprovacaoDocumento"\/>/);
+    expect(html).toContain('<span id="aprovacao-documento-erro">Informe a referência do documento de aprovação (3 a 120 caracteres).</span>');
+    expect(html).toContain('<input id="aprovacao-data" type="date" aria-required="true" name="aprovacaoData"/>');
   });
 });
 
@@ -109,5 +126,15 @@ describe('páginas de centros de custo', () => {
     vi.stubEnv('CC_CARGA_PROVISORIA', valor);
     contexto = ctx('consultar', 'executar');
     expect((await html(Importar())).includes('Carga provisória (minuta)')).toBe(aviso);
+  });
+
+  it('em produção com CC_CARGA_PROVISORIA=1, abrir a página não registra o aviso de variável ignorada (só a carga registra)', async () => {
+    vi.stubEnv('AMBIENTE', 'producao');
+    vi.stubEnv('CC_CARGA_PROVISORIA', '1');
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    contexto = ctx('consultar', 'executar');
+    expect(await html(Importar())).not.toContain('Carga provisória (minuta)');
+    expect(aviso).not.toHaveBeenCalled();
+    aviso.mockRestore();
   });
 });

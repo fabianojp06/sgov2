@@ -29,18 +29,23 @@ export type EstadoCargaTela = {
 
 const CAMPO_LINHA = /^linhas\.(\d+)(?:\.(.+))?$/;
 
-/** Separa os erros da ação: `arquivo`, por linha (`linhas.<n>.<coluna>`) e gerais (o resto). */
-export function separarErros(erros: readonly ErroCampo[]): { arquivo: string[]; linhas: ErroLinha[]; gerais: string[] } {
+/**
+ * Separa os erros da ação: `arquivo`, por linha (`linhas.<n>.<coluna>`), gerais (sem campo) e os dos
+ * campos extras do formulário (ex.: `aprovacao.data`), que também entram no resumo do topo.
+ */
+export function separarErros(erros: readonly ErroCampo[]): { arquivo: string[]; linhas: ErroLinha[]; gerais: string[]; campos: Record<string, string[]> } {
   const arquivo: string[] = [];
   const linhas: ErroLinha[] = [];
   const gerais: string[] = [];
+  const campos: Record<string, string[]> = {};
   for (const e of erros) {
     const m = CAMPO_LINHA.exec(e.campo);
     if (m) linhas.push({ linha: Number(m[1]), ...(m[2] ? { coluna: m[2] } : {}), mensagem: e.mensagem });
     else if (e.campo === 'arquivo') arquivo.push(e.mensagem);
-    else gerais.push(e.mensagem);
+    else if (e.campo === '' || e.campo === '_') gerais.push(e.mensagem);
+    else (campos[e.campo] ??= []).push(e.mensagem);
   }
-  return { arquivo, linhas, gerais };
+  return { arquivo, linhas, gerais, campos };
 }
 
 /** Os primeiros `limite` itens e o total, para a tela não montar milhares de linhas. */
@@ -107,13 +112,15 @@ export type EstadoTela = {
   cargaId: string | null;
   erroArquivo: readonly string[];
   gerais: readonly string[];
+  /** Erros dos campos extras (ex.: `aprovacao.data`), mostrados ao lado deles e no resumo. */
+  campos: Readonly<Record<string, readonly string[]>>;
   errosLinha: readonly ErroLinha[];
   avisos: readonly ErroLinha[];
   lote: EstadoCargaTela | null;
   aviso: string | null;
 };
 
-export const TELA_INICIAL: EstadoTela = { fase: 'ocioso', cargaId: null, erroArquivo: [], gerais: [], errosLinha: [], avisos: [], lote: null, aviso: null };
+export const TELA_INICIAL: EstadoTela = { fase: 'ocioso', cargaId: null, erroArquivo: [], gerais: [], campos: {}, errosLinha: [], avisos: [], lote: null, aviso: null };
 
 export type EventoTela =
   | { tipo: 'enviar' }
@@ -141,7 +148,7 @@ export function reduzirTela(s: EstadoTela, e: EventoTela): EstadoTela {
     case 'resposta': {
       if (e.resposta.ok) return { ...TELA_INICIAL, fase: 'acompanhando', cargaId: e.resposta.valor.cargaId, avisos: e.resposta.valor.avisos };
       const erros = separarErros(e.resposta.erros);
-      return { ...TELA_INICIAL, erroArquivo: erros.arquivo, errosLinha: erros.linhas, gerais: erros.gerais };
+      return { ...TELA_INICIAL, erroArquivo: erros.arquivo, errosLinha: erros.linhas, gerais: erros.gerais, campos: erros.campos };
     }
     case 'estado': {
       const lote = e.estado;
@@ -157,6 +164,9 @@ export function reduzirTela(s: EstadoTela, e: EventoTela): EstadoTela {
       return { ...s, fase: 'fim', aviso: MSG_ESGOTADO };
   }
 }
+
+/** O resumo do topo (role="alert"): os erros gerais e os dos campos extras. */
+export const resumoErros = (s: EstadoTela): string[] => [...s.gerais, ...Object.values(s.campos).flat()];
 
 /** O botão "Importar" fica bloqueado só durante o envio e o acompanhamento. */
 export const podeEnviar = (s: EstadoTela) => s.fase === 'ocioso' || s.fase === 'fim';
