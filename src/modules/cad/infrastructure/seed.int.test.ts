@@ -98,7 +98,10 @@ describe('seedDadosReferenciaCad', () => {
       SELECT usuario_rotulo AS rotulo, origem::text AS origem, count(*)::int AS n FROM historico_operacao
       WHERE funcionalidade = 'cad.plano_contas' GROUP BY 1, 2`;
     expect(h).toEqual([{ rotulo: 'Sistema', origem: 'SISTEMA', n: 174 }]);
-    expect(await cliente.cargaEstrutura.findMany({ select: { situacao: true, incluidas: true } })).toEqual([{ situacao: 'CONCLUIDA', incluidas: 174 }]);
+    expect(await cliente.cargaEstrutura.findMany({ select: { tipo: true, situacao: true, incluidas: true }, orderBy: { tipo: 'asc' } })).toEqual([
+      { tipo: 'PLANO_CONTAS', situacao: 'CONCLUIDA', incluidas: 174 },
+      { tipo: 'CENTROS_CUSTO', situacao: 'CONCLUIDA', incluidas: 35 },
+    ]);
     const antes = await retrato();
     await executarSeeds(cliente, [seedDadosReferenciaCad]);
     expect(await retrato()).toEqual(antes);

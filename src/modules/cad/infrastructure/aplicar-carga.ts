@@ -4,6 +4,7 @@ import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
 import { ErroDominio } from '@/shared/kernel';
 import { planejarCarga, type Atual } from '../domain/carga';
+import type { LinhaCentroCustoValidada } from '../domain/centros-custo';
 import type { ErroLinha, LinhaPlanoValidada } from '../domain/plano-contas';
 
 // Núcleo do merge do plano de contas (plano do P4, R5, R6 e M-n3). Não confere papel nem lote:
@@ -150,6 +151,134 @@ export async function aplicarCarga(
     alteradas: plano.alterarDescricao.length + plano.reativar.length,
     inativadas: plano.inativar.length,
     inalteradas: plano.inalteradas,
+    avisos: plano.avisos,
+  };
+}
+
+// Centros de custo (Task 5): mesmo núcleo e mesma ordem (M-n3). Além da descrição e da situação, a
+// recarga atualiza a descrição original, o CC de gestão (R17, derivado da classificação) e o
+// provisório do lote (R16: uma carga aprovada pela DIREX tira o provisório dos CCs que vieram nela).
+type CentroBanco = {
+  id: string;
+  classificacao: string;
+  codigoReduzido: string;
+  tipo: string;
+  descricao: string;
+  descricaoOriginal: string | null;
+  ativo: boolean;
+  provisorio: boolean;
+};
+
+export async function lerCentrosCustoAtuais(tx: TxCliente): Promise<Atual[]> {
+  const ccs = await tx.centroCusto.findMany({ select: { classificacao: true, codigoReduzido: true, tipo: true, descricao: true, ativo: true } });
+  return ccs.map((c) => ({ classificacao: c.classificacao, codigoReduzido: c.codigoReduzido, tipo: c.tipo, descricao: c.descricao, ativo: c.ativo }));
+}
+
+export function comoNovoCentroCusto(l: LinhaCentroCustoValidada): Atual {
+  return { classificacao: l.classificacao, codigoReduzido: l.codigoReduzido, tipo: l.tipo, descricao: l.descricao, ativo: true, linha: l.linha };
+}
+
+export async function aplicarCargaCentrosCusto(
+  tx: TxCliente,
+  contexto: ContextoAuditoria,
+  carga: { id: string; provisoria: boolean },
+  linhas: readonly LinhaCentroCustoValidada[],
+): Promise<ResultadoCarga> {
+  const banco: CentroBanco[] = await tx.centroCusto.findMany({
+    select: { id: true, classificacao: true, codigoReduzido: true, tipo: true, descricao: true, descricaoOriginal: true, ativo: true, provisorio: true },
+  });
+  const atuais = banco.map((c) => ({ classificacao: c.classificacao, codigoReduzido: c.codigoReduzido, tipo: c.tipo, descricao: c.descricao, ativo: c.ativo }));
+  const plano = planejarCarga(atuais, linhas.map(comoNovoCentroCusto));
+  if (plano.erros.length > 0) throw new ErroCargaLinhas(plano.erros);
+  const origem = contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO';
+  const funcionalidade = 'cad.centros_custo';
+  const porClassificacao = new Map(banco.map((c) => [c.classificacao, c]));
+  const porLinha = new Map(linhas.map((l) => [l.classificacao, l]));
+  const agora = new Date();
+
+  for (const classificacao of plano.inativar) {
+    const antes = porClassificacao.get(classificacao)!;
+    await tx.centroCusto.update({ where: { id: antes.id }, data: { ativo: false, inativadoEm: agora, cargaId: carga.id } });
+    await auditar(tx, {
+      contexto,
+      origem,
+      funcionalidade,
+      tipo: 'ALTERACAO',
+      registroId: classificacao,
+      descricao: `Centro de custo ${classificacao} inativado pela carga`,
+      antes: { ativo: true },
+      depois: { ativo: false },
+    });
+  }
+
+  // Reativação e mudanças de conteúdo (descrição, descrição original, provisório) de quem já existe.
+  let alteradas = 0;
+  for (const l of linhas) {
+    const antes = porClassificacao.get(l.classificacao);
+    if (!antes) continue;
+    const depois = { ativo: true, descricao: l.descricao, descricaoOriginal: l.descricaoOriginal, provisorio: carga.provisoria };
+    const mudou =
+      !antes.ativo || antes.descricao !== depois.descricao || antes.descricaoOriginal !== depois.descricaoOriginal || antes.provisorio !== depois.provisorio;
+    if (!mudou) continue;
+    alteradas++;
+    await tx.centroCusto.update({
+      where: { id: antes.id },
+      data: { ...depois, inativadoEm: null, deGestao: l.deGestao, cargaId: carga.id },
+    });
+    await auditar(tx, {
+      contexto,
+      origem,
+      funcionalidade,
+      tipo: 'ALTERACAO',
+      registroId: l.classificacao,
+      descricao: antes.ativo ? `Centro de custo ${l.classificacao} alterado pela carga` : `Centro de custo ${l.classificacao} reativado pela carga`,
+      antes: { ativo: antes.ativo, descricao: antes.descricao, descricaoOriginal: antes.descricaoOriginal, provisorio: antes.provisorio },
+      depois,
+    });
+  }
+
+  if (plano.incluir.length > 0) {
+    const ids = new Map(banco.map((c) => [c.classificacao, c.id]));
+    for (const n of plano.incluir) ids.set(n.classificacao, randomUUID());
+    const dados = plano.incluir.map((n) => {
+      const l = porLinha.get(n.classificacao)!;
+      const paiId = l.classificacaoPai === null ? null : ids.get(l.classificacaoPai);
+      if (paiId === undefined) throw new ErroCargaLinhas([{ linha: l.linha, coluna: 'Classificação pai', mensagem: 'A classificação pai não existe.' }]);
+      return {
+        id: ids.get(n.classificacao)!,
+        classificacao: l.classificacao,
+        codigoReduzido: l.codigoReduzido,
+        descricao: l.descricao,
+        descricaoOriginal: l.descricaoOriginal,
+        nivel: l.nivel,
+        tipo: l.tipo,
+        paiId,
+        aceitaLancamento: l.tipo === 'ANALITICO',
+        deGestao: l.deGestao,
+        provisorio: carga.provisoria,
+        cargaId: carga.id,
+      };
+    });
+    await tx.centroCusto.createMany({ data: dados });
+    for (const d of dados) {
+      await auditar(tx, {
+        contexto,
+        origem,
+        funcionalidade,
+        tipo: 'INSERCAO',
+        registroId: d.classificacao,
+        descricao: `Centro de custo ${d.classificacao} incluído pela carga`,
+        depois: { classificacao: d.classificacao, codigoReduzido: d.codigoReduzido, descricao: d.descricao, nivel: d.nivel, tipo: d.tipo, deGestao: d.deGestao, provisorio: d.provisorio },
+      });
+    }
+  }
+
+  await tx.$executeRaw`SET CONSTRAINTS ALL IMMEDIATE`;
+  return {
+    incluidas: plano.incluir.length,
+    alteradas,
+    inativadas: plano.inativar.length,
+    inalteradas: linhas.length - plano.incluir.length - alteradas,
     avisos: plano.avisos,
   };
 }

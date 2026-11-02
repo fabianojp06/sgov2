@@ -1,3 +1,4 @@
+import type { LinhaCentroCustoValidada } from '../domain/centros-custo';
 import type { LinhaLida, LinhaPlanoValidada } from '../domain/plano-contas';
 
 // Conversão de uma linha do staging para o formato da planilha, para o worker revalidar com o
@@ -12,6 +13,22 @@ export function paraLinhaLida(l: LinhaPlanoValidada): LinhaLida {
       Descrição: l.descricao,
       Tipo: l.tipo === 'ANALITICA' ? 'A' : 'S',
       'Conta Reduzida': l.codigoReduzido,
+    },
+  };
+}
+
+export function centroParaLinhaLida(l: LinhaCentroCustoValidada): LinhaLida {
+  return {
+    numero: l.linha,
+    celulas: {
+      Classificação: l.classificacao,
+      'Código reduzido': l.codigoReduzido,
+      'Descrição (original)': l.descricaoOriginal,
+      'Descrição sugerida': l.descricao,
+      Nível: String(l.nivel),
+      'Classificação pai': l.classificacaoPai,
+      Tipo: l.tipo === 'ANALITICO' ? 'Analítico' : 'Sintético',
+      'Aceita lançamento': l.tipo === 'ANALITICO' ? 'S' : 'N',
     },
   };
 }

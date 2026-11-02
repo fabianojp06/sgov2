@@ -2,9 +2,11 @@ import { z } from 'zod';
 import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 import type { ContextoAuditoria } from '@/shared/audit';
 import { sanearDescricao } from '../application/saneamento';
+import { validarCentrosCusto, type LinhaCentroCustoValidada } from '../domain/centros-custo';
 import { validarPlanoContas, type ErroLinha, type LinhaPlanoValidada } from '../domain/plano-contas';
-import { aplicarCarga, ErroCargaLinhas } from './aplicar-carga';
-import { paraLinhaLida } from './staging';
+import { ambienteDoCad } from './ambiente';
+import { aplicarCarga, aplicarCargaCentrosCusto, ErroCargaLinhas } from './aplicar-carga';
+import { centroParaLinhaLida, paraLinhaLida } from './staging';
 
 // Casca do merge no worker (plano do P4, R6): o único processo com SYNC_DATABASE_URL. A cada ciclo:
 // confere o papel (S-N1), limpa lotes presos ou vencidos (S-N2, E-N1) e processa o lote pendente
@@ -33,6 +35,20 @@ const linhaStaging = z
   })
   .strict();
 
+const linhaStagingCentroCusto = z
+  .object({
+    linha: z.number().int().positive(),
+    classificacao: z.string(),
+    codigoReduzido: z.string(),
+    descricao: z.string(),
+    descricaoOriginal: z.string().nullable(),
+    nivel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+    tipo: z.enum(['SINTETICO', 'ANALITICO']),
+    classificacaoPai: z.string().nullable(),
+    deGestao: z.boolean(),
+  })
+  .strict();
+
 const contextoLote = z.object({
   usuarioId: z.uuid().nullable(),
   usuarioRotulo: z.string().min(1),
@@ -48,7 +64,16 @@ class ErroStaging extends Error {
   }
 }
 
-type Lote = { id: string; tipo: string; grupo: string; linhas: number; contexto_auditoria: unknown };
+type Lote = {
+  id: string;
+  tipo: string;
+  grupo: string;
+  linhas: number;
+  contexto_auditoria: unknown;
+  provisoria: boolean;
+  aprovacao_data: Date | null;
+  aprovacao_documento: string | null;
+};
 
 // Diagnóstico para o log: classe, código do Prisma/Postgres e a mensagem do banco (cita só
 // estrutura, como a classificação; nunca o conteúdo de uma linha do staging).
@@ -97,6 +122,26 @@ function revalidar(linhas: readonly { numero: number; dados: unknown }[], espera
   return [...r.contas];
 }
 
+const CAMPOS_CC = ['linha', 'classificacao', 'codigoReduzido', 'descricao', 'descricaoOriginal', 'nivel', 'tipo', 'classificacaoPai', 'deGestao'] as const;
+
+function revalidarCentrosCusto(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): LinhaCentroCustoValidada[] {
+  if (linhas.length !== esperadas) throw new ErroStaging([{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }]);
+  const erros: ErroLinha[] = [];
+  const validas: LinhaCentroCustoValidada[] = [];
+  for (const l of linhas) {
+    const r = linhaStagingCentroCusto.safeParse(l.dados);
+    if (!r.success || r.data.linha !== l.numero) erros.push({ linha: l.numero, mensagem: 'Linha adulterada no staging.' });
+    else validas.push(r.data);
+  }
+  if (erros.length > 0) throw new ErroStaging(erros);
+  const r = validarCentrosCusto(validas.map(centroParaLinhaLida), sanearDescricao);
+  if (!r.ok) throw new ErroStaging(r.erros);
+  const porLinha = new Map(r.centros.map((c) => [c.linha, c]));
+  const divergentes = validas.filter((v) => CAMPOS_CC.some((k) => porLinha.get(v.linha)?.[k] !== v[k]));
+  if (divergentes.length > 0) throw new ErroStaging(divergentes.map((d) => ({ linha: d.linha, mensagem: 'Linha adulterada no staging.' })));
+  return [...r.centros];
+}
+
 export function iniciarProcessadorCargas(deps: {
   clienteSync: PrismaClient | null;
   agora?: () => Date;
@@ -142,7 +187,7 @@ export function iniciarProcessadorCargas(deps: {
     try {
       const processou = await cliente!.$transaction(
         async (tx) => {
-          const [lote] = await tx.$queryRaw<Lote[]>`SELECT "id", "tipo"::text AS tipo, "grupo", "linhas", "contexto_auditoria"
+          const [lote] = await tx.$queryRaw<Lote[]>`SELECT "id", "tipo"::text AS tipo, "grupo", "linhas", "contexto_auditoria", "provisoria", "aprovacao_data", "aprovacao_documento"
             FROM "carga_estrutura" WHERE "situacao" = 'PENDENTE' ORDER BY "criado_em" LIMIT 1 FOR UPDATE SKIP LOCKED`;
           if (!lote) return false;
           loteId = lote.id;
@@ -154,12 +199,22 @@ export function iniciarProcessadorCargas(deps: {
             return false;
           }
           await tx.cargaEstrutura.update({ where: { id: lote.id }, data: { situacao: 'PROCESSANDO', processandoDesde: agora() } });
-          if (lote.tipo !== 'PLANO_CONTAS') throw new Error(`tipo de carga sem processador: ${lote.tipo}`);
           const lido = contextoLote.parse(lote.contexto_auditoria);
           const contexto: ContextoAuditoria = { ...lido, unidadeId: lido.unidadeId ?? null };
           const staging = await tx.cargaEstruturaLinha.findMany({ where: { cargaId: lote.id }, orderBy: { numero: 'asc' } });
-          const linhas = revalidar(staging, lote.linhas);
-          const r = await aplicarCarga(tx, contexto, { id: lote.id, tipo: 'PLANO_CONTAS' }, linhas);
+          let r: Awaited<ReturnType<typeof aplicarCarga>>;
+          if (lote.tipo === 'PLANO_CONTAS') {
+            r = await aplicarCarga(tx, contexto, { id: lote.id, tipo: 'PLANO_CONTAS' }, revalidar(staging, lote.linhas));
+          } else if (lote.tipo === 'CENTROS_CUSTO') {
+            // R16 (S-N3): em produção, só carga aprovada pela DIREX, mesmo que o lote tenha sido gravado por fora.
+            const semAprovacao = lote.provisoria || lote.aprovacao_data === null || !lote.aprovacao_documento;
+            if (ambienteDoCad() === 'producao' && semAprovacao) {
+              throw new ErroStaging([{ linha: 0, mensagem: 'Em produção, a carga de centros de custo exige a aprovação da DIREX.' }]);
+            }
+            r = await aplicarCargaCentrosCusto(tx, contexto, { id: lote.id, provisoria: lote.provisoria }, revalidarCentrosCusto(staging, lote.linhas));
+          } else {
+            throw new Error(`tipo de carga sem processador: ${lote.tipo}`);
+          }
           await tx.cargaEstrutura.update({
             where: { id: lote.id },
             data: {

@@ -8,9 +8,7 @@ import {
   CENTROS_CUSTO_EXEMPLO,
   compararClassificacao,
   CONTAS_EXEMPLO,
-  ehCentroCustoAnalitico,
   estruturaFinanceiraFalsa,
-  listarArvoreCentrosCusto,
   type NoCentroCusto,
   type NoConta,
 } from '@/modules/cad';
@@ -166,16 +164,7 @@ describe('C1 — falso', () => {
   });
 });
 
-describe('C1 — reais dos centros de custo antes da Task 5', () => {
-  // As contas já são reais (Task 4b); a prova delas é o importar-plano.int.test.ts.
-  it.each([
-    ['listarArvoreCentrosCusto', () => listarArvoreCentrosCusto(tx)],
-    ['ehCentroCustoAnalitico', () => ehCentroCustoAnalitico(tx, '4.4')],
-  ])('%s → cad.estrutura_indisponivel', async (_nome, chamar) => {
-    await expect(chamar()).rejects.toMatchObject({ name: 'ErroDominio', codigo: 'cad.estrutura_indisponivel' });
-  });
-});
-
+// Os reais (contas e CCs) são provados nos testes de integração (Tasks 4b e 5).
 describe('C1 — tipos e exportações', () => {
   it('nível fora de 1..5 não compila', () => {
     const no: NoConta = {

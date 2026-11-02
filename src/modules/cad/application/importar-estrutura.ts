@@ -6,8 +6,10 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { planejarCarga } from '../domain/carga';
+import { COLUNAS_CENTROS_CUSTO, validarCentrosCusto } from '../domain/centros-custo';
 import { COLUNAS_PLANO_CONTAS, validarPlanoContas, type ErroLinha } from '../domain/plano-contas';
-import { comoNova, lerContasAtuais } from '../infrastructure/aplicar-carga';
+import { comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from '../infrastructure/aplicar-carga';
+import { ambienteDoCad } from '../infrastructure/ambiente';
 import { sanearDescricao } from './saneamento';
 
 // Importação de estrutura no app (plano do P4, R6; US-043): só o sgo_app. Lê e valida o arquivo
@@ -122,4 +124,102 @@ export async function consultarCarga(ctx: ContextoRequisicao, cargaId: string, d
     erros: (c.erros as ErroLinha[] | null) ?? [],
     erro: c.erro,
   };
+}
+
+/** Aprovação da DIREX gravada no lote e no Histórico (R16, P8). */
+export type AprovacaoDirex = { data: string; documento: string };
+
+const EM_ANDAMENTO_CC = 'Já existe uma carga de centros de custo em andamento. Tente de novo em instantes.';
+
+function validarAprovacao(a: AprovacaoDirex, hoje: Date): ErroCampo[] {
+  const erros: ErroCampo[] = [];
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(a.data) ? new Date(`${a.data}T00:00:00Z`) : null;
+  if (!data || Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== a.data) {
+    erros.push({ campo: 'aprovacao.data', mensagem: 'Informe a data da aprovação (AAAA-MM-DD).' });
+  } else if (a.data > hoje.toISOString().slice(0, 10)) {
+    erros.push({ campo: 'aprovacao.data', mensagem: 'A data da aprovação não pode ser futura.' });
+  }
+  const doc = a.documento.trim();
+  if (doc.length < 3 || doc.length > 120 || /[\p{Cc}\p{Cf}]/u.test(doc)) {
+    erros.push({ campo: 'aprovacao.documento', mensagem: 'Informe a referência do documento de aprovação (3 a 120 caracteres).' });
+  }
+  return erros;
+}
+
+/**
+ * Carga provisória (sem a DIREX) só com CC_CARGA_PROVISORIA=1, e nunca em produção (R16, M1): lá a
+ * variável é ignorada, com [CC_CARGA_PROVISORIA_IGNORADA]. Variável ausente = exige aprovação.
+ */
+export function cargaProvisoriaPermitida(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.CC_CARGA_PROVISORIA !== '1') return false;
+  if (ambienteDoCad(env) === 'producao') {
+    console.warn('[CC_CARGA_PROVISORIA_IGNORADA] CC_CARGA_PROVISORIA não vale em produção');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Pede a carga dos centros de custo (cad.centros_custo:executar). Com a aprovação da DIREX, a carga
+ * entra com provisorio = false; sem ela, só se a carga provisória for permitida, e então todos os CCs
+ * da carga ficam provisórios (GAP-CC-001).
+ */
+export async function solicitarCargaCentrosCusto(
+  ctx: ContextoRequisicao,
+  arquivo: ArquivoCarga,
+  aprovacao: AprovacaoDirex | null,
+  deps: { cliente?: PrismaClient; cargaProvisoriaPermitida?: boolean; agora?: () => Date } = {},
+): Promise<Resultado<{ cargaId: string; avisos: readonly ErroLinha[] }>> {
+  exigir(ctx, 'cad.centros_custo', 'executar');
+  const cliente = deps.cliente ?? prisma;
+  if (aprovacao === null) {
+    if (!(deps.cargaProvisoriaPermitida ?? cargaProvisoriaPermitida())) {
+      return falha([{ campo: 'aprovacao', mensagem: 'Informe a data e o documento da aprovação da DIREX.' }]);
+    }
+  } else {
+    const erros = validarAprovacao(aprovacao, (deps.agora ?? (() => new Date()))());
+    if (erros.length > 0) return falha(erros);
+  }
+
+  const lida = await lerPlanilhaSegura(arquivo, { colunas: COLUNAS_CENTROS_CUSTO, linhaCabecalhoMax: 10, colunasTexto: ['Código reduzido'] });
+  if (!lida.ok) return lida;
+  if (lida.valor.errosCelula.length > 0) return falha(porLinha(lida.valor.errosCelula));
+  const validado = validarCentrosCusto(lida.valor.linhas, sanearDescricao);
+  if (!validado.ok) return falha(porLinha(validado.erros));
+  const plano = planejarCarga(await lerCentrosCustoAtuais(cliente), validado.centros.map(comoNovoCentroCusto));
+  if (plano.erros.length > 0) return falha(porLinha(plano.erros));
+
+  const cargaId = randomUUID();
+  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: ctx.unidadeId ?? null };
+  const provisoria = aprovacao === null;
+  try {
+    await cliente.$transaction(async (tx) => {
+      await tx.$executeRaw`INSERT INTO "carga_estrutura" ("id", "tipo", "arquivo_nome", "arquivo_sha256", "linhas", "provisoria",
+          "aprovacao_data", "aprovacao_documento", "contexto_auditoria")
+        VALUES (${cargaId}::uuid, 'CENTROS_CUSTO', ${lida.valor.nomeArquivo}, ${createHash('sha256').update(arquivo.conteudo).digest('hex')},
+          ${validado.centros.length}, ${provisoria}, ${aprovacao?.data ?? null}::date, ${aprovacao?.documento.trim() ?? null},
+          ${JSON.stringify(contexto)}::jsonb)`;
+      await tx.cargaEstruturaLinha.createMany({
+        data: validado.centros.map((c) => ({ cargaId, numero: c.linha, dados: c as unknown as Prisma.InputJsonValue })),
+      });
+      await auditar(tx, {
+        contexto,
+        funcionalidade: 'cad.centros_custo',
+        tipo: 'INSERCAO',
+        registroId: cargaId,
+        descricao: provisoria ? 'Importação provisória dos centros de custo solicitada (sem a DIREX)' : 'Importação dos centros de custo solicitada',
+        depois: {
+          arquivo: lida.valor.nomeArquivo,
+          linhas: validado.centros.length,
+          provisoria,
+          aprovacao: aprovacao ? { data: aprovacao.data, documento: aprovacao.documento.trim() } : null,
+          avisos: validado.avisos.length,
+        },
+      });
+    });
+  } catch (e) {
+    if (emAndamento(e)) return falha([{ campo: 'arquivo', mensagem: EM_ANDAMENTO_CC }]);
+    throw e;
+  }
+  return ok({ cargaId, avisos: validado.avisos });
 }

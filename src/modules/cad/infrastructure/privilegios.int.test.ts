@@ -21,7 +21,7 @@ afterAll(async () => {
   }
 });
 
-const TABELAS = ['conta_contabil', 'carga_estrutura', 'carga_estrutura_linha'];
+const TABELAS = ['conta_contabil', 'centro_custo', 'carga_estrutura', 'carga_estrutura_linha'];
 const PAPEIS = ['sgo_app', 'sgo_sync', 'sgo_fila', 'sgo_leitura'];
 
 describe('privilégios do cad (R6)', () => {
@@ -38,6 +38,10 @@ describe('privilégios do cad (R6)', () => {
       'carga_estrutura_linha sgo_app INSERT',
       'carga_estrutura_linha sgo_sync DELETE',
       'carga_estrutura_linha sgo_sync SELECT',
+      'centro_custo sgo_app SELECT',
+      'centro_custo sgo_sync INSERT',
+      'centro_custo sgo_sync SELECT',
+      'centro_custo sgo_sync UPDATE',
       'conta_contabil sgo_app SELECT',
       'conta_contabil sgo_sync INSERT',
       'conta_contabil sgo_sync SELECT',

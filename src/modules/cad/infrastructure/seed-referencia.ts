@@ -3,7 +3,10 @@ import type { Seed, TxCliente } from '@/shared/db';
 import { sanearDescricao } from '../application/saneamento';
 import { planejarCarga } from '../domain/carga';
 import { validarPlanoContas, type LinhaLida } from '../domain/plano-contas';
-import { aplicarCarga, comoNova, lerContasAtuais } from './aplicar-carga';
+import { validarCentrosCusto } from '../domain/centros-custo';
+import { aplicarCarga, aplicarCargaCentrosCusto, comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from './aplicar-carga';
+import minuta from './dados/cc-minuta-rev23102026.json';
+import { ambienteDoCad } from './ambiente';
 import oficial from './dados/plano-contas-oficial.json';
 
 // Dados de referência (plano do P4, R15): o plano de contas oficial (e, nas Tasks 5 e 12a, a minuta
@@ -11,20 +14,8 @@ import oficial from './dados/plano-contas-oficial.json';
 // migrator e o contexto "Sistema". Só com CARGA_DADOS_REFERENCIA=1, e nunca em produção.
 
 const SISTEMA: ContextoAuditoria = { usuarioId: null, usuarioRotulo: 'Sistema', sessaoUid: null, ip: null, unidadeId: null };
-const AMBIENTES = ['dev', 'hml', 'producao'] as const;
-
-/**
- * R25: com NODE_ENV=production, AMBIENTE é obrigatório. Mesma regra do lerAmbiente do ger (PR #208);
- * quando ele estiver na main, esta função passa a usá-lo.
- */
-export function ambienteDaSeed(env: NodeJS.ProcessEnv = process.env): (typeof AMBIENTES)[number] {
-  const a = (env.AMBIENTE ?? '').trim();
-  if ((AMBIENTES as readonly string[]).includes(a)) return a as (typeof AMBIENTES)[number];
-  // Mensagem da R25; o código entre colchetes separa ausente de inválido no log.
-  if (a !== '') throw new Error('[AMBIENTE_INVALIDO] AMBIENTE ausente ou inválido (use dev, hml ou producao)');
-  if (env.NODE_ENV === 'production') throw new Error('[AMBIENTE_AUSENTE] AMBIENTE ausente ou inválido (use dev, hml ou producao)');
-  return 'dev';
-}
+// A regra de AMBIENTE (R25) é a do ambiente.ts, compartilhada com o processador de cargas.
+export { ambienteDoCad as ambienteDaSeed } from './ambiente';
 
 async function carregarPlanoOficial(tx: TxCliente): Promise<void> {
   const validado = validarPlanoContas(oficial as LinhaLida[], sanearDescricao);
@@ -50,12 +41,40 @@ async function carregarPlanoOficial(tx: TxCliente): Promise<void> {
   });
 }
 
+// A minuta de CC entra provisória: ainda não tem a aprovação da DIREX (GAP-CC-001).
+async function carregarMinutaCentrosCusto(tx: TxCliente): Promise<void> {
+  const validado = validarCentrosCusto(minuta as LinhaLida[], sanearDescricao);
+  if (!validado.ok) throw new Error(`Minuta de centros de custo inválida: ${validado.erros.length} erros`);
+  // Uma minuta nunca sobrescreve um plano de CC já aprovado pela DIREX.
+  if ((await tx.centroCusto.count({ where: { provisorio: false } })) > 0) return;
+  // Idempotente: sem mudança, nem lote nem Histórico.
+  const plano = planejarCarga(await lerCentrosCustoAtuais(tx), validado.centros.map(comoNovoCentroCusto));
+  if (plano.incluir.length + plano.alterarDescricao.length + plano.reativar.length + plano.inativar.length === 0) return;
+  const [lote] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "carga_estrutura" ("tipo", "arquivo_nome", "arquivo_sha256", "linhas", "provisoria", "contexto_auditoria")
+    VALUES ('CENTROS_CUSTO', 'Seed: minuta de centros de custo Rev23102026', 'seed', ${validado.centros.length}, true, ${JSON.stringify(SISTEMA)}::jsonb) RETURNING "id"`;
+  const r = await aplicarCargaCentrosCusto(tx, SISTEMA, { id: lote!.id, provisoria: true }, validado.centros);
+  await tx.cargaEstrutura.update({
+    where: { id: lote!.id },
+    data: {
+      situacao: 'CONCLUIDA',
+      incluidas: r.incluidas,
+      alteradas: r.alteradas,
+      inativadas: r.inativadas,
+      inalteradas: r.inalteradas,
+      avisos: r.avisos as object[],
+      erros: [],
+      concluidoEm: new Date(),
+    },
+  });
+}
+
 export const seedDadosReferenciaCad: Seed = {
   nome: 'cad (dados de referência)',
   async executar(tx) {
-    const ambiente = ambienteDaSeed();
+    const ambiente = ambienteDoCad();
     if (process.env.CARGA_DADOS_REFERENCIA !== '1') return;
     if (ambiente === 'producao') throw new Error('CARGA_DADOS_REFERENCIA não pode ser usada em produção (R15)');
     await carregarPlanoOficial(tx);
+    await carregarMinutaCentrosCusto(tx);
   },
 };
