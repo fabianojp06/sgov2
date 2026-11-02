@@ -64,7 +64,58 @@ describe('calcularEncargo (RN_CAR_17)', () => {
   });
 });
 
+describe('calcularEncargo: o resto vai para o maior percentual', () => {
+  it('INSS 0%: o resto não vai para ele (sem linha negativa)', () => {
+    const encargos = premissas().encargos.map((e) => (e.componente === 'encargo.inss' ? { ...e, percentual: pct('0') } : e));
+    const r = calcularEncargo(R('10000.19'), encargos);
+    expect(r.componentes[0]!.valor.paraString()).toBe('0.00');
+    expect(r.componentes.every((c) => !c.valor.ehNegativo())).toBe(true);
+    expect(Dinheiro.somarTodos(r.componentes.map((c) => c.valor)).paraString()).toBe(r.total.paraString());
+  });
+
+  it('sem INSS: o resto vai para o de maior percentual', () => {
+    const encargos = premissas().encargos.filter((e) => e.componente !== 'encargo.inss');
+    const r = calcularEncargo(R('17916.67'), encargos);
+    expect(Dinheiro.somarTodos(r.componentes.map((c) => c.valor)).paraString()).toBe(r.total.paraString());
+    expect(r.componentes[0]!.componente).toBe('encargo.fgts');
+  });
+});
+
 describe('calcularCustoPosicao (REQ_CAR_013, R14)', () => {
+  it('férias com um arredondamento só: 1 × 1.000,01 → férias 111,11 e 13º 83,33', () => {
+    const s = serie({ quantidade: 1, salarioMensal: R('1000.01'), mesInicio: 1, mesSaida: 1 }, premissas({ beneficios: [] }));
+    expect([mes(s, 'ferias', 1), mes(s, 'decimo_terceiro', 1)]).toEqual(['111.11', '83.33']);
+  });
+
+  it('R14a: benefício percentual sobre o salário, não sobre salário + periculosidade', () => {
+    const s = serie(
+      { ...posicao, adicional: { tipo: 'PERICULOSIDADE' } },
+      premissas({ beneficios: [{ componente: 'beneficio.prev', nome: 'Previdência', forma: 'PERCENTUAL_SALARIO', percentual: pct('2'), conta: '4.1.1.1.006' }] }),
+    );
+    expect(mes(s, 'beneficio.prev', 1)).toBe('300.00');
+  });
+
+  it('componente zerado não gera linha (encargo de 0%)', () => {
+    const encargos = premissas().encargos.map((e) => (e.componente === 'encargo.riscos' ? { ...e, percentual: pct('0') } : e));
+    expect(serie(posicao, premissas({ encargos })).linhas.map((l) => l.componente)).not.toContain('encargo.riscos');
+  });
+
+  it.each([
+    ['benefício', premissas({ beneficios: [{ componente: 'beneficio.vr', nome: 'VR', forma: 'VALOR_MENSAL', valorMensal: R('800.00'), conta: '' }] }), posicao, 'premissas.beneficio.vr'],
+    ['encargo', premissas({ encargos: premissas().encargos.map((e) => (e.componente === 'encargo.fgts' ? { ...e, conta: '' } : e)) }), posicao, 'premissas.encargo.fgts'],
+    ['adicional com adicional na posição', premissas({ contas: { ...premissas().contas, adicional: '' } }), { ...posicao, adicional: { tipo: 'PERICULOSIDADE' } as const }, 'premissas.contas.adicional'],
+  ])('conta vazia de %s → erro no campo', (_caso, pr, p, campo) => {
+    expect(calcularCustoPosicao(p, pr)).toEqual({ ok: false, erros: [expect.objectContaining({ campo })] });
+  });
+
+  it('conta do adicional vazia sem adicional na posição: calcula normalmente', () => {
+    expect(calcularCustoPosicao(posicao, premissas({ contas: { ...premissas().contas, adicional: '' } })).ok).toBe(true);
+  });
+
+  it('premissas sem encargos → erro (não um encargo zero silencioso)', () => {
+    expect(calcularCustoPosicao(posicao, premissas({ encargos: [] }))).toEqual({ ok: false, erros: [expect.objectContaining({ campo: 'premissas.encargos' })] });
+  });
+
   it('posição do exemplo da planilha-modelo: jan–abr e mai–dez conferidos, total anual 370.271,72', () => {
     const s = serie();
     const esperado = {

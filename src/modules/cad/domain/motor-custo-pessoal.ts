@@ -18,8 +18,9 @@ const PERICULOSIDADE = '0.30'; // RN_CAR_10
 
 /**
  * Encargo (RN_CAR_17, REQ_CAR_013; R13): o total é base × soma dos percentuais, com um único
- * Half-Even. Cada componente é arredondado em separado, e a diferença de centavo vai para o INSS
- * (ou, sem INSS, para o de maior percentual), como o distribuirEm12 faz com dezembro.
+ * Half-Even. Cada componente é arredondado em separado, e a diferença de centavo vai para o de maior
+ * percentual (o INSS, no empate), como o distribuirEm12 faz com dezembro: um encargo de 0% nunca recebe
+ * o resto (não sai linha negativa nem de 0,01).
  */
 export function calcularEncargo(
   base: Dinheiro,
@@ -31,10 +32,11 @@ export function calcularEncargo(
   const componentes = encargos.map((e) => ({ componente: e.componente, valor: base.multiplicar(e.percentual.comoFracao()) }));
   const resto = total.subtrair(Dinheiro.somarTodos(componentes.map((c) => c.valor)));
   if (!resto.ehZero()) {
-    const alvo =
-      componentes.findIndex((c) => c.componente === 'encargo.inss') >= 0
-        ? componentes.findIndex((c) => c.componente === 'encargo.inss')
-        : encargos.reduce((m, e, i) => (e.percentual.comoFracao().gt(encargos[m]!.percentual.comoFracao()) ? i : m), 0);
+    let alvo = 0;
+    encargos.forEach((e, i) => {
+      const maior = e.percentual.comoFracao().cmp(encargos[alvo]!.percentual.comoFracao());
+      if (maior > 0 || (maior === 0 && e.componente === 'encargo.inss')) alvo = i;
+    });
     componentes[alvo] = { ...componentes[alvo]!, valor: componentes[alvo]!.valor.somar(resto) };
   }
   return { total, componentes };
@@ -60,7 +62,9 @@ function contasFaltando(premissas: PremissasExercicio, posicao: PosicaoPessoal):
 }
 
 /**
- * Custo mês a mês da posição, por componente e conta (R14). Posição ou premissas inválidas voltam
+ * Custo mês a mês da posição, por componente e conta (R14). As premissas vêm do
+ * obterPremissasExercicio (códigos únicos, faixas validadas na gravação). Uma conta vazia (deixou de
+ * ser analítica ativa) recusa o cálculo inteiro, em todas as posições, até os parâmetros serem corrigidos. Posição ou premissas inválidas voltam
  * como erro por campo (R3), nunca como exceção. Só os componentes com algum mês diferente de zero
  * entram em `linhas`; a soma das linhas fecha com o totalMes, e a dos meses com o total (sem drift).
  */
@@ -69,6 +73,10 @@ export function calcularCustoPosicao(posicao: PosicaoPessoal, premissas: Premiss
   if (!valida.ok) return valida;
   const semConta = contasFaltando(premissas, posicao);
   if (semConta.length > 0) return falha(semConta);
+  // As premissas reais sempre têm os 5 encargos; premissas montadas sem eles são um defeito, não zero.
+  if (premissas.encargos.length === 0) return falha([{ campo: 'premissas.encargos', mensagem: 'Os parâmetros do exercício estão sem os encargos.' }]);
+  // Insalubridade sem SMN já foi recusada pelo validarPosicao: aqui ele existe.
+  const smn = premissas.salarioMinimo;
 
   const zero = Dinheiro.zero();
   const meses = new Map<CodigoComponente, Dinheiro[]>();
@@ -90,7 +98,7 @@ export function calcularCustoPosicao(posicao: PosicaoPessoal, premissas: Premiss
     let adicional = zero;
     if (posicao.adicional?.tipo === 'PERICULOSIDADE') adicional = salario.multiplicar(PERICULOSIDADE);
     else if (posicao.adicional?.tipo === 'INSALUBRIDADE') {
-      adicional = premissas.salarioMinimo!.multiplicar(qtd).multiplicar(GRAU_INSALUBRIDADE[posicao.adicional.grau]);
+      adicional = smn!.multiplicar(qtd).multiplicar(GRAU_INSALUBRIDADE[posicao.adicional.grau]);
     }
     // 3 a 6. Base, férias + 1/3 (4/36), 13º (1/12) e encargo sobre os três.
     const base = salario.somar(adicional);

@@ -35,6 +35,7 @@ export {
   type PremissasExercicio,
   type SerieMensalComponentes,
 } from './domain/custo-pessoal';
+export { calcularEncargo } from './domain/motor-custo-pessoal';
 export {
   calcularCustoPosicao,
   congelarPremissasExercicio,

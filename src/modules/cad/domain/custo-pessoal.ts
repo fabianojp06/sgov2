@@ -48,7 +48,11 @@ export type BeneficioPremissa = Readonly<
   | { componente: `beneficio.${string}`; nome: string; forma: 'PERCENTUAL_SALARIO'; percentual: Percentual; conta: string }
 >;
 
-/** Parâmetros do exercício (US-053). Contas são classificações de analíticas ativas (C1). */
+/**
+ * Parâmetros do exercício (US-053). Contas são classificações de analíticas ativas (C1); vêm vazias
+ * ('') quando a conta deixou de ser analítica ativa (recarga do plano), com o motivo em `avisos`, e o
+ * cálculo recusa.
+ */
 export type PremissasExercicio = Readonly<{
   ano: number;
   /**

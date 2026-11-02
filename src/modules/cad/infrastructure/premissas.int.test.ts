@@ -76,6 +76,24 @@ describe('C2 real: premissas do exercício', () => {
     expect(r.ok && r.valor.linhas.map((l) => l.componente)).toContain('beneficio.vr');
   });
 
+  it('C34: item padrão inativo sai dos benefícios; conta de benefício inativada → aviso e recusa', async () => {
+    await migrator.query(`UPDATE beneficio_mestre SET ativo = false WHERE ano = 2027 AND codigo = 'beneficio.vr'`);
+    try {
+      expect((await obterPremissasExercicio(app, 2027))!.beneficios).toEqual([]);
+    } finally {
+      await migrator.query(`UPDATE beneficio_mestre SET ativo = true WHERE ano = 2027 AND codigo = 'beneficio.vr'`);
+    }
+    await sync.$executeRaw`UPDATE conta_contabil SET ativa = false, inativada_em = now() WHERE classificacao = '4.1.1.1.009'`;
+    try {
+      const p = (await obterPremissasExercicio(app, 2027))!;
+      expect(p.avisos.some((a) => a.includes('4.1.1.1.009'))).toBe(true);
+      const r = calcularCustoPosicao({ quantidade: 1, salarioMensal: Dinheiro.de('5000.00'), mesInicio: 1, mesSaida: 12 }, p);
+      expect(r).toEqual({ ok: false, erros: [expect.objectContaining({ campo: 'premissas.beneficio.vr' })] });
+    } finally {
+      await sync.$executeRaw`UPDATE conta_contabil SET ativa = true, inativada_em = NULL WHERE classificacao = '4.1.1.1.009'`;
+    }
+  });
+
   it('ano inexistente → null', async () => {
     expect(await obterPremissasExercicio(app, 2050)).toBeNull();
   });
