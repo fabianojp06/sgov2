@@ -101,12 +101,19 @@ describe('acaoImportarPlanoContas', () => {
     expect(await lotes()).toBe(0);
   });
 
-  it('.csv, arquivo sem a assinatura PK e 1,5 MB: erro em arquivo, sem lote', async () => {
-    const valida = await planilha();
-    expect(campos(await acaoImportarPlanoContas(formulario(valida, 'plano.csv')))).toEqual(['arquivo']);
-    expect(campos(await acaoImportarPlanoContas(formulario(new TextEncoder().encode('Classificação;Nível\n1;1\n'))))).toEqual(['arquivo']);
-    expect(campos(await acaoImportarPlanoContas(formulario(new Uint8Array(1.5 * 1024 * 1024))))).toEqual(['arquivo']);
-    expect(campos(await acaoImportarPlanoContas(new FormData()))).toEqual(['arquivo']);
+  it('.csv, sem arquivo, sem a assinatura PK e acima de 1 MB: erro em arquivo, com a mensagem, sem lote', async () => {
+    const mensagens = async (f: FormData) => {
+      const r = await acaoImportarPlanoContas(f);
+      return r.ok ? [] : r.erros.map((e) => `${e.campo}: ${e.mensagem}`);
+    };
+    expect(await mensagens(formulario(await planilha(), 'plano.csv'))).toEqual(['arquivo: O arquivo deve ser .xlsx.']);
+    expect(await mensagens(new FormData())).toEqual(['arquivo: Escolha o arquivo .xlsx.']);
+    // Sem a assinatura PK: quem recusa é o leitor seguro (R4).
+    expect(await mensagens(formulario(new TextEncoder().encode('Classificação;Nível\n1;1\n')))).toEqual(['arquivo: Planilha inválida ou grande demais.']);
+    // 1,5 MB começando por PK: a ação recusa pelo tamanho, antes do leitor.
+    const grande = new Uint8Array(1.5 * 1024 * 1024);
+    grande.set([0x50, 0x4b, 0x03, 0x04]);
+    expect(await mensagens(formulario(grande))).toEqual(['arquivo: O arquivo deve ter até 1 MB.']);
     expect(await lotes()).toBe(0);
   });
 

@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useReducer, useRef, useTransition, type FormEvent, type Ref } from 'react';
 import { GradeArvore, type NoGrade } from '@/modules/ger';
+import { problemaArquivoCarga } from '../domain/arquivo-carga';
 import type { ErroLinha } from '../domain/plano-contas';
 import {
   acompanharCarga,
+  podeEnviar,
+  reduzirTela,
   resumir,
-  separarErros,
-  textoSituacao,
+  TELA_INICIAL,
+  textoStatus,
   type EstadoCargaTela,
   type Resposta,
 } from './importar-estrutura-logica';
@@ -15,7 +18,7 @@ import {
 // Tela de importação do plano de contas (US-043 parte 4; plano do P4, Task 7a). Envia o .xlsx, mostra
 // os erros por linha (até 200, com o total) e acompanha o lote a cada 2 s até o fim. Formulário
 // próprio, como a Tabela Mestre: o Formulario do C3 não devolve o resultado da ação (o id do lote)
-// e listaria todos os erros no resumo.
+// e listaria todos os erros no resumo. O estado da tela é o redutor puro de importar-estrutura-logica.
 type Colunas = 'linha' | 'coluna' | 'mensagem';
 
 export function ImportarEstrutura({
@@ -27,16 +30,10 @@ export function ImportarEstrutura({
   importar: (dados: FormData) => Promise<Resposta<{ cargaId: string; avisos: readonly ErroLinha[] }>>;
   consultar: (e: { cargaId: string }) => Promise<Resposta<EstadoCargaTela | null>>;
 }) {
-  const [enviando, iniciar] = useTransition();
-  const [erroArquivo, setErroArquivo] = useState<string[]>([]);
-  const [gerais, setGerais] = useState<string[]>([]);
-  const [errosLinha, setErrosLinha] = useState<readonly ErroLinha[]>([]);
-  const [avisos, setAvisos] = useState<readonly ErroLinha[]>([]);
-  const [estado, setEstado] = useState<EstadoCargaTela | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
-  const [cargaId, setCargaId] = useState<string | null>(null);
-  const [terminou, setTerminou] = useState(false);
+  const [s, despachar] = useReducer(reduzirTela, TELA_INICIAL);
+  const [, iniciar] = useTransition();
   const montado = useRef(true);
+  const tituloErros = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     montado.current = true;
     return () => {
@@ -46,107 +43,97 @@ export function ImportarEstrutura({
 
   // Acompanha o lote pedido; a troca de lote ou a saída da tela encerra o acompanhamento anterior.
   useEffect(() => {
-    if (!cargaId) return;
+    if (!s.cargaId) return;
     let cancelado = false;
-    void acompanharCarga({
-      cargaId,
-      consultar,
-      cancelado: () => cancelado,
-      aoAtualizar: (a) => {
-        if (a.tipo === 'estado') {
-          setEstado(a.estado);
-          if (a.estado.situacao === 'FALHOU') {
-            setErrosLinha(a.estado.erros);
-            setGerais(a.estado.erro ? [a.estado.erro] : []);
-          }
-          if (a.estado.situacao === 'CONCLUIDA' || a.estado.situacao === 'FALHOU') setTerminou(true);
-          return;
-        }
-        setTerminou(true);
-        if (a.tipo === 'erro') setGerais([a.mensagem]);
-        else setAviso('A importação continua em andamento. Consulte o plano de contas mais tarde para ver o resultado.');
-      },
-    });
+    void acompanharCarga({ cargaId: s.cargaId, consultar, cancelado: () => cancelado, aoAtualizar: despachar });
     return () => {
       cancelado = true;
     };
-  }, [cargaId, consultar]);
+  }, [s.cargaId, consultar]);
 
-  const acompanhando = cargaId !== null && !terminou;
+  // Com erros por linha, o foco vai para o resumo deles (teclado e leitor de tela).
+  useEffect(() => {
+    if (s.errosLinha.length > 0) tituloErros.current?.focus();
+  }, [s.errosLinha]);
 
   const enviar = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const dados = new FormData(e.currentTarget);
-    setErroArquivo([]);
-    setGerais([]);
-    setErrosLinha([]);
-    setAvisos([]);
-    setEstado(null);
-    setAviso(null);
-    setCargaId(null);
-    setTerminou(false);
+    const arquivo = dados.get('arquivo');
+    const problema = problemaArquivoCarga(arquivo instanceof File ? { nome: arquivo.name, tamanho: arquivo.size } : null);
+    if (problema) return despachar({ tipo: 'arquivoRecusado', mensagem: problema });
+    despachar({ tipo: 'enviar' });
     iniciar(async () => {
-      const r = await importar(dados);
-      if (!montado.current) return;
-      if (r.ok) {
-        setAvisos(r.valor.avisos);
-        setCargaId(r.valor.cargaId);
-        return;
+      try {
+        const resposta = await importar(dados);
+        if (montado.current) despachar({ tipo: 'resposta', resposta });
+      } catch {
+        // Corpo acima do limite do Next, rede ou servidor fora: mensagem na tela, nunca o error.tsx (spec §5).
+        if (montado.current) despachar({ tipo: 'falhaEnvio' });
       }
-      const s = separarErros(r.erros);
-      setErroArquivo(s.arquivo);
-      setErrosLinha(s.linhas);
-      setGerais(s.gerais);
     });
   };
 
-  const erros = resumir(errosLinha);
-  const avisosResumo = resumir(avisos);
+  const erros = resumir(s.errosLinha);
+  const avisos = resumir(s.avisos);
   const idErroArquivo = 'importar-arquivo-erro';
 
   return (
     <section>
-      <form onSubmit={enviar} aria-busy={enviando} noValidate>
+      <form onSubmit={enviar} aria-busy={s.fase === 'enviando'} noValidate>
         <label htmlFor="importar-arquivo">{rotulo}</label>{' '}
         <input
           id="importar-arquivo"
           type="file"
           name="arquivo"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          {...(erroArquivo.length > 0 ? { 'aria-invalid': true, 'aria-describedby': idErroArquivo } : {})}
+          {...(s.erroArquivo.length > 0 ? { 'aria-invalid': true, 'aria-describedby': idErroArquivo } : {})}
         />
-        {erroArquivo.length > 0 && (
+        {s.erroArquivo.length > 0 && (
           <span id={idErroArquivo} role="alert">
-            {erroArquivo.join(' ')}
+            {s.erroArquivo.join(' ')}
           </span>
         )}{' '}
-        <button type="submit" disabled={enviando || acompanhando}>
+        <button type="submit" disabled={!podeEnviar(s)}>
           Importar
         </button>
       </form>
-      {gerais.length > 0 && (
+      <p role="status">{textoStatus(s)}</p>
+      {s.gerais.length > 0 && (
         <ul role="alert">
-          {gerais.map((m, i) => (
+          {s.gerais.map((m, i) => (
             <li key={i}>{m}</li>
           ))}
         </ul>
       )}
-      <p role="status">{estado ? textoSituacao(estado) : (aviso ?? '')}</p>
-      {estado && aviso && <p>{aviso}</p>}
-      {erros.total > 0 && <ListaLinhas titulo="Erros" id="erros" resumo={erros} instrucao="Corrija a planilha e importe de novo: nada foi gravado." />}
-      {avisosResumo.total > 0 && <ListaLinhas titulo="Avisos" id="avisos" resumo={avisosResumo} instrucao="Os avisos não impedem a importação." />}
+      {erros.total > 0 && (
+        <ListaLinhas titulo="Erros" id="erros" resumo={erros} instrucao="Corrija a planilha e importe de novo: nada foi gravado." refTitulo={tituloErros} />
+      )}
+      {avisos.total > 0 && <ListaLinhas titulo="Avisos" id="avisos" resumo={avisos} instrucao="Os avisos não impedem a importação." />}
     </section>
   );
 }
 
-export function ListaLinhas({ titulo, id, resumo, instrucao }: { titulo: string; id: string; resumo: { mostrados: readonly ErroLinha[]; total: number }; instrucao: string }) {
+export function ListaLinhas({
+  titulo,
+  id,
+  resumo,
+  instrucao,
+  refTitulo,
+}: {
+  titulo: string;
+  id: string;
+  resumo: { mostrados: readonly ErroLinha[]; total: number };
+  instrucao: string;
+  refTitulo?: Ref<HTMLHeadingElement>;
+}) {
   const nos: NoGrade<Colunas>[] = resumo.mostrados.map((e, i) => ({
     id: `${id}-${i}`,
     linha: { linha: e.linha > 0 ? String(e.linha) : '—', coluna: e.coluna ?? '—', mensagem: e.mensagem },
   }));
   return (
     <section aria-labelledby={`titulo-${id}`}>
-      <h2 id={`titulo-${id}`}>{`${titulo}: ${resumo.total}`}</h2>
+      <h2 id={`titulo-${id}`} ref={refTitulo} tabIndex={-1}>{`${titulo}: ${resumo.total}`}</h2>
       <p>
         {instrucao}
         {resumo.total > resumo.mostrados.length && ` Mostrando os ${resumo.mostrados.length} primeiros.`}

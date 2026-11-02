@@ -2,12 +2,11 @@ import 'server-only';
 import { z } from 'zod';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { ok, type Resultado } from '@/shared/kernel';
+import { MSG_ARQUIVO, problemaArquivoCarga } from '../domain/arquivo-carga';
 import { consultarCarga, type ArquivoCarga, type EstadoCarga, type TipoCarga } from './importar-estrutura';
 
 // Peças comuns das ações de carga (US-043; plano do P4, Task 7a). Ficam fora dos arquivos
 // 'use server', que só exportam as ações.
-
-export const LIMITE_ARQUIVO_CARGA = 1024 * 1024;
 
 /**
  * FormData com o campo `arquivo` → ArquivoCarga: .xlsx de até 1 MB. A assinatura PK, o zip e o
@@ -18,11 +17,10 @@ export const entradaArquivoCarga = z.preprocess(
   z
     .object({
       arquivo: z
-        .instanceof(File, { message: 'Escolha o arquivo .xlsx.' })
+        .instanceof(File, { message: MSG_ARQUIVO.ausente })
         .superRefine((f, c) => {
-          if (f.size === 0) c.addIssue({ code: 'custom', message: 'O arquivo está vazio.' });
-          else if (!/\.xlsx$/i.test(f.name)) c.addIssue({ code: 'custom', message: 'O arquivo deve ser .xlsx.' });
-          else if (f.size > LIMITE_ARQUIVO_CARGA) c.addIssue({ code: 'custom', message: 'O arquivo deve ter até 1 MB.' });
+          const problema = problemaArquivoCarga({ nome: f.name, tamanho: f.size });
+          if (problema) c.addIssue({ code: 'custom', message: problema });
         })
         .transform(async (f): Promise<ArquivoCarga> => ({ nome: f.name, conteudo: new Uint8Array(await f.arrayBuffer()) })),
     })
