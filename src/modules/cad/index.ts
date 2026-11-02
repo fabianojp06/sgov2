@@ -20,3 +20,10 @@ export { acaoConsultarCargaCc, acaoImportarCentrosCusto } from './application/ac
 export { cargaProvisoriaPermitida } from './application/importar-estrutura';
 export { ArvoreCc } from './ui/arvore-cc';
 export { CamposAprovacaoDirex } from './ui/importar-cc';
+
+// Parâmetros do exercício e salário mínimo (US-053 parte 2): ações, dados das telas e formulários.
+export { acaoAlterarParametros, acaoAlterarSalarioMinimo } from './application/acoes-parametros';
+export { obterTelaParametros, obterTelaSalarioMinimo } from './application/tela-parametros';
+export { FormParametros } from './ui/form-parametros';
+export { FormSalarioMinimo } from './ui/form-salario-minimo';
+export { SeletorAno } from './ui/seletor-ano';

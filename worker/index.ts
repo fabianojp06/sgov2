@@ -5,6 +5,7 @@ import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
 import { iniciarProcessadorCargas } from '@/modules/cad/servidor';
 import { lerConfiguracaoWorker } from './configuracao';
+import { criarObterNomeExibicao } from './nome-exibicao';
 
 // Worker (US-010): processo separado da aplicação. Publica o outbox a cada 10 s e executa
 // os trabalhadores das filas. Os trabalhadores de cada módulo ficam em
@@ -44,7 +45,7 @@ async function iniciar(): Promise<void> {
 
   const prisma = criarPrisma(env.DATABASE_URL);
   const fila = await criarFila(env.FILA_DATABASE_URL);
-  await registrarTrabalhadoresGer(fila, { cliente: prisma });
+  await registrarTrabalhadoresGer(fila, { cliente: prisma, obterNomeExibicao: criarObterNomeExibicao(prisma) });
   // Merge das cargas de estrutura (plano do P4, R6): só o worker tem o sgo_sync. Sem a variável,
   // o processador avisa [CARGA_SEM_SYNC] e os lotes ficam PENDENTE, visíveis na tela.
   const urlSync = process.env.SYNC_DATABASE_URL;

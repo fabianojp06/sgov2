@@ -60,7 +60,7 @@ function anoEVersaoValidos(ano: number, versao: number): boolean {
 const ERRO_ANO_VERSAO = falha([{ campo: '_', mensagem: 'Exercício ou versão inválidos. Recarregue a tela.' }]);
 
 // Erros de domínio esperados viram erro de formulário; o resto sobe.
-function comoResultado(e: unknown): Resultado<void> {
+function comoResultado(e: unknown): Resultado<never> {
   if (e instanceof ErroDominio && ['cad.concorrencia', 'cad.exercicio_congelado', 'cad.premissas_inexistentes'].includes(e.codigo)) {
     return falha([{ campo: '_', mensagem: e.message }]);
   }
@@ -73,14 +73,14 @@ export async function obterParametrosExercicio(ctx: ContextoRequisicao, ano: num
   return lerParametrosExercicio(deps.cliente ?? prisma, ano);
 }
 
-/** Altera premissas, semáforo, encargos e contas do ano (cad.parametros:alterar). */
+/** Altera premissas, semáforo, encargos e contas do ano (cad.parametros:alterar). Devolve a versão nova do ano. */
 export async function alterarParametrosExercicio(
   ctx: ContextoRequisicao,
   ano: number,
   versao: number,
   dados: EntradaParametros,
   deps: Deps = {},
-): Promise<Resultado<void>> {
+): Promise<Resultado<{ versao: number }>> {
   exigir(ctx, 'cad.parametros', 'alterar');
   const cliente = deps.cliente ?? prisma;
   if (!anoEVersaoValidos(ano, versao)) return ERRO_ANO_VERSAO;
@@ -92,7 +92,7 @@ export async function alterarParametrosExercicio(
       const v = validarParametros(dados, (c) => indice.contaAnaliticaAtiva(c));
       if (!v.ok) return v;
       const antes = await lerParametrosExercicio(tx, ano);
-      await tocarVersaoExercicio(tx, ano, versao);
+      const nova = await tocarVersaoExercicio(tx, ano, versao);
       await tx.parametrosExercicio.update({
         where: { ano },
         data: {
@@ -123,21 +123,21 @@ export async function alterarParametrosExercicio(
         antes,
         depois: await lerParametrosExercicio(tx, ano),
       });
-      return ok(undefined);
+      return ok({ versao: nova });
     });
   } catch (e) {
     return comoResultado(e);
   }
 }
 
-/** Salário mínimo nacional do ano (cad.salario_minimo:alterar), base da insalubridade (RN_CAR_11). */
+/** Salário mínimo nacional do ano (cad.salario_minimo:alterar), base da insalubridade (RN_CAR_11). Devolve a versão nova. */
 export async function alterarSalarioMinimo(
   ctx: ContextoRequisicao,
   ano: number,
   versao: number,
   valor: string,
   deps: Deps = {},
-): Promise<Resultado<void>> {
+): Promise<Resultado<{ versao: number }>> {
   exigir(ctx, 'cad.salario_minimo', 'alterar');
   const cliente = deps.cliente ?? prisma;
   if (!anoEVersaoValidos(ano, versao)) return ERRO_ANO_VERSAO;
@@ -146,7 +146,7 @@ export async function alterarSalarioMinimo(
   try {
     return await cliente.$transaction(async (tx: TxCliente) => {
       const antes = await tx.parametrosExercicio.findUnique({ where: { ano }, select: { salarioMinimo: true } });
-      await tocarVersaoExercicio(tx, ano, versao);
+      const nova = await tocarVersaoExercicio(tx, ano, versao);
       await tx.parametrosExercicio.update({ where: { ano }, data: { salarioMinimo: v.valor.paraString() } });
       await auditar(tx, {
         contexto: contextoDe(ctx),
@@ -157,7 +157,7 @@ export async function alterarSalarioMinimo(
         antes: { salarioMinimo: antes?.salarioMinimo ? Dinheiro.de(antes.salarioMinimo.toString()) : null },
         depois: { salarioMinimo: v.valor },
       });
-      return ok(undefined);
+      return ok({ versao: nova });
     });
   } catch (e) {
     return comoResultado(e);

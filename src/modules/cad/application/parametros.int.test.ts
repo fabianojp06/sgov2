@@ -88,7 +88,7 @@ describe('parâmetros por exercício', () => {
 
   it('alteração auditada com antes e depois; versão velha → "alterado por outro usuário"', async () => {
     const v = await versao();
-    expect(await alterarParametrosExercicio(gfin(), 2027, v, entrada, { cliente: app })).toEqual({ ok: true, valor: undefined });
+    expect(await alterarParametrosExercicio(gfin(), 2027, v, entrada, { cliente: app })).toEqual({ ok: true, valor: { versao: v + 1 } });
     expect(await versao()).toBe(v + 1);
     const h = await ultimoHistorico();
     expect(h).toMatchObject({ funcionalidade: 'cad.parametros', tipo: 'ALTERACAO' });
