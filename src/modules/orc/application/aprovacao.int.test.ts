@@ -215,13 +215,13 @@ describe('aprovarExercicio', () => {
       erros: [{ campo: '_', mensagem: 'Quem enviou o orçamento para aprovação não pode aprová-lo.' }],
     });
     expect(await situacao(e.id)).toBe('EM_APROVACAO');
-    // Sem remetente gravado (caminho fora do caso de uso), ninguém aprova (falha fechada).
+    // Sem remetente gravado, ninguém aprova: o banco nem deixa o exercício Em Aprovação sem ele
+    // (orc_exercicio_enviado_check); a recusa do caso de uso fica como segunda barreira.
     await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
-    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = NULL WHERE id = ${e.id}::uuid`;
-    expect(await aprovarExercicio(DIREX(), { id: e.id, versao: String(await e.versao()) }, e.deps())).toEqual({
-      ok: false,
-      erros: [{ campo: '_', mensagem: 'Quem enviou o orçamento para aprovação não pode aprová-lo.' }],
-    });
+    await expect(
+      migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = NULL WHERE id = ${e.id}::uuid`,
+    ).rejects.toThrow(/orc_exercicio_enviado_check/);
+    expect(await situacao(e.id)).toBe('EM_ELABORACAO');
   });
 
   it('falha ao congelar as premissas: nada muda (situação, snapshot e trâmite desfeitos)', async () => {
