@@ -95,6 +95,9 @@ export function validarCentrosCusto(
     const descricao = sugerida.texto.trim();
     if (descricao === '') erro(numero, 'Descrição sugerida', 'A descrição sugerida é obrigatória.');
     else if (descricao.length > LIMITE_DESCRICAO) erro(numero, 'Descrição sugerida', `A descrição deve ter até ${LIMITE_DESCRICAO} caracteres.`);
+    if (original && original.texto.trim().length > LIMITE_DESCRICAO) {
+      erro(numero, 'Descrição (original)', `A descrição original deve ter até ${LIMITE_DESCRICAO} caracteres.`);
+    }
     if (sugerida.retirou || original?.retirou) avisos.push({ linha: numero, coluna: 'Descrição sugerida', mensagem: 'O nome da instituição foi retirado da descrição.' });
 
     parciais.push({
@@ -102,7 +105,7 @@ export function validarCentrosCusto(
       classificacao,
       codigoReduzido: reduzido,
       descricao,
-      descricaoOriginal: original === null || original.texto.trim() === '' ? null : original.texto.trim().slice(0, LIMITE_DESCRICAO),
+      descricaoOriginal: original === null || original.texto.trim() === '' ? null : original.texto.trim(),
       nivel,
       tipo,
       classificacaoPai: celulas['Classificação pai'] ?? null,

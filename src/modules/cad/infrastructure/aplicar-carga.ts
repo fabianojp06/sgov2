@@ -167,6 +167,7 @@ type CentroBanco = {
   descricaoOriginal: string | null;
   ativo: boolean;
   provisorio: boolean;
+  deGestao: boolean;
 };
 
 export async function lerCentrosCustoAtuais(tx: TxCliente): Promise<Atual[]> {
@@ -185,10 +186,10 @@ export async function aplicarCargaCentrosCusto(
   linhas: readonly LinhaCentroCustoValidada[],
 ): Promise<ResultadoCarga> {
   const banco: CentroBanco[] = await tx.centroCusto.findMany({
-    select: { id: true, classificacao: true, codigoReduzido: true, tipo: true, descricao: true, descricaoOriginal: true, ativo: true, provisorio: true },
+    select: { id: true, classificacao: true, codigoReduzido: true, tipo: true, descricao: true, descricaoOriginal: true, ativo: true, provisorio: true, deGestao: true },
   });
   const atuais = banco.map((c) => ({ classificacao: c.classificacao, codigoReduzido: c.codigoReduzido, tipo: c.tipo, descricao: c.descricao, ativo: c.ativo }));
-  const plano = planejarCarga(atuais, linhas.map(comoNovoCentroCusto));
+  const plano = planejarCarga(atuais, linhas.map(comoNovoCentroCusto), { colunaReduzido: 'Código reduzido' });
   if (plano.erros.length > 0) throw new ErroCargaLinhas(plano.erros);
   const origem = contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO';
   const funcionalidade = 'cad.centros_custo';
@@ -216,14 +217,18 @@ export async function aplicarCargaCentrosCusto(
   for (const l of linhas) {
     const antes = porClassificacao.get(l.classificacao);
     if (!antes) continue;
-    const depois = { ativo: true, descricao: l.descricao, descricaoOriginal: l.descricaoOriginal, provisorio: carga.provisoria };
+    const depois = { ativo: true, descricao: l.descricao, descricaoOriginal: l.descricaoOriginal, provisorio: carga.provisoria, deGestao: l.deGestao };
     const mudou =
-      !antes.ativo || antes.descricao !== depois.descricao || antes.descricaoOriginal !== depois.descricaoOriginal || antes.provisorio !== depois.provisorio;
+      !antes.ativo ||
+      antes.descricao !== depois.descricao ||
+      antes.descricaoOriginal !== depois.descricaoOriginal ||
+      antes.provisorio !== depois.provisorio ||
+      antes.deGestao !== depois.deGestao;
     if (!mudou) continue;
     alteradas++;
     await tx.centroCusto.update({
       where: { id: antes.id },
-      data: { ...depois, inativadoEm: null, deGestao: l.deGestao, cargaId: carga.id },
+      data: { ...depois, inativadoEm: null, cargaId: carga.id },
     });
     await auditar(tx, {
       contexto,
@@ -232,7 +237,7 @@ export async function aplicarCargaCentrosCusto(
       tipo: 'ALTERACAO',
       registroId: l.classificacao,
       descricao: antes.ativo ? `Centro de custo ${l.classificacao} alterado pela carga` : `Centro de custo ${l.classificacao} reativado pela carga`,
-      antes: { ativo: antes.ativo, descricao: antes.descricao, descricaoOriginal: antes.descricaoOriginal, provisorio: antes.provisorio },
+      antes: { ativo: antes.ativo, descricao: antes.descricao, descricaoOriginal: antes.descricaoOriginal, provisorio: antes.provisorio, deGestao: antes.deGestao },
       depois,
     });
   }

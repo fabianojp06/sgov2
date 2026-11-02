@@ -101,7 +101,9 @@ function mensagemDeFalha(e: unknown): { erro: string; erros: readonly ErroLinha[
 
 const CAMPOS_LINHA = ['linha', 'classificacao', 'codigoReduzido', 'descricao', 'nivel', 'tipo', 'classificacaoPai'] as const;
 
-function revalidar(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): LinhaPlanoValidada[] {
+type Revalidado<T> = { linhas: T[]; avisos: readonly ErroLinha[] };
+
+function revalidar(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): Revalidado<LinhaPlanoValidada> {
   // O sgo_app só insere no staging: linha a mais ou a menos que o lote declarou não é desta carga.
   if (linhas.length !== esperadas) throw new ErroStaging([{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }]);
   const erros: ErroLinha[] = [];
@@ -119,12 +121,12 @@ function revalidar(linhas: readonly { numero: number; dados: unknown }[], espera
   const porLinha = new Map(r.contas.map((c) => [c.linha, c]));
   const divergentes = validas.filter((v) => CAMPOS_LINHA.some((k) => porLinha.get(v.linha)?.[k] !== v[k]));
   if (divergentes.length > 0) throw new ErroStaging(divergentes.map((d) => ({ linha: d.linha, mensagem: 'Linha adulterada no staging.' })));
-  return [...r.contas];
+  return { linhas: [...r.contas], avisos: r.avisos };
 }
 
 const CAMPOS_CC = ['linha', 'classificacao', 'codigoReduzido', 'descricao', 'descricaoOriginal', 'nivel', 'tipo', 'classificacaoPai', 'deGestao'] as const;
 
-function revalidarCentrosCusto(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): LinhaCentroCustoValidada[] {
+function revalidarCentrosCusto(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): Revalidado<LinhaCentroCustoValidada> {
   if (linhas.length !== esperadas) throw new ErroStaging([{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }]);
   const erros: ErroLinha[] = [];
   const validas: LinhaCentroCustoValidada[] = [];
@@ -139,7 +141,7 @@ function revalidarCentrosCusto(linhas: readonly { numero: number; dados: unknown
   const porLinha = new Map(r.centros.map((c) => [c.linha, c]));
   const divergentes = validas.filter((v) => CAMPOS_CC.some((k) => porLinha.get(v.linha)?.[k] !== v[k]));
   if (divergentes.length > 0) throw new ErroStaging(divergentes.map((d) => ({ linha: d.linha, mensagem: 'Linha adulterada no staging.' })));
-  return [...r.centros];
+  return { linhas: [...r.centros], avisos: r.avisos };
 }
 
 export function iniciarProcessadorCargas(deps: {
@@ -203,15 +205,22 @@ export function iniciarProcessadorCargas(deps: {
           const contexto: ContextoAuditoria = { ...lido, unidadeId: lido.unidadeId ?? null };
           const staging = await tx.cargaEstruturaLinha.findMany({ where: { cargaId: lote.id }, orderBy: { numero: 'asc' } });
           let r: Awaited<ReturnType<typeof aplicarCarga>>;
+          // Os avisos da validação (saneamento, R3 da minuta) vão para o lote junto com os da R5.
+          let avisosValidacao: readonly ErroLinha[];
           if (lote.tipo === 'PLANO_CONTAS') {
-            r = await aplicarCarga(tx, contexto, { id: lote.id, tipo: 'PLANO_CONTAS' }, revalidar(staging, lote.linhas));
+            const v = revalidar(staging, lote.linhas);
+            avisosValidacao = v.avisos;
+            r = await aplicarCarga(tx, contexto, { id: lote.id, tipo: 'PLANO_CONTAS' }, v.linhas);
           } else if (lote.tipo === 'CENTROS_CUSTO') {
-            // R16 (S-N3): em produção, só carga aprovada pela DIREX, mesmo que o lote tenha sido gravado por fora.
-            const semAprovacao = lote.provisoria || lote.aprovacao_data === null || !lote.aprovacao_documento;
-            if (ambienteDoCad() === 'producao' && semAprovacao) {
+            // R16 (S-N3): sem a DIREX (gravada por fora, inclusive), o lote é provisório; em produção, recusado.
+            const semAprovacao = lote.aprovacao_data === null || (lote.aprovacao_documento ?? '').trim().length < 3;
+            const provisoria = lote.provisoria || semAprovacao;
+            if (ambienteDoCad() === 'producao' && provisoria) {
               throw new ErroStaging([{ linha: 0, mensagem: 'Em produção, a carga de centros de custo exige a aprovação da DIREX.' }]);
             }
-            r = await aplicarCargaCentrosCusto(tx, contexto, { id: lote.id, provisoria: lote.provisoria }, revalidarCentrosCusto(staging, lote.linhas));
+            const v = revalidarCentrosCusto(staging, lote.linhas);
+            avisosValidacao = v.avisos;
+            r = await aplicarCargaCentrosCusto(tx, contexto, { id: lote.id, provisoria }, v.linhas);
           } else {
             throw new Error(`tipo de carga sem processador: ${lote.tipo}`);
           }
@@ -223,7 +232,7 @@ export function iniciarProcessadorCargas(deps: {
               alteradas: r.alteradas,
               inativadas: r.inativadas,
               inalteradas: r.inalteradas,
-              avisos: r.avisos as Prisma.InputJsonValue,
+              avisos: [...avisosValidacao, ...r.avisos] as Prisma.InputJsonValue,
               erros: [],
               concluidoEm: agora(),
             },

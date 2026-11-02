@@ -85,6 +85,14 @@ describe('validarCentrosCusto', () => {
     expect(r2.ok && r2.avisos).toEqual([expect.objectContaining({ mensagem: expect.stringContaining('A diretoria 4.3 tem 0') })]);
   });
 
+  it('R17: nível 4 analítico com .20 não é de gestão; descrição original acima de 200 é erro', () => {
+    const r = validarCentrosCusto(linhas(...base, { cl: '4.3.2.20', red: '14.996', nivel: '4', pai: '4.3.2', tipo: 'Analítico' }), semSaneamento);
+    expect(r.ok && r.centros.find((c) => c.classificacao === '4.3.2.20')?.deGestao).toBe(false);
+    expect(errosDe(...base.slice(0, 6), { ...base[6]!, orig: 'o'.repeat(201) })).toEqual([
+      { linha: 11, coluna: 'Descrição (original)', mensagem: 'A descrição original deve ter até 200 caracteres.' },
+    ]);
+  });
+
   it('as mensagens não repetem o conteúdo da célula', () => {
     const e = errosDe(...base, { cl: 'abc;x', red: 'zz9', nivel: '7', pai: 'qq', tipo: 'Analítico', aceita: 'talvez' });
     expect(JSON.stringify(e)).not.toMatch(/abc|zz9|qq|talvez/);

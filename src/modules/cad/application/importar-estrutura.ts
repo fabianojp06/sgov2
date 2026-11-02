@@ -136,7 +136,7 @@ function validarAprovacao(a: AprovacaoDirex, hoje: Date): ErroCampo[] {
   const data = /^\d{4}-\d{2}-\d{2}$/.test(a.data) ? new Date(`${a.data}T00:00:00Z`) : null;
   if (!data || Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== a.data) {
     erros.push({ campo: 'aprovacao.data', mensagem: 'Informe a data da aprovação (AAAA-MM-DD).' });
-  } else if (a.data > hoje.toISOString().slice(0, 10)) {
+  } else if (a.data > new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(hoje)) {
     erros.push({ campo: 'aprovacao.data', mensagem: 'A data da aprovação não pode ser futura.' });
   }
   const doc = a.documento.trim();
@@ -174,7 +174,13 @@ export async function solicitarCargaCentrosCusto(
   const cliente = deps.cliente ?? prisma;
   if (aprovacao === null) {
     if (!(deps.cargaProvisoriaPermitida ?? cargaProvisoriaPermitida())) {
-      return falha([{ campo: 'aprovacao', mensagem: 'Informe a data e o documento da aprovação da DIREX.' }]);
+      return falha([
+        {
+          campo: 'aprovacao',
+          mensagem:
+            'Informe a data e o documento de aprovação da DIREX. A carga de centros de custo em produção só acontece depois dessa aprovação (GAP-CC-001).',
+        },
+      ]);
     }
   } else {
     const erros = validarAprovacao(aprovacao, (deps.agora ?? (() => new Date()))());
@@ -186,7 +192,7 @@ export async function solicitarCargaCentrosCusto(
   if (lida.valor.errosCelula.length > 0) return falha(porLinha(lida.valor.errosCelula));
   const validado = validarCentrosCusto(lida.valor.linhas, sanearDescricao);
   if (!validado.ok) return falha(porLinha(validado.erros));
-  const plano = planejarCarga(await lerCentrosCustoAtuais(cliente), validado.centros.map(comoNovoCentroCusto));
+  const plano = planejarCarga(await lerCentrosCustoAtuais(cliente), validado.centros.map(comoNovoCentroCusto), { colunaReduzido: 'Código reduzido' });
   if (plano.erros.length > 0) return falha(porLinha(plano.erros));
 
   const cargaId = randomUUID();

@@ -46,7 +46,10 @@ async function carregarMinutaCentrosCusto(tx: TxCliente): Promise<void> {
   const validado = validarCentrosCusto(minuta as LinhaLida[], sanearDescricao);
   if (!validado.ok) throw new Error(`Minuta de centros de custo inválida: ${validado.erros.length} erros`);
   // Uma minuta nunca sobrescreve um plano de CC já aprovado pela DIREX.
-  if ((await tx.centroCusto.count({ where: { provisorio: false } })) > 0) return;
+  if ((await tx.centroCusto.count({ where: { provisorio: false } })) > 0) {
+    console.log('[SEED_CC_IGNORADA] o plano de centros de custo já tem carga aprovada pela DIREX; a minuta não foi aplicada');
+    return;
+  }
   // Idempotente: sem mudança, nem lote nem Histórico.
   const plano = planejarCarga(await lerCentrosCustoAtuais(tx), validado.centros.map(comoNovoCentroCusto));
   if (plano.incluir.length + plano.alterarDescricao.length + plano.reativar.length + plano.inativar.length === 0) return;

@@ -52,6 +52,20 @@ async function carregar(linhas: readonly Celulas[] = MINUTA, aprovacao: Aprovaca
   if (!r.ok) throw new Error(`solicitação recusada: ${JSON.stringify(r.erros.slice(0, 3))}`);
   return r.valor.cargaId;
 }
+// Um lote forjado como migrator: "aprovado" (provisoria = false), sem data nem documento da DIREX,
+// com o staging de um lote legítimo (que é encerrado, para liberar o índice de carga em andamento).
+async function loteForjadoSemDirex(): Promise<string> {
+  const legitimo = await carregar();
+  await migrator.query(`UPDATE carga_estrutura SET situacao = 'FALHOU', erro = 'teste' WHERE id = $1`, [legitimo]);
+  const { rows } = await migrator.query(`INSERT INTO carga_estrutura (tipo, arquivo_nome, arquivo_sha256, linhas, provisoria, contexto_auditoria)
+    SELECT 'CENTROS_CUSTO', 'forjado.xlsx', 'x', linhas, false, contexto_auditoria FROM carga_estrutura WHERE id = $1 RETURNING id`, [legitimo]);
+  await migrator.query(`INSERT INTO carga_estrutura_linha (carga_id, numero, dados) SELECT $2, numero, dados FROM carga_estrutura_linha WHERE carga_id = $1`, [
+    legitimo,
+    rows[0].id,
+  ]);
+  return rows[0].id as string;
+}
+
 const estado = async (id: string) => (await consultarCarga(ctx(), id, { cliente: app }))!;
 
 async function zerar(): Promise<void> {
@@ -97,7 +111,7 @@ describe('carga dos centros de custo', () => {
 
   it('sem aprovação: sem carga provisória → erro em aprovacao; com ela → todos provisórios', async () => {
     const r = await solicitarCargaCentrosCusto(ctx(), await xlsx(MINUTA), null, { cliente: app, cargaProvisoriaPermitida: false });
-    expect(r).toEqual({ ok: false, erros: [{ campo: 'aprovacao', mensagem: expect.stringContaining('DIREX') }] });
+    expect(r).toEqual({ ok: false, erros: [{ campo: 'aprovacao', mensagem: expect.stringContaining('(GAP-CC-001)') }] });
     const id = await carregar(MINUTA, null, true);
     await processador().executarCiclo();
     expect((await estado(id)).situacao).toBe('CONCLUIDA');
@@ -198,5 +212,98 @@ describe('carga dos centros de custo', () => {
     } finally {
       await m.$disconnect();
     }
+  });
+
+  it('E-N2: mesma classificação com outro reduzido → linhas.<n>.Código reduzido (a coluna do layout de CC)', async () => {
+    await carregar();
+    await processador().executarCiclo();
+    const linhas = MINUTA.map((l) => (l['Classificação'] === '4.4' ? { ...l, 'Código reduzido': '14.999' } : l));
+    const r = await solicitarCargaCentrosCusto(ctx(), await xlsx(linhas), APROVACAO, { cliente: app });
+    expect(r.ok === false && r.erros).toEqual([
+      { campo: expect.stringMatching(/^linhas\.\d+\.Código reduzido$/), mensagem: expect.stringContaining('4.4 já existe com o reduzido 14.450') },
+    ]);
+  });
+
+  it('produção: lote "aprovado" sem data e documento, gravado direto como migrator → FALHOU, nada gravado', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const id = await loteForjadoSemDirex();
+    vi.stubEnv('AMBIENTE', 'producao');
+    await processador().executarCiclo();
+    expect(await estado(id)).toMatchObject({ situacao: 'FALHOU', erros: [{ linha: 0, mensagem: expect.stringContaining('DIREX') }] });
+    expect(await sync.centroCusto.count()).toBe(0);
+  });
+
+  it('fora de produção, o mesmo lote vira provisório (não entra como aprovado)', async () => {
+    const id = await loteForjadoSemDirex();
+    await processador().executarCiclo();
+    expect((await estado(id)).situacao).toBe('CONCLUIDA');
+    expect(await sync.centroCusto.count({ where: { provisorio: false } })).toBe(0);
+    expect(await sync.centroCusto.count({ where: { provisorio: true } })).toBe(35);
+  });
+
+  it('carga provisória e depois aprovada: 35 alteradas, provisorio = false e o Histórico com antes e depois', async () => {
+    await carregar(MINUTA, null, true);
+    await processador().executarCiclo();
+    const id = await carregar();
+    await processador().executarCiclo();
+    expect(await estado(id)).toMatchObject({ situacao: 'CONCLUIDA', alteradas: 35, incluidas: 0 });
+    expect(await sync.centroCusto.count({ where: { provisorio: false } })).toBe(35);
+    const h = (await migrator.query(`SELECT antes, depois FROM historico_operacao WHERE funcionalidade = 'cad.centros_custo' AND registro_id = '4.4' ORDER BY id DESC LIMIT 1`)).rows[0];
+    expect([h.antes.provisorio, h.depois.provisorio]).toEqual([true, false]);
+  });
+
+  it('recarga com só a descrição original mudada: 1 alterada, gravada', async () => {
+    await carregar();
+    await processador().executarCiclo();
+    const id = await carregar(MINUTA.map((l) => (l['Classificação'] === '4.4' ? { ...l, 'Descrição (original)': 'Suporte Adm.' } : l)));
+    await processador().executarCiclo();
+    expect(await estado(id)).toMatchObject({ alteradas: 1 });
+    expect((await sync.centroCusto.findUnique({ where: { classificacao: '4.4' } }))?.descricaoOriginal).toBe('Suporte Adm.');
+  });
+
+  it('avisos da R3 vão para o lote (o worker não os descarta)', async () => {
+    const id = await carregar(
+      MINUTA.filter((l) => l['Classificação'] !== '4.3.2.10'),
+      APROVACAO,
+    );
+    await processador().executarCiclo();
+    expect((await estado(id)).avisos).toEqual([expect.objectContaining({ mensagem: expect.stringContaining('4.3.2 tem 0') })]);
+  });
+
+  it('triggers do centro_custo: estrutura imutável e árvore (M-n3, os dois ramos), mesmo como sgo_sync', async () => {
+    await carregar();
+    await processador().executarCiclo();
+    await expect(sync.$executeRaw`UPDATE centro_custo SET classificacao = '4.4.9' WHERE classificacao = '4.4'`).rejects.toThrow(/estrutura de um centro de custo não muda/);
+    await expect(
+      sync.$transaction(async (tx) => {
+        await tx.$executeRaw`UPDATE centro_custo SET ativo = false, inativado_em = now() WHERE classificacao = '4.3.2'`;
+        await tx.$executeRaw`SET CONSTRAINTS ALL IMMEDIATE`;
+      }),
+    ).rejects.toThrow(/inativo com filho ativo/);
+    await sync.$executeRaw`UPDATE centro_custo SET ativo = false, inativado_em = now() WHERE classificacao LIKE '4.3.2%'`;
+    await expect(
+      sync.$transaction(async (tx) => {
+        await tx.$executeRaw`UPDATE centro_custo SET ativo = true, inativado_em = NULL WHERE classificacao = '4.3.2.11'`;
+        await tx.$executeRaw`SET CONSTRAINTS ALL IMMEDIATE`;
+      }),
+    ).rejects.toThrow(/ativo sob pai inativo/);
+  });
+
+  it('a seed não sobrescreve um plano aprovado, mesmo com o banco diferente da minuta', async () => {
+    await carregar();
+    await processador().executarCiclo();
+    await sync.$executeRaw`UPDATE centro_custo SET descricao = 'Mudada pela GFIN' WHERE classificacao = '4.4'`;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const m = criarPrisma(banco.urlMigrator);
+    try {
+      vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
+      vi.stubEnv('AMBIENTE', 'dev');
+      await executarSeeds(m, [seedDadosReferenciaCad]);
+    } finally {
+      await m.$disconnect();
+    }
+    expect(await sync.centroCusto.count({ where: { provisorio: true } })).toBe(0);
+    expect((await sync.centroCusto.findUnique({ where: { classificacao: '4.4' } }))?.descricao).toBe('Mudada pela GFIN');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[SEED_CC_IGNORADA]'));
   });
 });
