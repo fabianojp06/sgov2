@@ -26,6 +26,12 @@ enum NaturezaCentroCusto {
   GESTAO
 }
 
+enum FormaBeneficio {
+  VALOR_MENSAL
+  VALOR_DIARIO
+  PERCENTUAL_SALARIO
+}
+
 enum SituacaoCarga {
   PENDENTE
   PROCESSANDO
@@ -120,6 +126,7 @@ model ParametrosExercicio {
   atualizadoEm       DateTime                   @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
   encargos           EncargoExercicio[]
   contas             ContaComponenteExercicio[]
+  beneficios         BeneficioMestre[]
 
   @@map("parametros_exercicio")
 }
@@ -184,4 +191,25 @@ model CentroCusto {
 
   @@index([paiId])
   @@map("centro_custo")
+}
+
+// Tabela Mestre de Benefícios por exercício (US-050; plano do P4, Task 10, R12). Toda escrita toca a
+// versão única do ano (R10); ano congelado não muda (trigger). `provisorio`: sem valor confirmado.
+model BeneficioMestre {
+  ano           Int                 @db.SmallInt
+  exercicio     ParametrosExercicio @relation(fields: [ano], references: [ano], onDelete: Restrict)
+  codigo        String
+  nome          String
+  forma         FormaBeneficio
+  valor         Decimal?            @db.Decimal(15, 2)
+  percentual    Decimal?            @db.Decimal(9, 4)
+  conta         String
+  padraoPosicao Boolean             @default(false) @map("padrao_posicao")
+  ativo         Boolean             @default(true)
+  provisorio    Boolean             @default(true)
+  versao        Int                 @default(1)
+  atualizadoEm  DateTime            @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@id([ano, codigo])
+  @@map("beneficio_mestre")
 }
