@@ -1,7 +1,7 @@
 // Entrada pública do orc (orçamento da Administração Central, UC04.17).
 export { avancar, criar } from './application/acoes-exercicios';
 export { importarPlanilhaAcao } from './application/acoes-importacao';
-export { recalcularAcao } from './application/acoes-orcamento';
+export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { obterVisaoExercicio, type VisaoExercicio } from './application/consolidacao';
 export { listarExercicios, sugerirAno, type ResumoExercicio } from './application/exercicios';

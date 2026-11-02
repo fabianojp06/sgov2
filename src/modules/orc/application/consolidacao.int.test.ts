@@ -205,17 +205,18 @@ describe('obterVisaoExercicio: inativos, CC fora da estrutura e premissas', () =
     const outra = custoPessoalFalso([{ ...premissasExemplo(e.ano), versao: 9, avisos: ['Benefícios sem valor.'] }]);
     const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ custoPessoal: outra })))!;
     expect(v.exercicio.premissasDesatualizadas).toBe(true);
-    expect(v.avisos).toEqual(['As premissas do exercício mudaram depois do último cálculo. Recalcule o orçamento.', 'Benefícios sem valor.']);
+    const semSemaforo = (avisos: readonly string[]) => avisos.filter((a) => !a.includes('semáforo'));
+    expect(semSemaforo(v.avisos)).toEqual(['As premissas do exercício mudaram depois do último cálculo. Recalcule o orçamento.', 'Benefícios sem valor.']);
     const indisponivel = {
       ...outra,
       obterPremissasExercicio: async () => {
         throw new ErroDominio('cad.custo_pessoal_indisponivel', 'x');
       },
     };
-    expect((await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ custoPessoal: indisponivel })))!.avisos).toEqual([
+    expect(semSemaforo((await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ custoPessoal: indisponivel })))!.avisos)).toEqual([
       'As premissas do exercício ainda não estão disponíveis.',
     ]);
-    expect((await obterVisaoExercicio(ctx(), e.ano, null, e.deps()))!.avisos).toEqual([]);
+    expect(semSemaforo((await obterVisaoExercicio(ctx(), e.ano, null, e.deps()))!.avisos)).toEqual([]);
   });
 
   it('sem orc.orcamento:consultar: ErroPermissao', async () => {

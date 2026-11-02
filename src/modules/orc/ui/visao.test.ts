@@ -11,7 +11,8 @@ const no = (cc: string, reduzido: string, descricao: string, total: string, filh
   cc, codigoReduzido: reduzido, descricao, inativo, pessoal: d(total), baseZero: d('0'), total: d(total), percentualDoEscopo: Percentual.dePontos('50'), filhos,
 });
 const visao = (p: Partial<DadosVisao> = {}): DadosVisao => ({
-  exercicio: { id: 'e1', ano: 2027, rotuloSituacao: 'Em Elaboração', editavel: true },
+  exercicio: { id: 'e1', ano: 2027, rotuloSituacao: 'Em Elaboração', editavel: true, versao: 3 },
+  painel: null,
   escopo: { tipo: 'TOTAL' },
   arvore: [no('4', '14.180', 'DIREX', '1000.00', [no('4.4', '14.450', 'Suporte Administrativo', '500.00', [], true)])],
   indicadores: {
@@ -76,7 +77,7 @@ describe('VisaoCc', () => {
     expect(html(visao(), false)).not.toContain('Recalcular');
     const h = html(visao({ avisos: ['As premissas do exercício mudaram depois do último cálculo. Recalcule o orçamento.'] }), true, 'O orçamento foi recalculado.');
     expect(h).toMatch(/<div role="status"><p>O orçamento foi recalculado\.<\/p><p>As premissas/);
-    expect(html(visao({ exercicio: { id: 'e1', ano: 2027, rotuloSituacao: 'Em Aprovação', editavel: false } }))).toContain('Situação: Em Aprovação (somente leitura)');
+    expect(html(visao({ exercicio: { id: 'e1', ano: 2027, rotuloSituacao: 'Em Aprovação', editavel: false, versao: 3 } }))).toContain('Situação: Em Aprovação (somente leitura)');
   });
 
   it('escopo de subárvore: indicadores com a raiz; árvore vazia com o texto próprio', () => {
