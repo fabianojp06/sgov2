@@ -20,4 +20,32 @@ export {
   listarArvoreCentrosCusto,
   listarArvoreContas,
 } from './infrastructure/estrutura-financeira';
-export { CENTROS_CUSTO_EXEMPLO, CONTAS_EXEMPLO, estruturaFinanceiraFalsa } from './falsos';
+
+// C2 — Custo de pessoal (Task 3).
+export {
+  COMPONENTES_FIXOS,
+  QUANTIDADE_MAXIMA,
+  type AdicionalTrabalhista,
+  type BeneficioPremissa,
+  type CodigoComponente,
+  type ComponenteEncargo,
+  type ComponenteFixo,
+  type LinhaComponente,
+  type PosicaoPessoal,
+  type PremissasExercicio,
+  type SerieMensalComponentes,
+} from './domain/custo-pessoal';
+export {
+  calcularCustoPosicao,
+  congelarPremissasExercicio,
+  garantirPremissasExercicio,
+  obterPremissasExercicio,
+} from './infrastructure/premissas';
+
+export {
+  CENTROS_CUSTO_EXEMPLO,
+  CONTAS_EXEMPLO,
+  custoPessoalFalso,
+  estruturaFinanceiraFalsa,
+  premissasExemplo,
+} from './falsos';

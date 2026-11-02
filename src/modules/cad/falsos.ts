@@ -1,3 +1,10 @@
+import { Dinheiro, ErroDominio, ok, Percentual } from '@/shared/kernel';
+import {
+  validarPosicao,
+  type LinhaComponente,
+  type PosicaoPessoal,
+  type PremissasExercicio,
+} from './domain/custo-pessoal';
 import {
   congelarArvore,
   montarIndice,
@@ -13,6 +20,12 @@ import type {
   listarArvoreCentrosCusto,
   listarArvoreContas,
 } from './infrastructure/estrutura-financeira';
+import type {
+  calcularCustoPosicao,
+  congelarPremissasExercicio,
+  garantirPremissasExercicio,
+  obterPremissasExercicio,
+} from './infrastructure/premissas';
 
 // Adaptadores falsos dos contratos do cad, só para testes dos módulos consumidores (spec §12.6).
 
@@ -96,5 +109,92 @@ export function estruturaFinanceiraFalsa(dados: { contas?: readonly NoConta[]; c
     ehContaAnaliticaAtiva: async (_tx, classificacao) => indice.contaAnaliticaAtiva(classificacao),
     ehCentroCustoAnalitico: async (_tx, classificacao) => indice.centroCustoAnalitico(classificacao),
     carregarIndiceEstrutura: async () => indice,
+  };
+}
+
+const pct = (pontos: string) => Percentual.dePontos(pontos);
+
+/**
+ * Premissas de exemplo (R14): reajuste de 5% a partir de maio, encargos do C&S V4 somando 51 pontos
+ * (38 + 8 + 1 + 3,8 + 0,2) e os benefícios VR 800,00, saúde 600,00 e vida 50,00 por pessoa/mês.
+ * O IPCA e o salário mínimo são ilustrativos, só para testes; não são os padrões do seed (Task 9a).
+ */
+export function premissasExemplo(ano = 2027): PremissasExercicio {
+  return {
+    ano,
+    versao: 1,
+    congelado: false,
+    provisorio: true,
+    reajuste: pct('5'),
+    mesDataBase: 5,
+    ipca: pct('4.5'),
+    salarioMinimo: Dinheiro.de('1518.00'),
+    encargos: [
+      { componente: 'encargo.inss', nome: 'INSS', percentual: pct('38'), conta: '4.1.1.2.001' },
+      { componente: 'encargo.fgts', nome: 'FGTS', percentual: pct('8'), conta: '4.1.1.2.005' },
+      { componente: 'encargo.pis', nome: 'PIS/PASEP', percentual: pct('1'), conta: '4.1.1.2.008' },
+      { componente: 'encargo.obrigacoes', nome: 'Obrigações', percentual: pct('3.8'), conta: '4.1.1.8.003' },
+      { componente: 'encargo.riscos', nome: 'Riscos', percentual: pct('0.2'), conta: '4.1.1.8.004' },
+    ],
+    contas: {
+      salario: '4.1.1.1.001',
+      adicional: '4.1.1.1.025',
+      ferias: '4.1.1.1.003',
+      decimo_terceiro: '4.1.1.1.005',
+    },
+    beneficios: [
+      { componente: 'beneficio.vale_refeicao', nome: 'Vale-refeição', forma: 'VALOR_MENSAL', valorMensal: Dinheiro.de('800.00'), conta: '4.1.1.1.009' },
+      { componente: 'beneficio.seguro_saude', nome: 'Seguro saúde', forma: 'VALOR_MENSAL', valorMensal: Dinheiro.de('600.00'), conta: '4.1.1.1.008' },
+      { componente: 'beneficio.seguro_vida', nome: 'Seguro de vida', forma: 'VALOR_MENSAL', valorMensal: Dinheiro.de('50.00'), conta: '4.1.1.1.007' },
+    ],
+    avisos: [],
+  };
+}
+
+/**
+ * Falso do C2. NÃO reproduz a fórmula: põe tudo em 'salario' (quantidade × salário nos meses
+ * ativos). Os testes consumidores conferem as chamadas e a gravação da série, nunca os valores;
+ * os valores oficiais são provados na Task 11. Valida a posição como o real. Ignora a transação.
+ */
+export function custoPessoalFalso(premissas: readonly PremissasExercicio[] = [premissasExemplo()]): {
+  calcularCustoPosicao: typeof calcularCustoPosicao;
+  obterPremissasExercicio: typeof obterPremissasExercicio;
+  garantirPremissasExercicio: typeof garantirPremissasExercicio;
+  congelarPremissasExercicio: typeof congelarPremissasExercicio;
+  chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[];
+  congelados: ReadonlySet<number>;
+} {
+  const porAno = new Map(premissas.map((p) => [p.ano, p]));
+  const chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[] = [];
+  const congelados = new Set<number>();
+  return {
+    chamadas,
+    congelados,
+    calcularCustoPosicao: (posicao, p) => {
+      chamadas.push({ posicao, premissas: p });
+      const valida = validarPosicao(posicao, p);
+      if (!valida.ok) return valida;
+      const mensal = posicao.salarioMensal.multiplicar(String(posicao.quantidade));
+      const meses = Array.from({ length: 12 }, (_, i) =>
+        i + 1 >= posicao.mesInicio && i + 1 <= posicao.mesSaida ? mensal : Dinheiro.zero(),
+      );
+      const total = Dinheiro.somarTodos(meses);
+      const linha: LinhaComponente = { componente: 'salario', conta: p.contas.salario, meses, total };
+      return ok({ ano: p.ano, versaoPremissas: p.versao, linhas: [linha], totalMes: [...meses], total });
+    },
+    obterPremissasExercicio: async (_tx, ano) => porAno.get(ano) ?? null,
+    garantirPremissasExercicio: async (_tx, _contexto, ano) => {
+      const existente = porAno.get(ano);
+      if (existente) return existente;
+      const criadas = premissasExemplo(ano);
+      porAno.set(ano, criadas);
+      return criadas;
+    },
+    congelarPremissasExercicio: async (_tx, _contexto, ano) => {
+      const atual = porAno.get(ano);
+      if (!atual) throw new ErroDominio('cad.premissas_inexistentes', `O exercício ${ano} não tem parâmetros.`);
+      congelados.add(ano);
+      porAno.set(ano, { ...atual, congelado: true });
+    },
   };
 }
