@@ -1,0 +1,457 @@
+[
+ {
+  "numero": 5,
+  "celulas": {
+   "Classificação": "4",
+   "Código reduzido": "14.180",
+   "Descrição (original)": "DIREX",
+   "Descrição sugerida": "DIREX",
+   "Nível": "1",
+   "Classificação pai": null,
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 6,
+  "celulas": {
+   "Classificação": "4.1",
+   "Código reduzido": "14.190",
+   "Descrição (original)": "Diretoria de Estudos e Projetos - DEP",
+   "Descrição sugerida": "Diretoria de Estudos e Projetos - DEP",
+   "Nível": "2",
+   "Classificação pai": "4",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 7,
+  "celulas": {
+   "Classificação": "4.1.0",
+   "Código reduzido": "14.470",
+   "Descrição (original)": "Gabinete da Diretoria de Estudos e Projetos",
+   "Descrição sugerida": "Gabinete da Diretoria de Estudos e Projetos",
+   "Nível": "3",
+   "Classificação pai": "4.1",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 8,
+  "celulas": {
+   "Classificação": "4.1.1",
+   "Código reduzido": "14.200",
+   "Descrição (original)": "Setor de Tecnologia da Informação",
+   "Descrição sugerida": "Setor de Tecnologia da Informação",
+   "Nível": "3",
+   "Classificação pai": "4.1",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 9,
+  "celulas": {
+   "Classificação": "4.1.2",
+   "Código reduzido": "14.210",
+   "Descrição (original)": "Gerencia de Implantação e Acompanhamento de Projetos",
+   "Descrição sugerida": "Gerência de Implantação e Acompanhamento de Projetos",
+   "Nível": "3",
+   "Classificação pai": "4.1",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 10,
+  "celulas": {
+   "Classificação": "4.1.2.10",
+   "Código reduzido": "14.480",
+   "Descrição (original)": "Gestão da Gerência de Implantação e Acompanhamento de Projetos",
+   "Descrição sugerida": "Gestão da Gerência de Implantação e Acompanhamento de Projetos",
+   "Nível": "4",
+   "Classificação pai": "4.1.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 11,
+  "celulas": {
+   "Classificação": "4.1.2.11",
+   "Código reduzido": "14.220",
+   "Descrição (original)": "Area de Gerenciamento de Programa e Projetos",
+   "Descrição sugerida": "Área de Gerenciamento de Programa e Projetos",
+   "Nível": "4",
+   "Classificação pai": "4.1.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 12,
+  "celulas": {
+   "Classificação": "4.1.2.12",
+   "Código reduzido": "14.230",
+   "Descrição (original)": "Area de Pesquisa e Desenvolvimento",
+   "Descrição sugerida": "Área de Pesquisa e Desenvolvimento",
+   "Nível": "4",
+   "Classificação pai": "4.1.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 13,
+  "celulas": {
+   "Classificação": "4.1.2.13",
+   "Código reduzido": "14.240",
+   "Descrição (original)": "Area de Conformidade Tecnica",
+   "Descrição sugerida": "Área de Conformidade Técnica",
+   "Nível": "4",
+   "Classificação pai": "4.1.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 14,
+  "celulas": {
+   "Classificação": "4.2",
+   "Código reduzido": "14.250",
+   "Descrição (original)": "Diretoria Geral",
+   "Descrição sugerida": "Diretoria Geral",
+   "Nível": "2",
+   "Classificação pai": "4",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 15,
+  "celulas": {
+   "Classificação": "4.2.0",
+   "Código reduzido": "14.490",
+   "Descrição (original)": "Gabinete da Diretoria Geral",
+   "Descrição sugerida": "Gabinete da Diretoria Geral",
+   "Nível": "3",
+   "Classificação pai": "4.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 16,
+  "celulas": {
+   "Classificação": "4.2.1",
+   "Código reduzido": "14.260",
+   "Descrição (original)": "Assessoria Juridica",
+   "Descrição sugerida": "Assessoria Jurídica",
+   "Nível": "3",
+   "Classificação pai": "4.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 17,
+  "celulas": {
+   "Classificação": "4.2.2",
+   "Código reduzido": "14.270",
+   "Descrição (original)": "AINST",
+   "Descrição sugerida": "AINST",
+   "Nível": "3",
+   "Classificação pai": "4.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 18,
+  "celulas": {
+   "Classificação": "4.2.3",
+   "Código reduzido": "14.280",
+   "Descrição (original)": "Centro de Documentacao",
+   "Descrição sugerida": "Centro de Documentação",
+   "Nível": "3",
+   "Classificação pai": "4.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 19,
+  "celulas": {
+   "Classificação": "4.2.4",
+   "Código reduzido": "14.290",
+   "Descrição (original)": "Auditoria Interna",
+   "Descrição sugerida": "Auditoria Interna",
+   "Nível": "3",
+   "Classificação pai": "4.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 20,
+  "celulas": {
+   "Classificação": "4.2.5",
+   "Código reduzido": "14.460",
+   "Descrição (original)": "Assessoria de Gestao da Qualidade e Riscos",
+   "Descrição sugerida": "Assessoria de Gestão da Qualidade e Riscos",
+   "Nível": "3",
+   "Classificação pai": "4.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 21,
+  "celulas": {
+   "Classificação": "4.3",
+   "Código reduzido": "14.310",
+   "Descrição (original)": "Diretoria Administrativa Financeira",
+   "Descrição sugerida": "Diretoria Administrativa Financeira",
+   "Nível": "2",
+   "Classificação pai": "4",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 22,
+  "celulas": {
+   "Classificação": "4.3.0",
+   "Código reduzido": "14.500",
+   "Descrição (original)": "Gabinete da Diretoria Administrativa Financeira",
+   "Descrição sugerida": "Gabinete da Diretoria Administrativa Financeira",
+   "Nível": "3",
+   "Classificação pai": "4.3",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 23,
+  "celulas": {
+   "Classificação": "4.3.1",
+   "Código reduzido": "14.320",
+   "Descrição (original)": "Gerencia de Recursos Humanos",
+   "Descrição sugerida": "Gerência de Recursos Humanos",
+   "Nível": "3",
+   "Classificação pai": "4.3",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 24,
+  "celulas": {
+   "Classificação": "4.3.1.10",
+   "Código reduzido": "14.510",
+   "Descrição (original)": "Gestão da Gerência de Recursos Humanos",
+   "Descrição sugerida": "Gestão da Gerência de Recursos Humanos",
+   "Nível": "4",
+   "Classificação pai": "4.3.1",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 25,
+  "celulas": {
+   "Classificação": "4.3.1.11",
+   "Código reduzido": "14.330",
+   "Descrição (original)": "Setor de Recrutamento e Remuneracao",
+   "Descrição sugerida": "Setor de Recrutamento e Remuneração",
+   "Nível": "4",
+   "Classificação pai": "4.3.1",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 26,
+  "celulas": {
+   "Classificação": "4.3.1.12",
+   "Código reduzido": "14.340",
+   "Descrição (original)": "Setor de Beneficios e Apoio Social",
+   "Descrição sugerida": "Setor de Benefícios e Apoio Social",
+   "Nível": "4",
+   "Classificação pai": "4.3.1",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 27,
+  "celulas": {
+   "Classificação": "4.3.1.13",
+   "Código reduzido": "14.350",
+   "Descrição (original)": "Setor de Gestao de Pessoas",
+   "Descrição sugerida": "Setor de Gestão de Pessoas",
+   "Nível": "4",
+   "Classificação pai": "4.3.1",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 28,
+  "celulas": {
+   "Classificação": "4.3.2",
+   "Código reduzido": "14.360",
+   "Descrição (original)": "Gerencia Financeira",
+   "Descrição sugerida": "Gerência Financeira",
+   "Nível": "3",
+   "Classificação pai": "4.3",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 29,
+  "celulas": {
+   "Classificação": "4.3.2.10",
+   "Código reduzido": "14.520",
+   "Descrição (original)": "Gestão da Gerência Financeira",
+   "Descrição sugerida": "Gestão da Gerência Financeira",
+   "Nível": "4",
+   "Classificação pai": "4.3.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 30,
+  "celulas": {
+   "Classificação": "4.3.2.11",
+   "Código reduzido": "14.370",
+   "Descrição (original)": "Setor de Controle Orcamentario",
+   "Descrição sugerida": "Setor de Controle Orçamentário",
+   "Nível": "4",
+   "Classificação pai": "4.3.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 31,
+  "celulas": {
+   "Classificação": "4.3.2.12",
+   "Código reduzido": "14.380",
+   "Descrição (original)": "Setor Financeiro e Tesouraria",
+   "Descrição sugerida": "Setor Financeiro e Tesouraria",
+   "Nível": "4",
+   "Classificação pai": "4.3.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 32,
+  "celulas": {
+   "Classificação": "4.3.2.13",
+   "Código reduzido": "14.390",
+   "Descrição (original)": "Setor de Contabilidade",
+   "Descrição sugerida": "Setor de Contabilidade",
+   "Nível": "4",
+   "Classificação pai": "4.3.2",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 33,
+  "celulas": {
+   "Classificação": "4.3.3",
+   "Código reduzido": "14.400",
+   "Descrição (original)": "Gerencia Adminstrativa",
+   "Descrição sugerida": "Gerência Administrativa",
+   "Nível": "3",
+   "Classificação pai": "4.3",
+   "Tipo": "Sintético",
+   "Aceita lançamento": "N"
+  }
+ },
+ {
+  "numero": 34,
+  "celulas": {
+   "Classificação": "4.3.3.10",
+   "Código reduzido": "14.530",
+   "Descrição (original)": "Gestão da Gerência Administrativa",
+   "Descrição sugerida": "Gestão da Gerência Administrativa",
+   "Nível": "4",
+   "Classificação pai": "4.3.3",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 35,
+  "celulas": {
+   "Classificação": "4.3.3.11",
+   "Código reduzido": "14.410",
+   "Descrição (original)": "Setor de Compras",
+   "Descrição sugerida": "Setor de Compras",
+   "Nível": "4",
+   "Classificação pai": "4.3.3",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 36,
+  "celulas": {
+   "Classificação": "4.3.3.12",
+   "Código reduzido": "14.420",
+   "Descrição (original)": "Setor de Contratos",
+   "Descrição sugerida": "Setor de Contratos",
+   "Nível": "4",
+   "Classificação pai": "4.3.3",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 37,
+  "celulas": {
+   "Classificação": "4.3.3.13",
+   "Código reduzido": "14.430",
+   "Descrição (original)": "Setor de Servicos Gerais e Patrimonio",
+   "Descrição sugerida": "Setor de Serviços Gerais e Patrimônio",
+   "Nível": "4",
+   "Classificação pai": "4.3.3",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 38,
+  "celulas": {
+   "Classificação": "4.3.3.14",
+   "Código reduzido": "14.440",
+   "Descrição (original)": "Setor de Viagens",
+   "Descrição sugerida": "Setor de Viagens",
+   "Nível": "4",
+   "Classificação pai": "4.3.3",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ },
+ {
+  "numero": 39,
+  "celulas": {
+   "Classificação": "4.4",
+   "Código reduzido": "14.450",
+   "Descrição (original)": "Suporte Administrativo",
+   "Descrição sugerida": "Suporte Administrativo",
+   "Nível": "2",
+   "Classificação pai": "4",
+   "Tipo": "Analítico",
+   "Aceita lançamento": "S"
+  }
+ }
+]

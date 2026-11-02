@@ -350,7 +350,8 @@ describe('carga do plano de contas', () => {
     const indice = await carregarIndiceEstrutura(app);
     expect(indice.contasAnaliticasSob('4.1.1.1')).toHaveLength(25);
     expect(totalizar(indice.nosContas, new Map()).total.paraString()).toBe('0.00');
-    expect(() => indice.centrosCustoAnaliticosSob('4')).toThrow(expect.objectContaining({ codigo: 'cad.estrutura_indisponivel' }));
+    // Sem CC carregado, o escopo é vazio (nunca "tudo").
+    expect(indice.centrosCustoAnaliticosSob('4')).toEqual([]);
   });
 
   it('desempenho (RNF_DES_003): 10.000 linhas do pedido até CONCLUIDA em menos de 30 s', async () => {

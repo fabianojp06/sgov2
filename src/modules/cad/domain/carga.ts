@@ -21,7 +21,9 @@ export type PlanoCarga = {
   erros: readonly ErroLinha[];
 };
 
-export function planejarCarga(atuais: readonly Atual[], novas: readonly Atual[]): PlanoCarga {
+/** `colunaReduzido`: o nome da coluna do reduzido no layout da carga, para o erro voltar à célula certa. */
+export function planejarCarga(atuais: readonly Atual[], novas: readonly Atual[], opcoes: { colunaReduzido?: string } = {}): PlanoCarga {
+  const colunaReduzido = opcoes.colunaReduzido ?? 'Conta Reduzida';
   const porClassificacao = new Map(atuais.map((a) => [a.classificacao, a]));
   const ativasPorReduzido = new Map(atuais.filter((a) => a.ativo && a.codigoReduzido !== null).map((a) => [a.codigoReduzido!, a]));
   const vieram = new Set(novas.map((n) => n.classificacao));
@@ -42,7 +44,7 @@ export function planejarCarga(atuais: readonly Atual[], novas: readonly Atual[])
         // O reduzido continua na classificação antiga no mesmo arquivo: seria repetido entre as ativas.
         erros.push({
           linha,
-          coluna: 'Conta Reduzida',
+          coluna: colunaReduzido,
           mensagem: `O reduzido ${nova.codigoReduzido} já pertence a ${anterior.classificacao}, que continua no arquivo.`,
         });
         continue;
@@ -58,7 +60,7 @@ export function planejarCarga(atuais: readonly Atual[], novas: readonly Atual[])
       continue;
     }
     if (atual.codigoReduzido !== nova.codigoReduzido || atual.tipo !== nova.tipo) {
-      const coluna = atual.codigoReduzido !== nova.codigoReduzido ? 'Conta Reduzida' : 'Tipo';
+      const coluna = atual.codigoReduzido !== nova.codigoReduzido ? colunaReduzido : 'Tipo';
       // Texto da R5 (D7).
       erros.push({
         linha,

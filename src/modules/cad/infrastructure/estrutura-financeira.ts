@@ -1,8 +1,8 @@
 import type { TxCliente } from '@/shared/db';
-import { ErroDominio } from '@/shared/kernel';
 import {
   compararClassificacao,
   montarIndice,
+  prepararArvoreCentrosCusto,
   prepararArvoreContas,
   type IndiceEstruturaFinanceira,
   type NoCentroCusto,
@@ -10,20 +10,11 @@ import {
   type OpcoesArvore,
 } from '../domain/estrutura';
 
-// Implementações reais do C1 (plano do P4, Tasks 2 e 4b). As contas já leem do banco; os centros
-// de custo ficam indisponíveis até a Task 5. Até lá, os consumidores usam os falsos para os CCs.
+// Implementações reais do C1 (plano do P4, Tasks 2, 4b e 5): contas e centros de custo do banco.
 //
 // R3: recebem o `tx` do consumidor, para ler na mesma transação, e não têm guarda própria: quem
 // chama já passou pela guarda da sua funcionalidade. Nunca são expostas como Server Action.
 // R22: este arquivo não importa @/shared/authz nem next/, porque o servidor.ts o reexporta.
-
-function erroIndisponivel(): ErroDominio {
-  return new ErroDominio('cad.estrutura_indisponivel', 'A estrutura financeira ainda não está disponível.');
-}
-
-async function indisponivel(): Promise<never> {
-  throw erroIndisponivel();
-}
 
 // A árvore inteira (com as inativas) é pequena (174 contas no plano oficial): lê de uma vez.
 async function lerArvoreContas(tx: TxCliente): Promise<NoConta[]> {
@@ -52,9 +43,46 @@ export async function listarArvoreContas(tx: TxCliente, opcoes?: OpcoesArvore): 
   return prepararArvoreContas(await lerArvoreContas(tx), opcoes);
 }
 
-/** Árvore dos centros de custo, com os filhos ordenados pela classificação. Disponível na Task 5. */
-export const listarArvoreCentrosCusto: (tx: TxCliente, opcoes?: OpcoesArvore) => Promise<readonly NoCentroCusto[]> =
-  indisponivel;
+async function lerArvoreCentrosCusto(tx: TxCliente): Promise<NoCentroCusto[]> {
+  const linhas = await tx.centroCusto.findMany({
+    select: {
+      id: true,
+      paiId: true,
+      classificacao: true,
+      codigoReduzido: true,
+      descricao: true,
+      nivel: true,
+      tipo: true,
+      ativo: true,
+      deGestao: true,
+      natureza: true,
+      provisorio: true,
+    },
+  });
+  const filhos = new Map<string | null, typeof linhas>();
+  for (const l of linhas) filhos.set(l.paiId, [...(filhos.get(l.paiId) ?? []), l]);
+  const montar = (paiId: string | null): NoCentroCusto[] =>
+    (filhos.get(paiId) ?? [])
+      .sort((a, b) => compararClassificacao(a.classificacao, b.classificacao))
+      .map((l) => ({
+        classificacao: l.classificacao,
+        codigoReduzido: l.codigoReduzido,
+        descricao: l.descricao,
+        nivel: l.nivel as NoCentroCusto['nivel'],
+        tipo: l.tipo,
+        ativo: l.ativo,
+        deGestao: l.deGestao,
+        natureza: l.natureza,
+        provisorio: l.provisorio,
+        filhos: montar(l.id),
+      }));
+  return montar(null);
+}
+
+/** Árvore dos centros de custo, com os filhos ordenados pela classificação. */
+export async function listarArvoreCentrosCusto(tx: TxCliente, opcoes?: OpcoesArvore): Promise<readonly NoCentroCusto[]> {
+  return prepararArvoreCentrosCusto(await lerArvoreCentrosCusto(tx), opcoes);
+}
 
 /**
  * Analítica e ativa: só ela recebe valor (spec §6.1). Ativa já implica os ancestrais ativos: o
@@ -65,27 +93,12 @@ export async function ehContaAnaliticaAtiva(tx: TxCliente, classificacao: string
   return n > 0;
 }
 
-/** Analítico e ativo. Disponível na Task 5. */
-export const ehCentroCustoAnalitico: (tx: TxCliente, classificacao: string) => Promise<boolean> = indisponivel;
+/** Analítico e ativo (ativo já implica os ancestrais ativos, M-n3). */
+export async function ehCentroCustoAnalitico(tx: TxCliente, classificacao: string): Promise<boolean> {
+  return (await tx.centroCusto.count({ where: { classificacao, tipo: 'ANALITICO', ativo: true } })) > 0;
+}
 
-/**
- * Carrega as duas árvores ativas uma vez, para validar muitas linhas sem uma consulta por linha.
- * Até a Task 5, a parte dos centros de custo lança cad.estrutura_indisponivel quando usada.
- */
+/** Carrega as duas árvores ativas uma vez, para validar muitas linhas sem uma consulta por linha. */
 export async function carregarIndiceEstrutura(tx: TxCliente): Promise<IndiceEstruturaFinanceira> {
-  const contas = montarIndice(await lerArvoreContas(tx), []);
-  return Object.freeze({
-    contaAnaliticaAtiva: contas.contaAnaliticaAtiva,
-    contasAnaliticasSob: contas.contasAnaliticasSob,
-    nosContas: contas.nosContas,
-    centroCustoAnalitico: (): boolean => {
-      throw erroIndisponivel();
-    },
-    centrosCustoAnaliticosSob: (): readonly string[] => {
-      throw erroIndisponivel();
-    },
-    get nosCentrosCusto(): readonly never[] {
-      throw erroIndisponivel();
-    },
-  });
+  return montarIndice(await lerArvoreContas(tx), await lerArvoreCentrosCusto(tx));
 }

@@ -14,6 +14,18 @@ enum TipoCarga {
   CARGOS_RECIFRA
 }
 
+enum TipoCentroCusto {
+  SINTETICO
+  ANALITICO
+}
+
+enum NaturezaCentroCusto {
+  FINALISTICO
+  APOIO
+  ADMINISTRATIVO
+  GESTAO
+}
+
 enum SituacaoCarga {
   PENDENTE
   PROCESSANDO
@@ -73,6 +85,7 @@ model CargaEstrutura {
   concluidoEm         DateTime?             @map("concluido_em") @db.Timestamptz(6)
   linhasStaging       CargaEstruturaLinha[]
   contas              ContaContabil[]
+  centrosCusto        CentroCusto[]
 
   @@index([situacao, criadoEm])
   @@map("carga_estrutura")
@@ -142,4 +155,33 @@ model ParametroSistema {
   valor String @default("")
 
   @@map("parametro_sistema")
+}
+
+// Plano de centros de custo (spec §6.1a; plano do P4, Task 5). Mesma regra da R5: a classificação
+// nunca muda; o reduzido é único entre os ativos (índice parcial na migration), sem CHECK de formato
+// (GAP-CC-003). `provisorio`: carga sem aprovação da DIREX (GAP-CC-001, R16).
+model CentroCusto {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classificacao     String               @unique
+  codigoReduzido    String               @map("codigo_reduzido")
+  descricao         String
+  descricaoOriginal String?              @map("descricao_original")
+  nivel             Int                  @db.SmallInt
+  tipo              TipoCentroCusto
+  paiId             String?              @map("pai_id") @db.Uuid
+  pai               CentroCusto?         @relation("CentroCustoPai", fields: [paiId], references: [id], onDelete: Restrict)
+  filhos            CentroCusto[]        @relation("CentroCustoPai")
+  aceitaLancamento  Boolean              @map("aceita_lancamento")
+  deGestao          Boolean              @default(false) @map("de_gestao")
+  natureza          NaturezaCentroCusto?
+  provisorio        Boolean              @default(true)
+  ativo             Boolean              @default(true)
+  inativadoEm       DateTime?            @map("inativado_em") @db.Timestamptz(6)
+  cargaId           String               @map("carga_id") @db.Uuid
+  carga             CargaEstrutura       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  criadoEm          DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm      DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([paiId])
+  @@map("centro_custo")
 }
