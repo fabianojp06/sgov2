@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 02/11/2026 (frente B, P4: contratos C1/C2 e US-043, US-053, US-046 e US-021 em PRs empilhados); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
+Última atualização: 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: contratos C1/C2 e US-043, US-053, US-046 e US-021 em PRs empilhados); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
 
 ---
 
@@ -113,6 +113,57 @@
   - **Stub do argon2 no bundle do worker:** a seed do cad usa o `index.ts` do adm, que alcança o `@node-rs/argon2`. O conserto limpo é o `adm/servidor.ts` (#213).
   - **Revisão 12.12:** o plano permite no máximo 2 rodadas, depois disso o PO decide. A US-043 parte 1 (#212) teve 3 rodadas, e o PR registra isso.
 
+**P5 Acesso (frente A, plano `2026-10-25-trilha-2027-p5-acesso.md`): concluído na `main` em 02/11**
+- PRs: compartilhado do P5 (#189), US-034 com o **contrato C6** (#193), seed no orquestrador (#194), US-026 login (#196, #200), US-032 logoff (#201), US-030 troca de senha (#203), US-031 tela principal, menu, seletor de TP e ajuda (#206), E2E de acesso (#235), US-038 parte 1, casos de uso de usuário (#236), e US-038 parte 2, telas (#237, fecha a #60). Todos com a revisão 12.12.
+- **`src/modules/adm/servidor.ts`** (#236): entrada só de servidor do adm, com `instalarFuncionalidades` e `DeclaracaoFuncionalidade`. A seed do cad importa dele, e o stub do argon2 saiu do `worker/build.mjs`. Agora o `worker/build.test.ts` reprova qualquer argon2 no bundle. Isso resolve a #213.
+- O #237 entrou com o GitGuardian vermelho, com a aprovação do PO: dois falsos positivos (`'adm.usuarios:incluir'` e `resetarSenha: acao`) em commits antigos do PR. O commit final já não tem os padrões. Os incidentes 39442399 e 39442400 continuam abertos no painel.
+- Verificação manual da US-038 com o worker e o Mailpit (02/11), aprovada:
+  - o cadastro chegou ao Mailpit;
+  - o login com a senha temporária levou à troca obrigatória;
+  - o job do pg-boss foi apagado e o outbox ficou publicado com os dados esvaziados.
+- **Decisões do PO:**
+  - o limite de login por IP conta só as falhas (NAT);
+  - o E2E roda no contêiner oficial do Playwright;
+  - em 26/10, ficaram aceitos como risco (1) o Administrador trocar o e-mail de um usuário e gerar nova senha, sem aviso ao e-mail anterior, e (2) a corrida entre o bloqueio pelo login e a proteção do último Administrador (o *break-glass* mitiga).
+- **Regras do bloco para quem vem depois:**
+  - componente cliente nunca importa o `index.ts` de um módulo com servidor; recebe ações e dados por props;
+  - toda `page.tsx` de `(sistema)` começa com `await exigirPagina(...)`;
+  - reset e desbloqueio de usuário usam a ação `alterar`;
+  - o último Administrador conta só quem consegue entrar;
+  - CC de escopo (C25) só com o perfil Gestor de Diretoria;
+  - teste sem literal com cara de credencial (`x:y` ou `Senha: valor`), porque o GitGuardian acusa.
+- **Textos [PROVISÓRIOS] da US-038**, para o PO validar:
+  - "Este usuário está bloqueado por excesso de tentativas de acesso sem sucesso."
+  - "Nova senha gerada e enviada para o e-mail do usuário."
+  - "Usuário cadastrado com sucesso. A senha foi enviada para o e-mail informado."
+  - "Usuário desbloqueado com sucesso"
+  - "Versão do registro inválida. Recarregue a tela."
+  - "Não foi possível concluir a operação. Tente novamente."
+
+**P6 Orçamento da Adm. Central (frente A, 02/11)**
+- **Plano na `main` (#238):** `docs/superpowers/plans/2026-11-02-trilha-2027-p6-orcamento.md`.
+  - Decisões D-P6-1 a D-P6-7 pendentes do PO; vale a recomendação quando houver dúvida.
+  - O schema da Task 1 tem o CHECK do `enviado_por` em Em Aprovação.
+- **Tasks 0 a 8 implementadas**, cada uma com a revisão 12.12 e as correções, numa pilha de branches locais:
+  - `c6-exibir-no-menu` (`Closes #211`);
+  - `us-055-orcamento-schema`;
+  - `us-121-calculo-linhas`;
+  - `us-121-validacao-planilha`;
+  - `us-055-exercicios` (`Closes #77`);
+  - `us-060-receitas` (`Closes #82`);
+  - `us-121-importacao` (`Closes #143`);
+  - `us-058-visao-cc` (`Closes #80`);
+  - `us-059-teto` (`Refs #81`);
+  - `us-061-aprovacao` (`Closes #83`);
+  - mais `compartilhado-seed-orc`.
+- A pilha leva por merge versões antigas do C1, do C2 e do leitor. Esses PRs já estão na `main` (#209, #210, #212 e o C2 real no #226), então falta rebasear tudo antes do primeiro PR.
+- Suítes da pilha: unidade 814, arquitetura 293, integração do `orc` 107, build com as 8 páginas `/orc`.
+- **Bloqueios:**
+  - **Task 9 (E2E do P6):** espera as seeds do `cad` com dados reais.
+  - **Semáforo do teto:** entra por injeção (`ProvedorSemaforo`) até a Task 9a do P4 (#234). Por isso a US-059 vai com `Refs #81`.
+  - **CC de escopo no cadastro de usuário:** a conferência pelo C1 entra agora que a US-038 e o C1 estão na `main`.
+- Revisões de consumidor postadas no #209, no #210 e no #212. Issues abertas para a frente B: #228 a #234.
+
 **Repositório (documentação)**
 - Spec oficial **versão 1.4** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3; 1.4: `prisma/schema/nucleo.prisma` da frente A). Status: aguardando a aprovação final do PO.
 - Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 122 histórias (US-001 a US-122), 22 épicos e releases R0 a R9. Total de 1294 h (1557 h com contingência). O gerador fica em `docs/backlog/fonte/`.
@@ -179,10 +230,26 @@
 - [ ] PO: merge do #222 (depois da M5) e do #221 (depois da #223); o resto da pilha do P4 já entrou em 02/11.
 - [ ] PO: decidir a M5 do #222 (sintético que casa com a busca mostra ou não os filhos). O #212 teve 3 rodadas de revisão, contra as 2 do plano, e já foi mergeado pelo PO.
 - [ ] PO, no `worker` de hml e prod: `SYNC_DATABASE_URL` com o `sgo_sync`, e o `app` **sem** ela; `AMBIENTE` no `app`, no `worker` e no serviço de migração (`docs/operacao/ambientes.md`). As variáveis da seed no deploy ficaram na #195.
-- [ ] Frente A: `adm/servidor.ts` com `instalarFuncionalidades` (#213); usuário GFIN no `global-setup` do e2e (#218); `exibirNoMenu` no C6 (#211); "de acordo" com o `exportarXlsx` só pelo `servidor.ts` (#223); C2 real (`calcularCustoPosicao`, `obterPremissasExercicio`, `garantir`, `congelar`) já na `main` (#226), pronto para a US-121.
+- [ ] Frente A: ~~`adm/servidor.ts` com `instalarFuncionalidades` (#213)~~ feito no #236; usuário GFIN no `global-setup` do e2e (#218); `exibirNoMenu` no C6 (#211); "de acordo" com o `exportarXlsx` só pelo `servidor.ts` (#223); C2 real (`calcularCustoPosicao`, `obterPremissasExercicio`, `garantir`, `congelar`) já na `main` (#226), pronto para a US-121.
 - [ ] Frente B: trocar o `ambienteDoCad` (`cad/infrastructure/ambiente.ts`) pelo `lerAmbiente` do ger (o #208 já entrou); tirar o stub do argon2 quando a #213 entrar; filtrar o `meta` do Prisma no log dos lotes de cargos (Task 12a).
 - [ ] Frente B, Tasks seguintes do P4: 7a/7b (telas do plano de contas), 8 (telas de CC), 9b (telas dos parâmetros), US-050 parte 2 (inclusão pela tela e seletor de ano), 12a a 12c, 13 e 14. As telas dependem da estrutura de páginas da frente A (layout de `(sistema)`, US-031 no #206).
-- [ ] Frente A: detalhar o plano do P5 (Acesso) com writing-plans.
+- [x] Frente A: detalhar o plano do P5 (Acesso) com writing-plans.
+
+**Frente A (P5/P6, 02/11)**
+- [ ] PO: validar as decisões D-P6-1 a D-P6-7 e os textos [PROVISÓRIOS] da US-038.
+- [ ] PO: marcar como falso positivo, no painel do GitGuardian, os incidentes 39442399 e 39442400 (#237).
+- [ ] Fechar a #213, que o #236 resolveu.
+- [ ] P6: rebasear a pilha na `main` e abrir os PRs na ordem da pilha, um por vez, cada um com a confirmação do PO.
+- [ ] PR compartilhado do encerramento do P5:
+  - `test-results/`, `playwright-report/` e `blob-report/` no `.gitignore`;
+  - trava de "um processo pesado por vez" (`flock`) no `test:int` e no `test:e2e`;
+  - spec v1.6 §11.2a, a combinar com a frente B (que registra os `Refs #n` na v1.5).
+- [ ] Revisão de bloco do P5 (02/11, aprovado com ressalvas, sem bloqueante). Viram issues da frente A:
+  1. o Histórico das ações que não são por TP sai com o `unidadeId` do TP selecionado; o `orc` já nasce com `unidadeId` nulo;
+  2. gerar nova senha para usuário bloqueado e ativo manda o e-mail, mas o login continua bloqueado;
+  3. a troca de senha do usuário incrementa a `versao` e derruba o formulário aberto do Administrador;
+  4. o provedor de contexto roda até três vezes por página;
+  5. o `error.tsx` de `(sistema)` mostra o texto do UC01.03 E1 para qualquer erro.
 
 **Com SMEs**
 - [ ] Wellington: ISS, GAP-CAD-004/005 e GAP-CAR-005 (contas de obrigações e riscos trabalhistas).
@@ -193,6 +260,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 26/10–02/11/2026 | A | P5 concluído na `main`: US-031 (#206), E2E de acesso (#235), US-038 em duas partes (#236, com o `adm/servidor.ts`, e #237); revisão de bloco do P5; verificação manual com o Mailpit; plano do P6 (#238) e Tasks 0 a 8 do P6 em branches locais; revisões de consumidor do C1, do C2 e do leitor; issues #228 a #234 para a frente B; merges aprovados pelo PO um a um |
 | 02/11/2026 | B | P4 em modo autônomo: CI do #208 voltou (cobrança do Actions regularizada); contratos C1 (#209) e C2 (#210); US-043 partes 1 a 3 e a Task 4d (#212 leitor seguro de .xlsx, #214 staging e merge no worker, #215 seeds, #217 compartilhado); US-053 parte 1 (#216); US-046 parte 1 (#220); US-021 partes 1 a 3 (#219, #221, #222) e a documentação do C3 (#224); US-050 parte 1 (#225); US-051 parte 1 (#226, motor real do C2, valores conferidos à mão); merges do PO na mesma tarde (todos menos #221 e #222); issues #211, #213, #218 e #223 para a frente A; revisão 12.12 em todos, com mutantes |
 | 25/10/2026 | B | P3: verificações de PR (#176), contratos C3/C4 (#183/#184), travas no hook (#187), imagem e deploy (#188), origem pelo artefato do run da `main` (#192), papéis de hml/prod (#191), worker na imagem (#197/#198); revisão 12.12 em todos |
 | 25/10/2026 | B | Abertura da frente B (ambiente de dev, regras de confirmação para sgo-prod/sgo-hml na conta 2); plano do P3 Entrega com os contratos C3 e C4, revisão 12.12 em 3 rodadas |
