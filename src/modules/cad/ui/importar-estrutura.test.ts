@@ -26,6 +26,7 @@ import {
 // Tela de importação do plano de contas (plano do P4, Task 7a, Step 1).
 const estado = (situacao: EstadoCargaTela['situacao'], extra: Partial<EstadoCargaTela> = {}): EstadoCargaTela => ({
   cargaId: '6f1c2b8e-3d4a-4f5b-9c6d-7e8f9a0b1c2d',
+  tipo: 'PLANO_CONTAS',
   situacao,
   linhas: 174,
   incluidas: null,
@@ -76,6 +77,9 @@ describe('textoSituacao', () => {
     expect(textoSituacao(estado('FALHOU'))).toBe('A importação falhou e nada foi gravado.');
     expect(textoSituacao(estado('FALHOU', { erros: [{ linha: 4, mensagem: 'x' }] }))).toBe('A importação falhou e nada foi gravado. Confira os erros abaixo.');
     expect(textoSituacao(estado('PROCESSANDO'))).toBe('Importando 174 linhas…');
+    expect(textoSituacao(estado('CONCLUIDA', { tipo: 'CENTROS_CUSTO', incluidas: 60, alteradas: 0, inativadas: 0, inalteradas: 2 }))).toBe(
+      'Centros de custo importados: 60 incluídos, 0 alterados, 0 inativados, 2 sem alteração.',
+    );
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer, useRef, useTransition, type FormEvent, type Ref } from 'react';
+import { useEffect, useReducer, useRef, useTransition, type FormEvent, type ReactNode, type Ref } from 'react';
 import { GradeArvore, type NoGrade } from '@/modules/ger';
 import { problemaArquivoCarga } from '../domain/arquivo-carga';
 import type { ErroLinha } from '../domain/plano-contas';
@@ -15,7 +15,7 @@ import {
   type Resposta,
 } from './importar-estrutura-logica';
 
-// Tela de importação do plano de contas (US-043 parte 4; plano do P4, Task 7a). Envia o .xlsx, mostra
+// Tela de importação de estrutura (US-043 parte 4 e US-046 parte 2; plano do P4, Tasks 7a e 8). Envia o .xlsx, mostra
 // os erros por linha (até 200, com o total) e acompanha o lote a cada 2 s até o fim. Formulário
 // próprio, como a Tabela Mestre: o Formulario do C3 não devolve o resultado da ação (o id do lote)
 // e listaria todos os erros no resumo. O estado da tela é o redutor puro de importar-estrutura-logica.
@@ -25,8 +25,11 @@ export function ImportarEstrutura({
   rotulo,
   importar,
   consultar,
+  children,
 }: {
   rotulo: string;
+  /** Campos a mais do formulário (a aprovação da DIREX, nos centros de custo), enviados no mesmo FormData. */
+  children?: ReactNode;
   importar: (dados: FormData) => Promise<Resposta<{ cargaId: string; avisos: readonly ErroLinha[] }>>;
   consultar: (e: { cargaId: string }) => Promise<Resposta<EstadoCargaTela | null>>;
 }) {
@@ -93,7 +96,8 @@ export function ImportarEstrutura({
           <span id={idErroArquivo} role="alert">
             {s.erroArquivo.join(' ')}
           </span>
-        )}{' '}
+        )}
+        {children}{' '}
         <button type="submit" disabled={!podeEnviar(s)}>
           Importar
         </button>

@@ -10,11 +10,12 @@ export const MAX_CONSULTAS = 300;
 
 export const MSG_FALHA_ENVIO = 'Não foi possível enviar o arquivo. Confira a conexão e tente de novo.';
 export const MSG_FALHA_CONSULTA = 'Não foi possível acompanhar a importação. Recarregue a tela para conferir o resultado.';
-export const MSG_ESGOTADO = 'A importação continua em andamento. Consulte o plano de contas mais tarde para ver o resultado.';
+export const MSG_ESGOTADO = 'A importação continua em andamento. Consulte a estrutura importada mais tarde para ver o resultado.';
 
 export type Resposta<T> = { ok: true; valor: T } | { ok: false; erros: readonly ErroCampo[] };
 export type EstadoCargaTela = {
   cargaId: string;
+  tipo: 'PLANO_CONTAS' | 'CENTROS_CUSTO' | 'CARGOS' | 'CARGOS_RECIFRA';
   situacao: 'PENDENTE' | 'PROCESSANDO' | 'CONCLUIDA' | 'FALHOU';
   linhas: number;
   incluidas: number | null;
@@ -52,6 +53,9 @@ const n = (v: number | null) => v ?? 0;
 /** Texto da situação do lote, para o role="status". */
 export function textoSituacao(e: EstadoCargaTela): string {
   if (e.situacao === 'CONCLUIDA') {
+    if (e.tipo === 'CENTROS_CUSTO') {
+      return `Centros de custo importados: ${n(e.incluidas)} incluídos, ${n(e.alteradas)} alterados, ${n(e.inativadas)} inativados, ${n(e.inalteradas)} sem alteração.`;
+    }
     return `Plano de contas importado: ${n(e.incluidas)} incluídas, ${n(e.alteradas)} alteradas, ${n(e.inativadas)} inativadas, ${n(e.inalteradas)} sem alteração.`;
   }
   if (e.situacao === 'FALHOU') return `A importação falhou e nada foi gravado.${e.erros.length > 0 ? ' Confira os erros abaixo.' : ''}`;
