@@ -6,7 +6,7 @@ import { criarPrisma } from '@/shared/db';
 import { Dinheiro, falha } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_ORC } from '../domain/mensagens';
-import { recalcular, recalcularExercicio } from './calculo-linhas';
+import { ErroRecalculo, recalcular, recalcularExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 
 // Auditoria que falha sob demanda (§10.2 item 1).
@@ -85,44 +85,81 @@ afterAll(async () => {
 
 const linhasDe = (exercicioId: string) => migrator.linhaOrcada.findMany({ where: { exercicioId }, orderBy: [{ origem: 'asc' }, { conta: 'asc' }] });
 
+// Embrulha o falso do C2 para devolver três componentes por posição (o falso põe tudo em salario).
+function tresComponentes(custo: ReturnType<typeof custoPessoalFalso>): ReturnType<typeof custoPessoalFalso> {
+  return {
+    ...custo,
+    calcularCustoPosicao: (posicao, premissas) => {
+      const r = custo.calcularCustoPosicao(posicao, premissas);
+      if (!r.ok) return r;
+      const base = r.valor.linhas[0]!;
+      const comp = (componente: 'salario' | 'ferias' | 'encargo.inss', conta: string, fator: string) => {
+        const meses = base.meses.map((m) => m.multiplicar(fator));
+        return { componente, conta, meses, total: Dinheiro.somarTodos(meses) };
+      };
+      const linhas = [comp('salario', '4.1.1.1.001', '1'), comp('ferias', '4.1.1.1.003', '0.1111'), comp('encargo.inss', '4.1.1.2.001', '0.38')];
+      const totalMes = Array.from({ length: 12 }, (_, i) => Dinheiro.somarTodos(linhas.map((l) => l.meses[i]!)));
+      return { ok: true, valor: { ...r.valor, linhas, totalMes, total: Dinheiro.somarTodos(totalMes) } };
+    },
+  };
+}
+
+const din = (v: { toString(): string }) => Dinheiro.de(v.toString()).paraString();
+const exercicioDe = (id: string) => migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id } });
+
 describe('recalcularExercicio', () => {
   it('posição pelo C2 (uma linha por componente) e pacote pela R4; versão das premissas gravada', async () => {
     const e = await exercicio();
     const { d, custo } = deps(e.ano);
-    const r = await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(d)));
-    expect(r.ok).toBe(true);
+    const r = await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps({ ...d, custoPessoal: tresComponentes(custo) })));
+    expect(r).toMatchObject({ posicoes: 1, pacotes: 1, linhas: 4, versaoPremissas: premissasExemplo(e.ano).versao });
     expect(custo.chamadas).toHaveLength(1);
     expect(custo.chamadas[0]!.posicao).toEqual({ quantidade: 2, salarioMensal: Dinheiro.de('7500.00'), mesInicio: 1, mesSaida: 12 });
     const linhas = await linhasDe(e.id);
     expect(linhas.map((l) => [l.origem, l.conta, l.componente])).toEqual([
       ['BASE_ZERO', '4.1.1.5.005', null],
       ['PESSOAL', '4.1.1.1.001', 'salario'],
+      ['PESSOAL', '4.1.1.1.003', 'ferias'],
+      ['PESSOAL', '4.1.1.2.001', 'encargo.inss'],
     ]);
     // Pacote 12 × 350,00 com o IPCA das premissas (4,5%): 4.389,00, 365,75 por mês.
-    expect(linhas[0]!.total.toString()).toBe('4389');
-    expect(linhas[0]!.meses.map(String)).toEqual(Array(12).fill('365.75'));
-    expect(linhas[1]!.total.toString()).toBe('180000');
-    const ex = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } });
-    expect(ex.versaoPremissas).toBe(premissasExemplo(e.ano).versao);
+    expect(din(linhas[0]!.total)).toBe('4389.00');
+    expect(linhas[0]!.meses.map(din)).toEqual(Array(12).fill('365.75'));
+    expect(din(linhas[1]!.total)).toBe('180000.00');
+    expect((await exercicioDe(e.id)).versaoPremissas).toBe(premissasExemplo(e.ano).versao);
   });
 
-  it('recalcular de novo não duplica linhas; a soma das linhas fecha com as séries (§10.2 item 6)', async () => {
+  it('§10.2 item 6: a soma de todas as linhas é a soma das séries do C2 mais os anuais dos pacotes; recalcular não duplica', async () => {
     const e = await exercicio();
-    const { d } = deps(e.ano);
-    await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(d)));
-    await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(d)));
+    const { d, custo } = deps(e.ano);
+    const tres = tresComponentes(custo);
+    await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps({ ...d, custoPessoal: tres })));
+    await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps({ ...d, custoPessoal: tres })));
     const linhas = await linhasDe(e.id);
-    expect(linhas).toHaveLength(2);
-    for (const l of linhas) expect(Dinheiro.somarTodos(l.meses.map((m) => Dinheiro.de(m.toString()))).paraString()).toBe(Dinheiro.de(l.total.toString()).paraString());
+    expect(linhas).toHaveLength(4);
+    const serie = tres.calcularCustoPosicao(custo.chamadas[0]!.posicao, premissasExemplo(e.ano));
+    const esperado = Dinheiro.somarTodos([serie.ok ? serie.valor.total : Dinheiro.zero(), Dinheiro.de('4389.00')]);
+    expect(Dinheiro.somarTodos(linhas.map((l) => Dinheiro.de(l.total.toString()))).paraString()).toBe(esperado.paraString());
   });
 
-  it('erro do C2 numa posição: devolve o erro com o CC e o cargo, e nada é gravado', async () => {
+  it('erro do C2 numa posição: ErroRecalculo com o CC e o cargo; as linhas antigas e a versão continuam', async () => {
     const e = await exercicio();
     const { d } = deps(e.ano);
+    await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(d)));
+    const antes = { linhas: await linhasDe(e.id), versao: (await exercicioDe(e.id)).versao };
     const custoComErro = { ...d.custoPessoal!, calcularCustoPosicao: () => falha([{ campo: 'salarioMensal', mensagem: 'Salário inválido.' }]) };
-    const r = await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps({ ...d, custoPessoal: custoComErro })));
-    expect(r).toEqual({ ok: false, erros: [{ campo: expect.stringContaining('salarioMensal'), mensagem: 'CC 4.4, cargo Analista: Salário inválido.' }] });
-    expect(await linhasDe(e.id)).toEqual([]);
+    await expect(app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps({ ...d, custoPessoal: custoComErro })))).rejects.toEqual(
+      expect.objectContaining({ erros: [{ campo: expect.stringContaining('salarioMensal'), mensagem: 'CC 4.4, cargo Analista: Salário inválido.' }] }),
+    );
+    expect(await linhasDe(e.id)).toEqual(antes.linhas);
+    expect((await exercicioDe(e.id)).versao).toBe(antes.versao);
+  });
+
+  it('exercício não editável: ErroRecalculo com a mensagem da situação (antes de qualquer escrita)', async () => {
+    const e = await exercicio();
+    await app.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
+    await app.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    await expect(app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(deps(e.ano).d)))).rejects.toBeInstanceOf(ErroRecalculo);
   });
 
   it('premissas inexistentes: orc.premissas_inexistentes', async () => {
@@ -157,7 +194,7 @@ describe('recalcular (caso de uso)', () => {
     expect(await migrator.posicaoOrcada.findMany({ where: { exercicioId: e.id } })).toEqual(antes.p);
     expect(await migrator.pacoteBaseZero.findMany({ where: { exercicioId: e.id } })).toEqual(antes.k);
     const pacote = (await linhasDe(e.id)).find((l) => l.origem === 'BASE_ZERO')!;
-    expect(pacote.total.toString()).toBe('4410'); // 4.200,00 × 1,05
+    expect(din(pacote.total)).toBe('4410.00'); // 4.200,00 × 1,05
     expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versaoPremissas).toBe(7);
   });
 
@@ -181,8 +218,16 @@ describe('recalcular (caso de uso)', () => {
     );
   });
 
+  it('ordem permissão → escopo → trava: com escopo, id inexistente também é negado (não vaza a existência)', async () => {
+    await expect(recalcular(ctx(), '0b1e6f1a-2222-4c2b-9e0a-3d6f1f2a4b5c', deps(2030, { obterEscopo: async () => '4.3' }).d)).rejects.toBeInstanceOf(
+      ErroPermissao,
+    );
+  });
+
   it('exercício Em Aprovação: mensagem da situação, nada muda', async () => {
     const e = await exercicio();
+    await recalcular(ctx(), e.id, deps(e.ano).d);
+    const antes = { linhas: await linhasDe(e.id), versao: (await exercicioDe(e.id)).versao };
     await app.$transaction(async (tx) => {
       await tx.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
     });
@@ -193,6 +238,8 @@ describe('recalcular (caso de uso)', () => {
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }],
     });
+    expect(await linhasDe(e.id)).toEqual(antes.linhas);
+    expect((await exercicioDe(e.id)).versao).toBe(antes.versao);
   });
 
   it('exercício inexistente ou id fora do formato: orc.exercicio_inexistente', async () => {

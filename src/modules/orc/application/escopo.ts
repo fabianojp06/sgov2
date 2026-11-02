@@ -25,3 +25,15 @@ export async function resolverEscopo(
 export function exigirEscopoTotal(escopo: Escopo, funcionalidade: string, acao: Acao): void {
   if (escopo.tipo !== 'TOTAL') throw new ErroPermissao(funcionalidade, acao);
 }
+
+// O mesmo, sem carregar o índice do C1 (só importa haver CC de escopo). Roda antes da trava do
+// exercício: quem será negado não descobre se o exercício existe nem segura a trava.
+export async function exigirSemEscopo(
+  tx: TxCliente,
+  ctx: ContextoRequisicao,
+  deps: Pick<DepsOrc, 'obterEscopo'>,
+  funcionalidade: string,
+  acao: Acao,
+): Promise<void> {
+  if ((await deps.obterEscopo(tx, ctx.usuarioId)) !== null) throw new ErroPermissao(funcionalidade, acao);
+}

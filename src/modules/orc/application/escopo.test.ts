@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { estruturaFinanceiraFalsa } from '@/modules/cad/servidor';
+import { CENTROS_CUSTO_EXEMPLO, estruturaFinanceiraFalsa, type NoCentroCusto } from '@/modules/cad/servidor';
+
+// Cópia da árvore com o nó da classificação dada inativo.
+function marcarInativo(no: NoCentroCusto, classificacao: string): NoCentroCusto {
+  return { ...no, ativo: no.classificacao === classificacao ? false : no.ativo, filhos: no.filhos.map((f) => marcarInativo(f, classificacao)) };
+}
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import type { TxCliente } from '@/shared/db';
-import { exigirEscopoTotal, resolverEscopo } from './escopo';
+import { exigirEscopoTotal, exigirSemEscopo, resolverEscopo } from './escopo';
 
 const ctx = { usuarioId: 'u1', usuarioRotulo: 'u', sessaoUid: 's', ip: null, permissoes: new Set<string>() } as ContextoRequisicao;
 const tx = {} as TxCliente;
@@ -21,6 +26,13 @@ describe('resolverEscopo', async () => {
     expect(e.tipo === 'SUBARVORE' && e.ccs.size).toBeGreaterThan(0);
   });
 
+  it('raiz inativa: conjunto vazio, nunca TOTAL', async () => {
+    const inativa = CENTROS_CUSTO_EXEMPLO.map((n) => (n.classificacao === '4' ? marcarInativo(n, '4.3') : n));
+    const ind = await estruturaFinanceiraFalsa({ centrosCusto: inativa }).carregarIndiceEstrutura(tx);
+    const e = await resolverEscopo(tx, ctx, ind, { obterEscopo: async () => '4.3' });
+    expect(e).toEqual({ tipo: 'SUBARVORE', raiz: '4.3', ccs: new Set() });
+  });
+
   it('raiz ausente do índice: conjunto vazio, nunca TOTAL', async () => {
     const e = await com('9.9.9');
     expect(e).toEqual({ tipo: 'SUBARVORE', raiz: '9.9.9', ccs: new Set() });
@@ -34,5 +46,12 @@ describe('exigirEscopoTotal (R15)', () => {
       expect.objectContaining({ funcionalidade: 'orc.orcamento', acao: 'alterar' }),
     );
     expect(() => exigirEscopoTotal({ tipo: 'SUBARVORE', raiz: '4.3', ccs: new Set() }, 'orc.receitas', 'consultar')).toThrow(ErroPermissao);
+  });
+});
+
+describe('exigirSemEscopo (R15, antes da trava)', () => {
+  it('sem CC de escopo passa; com CC de escopo (mesmo inexistente) lança ErroPermissao', async () => {
+    await expect(exigirSemEscopo(tx, ctx, { obterEscopo: async () => null }, 'orc.orcamento', 'alterar')).resolves.toBeUndefined();
+    await expect(exigirSemEscopo(tx, ctx, { obterEscopo: async () => '9.9' }, 'orc.orcamento', 'alterar')).rejects.toBeInstanceOf(ErroPermissao);
   });
 });
