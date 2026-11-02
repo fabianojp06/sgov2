@@ -117,4 +117,22 @@ describe('privilégios do cad (R6)', () => {
     );
     expect(sync.rows).toEqual([]);
   });
+
+  it('Tabela Mestre (B1): o sync não toca; o app lê, insere e altera só as colunas de valor; ninguém apaga', async () => {
+    const t = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants WHERE table_name = 'beneficio_mestre' AND grantee = ANY($1) ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(t.rows.map((r) => r.l)).toEqual(['sgo_app INSERT', 'sgo_app SELECT']);
+    const c = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type || ' ' || column_name AS l FROM information_schema.column_privileges
+       WHERE table_name = 'beneficio_mestre' AND grantee = ANY($1) AND privilege_type = 'UPDATE' ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(c.rows.map((r) => r.l)).toEqual(
+      ['ativo', 'atualizado_em', 'conta', 'nome', 'padrao_posicao', 'percentual', 'provisorio', 'valor', 'versao'].map((x) => `sgo_app UPDATE ${x}`),
+    );
+    const sync = await migrator.query(`SELECT 1 FROM information_schema.column_privileges WHERE table_name = 'beneficio_mestre' AND grantee = 'sgo_sync'`);
+    expect(sync.rows).toEqual([]);
+  });
 });

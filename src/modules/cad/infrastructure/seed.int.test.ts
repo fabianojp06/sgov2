@@ -116,4 +116,13 @@ describe('seedDadosReferenciaCad', () => {
     });
     expect(await retrato()).toEqual(antes);
   });
+
+  it('2027 já existente sem Tabela Mestre ganha os 7 itens, com a versão do ano e o Histórico', async () => {
+    await cliente.$executeRawUnsafe(`DELETE FROM beneficio_mestre WHERE ano = 2027`);
+    const antes = (await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao;
+    await executarSeeds(cliente, [seedCad]);
+    expect(await cliente.beneficioMestre.count({ where: { ano: 2027 } })).toBe(7);
+    expect((await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao).toBe(antes + 1);
+    expect(await cliente.historicoOperacao.count({ where: { funcionalidade: 'cad.beneficios', descricao: { contains: 'Tabela Mestre de 2027' } } })).toBe(1);
+  });
 });

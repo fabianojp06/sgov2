@@ -2,6 +2,7 @@ import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
 import { Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
 import { COMPONENTES_FIXOS } from '../domain/custo-pessoal';
+import { criarTabelaMestreDoAno } from './beneficios-mestre';
 import { ENCARGOS, COMPONENTES_COM_CONTA, type ParametrosExercicio } from '../domain/parametros';
 
 // Parâmetros por exercício e do sistema, sem guarda (plano do P4, R10 e R22): usados pelos casos de
@@ -120,6 +121,7 @@ export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAudi
       data: base.encargos.map((e) => ({ ano, componente: e.componente, nome: e.nome, percentual: e.percentual, conta: e.conta, provisorio: e.provisorio })),
     });
     await tx.contaComponenteExercicio.createMany({ data: base.contas.map((c) => ({ ano, componente: c.componente, conta: c.conta, provisorio: c.provisorio })) });
+    await criarTabelaMestreDoAno(tx, ano, base.ano);
   } else {
     await tx.parametrosExercicio.create({
       data: {
@@ -136,6 +138,7 @@ export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAudi
     });
     await tx.encargoExercicio.createMany({ data: PADRAO.encargos.map((e) => ({ ano, ...e })) });
     await tx.contaComponenteExercicio.createMany({ data: PADRAO.contas.map((c) => ({ ano, ...c })) });
+    await criarTabelaMestreDoAno(tx, ano, null);
   }
   const criados = await lerParametrosExercicio(tx, ano);
   await auditar(tx, {
