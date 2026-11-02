@@ -41,6 +41,7 @@ export function TabelaMestre({
   const [editando, setEditando] = useState<ItemTela | null>(null);
   const [erros, setErros] = useState<readonly ErroCampo[]>([]);
   const [salvando, iniciar] = useTransition();
+  const [escolhido, setEscolhido] = useState('');
   const titulo = useRef<HTMLHeadingElement>(null);
   // O foco vai para o formulário quando ele abre (teclado e leitor de tela).
   useEffect(() => {
@@ -98,17 +99,23 @@ export function TabelaMestre({
       />
       {podeAlterar && itens.length > 0 && (
         // Caminho pelo teclado para abrir a edição (a seleção pela linha da grade é só pelo mouse).
-        <label>
-          Alterar o benefício{' '}
-          <select value={editando?.codigo ?? ''} onChange={(e) => (e.target.value ? abrir(e.target.value) : setEditando(null))}>
-            <option value="">Escolha um item</option>
-            {itens.map((i) => (
-              <option key={i.codigo} value={i.codigo}>
-                {i.nome}
-              </option>
-            ))}
-          </select>
-        </label>
+        // A abertura é pelo botão: em alguns navegadores, cada seta no <select> dispara change.
+        <div>
+          <label>
+            Alterar o benefício{' '}
+            <select value={escolhido} onChange={(e) => setEscolhido(e.target.value)}>
+              <option value="">Escolha um item</option>
+              {itens.map((i) => (
+                <option key={i.codigo} value={i.codigo}>
+                  {i.nome}
+                </option>
+              ))}
+            </select>
+          </label>{' '}
+          <button type="button" disabled={!escolhido} onClick={() => abrir(escolhido)}>
+            Abrir
+          </button>
+        </div>
       )}
       {podeAlterar && editando && (
         <form
