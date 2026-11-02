@@ -102,9 +102,9 @@
   - **Papéis de hml e prod (#191):** `deploy/postgres/01-papeis-ambiente.sql`. O dev ganhou o `docker/postgres/init/03-privilegios.sql`: sem TEMP, funções sem EXECUTE para PUBLIC e pgvector. **Volumes de dev já existentes só recebem o 03 se forem recriados ou com o comando do `docs/operacao/ambientes.md`. O volume da frente B (56432) ainda não tem nem o `sgo_fila`.**
 - **Deploy (`docs/operacao/deploy.md`):** cada merge na `main` publica `sgov2:hml` e chama os webhooks de hml (por enquanto só avisa, sem webhook). O prod sai de tag `v*`, com aprovação do PO. Imagem única: CMD `app` ou `worker`.
 - **Teste da imagem na VPS** (`docker/testes/testar-imagem.sh`): conferir antes que a outra frente não está rodando `vitest`/build (D12). Na sessão de 25/10, a frente B esqueceu de conferir uma vez.
-- **P4 da frente B (02/11), em PRs empilhados, todos com a revisão 12.12 aprovada e o CI verde.** Ordem de merge, de baixo para cima:
+- **P4 da frente B (02/11), em PRs empilhados, todos com a revisão 12.12 aprovada e o CI verde (o do #226 ainda rodava no fim da sessão).** Ordem de merge, da base para o topo da pilha:
   1. #208 (US-025 parte 2, base `main`);
-  2. #209 (C1) → #210 (C2) → #212 (US-043 parte 1, leitor seguro de .xlsx) → #214 (US-043 parte 2, plano de contas, staging e merge no worker como `sgo_sync`) → #215 (US-043 parte 3, seeds) → #217 (Task 4d, compartilhado: seeds no `prisma/seed.ts`) → #216 (US-053 parte 1, parâmetros por exercício) → #220 (US-046 parte 1, centros de custo) → #225 (US-050 parte 1, Tabela Mestre) → #226 (US-051 parte 1, motor real do C2);
+  2. #209 (C1) → #210 (C2) → #212 (US-043 parte 1, leitor seguro de .xlsx) → #214 (US-043 parte 2, plano de contas, staging e merge no worker como `sgo_sync`) → #215 (US-043 parte 3, seeds); sobre o #215 há dois PRs irmãos: #217 (Task 4d, compartilhado: seeds no `prisma/seed.ts`) e #216 (US-053 parte 1, parâmetros por exercício), este seguido de → #220 (US-046 parte 1, centros de custo) → #225 (US-050 parte 1, Tabela Mestre) → #226 (US-051 parte 1, motor real do C2);
   3. #219 (US-021 parte 1, base `main`) → #222 (US-021 parte 3, filtros);
   4. #221 (US-021 parte 2, exportação real) está empilhado sobre o #212 e depende do "de acordo" da frente A na #223 (contrato C3); #224 é o PR `compartilhado` da documentação do C3.
 
@@ -196,7 +196,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
-| 02/11/2026 | B | P4 em modo autônomo: CI do #208 voltou (cobrança do Actions regularizada); contratos C1 (#209) e C2 (#210); US-043 partes 1 a 4 (#212 leitor seguro de .xlsx, #214 staging e merge no worker, #215 seeds, #217 compartilhado); US-053 parte 1 (#216); US-046 parte 1 (#220); US-021 partes 1 a 3 (#219, #221, #222) e a documentação do C3 (#224); US-050 parte 1 (#225); US-051 parte 1 (#226, motor real do C2, valores conferidos à mão); issues #211, #213, #218 e #223 para a frente A; revisão 12.12 em todos, com mutantes |
+| 02/11/2026 | B | P4 em modo autônomo: CI do #208 voltou (cobrança do Actions regularizada); contratos C1 (#209) e C2 (#210); US-043 partes 1 a 3 e a Task 4d (#212 leitor seguro de .xlsx, #214 staging e merge no worker, #215 seeds, #217 compartilhado); US-053 parte 1 (#216); US-046 parte 1 (#220); US-021 partes 1 a 3 (#219, #221, #222) e a documentação do C3 (#224); US-050 parte 1 (#225); US-051 parte 1 (#226, motor real do C2, valores conferidos à mão); issues #211, #213, #218 e #223 para a frente A; revisão 12.12 em todos, com mutantes |
 | 25/10/2026 | B | P3: verificações de PR (#176), contratos C3/C4 (#183/#184), travas no hook (#187), imagem e deploy (#188), origem pelo artefato do run da `main` (#192), papéis de hml/prod (#191), worker na imagem (#197/#198); revisão 12.12 em todos |
 | 25/10/2026 | B | Abertura da frente B (ambiente de dev, regras de confirmação para sgo-prod/sgo-hml na conta 2); plano do P3 Entrega com os contratos C3 e C4, revisão 12.12 em 3 rodadas |
 | 25/10/2026 | A | US-010 (worker, filas e outbox, #180/#181), fim do P1 Fundação com a `main` verde; menores na issue #182; merges do #176, #180 e #181 |
