@@ -6,11 +6,18 @@ import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 
 // Fora do Next, connection() não tem requisição; sem banco no teste de unidade.
 vi.mock('next/server', () => ({ connection: async () => undefined }));
-vi.mock('@/modules/orc', async (original) => ({
-  ...(await original<typeof import('@/modules/orc')>()),
-  listarExercicios: async () => [],
-  sugerirAno: async () => 2028,
-}));
+const sugestao = vi.hoisted(() => ({ comEscopo: false }));
+vi.mock('@/modules/orc', async (original) => {
+  const { ErroPermissao } = await import('@/shared/authz');
+  return {
+    ...(await original<typeof import('@/modules/orc')>()),
+    listarExercicios: async () => [],
+    sugerirAno: async () => {
+      if (sugestao.comEscopo) throw new ErroPermissao('orc.exercicios', 'incluir');
+      return 2028;
+    },
+  };
+});
 
 const { default: Lista } = await import('../../../app/(sistema)/orc/exercicios/page');
 const { default: Novo } = await import('../../../app/(sistema)/orc/exercicios/novo/page');
@@ -20,6 +27,7 @@ let contexto: ContextoRequisicao;
 let negacoes: EventoAuditoria[];
 
 beforeEach(() => {
+  sugestao.comEscopo = false;
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -42,6 +50,12 @@ describe('páginas de exercício', () => {
   it('só consultar: a lista abre, o Novo exercício dá 404', async () => {
     contexto = ctx(['orc.exercicios:consultar', 'orc.orcamento:consultar']);
     expect(await digest(Lista({ searchParams }))).toBe('sem erro');
+    expect(await digest(Novo())).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
+  });
+
+  it('Novo exercício com CC de escopo (R15): 404', async () => {
+    contexto = ctx(['orc.exercicios:consultar', 'orc.exercicios:incluir']);
+    sugestao.comEscopo = true;
     expect(await digest(Novo())).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
   });
 });

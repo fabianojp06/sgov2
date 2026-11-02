@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
-import { falha } from '@/shared/kernel';
+import { Dinheiro, falha, Percentual } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import type { DepsOrc } from './deps';
 import { avancarExercicio, criarExercicio, listarExercicios } from './exercicios';
@@ -114,7 +114,8 @@ describe('criarExercicio em branco', () => {
 describe('criarExercicio copiando o anterior', () => {
   it('copia posições e pacotes com origem COPIA e recalcula com as premissas do novo ano; receitas e teto ficam', async () => {
     const origem = await exercicioComLancamentos(2060);
-    const { d } = deps({ custoPessoal: custoPessoalFalso([{ ...premissasExemplo(2061), versao: 5 }]) });
+    // Premissas do novo ano com outro IPCA (10%): o pacote recalculado prova que vale o ano novo.
+    const { d } = deps({ custoPessoal: custoPessoalFalso([{ ...premissasExemplo(2061), versao: 5, ipca: Percentual.dePontos('10') }]) });
     const r = await criarExercicio(ctx(), { ano: 2061, forma: 'COPIA' }, d);
     expect(r).toEqual({ ok: true, valor: { id: expect.any(String), copiadas: { posicoes: 2, pacotes: 3 }, puladas: { posicoes: 0, pacotes: 0 } } });
     const novo = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { ano: 2061 } });
@@ -124,6 +125,15 @@ describe('criarExercicio copiando o anterior', () => {
       ['Analista', '7500', 'COPIA'],
       ['Assessor', '7500', 'COPIA'],
     ]);
+    const pacotes = await migrator.pacoteBaseZero.findMany({ where: { exercicioId: novo.id } });
+    expect(pacotes).toHaveLength(3);
+    for (const k of pacotes) {
+      expect(k).toMatchObject({ cc: '4.4', conta: '4.1.1.5.005', prioridade: 'IMPORTANTE', quantidade: 12, corrigirIpca: true, distribuicao: 'MENSAL', origem: 'COPIA' });
+      expect(k.valorUnitario.toString()).toBe('350');
+    }
+    const linhas = await migrator.linhaOrcada.findMany({ where: { exercicioId: novo.id, origem: 'BASE_ZERO' } });
+    expect(linhas).toHaveLength(3);
+    expect(linhas.every((l) => Dinheiro.de(l.total.toString()).paraString() === '4620.00')).toBe(true); // 12 × 350,00 × 1,10
     expect(await migrator.linhaOrcada.count({ where: { exercicioId: novo.id } })).toBe(5);
     expect(await migrator.receitaRateio.count({ where: { exercicioId: novo.id } })).toBe(0);
     expect(await migrator.posicaoOrcada.count({ where: { exercicioId: origem.id } })).toBe(2);
@@ -193,13 +203,15 @@ describe('avancarExercicio', () => {
   it('Rascunho → Em Elaboração, com trâmite e Histórico; de novo: mensagem da situação', async () => {
     await criarExercicio(ctx(), { ano: 2094, forma: 'EM_BRANCO' }, deps().d);
     const e = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { ano: 2094 } });
-    expect(await avancarExercicio(ctx(), e.id, e.versao, deps().d)).toEqual({ ok: true, valor: undefined });
+    expect(await avancarExercicio(ctx(), { id: e.id, versao: String(e.versao) }, deps().d)).toEqual({ ok: true, valor: undefined });
     const depois = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } });
     expect(depois).toMatchObject({ situacao: 'EM_ELABORACAO', versao: e.versao + 1 });
+    const h = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'orc.exercicios', registroId: e.id, tipoOperacao: 'ALTERACAO' } });
+    expect(h).toMatchObject({ unidadeId: null, descricao: 'Exercício 2094: Rascunho → Em Elaboração' });
     expect(await migrator.tramiteExercicio.findMany({ where: { exercicioId: e.id } })).toEqual([
       expect.objectContaining({ de: 'RASCUNHO', para: 'EM_ELABORACAO', usuarioId: USUARIO }),
     ]);
-    expect(await avancarExercicio(ctx(), e.id, depois.versao, deps().d)).toEqual({
+    expect(await avancarExercicio(ctx(), { id: e.id, versao: String(depois.versao) }, deps().d)).toEqual({
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Elaboração.' }],
     });
@@ -208,23 +220,41 @@ describe('avancarExercicio', () => {
   it('versão velha, sem permissão, com escopo e auditoria falhando', async () => {
     await criarExercicio(ctx(), { ano: 2095, forma: 'EM_BRANCO' }, deps().d);
     const e = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { ano: 2095 } });
-    expect(await avancarExercicio(ctx(), e.id, e.versao - 1, deps().d)).toEqual({
+    expect(await avancarExercicio(ctx(), { id: e.id, versao: String(e.versao - 1) }, deps().d)).toEqual({
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }],
     });
-    await expect(avancarExercicio(ctx(['orc.exercicios:consultar']), e.id, e.versao, deps().d)).rejects.toBeInstanceOf(ErroPermissao);
-    await expect(avancarExercicio(ctx(), e.id, e.versao, deps({ obterEscopo: async () => '4.3' }).d)).rejects.toBeInstanceOf(ErroPermissao);
+    await expect(avancarExercicio(ctx(['orc.exercicios:consultar']), { id: e.id, versao: String(e.versao) }, deps().d)).rejects.toBeInstanceOf(ErroPermissao);
+    await expect(avancarExercicio(ctx(), { id: e.id, versao: String(e.versao) }, deps({ obterEscopo: async () => '4.3' }).d)).rejects.toBeInstanceOf(ErroPermissao);
     falhaAuditoria.ligada = true;
-    await expect(avancarExercicio(ctx(), e.id, e.versao, deps().d)).rejects.toThrow('auditoria indisponível');
+    await expect(avancarExercicio(ctx(), { id: e.id, versao: String(e.versao) }, deps().d)).rejects.toThrow('auditoria indisponível');
+    expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).situacao).toBe('RASCUNHO');
+  });
+});
+
+describe('avancarExercicio: governança', () => {
+  it('payload com situacao: violação auditada; campo desconhecido ou versão inválida: mensagem', async () => {
+    await criarExercicio(ctx(), { ano: 2096, forma: 'EM_BRANCO' }, deps().d);
+    const e = await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { ano: 2096 } });
+    await expect(avancarExercicio(ctx(), { id: e.id, versao: String(e.versao), situacao: 'OFICIALIZADO' }, deps().d)).rejects.toEqual(
+      expect.objectContaining({ codigo: 'orc.violacao_governanca' }),
+    );
+    expect(await avancarExercicio(ctx(), { id: e.id, versao: 'x' }, deps().d)).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Versão do registro inválida. Recarregue a tela.' }],
+    });
+    expect((await avancarExercicio(ctx(), { id: e.id, versao: String(e.versao), extra: '1' }, deps().d)).ok).toBe(false);
     expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).situacao).toBe('RASCUNHO');
   });
 });
 
 describe('listarExercicios', () => {
-  it('anos em ordem decrescente com a situação; exige orc.orcamento:consultar', async () => {
+  it('anos em ordem decrescente com a situação; vale orc.orcamento ou orc.exercicios:consultar', async () => {
+    await criarExercicio(ctx(), { ano: 2097, forma: 'EM_BRANCO' }, deps().d);
     const l = await listarExercicios(ctx(), deps().d);
     expect(l.map((e) => e.ano)).toEqual([...l.map((e) => e.ano)].sort((a, b) => b - a));
-    expect(l.find((e) => e.ano === 2040)).toMatchObject({ situacao: 'RASCUNHO', rotuloSituacao: 'Rascunho' });
-    await expect(listarExercicios(ctx(['orc.exercicios:consultar']), deps().d)).rejects.toBeInstanceOf(ErroPermissao);
+    expect(l.find((e) => e.ano === 2097)).toMatchObject({ situacao: 'RASCUNHO', rotuloSituacao: 'Rascunho' });
+    expect((await listarExercicios(ctx(['orc.exercicios:consultar']), deps().d)).length).toBe(l.length);
+    await expect(listarExercicios(ctx(['orc.receitas:consultar']), deps().d)).rejects.toBeInstanceOf(ErroPermissao);
   });
 });

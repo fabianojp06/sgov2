@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Prisma } from '@/generated/prisma/client';
 import { auditar } from '@/shared/audit';
-import { exigir, type ContextoRequisicao } from '@/shared/authz';
+import { ErroPermissao, exigir, type ContextoRequisicao } from '@/shared/authz';
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import { anoPadrao, exercicioOrigemDaCopia, ROTULO_SITUACAO, transicionar, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
@@ -15,9 +15,12 @@ import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 export type ResumoExercicio = { id: string; ano: number; situacao: SituacaoExercicio; rotuloSituacao: string; versao: number };
 
-// Seletor de exercício e lista (orc.orcamento:consultar: o Gestor de Diretoria também vê os anos).
+// Seletor de exercício e lista: quem consulta o orçamento (inclusive o Gestor de Diretoria) ou a
+// tela de exercícios vê os anos.
 export async function listarExercicios(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly ResumoExercicio[]> {
-  exigir(ctx, 'orc.orcamento', 'consultar');
+  if (!ctx.permissoes.has('orc.orcamento:consultar') && !ctx.permissoes.has('orc.exercicios:consultar')) {
+    throw new ErroPermissao('orc.orcamento', 'consultar');
+  }
   const { cliente } = resolverDeps(depsParciais);
   const linhas = await cliente.orcamentoExercicio.findMany({ orderBy: { ano: 'desc' }, select: { id: true, ano: true, situacao: true, versao: true } });
   return linhas.map((e) => ({ ...e, situacao: e.situacao as SituacaoExercicio, rotuloSituacao: ROTULO_SITUACAO[e.situacao as SituacaoExercicio] }));
@@ -27,6 +30,7 @@ export async function listarExercicios(ctx: ContextoRequisicao, depsParciais: Pa
 export async function sugerirAno(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<number> {
   exigir(ctx, 'orc.exercicios', 'incluir');
   const deps = resolverDeps(depsParciais);
+  await exigirSemEscopo(deps.cliente, ctx, deps, 'orc.exercicios', 'incluir');
   const anos = await deps.cliente.orcamentoExercicio.findMany({ select: { ano: true } });
   return anoPadrao(anos.map((a) => a.ano), deps.agora());
 }
@@ -49,6 +53,7 @@ const ehAnoDuplicado = (erro: unknown) => erro instanceof Prisma.PrismaClientKno
 export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<ResultadoCriacao>> {
   exigir(ctx, 'orc.exercicios', 'incluir');
   const deps = resolverDeps(depsParciais);
+  await exigirSemEscopo(deps.cliente, ctx, deps, 'orc.exercicios', 'incluir');
   await recusarCamposBlindados(ctx, 'orc.exercicios', bruto, CAMPOS_ORIGEM_BLINDADA.exercicio, deps);
   const entrada = entradaCriacao.safeParse(bruto);
   if (!entrada.success) return falha(entrada.error.issues.map((i) => ({ campo: String(i.path[0] ?? '_'), mensagem: i.message })));
@@ -67,6 +72,9 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
       const puladas = { posicoes: 0, pacotes: 0 };
       if (anoOrigem !== null) {
         const origem = anos.find((e) => e.ano === anoOrigem)!;
+        // Trava de leitura na origem: uma escrita nela (que pega FOR UPDATE) espera a cópia, e
+        // posições e pacotes saem do mesmo estado.
+        await tx.$queryRaw`SELECT 1 FROM orc_exercicio WHERE id = ${origem.id}::uuid FOR SHARE`;
         const indice = await deps.estrutura.carregarIndiceEstrutura(tx);
         const contasPessoal = new Set(RAIZES_CONTAS_PESSOAL.flatMap((r) => indice.contasAnaliticasSob(r)));
         const [posicoes, pacotes] = await Promise.all([
@@ -111,12 +119,19 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
   }
 }
 
+const MENSAGEM_VERSAO = 'Versão do registro inválida. Recarregue a tela.';
+const entradaVersionada = z.object({ id: z.string(), versao: z.coerce.number({ error: MENSAGEM_VERSAO }).int(MENSAGEM_VERSAO).min(0, MENSAGEM_VERSAO) }).strict();
+
 // Avançar Rascunho → Em Elaboração (orc.exercicios:alterar), com o trâmite e o Histórico.
-export async function avancarExercicio(ctx: ContextoRequisicao, id: string, versao: number, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<void>> {
+export async function avancarExercicio(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<void>> {
   exigir(ctx, 'orc.exercicios', 'alterar');
   const deps = resolverDeps(depsParciais);
+  await exigirSemEscopo(deps.cliente, ctx, deps, 'orc.exercicios', 'alterar');
+  await recusarCamposBlindados(ctx, 'orc.exercicios', bruto, CAMPOS_ORIGEM_BLINDADA.exercicio, deps);
+  const entrada = entradaVersionada.safeParse(bruto);
+  if (!entrada.success) return falha([{ campo: '_', mensagem: MENSAGEM_VERSAO }]);
+  const { id, versao } = entrada.data;
   return deps.cliente.$transaction(async (tx) => {
-    await exigirSemEscopo(tx, ctx, deps, 'orc.exercicios', 'alterar');
     const e = await travarExercicio(tx, id);
     if (e.versao !== versao) return falha([{ campo: '_', mensagem: MENSAGENS_ORC.ALTERADO_POR_OUTRO }]);
     const t = transicionar(e.situacao, 'AVANCAR');
