@@ -1,3 +1,4 @@
+import { lerAmbiente } from '@/modules/ger/servidor';
 import type { ContextoAuditoria } from '@/shared/audit';
 import type { Seed, TxCliente } from '@/shared/db';
 import { sanearDescricao } from '../application/saneamento';
@@ -6,7 +7,6 @@ import { validarPlanoContas, type LinhaLida } from '../domain/plano-contas';
 import { validarCentrosCusto } from '../domain/centros-custo';
 import { aplicarCarga, aplicarCargaCentrosCusto, comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from './aplicar-carga';
 import minuta from './dados/cc-minuta-rev23102026.json';
-import { ambienteDoCad } from './ambiente';
 import oficial from './dados/plano-contas-oficial.json';
 
 // Dados de referência (plano do P4, R15): o plano de contas oficial (e, nas Tasks 5 e 12a, a minuta
@@ -14,8 +14,6 @@ import oficial from './dados/plano-contas-oficial.json';
 // migrator e o contexto "Sistema". Só com CARGA_DADOS_REFERENCIA=1, e nunca em produção.
 
 const SISTEMA: ContextoAuditoria = { usuarioId: null, usuarioRotulo: 'Sistema', sessaoUid: null, ip: null, unidadeId: null };
-// A regra de AMBIENTE (R25) é a do ambiente.ts, compartilhada com o processador de cargas.
-export { ambienteDoCad as ambienteDaSeed } from './ambiente';
 
 async function carregarPlanoOficial(tx: TxCliente): Promise<void> {
   const validado = validarPlanoContas(oficial as LinhaLida[], sanearDescricao);
@@ -74,7 +72,7 @@ async function carregarMinutaCentrosCusto(tx: TxCliente): Promise<void> {
 export const seedDadosReferenciaCad: Seed = {
   nome: 'cad (dados de referência)',
   async executar(tx) {
-    const ambiente = ambienteDoCad();
+    const ambiente = lerAmbiente();
     if (process.env.CARGA_DADOS_REFERENCIA !== '1') return;
     if (ambiente === 'producao') throw new Error('CARGA_DADOS_REFERENCIA não pode ser usada em produção (R15)');
     await carregarPlanoOficial(tx);

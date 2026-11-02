@@ -17,4 +17,10 @@ describe('lerAmbiente', () => {
       expect(() => lerAmbiente(fonte)).toThrow('AMBIENTE ausente ou inválido (use dev, hml ou producao)');
     },
   );
+
+  it('o código separa ausente de inválido', () => {
+    expect(() => lerAmbiente({ NODE_ENV: 'production', AMBIENTE: ' ' })).toThrow('[AMBIENTE_AUSENTE]');
+    expect(() => lerAmbiente({ NODE_ENV: 'production', AMBIENTE: 'teste' })).toThrow('[AMBIENTE_INVALIDO]');
+    expect(() => lerAmbiente({ AMBIENTE: 'prod' })).toThrow('[AMBIENTE_INVALIDO]');
+  });
 });
