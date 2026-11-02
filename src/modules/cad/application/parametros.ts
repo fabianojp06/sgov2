@@ -69,6 +69,7 @@ function comoResultado(e: unknown): Resultado<void> {
 
 export async function obterParametrosExercicio(ctx: ContextoRequisicao, ano: number, deps: Deps = {}): Promise<ParametrosExercicio | null> {
   exigir(ctx, 'cad.parametros', 'consultar');
+  if (!Number.isInteger(ano) || ano < 2000 || ano > 2099) return null;
   return lerParametrosExercicio(deps.cliente ?? prisma, ano);
 }
 

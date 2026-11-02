@@ -12,7 +12,8 @@ import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
 import { alterarParametrosExercicio, alterarSalarioMinimo, obterParametrosExercicio } from './parametros';
 
-// US-053 parte 1 (plano do P4, Task 9a, Step 2), com Postgres real.
+// US-053 parte 1 (plano do P4, Task 9a, Step 2), com Postgres real. Os testes compartilham o banco
+// e dependem da ordem: o do congelamento, por último, deixa 2027 congelado e 2028 incompleto.
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let app: ReturnType<typeof criarPrisma>;
 let migrator: pg.Client;
@@ -82,6 +83,7 @@ describe('parâmetros por exercício', () => {
     expect(p!.encargos.reduce((t, e) => t + Number(e.percentual.paraString()), 0)).toBeCloseTo(51);
     expect(p!.provisorios).toEqual(['adicional', 'encargo.obrigacoes', 'encargo.riscos']);
     expect(await obterParametroSistema(app, 'instituicao.nome_exibicao')).toBe('');
+    expect(await obterParametrosExercicio(gfin(), 2027.5, { cliente: app })).toBeNull();
   });
 
   it('alteração auditada com antes e depois; versão velha → "alterado por outro usuário"', async () => {
