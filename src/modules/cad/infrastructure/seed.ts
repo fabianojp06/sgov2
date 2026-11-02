@@ -40,6 +40,9 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     rota: '/cad/centros-custo',
     ordem: 2,
     nivelLog: 'SIMPLES',
+    ajuda:
+      'Consulte os centros de custo de 5 níveis, com o reduzido e os selos de gestão e de provisório. A estrutura só muda pela ' +
+      'importação da planilha .xlsx, e a carga só entra com a data e o documento da aprovação da DIREX.',
     acoes: ['consultar', 'executar'],
     perfisPadrao: {
       GFIN: ['consultar', 'executar'],

@@ -12,5 +12,11 @@ export { acaoConsultarCargaPlano, acaoImportarPlanoContas } from './application/
 export { ImportarEstrutura } from './ui/importar-estrutura';
 
 // Consulta do plano de contas em árvore (US-044): caso de uso e tela.
-export { consultarArvoreContas, escopoDaSessao } from './application/consultar-estrutura';
+export { consultarArvoreCentrosCusto, consultarArvoreContas, escopoDaSessao } from './application/consultar-estrutura';
 export { ArvoreContas } from './ui/arvore-contas';
+
+// Centros de custo (US-046 parte 2): importação com a trava da DIREX e consulta em árvore.
+export { acaoConsultarCargaCc, acaoImportarCentrosCusto } from './application/acoes-cc';
+export { cargaProvisoriaPermitida } from './application/importar-estrutura';
+export { ArvoreCc } from './ui/arvore-cc';
+export { CamposAprovacaoDirex } from './ui/importar-cc';

@@ -12,6 +12,7 @@ import {
   podeEnviar,
   reduzirTela,
   resumir,
+  resumoErros,
   separarErros,
   TELA_INICIAL,
   textoSituacao,
@@ -26,6 +27,7 @@ import {
 // Tela de importação do plano de contas (plano do P4, Task 7a, Step 1).
 const estado = (situacao: EstadoCargaTela['situacao'], extra: Partial<EstadoCargaTela> = {}): EstadoCargaTela => ({
   cargaId: '6f1c2b8e-3d4a-4f5b-9c6d-7e8f9a0b1c2d',
+  tipo: 'PLANO_CONTAS',
   situacao,
   linhas: 174,
   incluidas: null,
@@ -46,6 +48,7 @@ describe('separarErros', () => {
         { campo: 'linhas.12.Classificação', mensagem: 'Classificação repetida.' },
         { campo: 'linhas.3', mensagem: 'Linha sem dados.' },
         { campo: '_', mensagem: 'Sessão expirada.' },
+        { campo: 'aprovacao.data', mensagem: 'Data inválida.' },
       ]),
     ).toEqual({
       arquivo: ['O arquivo deve ser .xlsx.'],
@@ -54,6 +57,7 @@ describe('separarErros', () => {
         { linha: 3, mensagem: 'Linha sem dados.' },
       ],
       gerais: ['Sessão expirada.'],
+      campos: { 'aprovacao.data': ['Data inválida.'] },
     });
   });
 });
@@ -76,6 +80,9 @@ describe('textoSituacao', () => {
     expect(textoSituacao(estado('FALHOU'))).toBe('A importação falhou e nada foi gravado.');
     expect(textoSituacao(estado('FALHOU', { erros: [{ linha: 4, mensagem: 'x' }] }))).toBe('A importação falhou e nada foi gravado. Confira os erros abaixo.');
     expect(textoSituacao(estado('PROCESSANDO'))).toBe('Importando 174 linhas…');
+    expect(textoSituacao(estado('CONCLUIDA', { tipo: 'CENTROS_CUSTO', incluidas: 60, alteradas: 0, inativadas: 0, inalteradas: 2 }))).toBe(
+      'Centros de custo importados: 60 incluídos, 0 alterados, 0 inativados, 2 sem alteração.',
+    );
   });
 });
 
@@ -185,6 +192,11 @@ describe('reduzirTela', () => {
       { tipo: 'resposta', resposta: { ok: false, erros: [{ campo: 'arquivo', mensagem: 'Planilha inválida.' }, { campo: 'linhas.5.Nível', mensagem: 'Nível inválido.' }, { campo: '_', mensagem: 'Outro.' }] } },
     );
     expect(s).toMatchObject({ fase: 'ocioso', erroArquivo: ['Planilha inválida.'], errosLinha: [{ linha: 5, coluna: 'Nível' }], gerais: ['Outro.'] });
+    const comCampo = reduzirTela(s, { tipo: 'resposta', resposta: { ok: false, erros: [{ campo: '_', mensagem: 'Geral.' }, { campo: 'aprovacao', mensagem: 'DIREX.' }] } });
+    expect(comCampo.campos).toEqual({ aprovacao: ['DIREX.'] });
+    // O resumo do topo leva os erros gerais e os dos campos extras.
+    expect(resumoErros(comCampo)).toEqual(['Geral.', 'DIREX.']);
+    expect(reduzirTela(comCampo, { tipo: 'enviar' }).campos).toEqual({});
     expect(podeEnviar(s)).toBe(true);
   });
 

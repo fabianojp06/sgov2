@@ -8,23 +8,22 @@ import { consultarCarga, type ArquivoCarga, type EstadoCarga, type TipoCarga } f
 // Peças comuns das ações de carga (US-043; plano do P4, Task 7a). Ficam fora dos arquivos
 // 'use server', que só exportam as ações.
 
+/** O campo `arquivo` do FormData → ArquivoCarga: .xlsx de até 1 MB. */
+export const campoArquivoCarga = z
+  .instanceof(File, { message: MSG_ARQUIVO.ausente })
+  .superRefine((f, c) => {
+    const problema = problemaArquivoCarga({ nome: f.name, tamanho: f.size });
+    if (problema) c.addIssue({ code: 'custom', message: problema });
+  })
+  .transform(async (f): Promise<ArquivoCarga> => ({ nome: f.name, conteudo: new Uint8Array(await f.arrayBuffer()) }));
+
 /**
- * FormData com o campo `arquivo` → ArquivoCarga: .xlsx de até 1 MB. A assinatura PK, o zip e o
- * conteúdo são conferidos pelo leitor seguro (R4); o nome é saneado lá também.
+ * FormData com o campo `arquivo` → ArquivoCarga. A assinatura PK, o zip e o conteúdo são
+ * conferidos pelo leitor seguro (R4); o nome é saneado lá também.
  */
 export const entradaArquivoCarga = z.preprocess(
   (v) => (v instanceof FormData ? { arquivo: v.get('arquivo') } : v),
-  z
-    .object({
-      arquivo: z
-        .instanceof(File, { message: MSG_ARQUIVO.ausente })
-        .superRefine((f, c) => {
-          const problema = problemaArquivoCarga({ nome: f.name, tamanho: f.size });
-          if (problema) c.addIssue({ code: 'custom', message: problema });
-        })
-        .transform(async (f): Promise<ArquivoCarga> => ({ nome: f.name, conteudo: new Uint8Array(await f.arrayBuffer()) })),
-    })
-    .strict(),
+  z.object({ arquivo: campoArquivoCarga }).strict(),
 );
 
 // M-n1: cada grupo de lote tem a sua ação de consulta, com a permissão do tipo (o teste de

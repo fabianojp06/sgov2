@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer, useRef, useTransition, type FormEvent, type Ref } from 'react';
+import { createContext, useContext, useEffect, useReducer, useRef, useTransition, type FormEvent, type ReactNode, type Ref } from 'react';
 import { GradeArvore, type NoGrade } from '@/modules/ger';
 import { problemaArquivoCarga } from '../domain/arquivo-carga';
 import type { ErroLinha } from '../domain/plano-contas';
@@ -9,24 +9,32 @@ import {
   podeEnviar,
   reduzirTela,
   resumir,
+  resumoErros,
   TELA_INICIAL,
   textoStatus,
   type EstadoCargaTela,
   type Resposta,
 } from './importar-estrutura-logica';
 
-// Tela de importação do plano de contas (US-043 parte 4; plano do P4, Task 7a). Envia o .xlsx, mostra
+// Tela de importação de estrutura (US-043 parte 4 e US-046 parte 2; plano do P4, Tasks 7a e 8). Envia o .xlsx, mostra
 // os erros por linha (até 200, com o total) e acompanha o lote a cada 2 s até o fim. Formulário
 // próprio, como a Tabela Mestre: o Formulario do C3 não devolve o resultado da ação (o id do lote)
 // e listaria todos os erros no resumo. O estado da tela é o redutor puro de importar-estrutura-logica.
 type Colunas = 'linha' | 'coluna' | 'mensagem';
 
+// Erros dos campos extras (children), por campo: cada um mostra os seus ao lado (ex.: aprovacao.data).
+export const ContextoErrosCampos = createContext<Readonly<Record<string, readonly string[]>>>({});
+export const useErrosDoCampo = (campo: string): readonly string[] => useContext(ContextoErrosCampos)[campo] ?? [];
+
 export function ImportarEstrutura({
   rotulo,
   importar,
   consultar,
+  children,
 }: {
   rotulo: string;
+  /** Campos a mais do formulário (a aprovação da DIREX, nos centros de custo), enviados no mesmo FormData. */
+  children?: ReactNode;
   importar: (dados: FormData) => Promise<Resposta<{ cargaId: string; avisos: readonly ErroLinha[] }>>;
   consultar: (e: { cargaId: string }) => Promise<Resposta<EstadoCargaTela | null>>;
 }) {
@@ -75,6 +83,7 @@ export function ImportarEstrutura({
   };
 
   const erros = resumir(s.errosLinha);
+  const resumo = resumoErros(s);
   const avisos = resumir(s.avisos);
   const idErroArquivo = 'importar-arquivo-erro';
 
@@ -93,15 +102,16 @@ export function ImportarEstrutura({
           <span id={idErroArquivo} role="alert">
             {s.erroArquivo.join(' ')}
           </span>
-        )}{' '}
+        )}
+        <ContextoErrosCampos.Provider value={s.campos}>{children}</ContextoErrosCampos.Provider>{' '}
         <button type="submit" disabled={!podeEnviar(s)}>
           Importar
         </button>
       </form>
       <p role="status">{textoStatus(s)}</p>
-      {s.gerais.length > 0 && (
+      {resumo.length > 0 && (
         <ul role="alert">
-          {s.gerais.map((m, i) => (
+          {resumo.map((m, i) => (
             <li key={i}>{m}</li>
           ))}
         </ul>
