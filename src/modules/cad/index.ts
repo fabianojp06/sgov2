@@ -6,3 +6,7 @@ export { alterarBeneficio, incluirBeneficio } from './application/acoes-benefici
 export { TabelaMestre, type ItemTela } from './ui/tabela-mestre';
 export { listarBeneficiosMestre } from './application/beneficios';
 export { FORMAS_BENEFICIO, valorMensalPorPessoa, type BeneficioMestre, type EntradaBeneficio, type FormaBeneficio } from './domain/beneficios';
+
+// Importação do plano de contas (US-043 parte 4): ações e tela.
+export { acaoConsultarCargaPlano, acaoImportarPlanoContas } from './application/acoes-plano';
+export { ImportarEstrutura } from './ui/importar-estrutura';
