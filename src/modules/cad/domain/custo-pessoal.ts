@@ -14,7 +14,7 @@ export type AdicionalTrabalhista =
 export type PosicaoPessoal = {
   /** Inteiro de 1 a QUANTIDADE_MAXIMA (contagem de pessoas). */
   quantidade: number;
-  /** > 0 e < SALARIO_LIMITE; Fonte Ativa do cargo ou o salário digitado (C34). */
+  /** > 0 e < 1.000.000,00; Fonte Ativa do cargo ou o salário digitado (C34). */
   salarioMensal: Dinheiro;
   /** 1..12. */
   mesInicio: number;
@@ -92,7 +92,10 @@ export type SerieMensalComponentes = Readonly<{
   total: Dinheiro;
 }>;
 
-/** Limites da posição: com eles, nenhuma conta da R14 passa de NUMERIC(15,2). */
+/**
+ * Limites da posição. Com eles e com as premissas validadas na gravação (reajuste e valores dos
+ * benefícios limitados na Task 9a), nenhuma conta da R14 passa de NUMERIC(15,2).
+ */
 export const QUANTIDADE_MAXIMA = 9999;
 const SALARIO_LIMITE = Dinheiro.de('1000000.00');
 
