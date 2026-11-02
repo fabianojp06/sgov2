@@ -82,9 +82,9 @@ describe('calcularEncargo: o resto vai para o maior percentual', () => {
 });
 
 describe('calcularCustoPosicao (REQ_CAR_013, R14)', () => {
-  it('férias com um arredondamento só: 1 × 1.000,01 → férias 111,11 e 13º 83,33', () => {
-    const s = serie({ quantidade: 1, salarioMensal: R('1000.01'), mesInicio: 1, mesSaida: 1 }, premissas({ beneficios: [] }));
-    expect([mes(s, 'ferias', 1), mes(s, 'decimo_terceiro', 1)]).toEqual(['111.11', '83.33']);
+  it('férias com um arredondamento só: 1 × 1.000,02 → férias 111,11 (não 13º + 13º/3 = 111,12) e 13º 83,34', () => {
+    const s = serie({ quantidade: 1, salarioMensal: R('1000.02'), mesInicio: 1, mesSaida: 1 }, premissas({ beneficios: [] }));
+    expect([mes(s, 'ferias', 1), mes(s, 'decimo_terceiro', 1)]).toEqual(['111.11', '83.34']);
   });
 
   it('R14a: benefício percentual sobre o salário, não sobre salário + periculosidade', () => {

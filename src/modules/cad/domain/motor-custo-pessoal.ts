@@ -20,7 +20,8 @@ const PERICULOSIDADE = '0.30'; // RN_CAR_10
  * Encargo (RN_CAR_17, REQ_CAR_013; R13): o total é base × soma dos percentuais, com um único
  * Half-Even. Cada componente é arredondado em separado, e a diferença de centavo vai para o de maior
  * percentual (o INSS, no empate), como o distribuirEm12 faz com dezembro: um encargo de 0% nunca recebe
- * o resto (não sai linha negativa nem de 0,01).
+ * o resto (não sai linha negativa nem de 0,01). Lista vazia devolve zero; o calcularCustoPosicao recusa
+ * premissas sem encargos antes de chegar aqui.
  */
 export function calcularEncargo(
   base: Dinheiro,
