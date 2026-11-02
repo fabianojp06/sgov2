@@ -36,6 +36,13 @@ export const MENSAGENS_ORC = {
   SITUACAO_RECEITA: 'Situação obrigatória: Confirmado ou Previsto.',
   TP_REPETIDO: (linhas: readonly number[]) => `TP / versão repetido nas linhas ${linhas.slice(0, -1).join(', ')} e ${linhas.at(-1)}.`,
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
+  // Envio e aprovação (Task 8)
+  EXERCICIO_VAZIO: 'O orçamento não tem lançamentos para enviar.',
+  LANCAMENTO_INATIVO: (cc: string, conta: string) => `CC ${cc} ou conta ${conta} não é mais analítico ativo: reimporte a planilha antes de enviar.`,
+  QUEM_ENVIOU_NAO_APROVA: 'Quem enviou o orçamento para aprovação não pode aprová-lo.',
+  REJEICAO_CURTA: 'A justificativa da rejeição precisa ter pelo menos 15 caracteres.',
+  CONFIRMA_ENVIO: (ano: number) => `Deseja realmente enviar o orçamento ${ano} para aprovação?`,
+  CONFIRMA_APROVACAO: (ano: number) => `Deseja realmente aprovar e oficializar o orçamento ${ano}?`,
   // Teto e resultado (Task 7)
   TETO_ZERO: 'O teto precisa ser maior que zero.',
   TETO_JUSTIFICATIVA: 'Teto maior que a receita confirmada exige justificativa com pelo menos 15 caracteres.',
