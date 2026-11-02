@@ -63,6 +63,12 @@ describe('páginas de receitas', () => {
     expect(await digest(Alterar({ params }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
   });
 
+  it('Nova receita com escopo (R15): 404', async () => {
+    contexto = ctx(['orc.receitas:incluir']);
+    caso.comEscopo = true;
+    expect(await digest(Nova({ searchParams }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
+  });
+
   it('DIREX (consultar): a lista abre; receita inexistente na alteração dá 404', async () => {
     contexto = ctx(['orc.receitas:consultar', 'orc.receitas:alterar']);
     expect(await digest(Lista({ searchParams }))).toBe('sem erro');

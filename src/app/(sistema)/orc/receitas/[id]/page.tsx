@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { alterarReceitaAcao, FormReceita, listarExercicios, naoEncontradoSeNegado, obterReceita } from '@/modules/orc';
+import { alterarReceitaAcao, FormReceita, listarExercicios, MENSAGENS_ORC, naoEncontradoSeNegado, obterReceita } from '@/modules/orc';
 import { exigirPagina } from '@/shared/authz';
 
 // Alterar a receita do rateio de um TP (US-060).
@@ -12,7 +12,11 @@ export default async function AlterarReceita({ params }: { params: Promise<{ id:
   return (
     <main>
       <h1>{`Alterar receita do TP ${receita.tp} (${exercicio.ano})`}</h1>
-      <FormReceita ano={exercicio.ano} receita={receita} salvar={alterarReceitaAcao} />
+      {exercicio.situacao === 'RASCUNHO' || exercicio.situacao === 'EM_ELABORACAO' ? (
+        <FormReceita ano={exercicio.ano} receita={receita} salvar={alterarReceitaAcao} />
+      ) : (
+        <p>{MENSAGENS_ORC.SITUACAO_NAO_EDITAVEL(exercicio.rotuloSituacao)}</p>
+      )}
     </main>
   );
 }

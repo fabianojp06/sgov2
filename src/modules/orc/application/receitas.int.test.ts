@@ -178,6 +178,34 @@ describe('alterarReceita e excluirReceita', () => {
   });
 });
 
+describe('alterar e excluir: governança e exercício não editável', () => {
+  it('campos blindados recusados também na alteração e na exclusão; "1.00" na tela é formato inválido', async () => {
+    const e = await exercicio();
+    const r = await incluirReceita(ctx(), { ...dados(), exercicioId: e.id }, deps());
+    const id = r.ok ? r.valor.id : '';
+    for (const campo of ['origem', 'total', 'iss']) {
+      await expect(alterarReceita(ctx(), { ...dados(), id, versao: '0', [campo]: '1' }, deps())).rejects.toEqual(expect.objectContaining({ codigo: 'orc.violacao_governanca' }));
+      await expect(excluirReceita(ctx(), { id, versao: '0', [campo]: '1' }, deps())).rejects.toEqual(expect.objectContaining({ codigo: 'orc.violacao_governanca' }));
+    }
+    expect(await alterarReceita(ctx(), { ...dados({ fev: '1.00' }), id, versao: '0' }, deps())).toEqual({
+      ok: false,
+      erros: [{ campo: 'fev', mensagem: 'Valor em formato inválido. Digite o número na célula, com até 2 casas decimais.' }],
+    });
+  });
+
+  it('exercício Em Aprovação: alterar e excluir recusados com a mensagem da situação', async () => {
+    const e = await exercicio();
+    const r = await incluirReceita(ctx(), { ...dados(), exercicioId: e.id }, deps());
+    const id = r.ok ? r.valor.id : '';
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    const situacao = { ok: false, erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }] };
+    expect(await alterarReceita(ctx(), { ...dados(), id, versao: '0' }, deps())).toEqual(situacao);
+    expect(await excluirReceita(ctx(), { id, versao: '0' }, deps())).toEqual(situacao);
+    expect((await listarReceitas(ctx(), e.id, deps())).editavel).toBe(false);
+  });
+});
+
 describe('listarReceitas e obterReceita', () => {
   it('confirmadas e previstas separadas, totais por mês sem drift, ISS a definir e líquido = rateio', async () => {
     const e = await exercicio();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Dinheiro } from '@/shared/kernel';
-import { valorDaTela, valorParaTela } from './valor-tela';
+import { lerValor } from './planilha';
+import { VALOR_INVALIDO, valorDaTela, valorParaTela } from './valor-tela';
 
 // Valor digitado na tela no formato brasileiro (Task 5): vira o texto que lerValor entende.
 describe('valorDaTela', () => {
@@ -15,9 +16,15 @@ describe('valorDaTela', () => {
     ['', ''],
   ])('%j → %j', (entrada, saida) => expect(valorDaTela(entrada)).toBe(saida));
 
-  it.each(['1,000.50', '1.00', '1,234', '12.34,5', 'R$ 10', '1e3', 'abc'])('%j fica como veio (lerValor recusa)', (v) =>
-    expect(valorDaTela(v)).toBe(v.trim()),
-  );
+  it.each(['1,000.50', '1.00', '1.5', '1,234', '12.34,5', 'R$ 1.000'])('%j com ponto ou vírgula fora do formato: marcado inválido, e lerValor recusa', (v) => {
+    expect(valorDaTela(v)).toBe(VALOR_INVALIDO);
+    expect(lerValor(valorDaTela(v))).toBe('INVALIDO');
+  });
+
+  it.each(['1e3', 'abc', 'R$ 10'])('%j sem ponto nem vírgula fica como veio, e lerValor recusa', (v) => {
+    expect(valorDaTela(v)).toBe(v);
+    expect(lerValor(valorDaTela(v))).toBe('INVALIDO');
+  });
 });
 
 describe('valorParaTela', () => {

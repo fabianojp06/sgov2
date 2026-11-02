@@ -1,13 +1,15 @@
 import type { Dinheiro } from '@/shared/kernel';
 
 // Valor digitado na tela no formato brasileiro ("1.234,56"): vira o texto canônico ("1234.56")
-// que lerValor entende. Na tela, o ponto é sempre separador de milhar; o que não segue o formato
-// fica como veio, e lerValor recusa com a mensagem de formato.
+// que lerValor entende. Na tela, o ponto é sempre separador de milhar: "1.00" ou "1.5" não viram
+// decimal em silêncio. O que não segue o formato e tem ponto ou vírgula volta marcado como
+// inválido, e lerValor recusa com a mensagem de formato.
+export const VALOR_INVALIDO = '(formato inválido)';
 const FORMATO_BR = /^-?(\d{1,3}(\.\d{3})+|\d+)(,\d{1,2})?$/;
 
 export function valorDaTela(texto: string): string {
   const t = texto.trim();
-  if (!FORMATO_BR.test(t)) return t;
+  if (!FORMATO_BR.test(t)) return /[.,]/.test(t) ? VALOR_INVALIDO : t;
   return t.replace(/\./g, '').replace(',', '.');
 }
 

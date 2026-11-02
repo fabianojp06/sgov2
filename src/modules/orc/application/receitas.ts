@@ -177,7 +177,7 @@ async function travarReceita(tx: TxCliente, id: string) {
   if (!antes) throw inexistente();
   const e = await travarExercicio(tx, antes.exercicioId);
   const r = await tx.receitaRateio.findUnique({ where: { id } });
-  if (!r) throw inexistente();
+  if (!r || r.exercicioId !== e.id) throw inexistente();
   return { e, r };
 }
 
