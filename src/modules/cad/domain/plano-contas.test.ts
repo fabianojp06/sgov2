@@ -117,4 +117,18 @@ describe('validarPlanoContas', () => {
     const e = errosDe(...base, { nivel: '9', classificacao: 'abc;DROP', pai: 'zzz', tipo: 'Q', reduzido: 'x1' });
     expect(JSON.stringify(e)).not.toMatch(/abc|DROP|zzz|x1/);
   });
+
+  it.each([
+    ['prefixo do pai', { nivel: '5', classificacao: '4.1.1.2.001', pai: '4.1.1.1', tipo: 'A', reduzido: '1' }, 'Conta Superior', 'A classificação deve começar pela da conta superior.'],
+    ['sintética com reduzido', { nivel: '4', classificacao: '4.1.1.2', pai: '4.1.1', tipo: 'S', reduzido: '5' }, 'Conta Reduzida', 'A conta sintética não tem conta reduzida.'],
+    ['reduzido fora do formato', { nivel: '5', classificacao: '4.1.1.1.002', pai: '4.1.1.1', tipo: 'A', reduzido: '9a' }, 'Conta Reduzida', 'A conta reduzida deve ter só números.'],
+    ['descrição vazia', { nivel: '5', classificacao: '4.1.1.1.002', pai: '4.1.1.1', tipo: 'A', reduzido: '1', descricao: '  ' }, 'Descrição', 'A descrição é obrigatória.'],
+    ['descrição acima de 200', { nivel: '5', classificacao: '4.1.1.1.002', pai: '4.1.1.1', tipo: 'A', reduzido: '1', descricao: 'd'.repeat(201) }, 'Descrição', 'A descrição deve ter até 200 caracteres.'],
+    ['nível 1 com pai', { nivel: '1', classificacao: '5', pai: '4', tipo: 'S' }, 'Conta Superior', 'A conta de nível 1 não tem conta superior.'],
+    ['nível 2 sem pai', { nivel: '5', classificacao: '4.1.1.1.002', pai: null, tipo: 'A', reduzido: '1' }, 'Conta Superior', 'A conta superior é obrigatória a partir do nível 2.'],
+    ['tipo inválido', { nivel: '5', classificacao: '4.1.1.1.002', pai: '4.1.1.1', tipo: 'X', reduzido: '1' }, 'Tipo', 'O tipo deve ser S (sintética) ou A (analítica).'],
+    ['pai analítico', { nivel: '5', classificacao: '4.1.1.1.001.1', pai: '4.1.1.1.001', tipo: 'A', reduzido: '1' }, 'Conta Superior', 'A conta superior não pode ser analítica.'],
+  ] as const)('%s → erro', (_caso, linha, coluna, mensagem) => {
+    expect(errosDe(...base, linha as Celulas)).toContainEqual({ linha: 7, coluna, mensagem });
+  });
 });

@@ -31,14 +31,36 @@ describe('planejarCarga (R5)', () => {
     expect(r.inalteradas).toBe(2);
   });
 
-  it('mesma classificação com outro reduzido → erro na linha', () => {
+  const vazio = { incluir: [], alterarDescricao: [], reativar: [], inativar: [], avisos: [] };
+
+  it('mesma classificação com outro reduzido → erro na linha, com o texto da R5, e nada mais', () => {
     const r = planejarCarga(atuais, [atuais[0]!, { ...atuais[1]!, codigoReduzido: '901', linha: 6 }, atuais[2]!]);
-    expect(r.erros).toEqual([{ linha: 6, coluna: 'Conta Reduzida', mensagem: expect.stringContaining('outro reduzido') }]);
+    expect(r).toEqual({
+      ...vazio,
+      inalteradas: 2,
+      erros: [
+        {
+          linha: 6,
+          coluna: 'Conta Reduzida',
+          mensagem: 'A carga não muda a estrutura de um registro existente (D7): 4.1.1.1.001 já existe com o reduzido 900/tipo ANALITICA.',
+        },
+      ],
+    });
   });
 
-  it('mesma classificação com outro tipo → erro na linha', () => {
+  it('mesma classificação com outro tipo → erro na linha, e nada mais', () => {
     const r = planejarCarga(atuais, [{ ...atuais[0]!, tipo: 'ANALITICA', linha: 5 }, atuais[1]!, atuais[2]!]);
-    expect(r.erros).toEqual([{ linha: 5, coluna: 'Tipo', mensagem: expect.stringContaining('outro tipo') }]);
+    expect(r).toEqual({
+      ...vazio,
+      inalteradas: 2,
+      erros: [{ linha: 5, coluna: 'Tipo', mensagem: expect.stringContaining('4.1.1.1 já existe com o reduzido (nenhum)/tipo SINTETICA') }],
+    });
+  });
+
+  it('reduzido de uma ativa que também continua no arquivo → erro na linha (não estoura o índice no merge)', () => {
+    const r = planejarCarga(atuais, [...atuais, a('4.1.1.1.010', '900', { linha: 9 })]);
+    expect(r.incluir).toEqual([]);
+    expect(r.erros).toEqual([{ linha: 9, coluna: 'Conta Reduzida', mensagem: 'O reduzido 900 já pertence a 4.1.1.1.001, que continua no arquivo.' }]);
   });
 
   it('reduzido 900 movido para classificação nova → inativa a antiga, inclui a nova e avisa', () => {
@@ -46,7 +68,9 @@ describe('planejarCarga (R5)', () => {
     const r = planejarCarga(atuais, [atuais[0]!, movida, atuais[2]!]);
     expect(r.inativar).toEqual(['4.1.1.1.001']);
     expect(r.incluir).toEqual([movida]);
-    expect(r.avisos).toEqual([{ linha: 7, coluna: 'Classificação', mensagem: expect.stringContaining('4.1.1.1.001') }]);
+    expect(r.avisos).toEqual([
+      { linha: 7, coluna: 'Classificação', mensagem: 'O reduzido 900 passou de 4.1.1.1.001 para 4.1.1.1.010: a antiga foi inativada.' },
+    ]);
     expect(r.erros).toEqual([]);
   });
 
