@@ -1,0 +1,1916 @@
+[
+ {
+  "numero": 2,
+  "celulas": {
+   "Nível": "1",
+   "Classificação": "4",
+   "Conta Superior": null,
+   "Descrição": "DESPESAS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 3,
+  "celulas": {
+   "Nível": "2",
+   "Classificação": "4.1",
+   "Conta Superior": "4",
+   "Descrição": "DESPESAS OPERACIONAIS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 4,
+  "celulas": {
+   "Nível": "3",
+   "Classificação": "4.1.1",
+   "Conta Superior": "4.1",
+   "Descrição": "DESPESAS DE SERVIÇOS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 5,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.1",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DESPESAS DE PESSOAL",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 6,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.001",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Salários",
+   "Tipo": "A",
+   "Conta Reduzida": "900"
+  }
+ },
+ {
+  "numero": 7,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.002",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Gratificações",
+   "Tipo": "A",
+   "Conta Reduzida": "910"
+  }
+ },
+ {
+  "numero": 8,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.003",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Férias",
+   "Tipo": "A",
+   "Conta Reduzida": "920"
+  }
+ },
+ {
+  "numero": 9,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.004",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Abono pecuniário",
+   "Tipo": "A",
+   "Conta Reduzida": "930"
+  }
+ },
+ {
+  "numero": 10,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.005",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "13 Salário",
+   "Tipo": "A",
+   "Conta Reduzida": "940"
+  }
+ },
+ {
+  "numero": 11,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.006",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Previdência complementar",
+   "Tipo": "A",
+   "Conta Reduzida": "950"
+  }
+ },
+ {
+  "numero": 12,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.007",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Seguro de vida",
+   "Tipo": "A",
+   "Conta Reduzida": "960"
+  }
+ },
+ {
+  "numero": 13,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.008",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Seguro saúde",
+   "Tipo": "A",
+   "Conta Reduzida": "970"
+  }
+ },
+ {
+  "numero": 14,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.009",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Vale-Refeição",
+   "Tipo": "A",
+   "Conta Reduzida": "971"
+  }
+ },
+ {
+  "numero": 15,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.010",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Vale-transporte",
+   "Tipo": "A",
+   "Conta Reduzida": "1070"
+  }
+ },
+ {
+  "numero": 16,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.011",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Auxílio Maternidade",
+   "Tipo": "A",
+   "Conta Reduzida": "1071"
+  }
+ },
+ {
+  "numero": 17,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.012",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Auxílio Doença",
+   "Tipo": "A",
+   "Conta Reduzida": "1073"
+  }
+ },
+ {
+  "numero": 18,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.013",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Plano Odontológico",
+   "Tipo": "A",
+   "Conta Reduzida": "1074"
+  }
+ },
+ {
+  "numero": 19,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.014",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Adicional noturno",
+   "Tipo": "A",
+   "Conta Reduzida": "1075"
+  }
+ },
+ {
+  "numero": 20,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.015",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Auxílio natalidade",
+   "Tipo": "A",
+   "Conta Reduzida": "1076"
+  }
+ },
+ {
+  "numero": 21,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.016",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Hora extra",
+   "Tipo": "A",
+   "Conta Reduzida": "1078"
+  }
+ },
+ {
+  "numero": 22,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.017",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Bolsa auxílio",
+   "Tipo": "A",
+   "Conta Reduzida": "1082"
+  }
+ },
+ {
+  "numero": 23,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.018",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Ajuda de custo",
+   "Tipo": "A",
+   "Conta Reduzida": "1083"
+  }
+ },
+ {
+  "numero": 24,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.019",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Adicional de transferência",
+   "Tipo": "A",
+   "Conta Reduzida": "1084"
+  }
+ },
+ {
+  "numero": 25,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.020",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Auxílio Creche e Pré-Escolar",
+   "Tipo": "A",
+   "Conta Reduzida": "1085"
+  }
+ },
+ {
+  "numero": 26,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.021",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Vale-Alimentação",
+   "Tipo": "A",
+   "Conta Reduzida": "1086"
+  }
+ },
+ {
+  "numero": 27,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.022",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Seguro viagem Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "2154"
+  }
+ },
+ {
+  "numero": 28,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.023",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Seguro viagem",
+   "Tipo": "A",
+   "Conta Reduzida": "2155"
+  }
+ },
+ {
+  "numero": 29,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.024",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Auxílio Funeral",
+   "Tipo": "A",
+   "Conta Reduzida": "2874"
+  }
+ },
+ {
+  "numero": 30,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.1.025",
+   "Conta Superior": "4.1.1.1",
+   "Descrição": "Periculosidade/Insalubridade",
+   "Tipo": "A",
+   "Conta Reduzida": "2894"
+  }
+ },
+ {
+  "numero": 31,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.2",
+   "Conta Superior": "4.1.1",
+   "Descrição": "ENCARGOS SOCIAIS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 32,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.001",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "INSS",
+   "Tipo": "A",
+   "Conta Reduzida": "981"
+  }
+ },
+ {
+  "numero": 33,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.002",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "INSS s/ férias",
+   "Tipo": "A",
+   "Conta Reduzida": "990"
+  }
+ },
+ {
+  "numero": 34,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.003",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "INSS s/ 13 salário",
+   "Tipo": "A",
+   "Conta Reduzida": "1000"
+  }
+ },
+ {
+  "numero": 35,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.004",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "INSS s/ terceiros",
+   "Tipo": "A",
+   "Conta Reduzida": "1010"
+  }
+ },
+ {
+  "numero": 36,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.005",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "FGTS",
+   "Tipo": "A",
+   "Conta Reduzida": "1020"
+  }
+ },
+ {
+  "numero": 37,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.006",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "FGTS s/ férias",
+   "Tipo": "A",
+   "Conta Reduzida": "1030"
+  }
+ },
+ {
+  "numero": 38,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.007",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "FGTS s/ 13 salário",
+   "Tipo": "A",
+   "Conta Reduzida": "1040"
+  }
+ },
+ {
+  "numero": 39,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.008",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "PIS/PASEP",
+   "Tipo": "A",
+   "Conta Reduzida": "1050"
+  }
+ },
+ {
+  "numero": 40,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.009",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "Acidente de Trabalho",
+   "Tipo": "A",
+   "Conta Reduzida": "1060"
+  }
+ },
+ {
+  "numero": 41,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.010",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "PIS s/ folha de pagamento",
+   "Tipo": "A",
+   "Conta Reduzida": "1080"
+  }
+ },
+ {
+  "numero": 42,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.011",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "Contribuição Sindical",
+   "Tipo": "A",
+   "Conta Reduzida": "1081"
+  }
+ },
+ {
+  "numero": 43,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.012",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "Aviso Prévio",
+   "Tipo": "A",
+   "Conta Reduzida": "1077"
+  }
+ },
+ {
+  "numero": 44,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.013",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "FGTS s/ rescisão contratual",
+   "Tipo": "A",
+   "Conta Reduzida": "1079"
+  }
+ },
+ {
+  "numero": 45,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.014",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "IRPJ (Isenção)",
+   "Tipo": "A",
+   "Conta Reduzida": "3134"
+  }
+ },
+ {
+  "numero": 46,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.015",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "PIS (Isenção)",
+   "Tipo": "A",
+   "Conta Reduzida": "3144"
+  }
+ },
+ {
+  "numero": 47,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.016",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "COFINS (Isenção)",
+   "Tipo": "A",
+   "Conta Reduzida": "3154"
+  }
+ },
+ {
+  "numero": 48,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.2.017",
+   "Conta Superior": "4.1.1.2",
+   "Descrição": "CSLL (Isenção)",
+   "Tipo": "A",
+   "Conta Reduzida": "3164"
+  }
+ },
+ {
+  "numero": 49,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.3",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DESPESA DE VIAGEM",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 50,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.001",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Passagem aérea",
+   "Tipo": "A",
+   "Conta Reduzida": "1100"
+  }
+ },
+ {
+  "numero": 51,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.002",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Passagem rodoviária",
+   "Tipo": "A",
+   "Conta Reduzida": "1110"
+  }
+ },
+ {
+  "numero": 52,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.003",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Excesso de bagagem",
+   "Tipo": "A",
+   "Conta Reduzida": "1120"
+  }
+ },
+ {
+  "numero": 53,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.004",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Taxa de remarcação de bilhete",
+   "Tipo": "A",
+   "Conta Reduzida": "1130"
+  }
+ },
+ {
+  "numero": 54,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.005",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Passagem aérea Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1131"
+  }
+ },
+ {
+  "numero": 55,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.006",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Passaporte e visto",
+   "Tipo": "A",
+   "Conta Reduzida": "1132"
+  }
+ },
+ {
+  "numero": 56,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.007",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Passaporte e visto Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1133"
+  }
+ },
+ {
+  "numero": 57,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.008",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Passagem aérea Internacional",
+   "Tipo": "A",
+   "Conta Reduzida": "1101"
+  }
+ },
+ {
+  "numero": 58,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.009",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Despesa de transporte em viagem",
+   "Tipo": "A",
+   "Conta Reduzida": "1172"
+  }
+ },
+ {
+  "numero": 59,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.010",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Adicional de transporte para viagem",
+   "Tipo": "A",
+   "Conta Reduzida": "1182"
+  }
+ },
+ {
+  "numero": 60,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.3.011",
+   "Conta Superior": "4.1.1.3",
+   "Descrição": "Aluguel de carro em viagem",
+   "Tipo": "A",
+   "Conta Reduzida": "1414"
+  }
+ },
+ {
+  "numero": 61,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.4",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DESPESA DE DIÁRIA",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 62,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.001",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesa de Hospedagem (Hotel)",
+   "Tipo": "A",
+   "Conta Reduzida": "1150"
+  }
+ },
+ {
+  "numero": 63,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.002",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesa de alimentação em viagem",
+   "Tipo": "A",
+   "Conta Reduzida": "1160"
+  }
+ },
+ {
+  "numero": 64,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.003",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesa de transporte",
+   "Tipo": "A",
+   "Conta Reduzida": "1170"
+  }
+ },
+ {
+  "numero": 65,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.004",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Adicional de transporte",
+   "Tipo": "A",
+   "Conta Reduzida": "1180"
+  }
+ },
+ {
+  "numero": 66,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.005",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Alteração de período",
+   "Tipo": "A",
+   "Conta Reduzida": "1190"
+  }
+ },
+ {
+  "numero": 67,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.006",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Alteração de local de pernoite",
+   "Tipo": "A",
+   "Conta Reduzida": "1200"
+  }
+ },
+ {
+  "numero": 68,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.007",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesas Globais de diária",
+   "Tipo": "A",
+   "Conta Reduzida": "1210"
+  }
+ },
+ {
+  "numero": 69,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.008",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesas Globais de diárias Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1211"
+  }
+ },
+ {
+  "numero": 70,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.009",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Adicional de transporte Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1181"
+  }
+ },
+ {
+  "numero": 71,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.010",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesa de transporte Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1171"
+  }
+ },
+ {
+  "numero": 72,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.011",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Excesso de bagagem Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1121"
+  }
+ },
+ {
+  "numero": 73,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.4.012",
+   "Conta Superior": "4.1.1.4",
+   "Descrição": "Despesas Globais de diária Internacional",
+   "Tipo": "A",
+   "Conta Reduzida": "1212"
+  }
+ },
+ {
+  "numero": 74,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.5",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DESPESAS ADMINISTRATIVAS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 75,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.001",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Energia Elétrica",
+   "Tipo": "A",
+   "Conta Reduzida": "1230"
+  }
+ },
+ {
+  "numero": 76,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.002",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Água e Esgoto",
+   "Tipo": "A",
+   "Conta Reduzida": "1240"
+  }
+ },
+ {
+  "numero": 77,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.003",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Material de limpeza",
+   "Tipo": "A",
+   "Conta Reduzida": "1250"
+  }
+ },
+ {
+  "numero": 78,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.004",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Material de manutenção",
+   "Tipo": "A",
+   "Conta Reduzida": "1260"
+  }
+ },
+ {
+  "numero": 79,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.005",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Material de escritório",
+   "Tipo": "A",
+   "Conta Reduzida": "1270"
+  }
+ },
+ {
+  "numero": 80,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.006",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Materiais auxiliares e de consumo",
+   "Tipo": "A",
+   "Conta Reduzida": "1280"
+  }
+ },
+ {
+  "numero": 81,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.007",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Manutenção e Conserv. de Instalações",
+   "Tipo": "A",
+   "Conta Reduzida": "1290"
+  }
+ },
+ {
+  "numero": 82,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.008",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Combustível",
+   "Tipo": "A",
+   "Conta Reduzida": "1300"
+  }
+ },
+ {
+  "numero": 83,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.009",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Telefone",
+   "Tipo": "A",
+   "Conta Reduzida": "1310"
+  }
+ },
+ {
+  "numero": 84,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.010",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Aluguéis e Arrendamentos",
+   "Tipo": "A",
+   "Conta Reduzida": "1320"
+  }
+ },
+ {
+  "numero": 85,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.011",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Aluguel de equipamento",
+   "Tipo": "A",
+   "Conta Reduzida": "1330"
+  }
+ },
+ {
+  "numero": 86,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.012",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Condomínio",
+   "Tipo": "A",
+   "Conta Reduzida": "1340"
+  }
+ },
+ {
+  "numero": 87,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.013",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "CPMF TP 001/CISCEA/04",
+   "Tipo": "A",
+   "Conta Reduzida": "1350"
+  }
+ },
+ {
+  "numero": 88,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.014",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Copa e cozinha",
+   "Tipo": "A",
+   "Conta Reduzida": "1360"
+  }
+ },
+ {
+  "numero": 89,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.015",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Outras despesas administrativas",
+   "Tipo": "A",
+   "Conta Reduzida": "1370"
+  }
+ },
+ {
+  "numero": 90,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.016",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Provimento de acesso internet",
+   "Tipo": "A",
+   "Conta Reduzida": "1380"
+  }
+ },
+ {
+  "numero": 91,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.017",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Serviço de manutenção informática",
+   "Tipo": "A",
+   "Conta Reduzida": "1390"
+  }
+ },
+ {
+  "numero": 92,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.018",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Material de Representação",
+   "Tipo": "A",
+   "Conta Reduzida": "1400"
+  }
+ },
+ {
+  "numero": 93,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.019",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Bens não imobilizados",
+   "Tipo": "A",
+   "Conta Reduzida": "1401"
+  }
+ },
+ {
+  "numero": 94,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.020",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "IPTU",
+   "Tipo": "A",
+   "Conta Reduzida": "1402"
+  }
+ },
+ {
+  "numero": 95,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.021",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Seguro de Aluguel",
+   "Tipo": "A",
+   "Conta Reduzida": "1403"
+  }
+ },
+ {
+  "numero": 96,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.022",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Aluguel de Ônibus / Van",
+   "Tipo": "A",
+   "Conta Reduzida": "1404"
+  }
+ },
+ {
+  "numero": 97,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.023",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Seguro de imóvel",
+   "Tipo": "A",
+   "Conta Reduzida": "1405"
+  }
+ },
+ {
+  "numero": 98,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.024",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Decorações",
+   "Tipo": "A",
+   "Conta Reduzida": "1406"
+  }
+ },
+ {
+  "numero": 99,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.025",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Aluguel de carro Adm",
+   "Tipo": "A",
+   "Conta Reduzida": "1407"
+  }
+ },
+ {
+  "numero": 100,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.026",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Seguro de Veículos e/ou Empresarial",
+   "Tipo": "A",
+   "Conta Reduzida": "1408"
+  }
+ },
+ {
+  "numero": 101,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.027",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Manutenção de veículo",
+   "Tipo": "A",
+   "Conta Reduzida": "1409"
+  }
+ },
+ {
+  "numero": 102,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.028",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Material de Informática",
+   "Tipo": "A",
+   "Conta Reduzida": "1411"
+  }
+ },
+ {
+  "numero": 103,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.029",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "IPVA, Seguro Obrig e licenc. anual",
+   "Tipo": "A",
+   "Conta Reduzida": "1412"
+  }
+ },
+ {
+  "numero": 104,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.030",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Material para Manut. e Inst. em Campo",
+   "Tipo": "A",
+   "Conta Reduzida": "1970"
+  }
+ },
+ {
+  "numero": 105,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.031",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Doações",
+   "Tipo": "A",
+   "Conta Reduzida": "1980"
+  }
+ },
+ {
+  "numero": 106,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.032",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Manutenção de equipamentos",
+   "Tipo": "A",
+   "Conta Reduzida": "1990"
+  }
+ },
+ {
+  "numero": 107,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.033",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "CPMF",
+   "Tipo": "A",
+   "Conta Reduzida": "1351"
+  }
+ },
+ {
+  "numero": 108,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.034",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "CPMF Institucional",
+   "Tipo": "A",
+   "Conta Reduzida": "1352"
+  }
+ },
+ {
+  "numero": 109,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.035",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "ITBI",
+   "Tipo": "A",
+   "Conta Reduzida": "2023"
+  }
+ },
+ {
+  "numero": 110,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.036",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Combustível Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1301"
+  }
+ },
+ {
+  "numero": 111,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.037",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Aluguel de carro Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1413"
+  }
+ },
+ {
+  "numero": 112,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.038",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Manutenção e conserv. de Inst. Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1291"
+  }
+ },
+ {
+  "numero": 113,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.039",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Taxa de Incêndio",
+   "Tipo": "A",
+   "Conta Reduzida": "2644"
+  }
+ },
+ {
+  "numero": 114,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.040",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Laudêmio/Foro",
+   "Tipo": "A",
+   "Conta Reduzida": "2674"
+  }
+ },
+ {
+  "numero": 115,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.041",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Aluguel de Enlaces",
+   "Tipo": "A",
+   "Conta Reduzida": "2714"
+  }
+ },
+ {
+  "numero": 116,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.042",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Taxa de Análise/Aprov Projeto /Lic Exec Obra",
+   "Tipo": "A",
+   "Conta Reduzida": "2764"
+  }
+ },
+ {
+  "numero": 117,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.043",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Despesa de transporte Adm",
+   "Tipo": "A",
+   "Conta Reduzida": "3034"
+  }
+ },
+ {
+  "numero": 118,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.044",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "Despesa com alimentação",
+   "Tipo": "A",
+   "Conta Reduzida": "3044"
+  }
+ },
+ {
+  "numero": 119,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.5.045",
+   "Conta Superior": "4.1.1.5",
+   "Descrição": "TV por assinatura",
+   "Tipo": "A",
+   "Conta Reduzida": "3054"
+  }
+ },
+ {
+  "numero": 120,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.6",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DESPESAS GERAIS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 121,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.001",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Honorários Advocatícios",
+   "Tipo": "A",
+   "Conta Reduzida": "1420"
+  }
+ },
+ {
+  "numero": 122,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.002",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Assinat. de Jornais/Revistas/Publicações",
+   "Tipo": "A",
+   "Conta Reduzida": "1430"
+  }
+ },
+ {
+  "numero": 123,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.003",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Auditoria",
+   "Tipo": "A",
+   "Conta Reduzida": "1440"
+  }
+ },
+ {
+  "numero": 124,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.004",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Implantação de software",
+   "Tipo": "A",
+   "Conta Reduzida": "1450"
+  }
+ },
+ {
+  "numero": 125,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.005",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Serviço de terceiros - PJ",
+   "Tipo": "A",
+   "Conta Reduzida": "1460"
+  }
+ },
+ {
+  "numero": 126,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.006",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Serviço de terceiros - PF",
+   "Tipo": "A",
+   "Conta Reduzida": "1470"
+  }
+ },
+ {
+  "numero": 127,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.007",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Serviço de manutenção de software",
+   "Tipo": "A",
+   "Conta Reduzida": "1480"
+  }
+ },
+ {
+  "numero": 128,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.008",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Xerox",
+   "Tipo": "A",
+   "Conta Reduzida": "1490"
+  }
+ },
+ {
+  "numero": 129,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.009",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Cartório",
+   "Tipo": "A",
+   "Conta Reduzida": "1500"
+  }
+ },
+ {
+  "numero": 130,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.010",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Serviço de despachante",
+   "Tipo": "A",
+   "Conta Reduzida": "1510"
+  }
+ },
+ {
+  "numero": 131,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.011",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Treinamento de pessoal",
+   "Tipo": "A",
+   "Conta Reduzida": "1520"
+  }
+ },
+ {
+  "numero": 132,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.012",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Serviços Gráficos e Encadernação",
+   "Tipo": "A",
+   "Conta Reduzida": "1530"
+  }
+ },
+ {
+  "numero": 133,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.013",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Assessoria contábil",
+   "Tipo": "A",
+   "Conta Reduzida": "1540"
+  }
+ },
+ {
+  "numero": 134,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.014",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Postagens e correios",
+   "Tipo": "A",
+   "Conta Reduzida": "1541"
+  }
+ },
+ {
+  "numero": 135,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.015",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Uniformes",
+   "Tipo": "A",
+   "Conta Reduzida": "1542"
+  }
+ },
+ {
+  "numero": 136,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.016",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Seminários e Conferências",
+   "Tipo": "A",
+   "Conta Reduzida": "1543"
+  }
+ },
+ {
+  "numero": 137,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.017",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Serviço de Consultoria",
+   "Tipo": "A",
+   "Conta Reduzida": "1544"
+  }
+ },
+ {
+  "numero": 138,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.018",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Farmácia",
+   "Tipo": "A",
+   "Conta Reduzida": "1545"
+  }
+ },
+ {
+  "numero": 139,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.019",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Eventos de Integração",
+   "Tipo": "A",
+   "Conta Reduzida": "1546"
+  }
+ },
+ {
+  "numero": 140,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.020",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Taxa do CREA",
+   "Tipo": "A",
+   "Conta Reduzida": "1547"
+  }
+ },
+ {
+  "numero": 141,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.021",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Representações de inter. da organização",
+   "Tipo": "A",
+   "Conta Reduzida": "1548"
+  }
+ },
+ {
+  "numero": 142,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.022",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Seminários e reuniões int. c/ apoio logístico",
+   "Tipo": "A",
+   "Conta Reduzida": "1549"
+  }
+ },
+ {
+  "numero": 143,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.023",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Contribuição institucional - CIEE e MUDES",
+   "Tipo": "A",
+   "Conta Reduzida": "1551"
+  }
+ },
+ {
+  "numero": 144,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.024",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Vacinas",
+   "Tipo": "A",
+   "Conta Reduzida": "1552"
+  }
+ },
+ {
+  "numero": 145,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.025",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Associações e filiações",
+   "Tipo": "A",
+   "Conta Reduzida": "1553"
+  }
+ },
+ {
+  "numero": 146,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.026",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Elaboração de Projetos",
+   "Tipo": "A",
+   "Conta Reduzida": "1554"
+  }
+ },
+ {
+  "numero": 147,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.027",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Treinamento Extra TP",
+   "Tipo": "A",
+   "Conta Reduzida": "1521"
+  }
+ },
+ {
+  "numero": 148,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.028",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Digitalização, armazenamento e microfilmagem de doc",
+   "Tipo": "A",
+   "Conta Reduzida": "2094"
+  }
+ },
+ {
+  "numero": 149,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.029",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Estacionamento",
+   "Tipo": "A",
+   "Conta Reduzida": "2704"
+  }
+ },
+ {
+  "numero": 150,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.030",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Transporte de material",
+   "Tipo": "A",
+   "Conta Reduzida": "2744"
+  }
+ },
+ {
+  "numero": 151,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.6.031",
+   "Conta Superior": "4.1.1.6",
+   "Descrição": "Legais e Judiciais",
+   "Tipo": "A",
+   "Conta Reduzida": "2824"
+  }
+ },
+ {
+  "numero": 152,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.7",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DEPRECIAÇÃO/AMORTIZAÇÃO",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 153,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.001",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Veículos",
+   "Tipo": "A",
+   "Conta Reduzida": "1560"
+  }
+ },
+ {
+  "numero": 154,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.002",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Móveis e utensílios",
+   "Tipo": "A",
+   "Conta Reduzida": "1570"
+  }
+ },
+ {
+  "numero": 155,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.003",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Máquinas e equipamentos",
+   "Tipo": "A",
+   "Conta Reduzida": "1580"
+  }
+ },
+ {
+  "numero": 156,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.004",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Sistemas Aplicativos-Software",
+   "Tipo": "A",
+   "Conta Reduzida": "1590"
+  }
+ },
+ {
+  "numero": 157,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.005",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Benfeitorias em imóveis de terceiros",
+   "Tipo": "A",
+   "Conta Reduzida": "1591"
+  }
+ },
+ {
+  "numero": 158,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.006",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Computadores e acessórios",
+   "Tipo": "A",
+   "Conta Reduzida": "1592"
+  }
+ },
+ {
+  "numero": 159,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.007",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Edificações",
+   "Tipo": "A",
+   "Conta Reduzida": "2144"
+  }
+ },
+ {
+  "numero": 160,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.7.008",
+   "Conta Superior": "4.1.1.7",
+   "Descrição": "Instalações",
+   "Tipo": "A",
+   "Conta Reduzida": "2324"
+  }
+ },
+ {
+  "numero": 161,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.8",
+   "Conta Superior": "4.1.1",
+   "Descrição": "DESPESAS COM PROVISÕES",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 162,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.001",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão p/despesas de contingências",
+   "Tipo": "A",
+   "Conta Reduzida": "1910"
+  }
+ },
+ {
+  "numero": 163,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.002",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão para Contingências de Passivo Tributário",
+   "Tipo": "A",
+   "Conta Reduzida": "2010"
+  }
+ },
+ {
+  "numero": 164,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.003",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão para Passivo de Obrigações Trabalhistas",
+   "Tipo": "A",
+   "Conta Reduzida": "2011"
+  }
+ },
+ {
+  "numero": 165,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.004",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão para Passivo de Riscos Trabalhistas",
+   "Tipo": "A",
+   "Conta Reduzida": "2012"
+  }
+ },
+ {
+  "numero": 166,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.005",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão p/plano de invest. e desenv.",
+   "Tipo": "A",
+   "Conta Reduzida": "2013"
+  }
+ },
+ {
+  "numero": 167,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.006",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão p/conting. de Pas. Tribut. - TP001/06",
+   "Tipo": "A",
+   "Conta Reduzida": "2204"
+  }
+ },
+ {
+  "numero": 168,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.007",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão p/Pas. de obrig. trab. e enc. sociais - TP001/06",
+   "Tipo": "A",
+   "Conta Reduzida": "2214"
+  }
+ },
+ {
+  "numero": 169,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.008",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão p/riscos trabalhistas - TP001/06",
+   "Tipo": "A",
+   "Conta Reduzida": "2224"
+  }
+ },
+ {
+  "numero": 170,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.009",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão p/Implem. Plano de Cargos e Remuneração + Encargos",
+   "Tipo": "A",
+   "Conta Reduzida": "2244"
+  }
+ },
+ {
+  "numero": 171,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.010",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão para Insalubridade",
+   "Tipo": "A",
+   "Conta Reduzida": "2274"
+  }
+ },
+ {
+  "numero": 172,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.011",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão para Periculosidade",
+   "Tipo": "A",
+   "Conta Reduzida": "2284"
+  }
+ },
+ {
+  "numero": 173,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.8.012",
+   "Conta Superior": "4.1.1.8",
+   "Descrição": "Provisão para Sobreaviso",
+   "Tipo": "A",
+   "Conta Reduzida": "2294"
+  }
+ },
+ {
+  "numero": 174,
+  "celulas": {
+   "Nível": "4",
+   "Classificação": "4.1.1.9",
+   "Conta Superior": "4.1.1",
+   "Descrição": "PROJETOS",
+   "Tipo": "S",
+   "Conta Reduzida": null
+  }
+ },
+ {
+  "numero": 175,
+  "celulas": {
+   "Nível": "5",
+   "Classificação": "4.1.1.9.001",
+   "Conta Superior": "4.1.1.9",
+   "Descrição": "Projetos, desenvolvimento e pesquisas",
+   "Tipo": "A",
+   "Conta Reduzida": "2854"
+  }
+ }
+]
