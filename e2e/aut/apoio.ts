@@ -17,6 +17,9 @@ export const USUARIOS = {
   orcamentista: { login: 'orc.menu', nome: 'E2E Orçamentista Menu', perfil: 'ORCAMENTISTA' },
   bloqueio: { login: 'orc.bloqueio', nome: 'E2E Orçamentista Bloqueio', perfil: 'ORCAMENTISTA' },
   manutencao: { login: 'orc.manut', nome: 'E2E Orçamentista Manutenção', perfil: 'ORCAMENTISTA' },
+  // Cadastro de usuários (e2e/adm/usuarios.spec.ts, US-038).
+  cadastro: { login: 'adm.usuarios', nome: 'E2E Administrador Usuários', perfil: 'ADMINISTRADOR' },
+  desbloqueio: { login: 'orc.desbloq', nome: 'E2E Orçamentista Desbloqueio', perfil: 'ORCAMENTISTA' },
 } as const;
 
 export async function entrar(page: Page, login: string, senha: string): Promise<void> {

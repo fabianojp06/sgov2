@@ -87,6 +87,8 @@ describe('seedAdm', () => {
     ]);
     expect(perfis.every((p) => p.ativo)).toBe(true);
     expect(await permissoes('ADMINISTRADOR', 'adm.usuarios')).toEqual(['alterar', 'consultar', 'incluir']);
+    // Ajuda da tela (UC01.03, ícone de ajuda do menu).
+    expect((await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'adm.usuarios' } })).ajuda).toMatch(/senha.*e-mail/);
     const outros = await cliente.perfilPermissao.count({
       where: { funcionalidadeCodigo: 'adm.usuarios', perfil: { codigo: { not: 'ADMINISTRADOR' } } },
     });

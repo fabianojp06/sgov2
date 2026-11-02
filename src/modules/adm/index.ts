@@ -13,21 +13,26 @@ export {
   type UsuarioParaLogin,
 } from './application/login';
 export { gravarNovaSenha } from './application/senhas';
+export { alterar, cadastrar, desbloquear, gerarNovaSenha } from './application/acoes-usuarios';
 export {
   alterarUsuario,
   cadastrarUsuario,
   desbloquearUsuario,
+  listarOpcoesUsuario,
   listarUsuarios,
   obterUsuario,
   resetarSenha,
   type DepsAdm,
   type DetalheUsuario,
   type ItemListaUsuario,
+  type OpcoesUsuario,
 } from './application/usuarios';
 export { normalizarLogin } from './domain/login';
 export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { esquemaUsuario, MENSAGENS_USUARIO, type EntradaUsuario } from './domain/usuario';
 export { validarSenha, type PoliticaSenha } from './domain/politica-senha';
+export { FormUsuario } from './ui/form-usuario';
+export { ListaUsuarios } from './ui/lista-usuarios';
 export { seedAdministradorInicial } from './infrastructure/admin-inicial';
 export { gerarSenhaTemporaria } from './infrastructure/gerar-senha';
 export { seedAdm } from './infrastructure/seed';
