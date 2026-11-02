@@ -265,6 +265,46 @@ describe('carga do plano de contas', () => {
     expect((await estado(id)).erros).toEqual([{ linha: 7, mensagem: 'Linha adulterada no staging.' }]);
   });
 
+  it('revalidação no worker (S-N3): descrição fora da saída do domínio (espaços, marca vedada) → FALHOU na linha', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const sigla = ['C', 'T', 'C', 'E', 'A'].join('');
+    for (const descricao of ['  Salários  ', `Salários ${sigla}`]) {
+      await zerar();
+      const id = await carregar();
+      await migrator.query(`UPDATE carga_estrutura_linha SET dados = jsonb_set(dados, '{descricao}', to_jsonb($2::text)) WHERE carga_id = $1 AND numero = 6`, [
+        id,
+        descricao,
+      ]);
+      await processador().executarCiclo();
+      expect((await estado(id)).erros).toEqual([{ linha: 6, mensagem: 'Linha adulterada no staging.' }]);
+      expect(await sync.contaContabil.count()).toBe(0);
+    }
+  });
+
+  it('revalidação no worker: linha a mais no staging (o sgo_app só insere) → FALHOU', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const id = await carregar();
+    // Uma cópia da linha 7 com outro número (o efeito de um INSERT a mais do sgo_app no staging).
+    await migrator.query(`INSERT INTO carga_estrutura_linha (carga_id, numero, dados)
+      SELECT carga_id, 999, jsonb_set(dados, '{linha}', '999') FROM carga_estrutura_linha WHERE carga_id = $1 AND numero = 7`, [id]);
+    await processador().executarCiclo();
+    expect(await estado(id)).toMatchObject({ situacao: 'FALHOU', erros: [{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }] });
+  });
+
+  it('o trigger recusa reativar um filho sob sintética inativa (M-n3, ramo do filho)', async () => {
+    await carregar();
+    await processador().executarCiclo();
+    await sync.$transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE conta_contabil SET ativa = false, inativada_em = now() WHERE classificacao LIKE '4.1.1.5%'`;
+    });
+    await expect(
+      sync.$transaction(async (tx) => {
+        await tx.$executeRaw`UPDATE conta_contabil SET ativa = true, inativada_em = NULL WHERE classificacao = '4.1.1.5.005'`;
+        await tx.$executeRaw`SET CONSTRAINTS ALL IMMEDIATE`;
+      }),
+    ).rejects.toThrow(/ativa sob conta superior inativa/);
+  });
+
   it('sgo_app não muda a situação do lote nem grava resultado no INSERT (S-N3)', async () => {
     const id = await carregar();
     await expect(app.$executeRaw`UPDATE carga_estrutura SET situacao = 'CONCLUIDA' WHERE id = ${id}::uuid`).rejects.toThrow(/permission denied/);

@@ -46,7 +46,7 @@ const porLinha = (erros: readonly ErroLinha[]): ErroCampo[] =>
 // Violação do índice único parcial de lote em andamento (pelo SQL explícito, vem como erro bruto).
 function emAndamento(e: unknown): boolean {
   if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  return e.code === 'P2002' || e.message.includes('carga_estrutura_grupo_andamento_key');
+  return e.message.includes('carga_estrutura_grupo_andamento_key') || JSON.stringify(e.meta ?? {}).includes('carga_estrutura_grupo_andamento_key');
 }
 
 /**
@@ -58,7 +58,7 @@ export async function solicitarCargaPlanoContas(
   ctx: ContextoRequisicao,
   arquivo: ArquivoCarga,
   deps: { cliente?: PrismaClient } = {},
-): Promise<Resultado<{ cargaId: string }>> {
+): Promise<Resultado<{ cargaId: string; avisos: readonly ErroLinha[] }>> {
   exigir(ctx, 'cad.plano_contas', 'executar');
   const cliente = deps.cliente ?? prisma;
 
@@ -98,7 +98,8 @@ export async function solicitarCargaPlanoContas(
     if (emAndamento(e)) return falha([{ campo: 'arquivo', mensagem: EM_ANDAMENTO }]);
     throw e;
   }
-  return ok({ cargaId });
+  // Os avisos (descrição saneada) só existem aqui: o staging já vai saneado.
+  return ok({ cargaId, avisos: validado.avisos });
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -48,7 +48,21 @@ class ErroStaging extends Error {
   }
 }
 
-type Lote = { id: string; tipo: string; grupo: string; contexto_auditoria: unknown };
+type Lote = { id: string; tipo: string; grupo: string; linhas: number; contexto_auditoria: unknown };
+
+// Diagnóstico para o log: classe, código do Prisma/Postgres e a mensagem do banco (cita só
+// estrutura, como a classificação; nunca o conteúdo de uma linha do staging).
+function diagnostico(e: unknown): Record<string, unknown> {
+  if (!(e instanceof Error)) return { erro: 'desconhecido' };
+  const d: Record<string, unknown> = { erro: e.name };
+  if (e instanceof Prisma.PrismaClientKnownRequestError) Object.assign(d, { code: e.code, meta: e.meta });
+  if (e instanceof Prisma.PrismaClientKnownRequestError || e instanceof Prisma.PrismaClientUnknownRequestError) {
+    d.mensagem = e.message.split('\n').slice(-1)[0]?.slice(0, 300);
+  } else if (!(e instanceof ErroStaging) && !(e instanceof ErroCargaLinhas) && e.name !== 'ZodError') {
+    d.mensagem = e.message.slice(0, 300);
+  }
+  return d;
+}
 
 // Mensagem gravada no lote: nunca com valores (R6). O detalhe por linha vai em `erros`.
 function mensagemDeFalha(e: unknown): { erro: string; erros: readonly ErroLinha[]; codigo: string } {
@@ -60,7 +74,11 @@ function mensagemDeFalha(e: unknown): { erro: string; erros: readonly ErroLinha[
   return { erro: 'Falha ao aplicar a carga.', erros: [], codigo: 'cad.carga_falhou' };
 }
 
-function revalidar(linhas: readonly { numero: number; dados: unknown }[]): LinhaPlanoValidada[] {
+const CAMPOS_LINHA = ['linha', 'classificacao', 'codigoReduzido', 'descricao', 'nivel', 'tipo', 'classificacaoPai'] as const;
+
+function revalidar(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): LinhaPlanoValidada[] {
+  // O sgo_app só insere no staging: linha a mais ou a menos que o lote declarou não é desta carga.
+  if (linhas.length !== esperadas) throw new ErroStaging([{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }]);
   const erros: ErroLinha[] = [];
   const validas: LinhaPlanoValidada[] = [];
   for (const l of linhas) {
@@ -72,10 +90,11 @@ function revalidar(linhas: readonly { numero: number; dados: unknown }[]): Linha
   // O mesmo domínio do app, de novo, sobre o que está no staging (S-N3).
   const r = validarPlanoContas(validas.map(paraLinhaLida), sanearDescricao);
   if (!r.ok) throw new ErroStaging(r.erros);
+  // O staging tem de ser exatamente a saída do domínio (descrição saneada etc.); grava-se a saída.
   const porLinha = new Map(r.contas.map((c) => [c.linha, c]));
-  const divergentes = validas.filter((v) => JSON.stringify(porLinha.get(v.linha)) !== JSON.stringify(v));
+  const divergentes = validas.filter((v) => CAMPOS_LINHA.some((k) => porLinha.get(v.linha)?.[k] !== v[k]));
   if (divergentes.length > 0) throw new ErroStaging(divergentes.map((d) => ({ linha: d.linha, mensagem: 'Linha adulterada no staging.' })));
-  return validas;
+  return [...r.contas];
 }
 
 export function iniciarProcessadorCargas(deps: {
@@ -93,6 +112,7 @@ export function iniciarProcessadorCargas(deps: {
   const cliente = deps.clienteSync;
   let avisouSemSync = false;
   let emAndamento: Promise<void> | null = null;
+  let parando = false;
 
   async function falhar(id: string, erro: string, erros: readonly ErroLinha[]): Promise<void> {
     await cliente!.$transaction(async (tx) => {
@@ -122,7 +142,7 @@ export function iniciarProcessadorCargas(deps: {
     try {
       const processou = await cliente!.$transaction(
         async (tx) => {
-          const [lote] = await tx.$queryRaw<Lote[]>`SELECT "id", "tipo"::text AS tipo, "grupo", "contexto_auditoria"
+          const [lote] = await tx.$queryRaw<Lote[]>`SELECT "id", "tipo"::text AS tipo, "grupo", "linhas", "contexto_auditoria"
             FROM "carga_estrutura" WHERE "situacao" = 'PENDENTE' ORDER BY "criado_em" LIMIT 1 FOR UPDATE SKIP LOCKED`;
           if (!lote) return false;
           loteId = lote.id;
@@ -138,7 +158,7 @@ export function iniciarProcessadorCargas(deps: {
           const lido = contextoLote.parse(lote.contexto_auditoria);
           const contexto: ContextoAuditoria = { ...lido, unidadeId: lido.unidadeId ?? null };
           const staging = await tx.cargaEstruturaLinha.findMany({ where: { cargaId: lote.id }, orderBy: { numero: 'asc' } });
-          const linhas = revalidar(staging);
+          const linhas = revalidar(staging, lote.linhas);
           const r = await aplicarCarga(tx, contexto, { id: lote.id, tipo: 'PLANO_CONTAS' }, linhas);
           await tx.cargaEstrutura.update({
             where: { id: lote.id },
@@ -162,7 +182,7 @@ export function iniciarProcessadorCargas(deps: {
     } catch (e) {
       if (loteId === null) throw e;
       const f = mensagemDeFalha(e);
-      console.error('[CARGA_FALHOU]', { cargaId: loteId, codigo: f.codigo });
+      console.error('[CARGA_FALHOU]', { cargaId: loteId, codigo: f.codigo, ...diagnostico(e) });
       await falhar(loteId, f.erro, f.erros);
       return true;
     }
@@ -182,7 +202,7 @@ export function iniciarProcessadorCargas(deps: {
     }
     await limpar();
     // Processa os pendentes um por vez, cada um na sua transação.
-    while (await processarUm());
+    while (!parando && (await processarUm()));
   }
 
   function executarCiclo(): Promise<void> {
@@ -196,12 +216,14 @@ export function iniciarProcessadorCargas(deps: {
     deps.automatico === false
       ? null
       : setInterval(() => {
-          executarCiclo().catch((e: unknown) => console.error('[CARGA_CICLO_FALHOU]', { erro: e instanceof Error ? e.name : 'desconhecido' }));
+          executarCiclo().catch((e: unknown) => console.error('[CARGA_CICLO_FALHOU]', diagnostico(e)));
         }, deps.intervaloMs ?? INTERVALO_MS);
 
   return {
     executarCiclo,
     async parar() {
+      // O lote em andamento termina; os seguintes ficam PENDENTE para o próximo worker.
+      parando = true;
       if (intervalo) clearInterval(intervalo);
       await emAndamento?.catch(() => undefined);
     },

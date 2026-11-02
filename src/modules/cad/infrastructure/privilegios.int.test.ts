@@ -45,13 +45,18 @@ describe('privilégios do cad (R6)', () => {
     ]);
   });
 
-  it('nas colunas: o INSERT do app no lote é só nas colunas de entrada (S-N3)', async () => {
-    const { rows } = await migrator.query<{ coluna: string }>(
-      `SELECT column_name AS coluna FROM information_schema.column_privileges
-       WHERE table_name = 'carga_estrutura' AND grantee = 'sgo_app' AND privilege_type = 'INSERT' ORDER BY 1`,
+  it('nas colunas: só o INSERT do app no lote, nas colunas de entrada (S-N3); nenhum outro privilégio de coluna', async () => {
+    // ACL de coluna direto do catálogo: o role_table_grants não mostra privilégio só de coluna.
+    const { rows } = await migrator.query<{ l: string }>(
+      `SELECT c.relname || '.' || a.attname || ' ' || r.rolname || ' ' || x.privilege_type AS l
+       FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid, aclexplode(a.attacl) x JOIN pg_roles r ON r.oid = x.grantee
+       WHERE c.relname = ANY($1) AND r.rolname = ANY($2) AND a.attacl IS NOT NULL ORDER BY 1`,
+      [TABELAS, PAPEIS],
     );
-    expect(rows.map((r) => r.coluna)).toEqual(
-      ['aprovacao_data', 'aprovacao_documento', 'arquivo_nome', 'arquivo_sha256', 'contexto_auditoria', 'id', 'linhas', 'provisoria', 'tipo'].sort(),
+    expect(rows.map((r) => r.l)).toEqual(
+      ['aprovacao_data', 'aprovacao_documento', 'arquivo_nome', 'arquivo_sha256', 'contexto_auditoria', 'id', 'linhas', 'provisoria', 'tipo']
+        .map((c) => `carga_estrutura.${c} sgo_app INSERT`)
+        .sort(),
     );
   });
 

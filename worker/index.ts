@@ -95,8 +95,7 @@ async function iniciar(): Promise<void> {
     clearInterval(temporizador);
     try {
       if (drenar) await emCurso; // drena a publicação em andamento antes de fechar as conexões
-      await cargas.parar();
-      await fila.parar();
+      await Promise.all([cargas.parar(), fila.parar()]);
     } finally {
       await Promise.allSettled([prisma.$disconnect(), clienteSync?.$disconnect()]);
     }

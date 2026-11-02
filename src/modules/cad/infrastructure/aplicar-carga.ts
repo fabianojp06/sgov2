@@ -63,7 +63,7 @@ export async function aplicarCarga(
 
   for (const classificacao of plano.inativar) {
     const antes = porClassificacao.get(classificacao)!;
-    await tx.contaContabil.update({ where: { id: antes.id }, data: { ativa: false, inativadaEm: agora } });
+    await tx.contaContabil.update({ where: { id: antes.id }, data: { ativa: false, inativadaEm: agora, cargaId: carga.id } });
     await auditar(tx, {
       contexto,
       funcionalidade: FUNCIONALIDADE,
