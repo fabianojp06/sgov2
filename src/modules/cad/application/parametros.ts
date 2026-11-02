@@ -2,8 +2,8 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma, type TxCliente } from '@/shared/db';
-import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
-import { validarParametros, validarSalarioMinimo, type EntradaParametros, type ParametrosExercicio } from '../domain/parametros';
+import { Dinheiro, ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
+import { COMPONENTES_COM_CONTA, validarParametros, validarSalarioMinimo, type EntradaParametros, type ParametrosExercicio } from '../domain/parametros';
 import { carregarIndiceEstrutura } from '../infrastructure/estrutura-financeira';
 import { lerParametrosExercicio, tocarVersaoExercicio } from '../infrastructure/parametro-sistema';
 
@@ -39,10 +39,25 @@ async function recusarOrigemBlindada(cliente: PrismaClient, ctx: ContextoRequisi
   throw new ErroDominio('cad.violacao_governanca', 'O pedido tem campos que não podem ser alterados pela tela.', { campos });
 }
 
+// Também nos itens de encargo e nas contas, onde `provisorio` e `nome` não vêm da tela.
 function camposBlindados(bruto: unknown): string[] {
   if (bruto === null || typeof bruto !== 'object') return [];
-  return CAMPOS_ORIGEM_BLINDADA.filter((c) => Object.hasOwn(bruto, c));
+  const achados: string[] = CAMPOS_ORIGEM_BLINDADA.filter((c) => Object.hasOwn(bruto, c));
+  const b = bruto as { encargos?: unknown; contas?: unknown };
+  if (Array.isArray(b.encargos)) {
+    b.encargos.forEach((e: unknown, i) => {
+      if (e && typeof e === 'object') for (const c of ['provisorio', 'nome']) if (Object.hasOwn(e, c)) achados.push(`encargos.${i}.${c}`);
+    });
+  }
+  if (b.contas && typeof b.contas === 'object' && Object.hasOwn(b.contas, 'provisorio')) achados.push('contas.provisorio');
+  return achados;
 }
+
+// ano e versao vêm da tela: inteiros, ou erro de formulário (nunca 500 nem concorrência desligada).
+function anoEVersaoValidos(ano: number, versao: number): boolean {
+  return Number.isInteger(ano) && ano >= 2000 && ano <= 2099 && Number.isInteger(versao) && versao >= 1;
+}
+const ERRO_ANO_VERSAO = falha([{ campo: '_', mensagem: 'Exercício ou versão inválidos. Recarregue a tela.' }]);
 
 // Erros de domínio esperados viram erro de formulário; o resto sobe.
 function comoResultado(e: unknown): Resultado<void> {
@@ -67,6 +82,7 @@ export async function alterarParametrosExercicio(
 ): Promise<Resultado<void>> {
   exigir(ctx, 'cad.parametros', 'alterar');
   const cliente = deps.cliente ?? prisma;
+  if (!anoEVersaoValidos(ano, versao)) return ERRO_ANO_VERSAO;
   const blindados = camposBlindados(dados);
   if (blindados.length > 0) return recusarOrigemBlindada(cliente, ctx, 'cad.parametros', ano, blindados);
   try {
@@ -94,8 +110,8 @@ export async function alterarParametrosExercicio(
           data: { percentual: e.percentual.paraString(), conta: e.conta },
         });
       }
-      for (const [componente, conta] of Object.entries(v.valor.contas)) {
-        await tx.contaComponenteExercicio.update({ where: { ano_componente: { ano, componente } }, data: { conta } });
+      for (const componente of COMPONENTES_COM_CONTA) {
+        await tx.contaComponenteExercicio.update({ where: { ano_componente: { ano, componente } }, data: { conta: v.valor.contas[componente] } });
       }
       await auditar(tx, {
         contexto: contextoDe(ctx),
@@ -123,6 +139,7 @@ export async function alterarSalarioMinimo(
 ): Promise<Resultado<void>> {
   exigir(ctx, 'cad.salario_minimo', 'alterar');
   const cliente = deps.cliente ?? prisma;
+  if (!anoEVersaoValidos(ano, versao)) return ERRO_ANO_VERSAO;
   const v = validarSalarioMinimo(valor);
   if (!v.ok) return v;
   try {
@@ -136,7 +153,7 @@ export async function alterarSalarioMinimo(
         tipo: 'ALTERACAO',
         registroId: String(ano),
         descricao: `Salário mínimo de ${ano} alterado`,
-        antes: { salarioMinimo: antes?.salarioMinimo?.toString() ?? null },
+        antes: { salarioMinimo: antes?.salarioMinimo ? Dinheiro.de(antes.salarioMinimo.toString()) : null },
         depois: { salarioMinimo: v.valor },
       });
       return ok(undefined);

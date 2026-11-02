@@ -35,6 +35,8 @@ export type ParametrosValidados = {
 export type ParametrosExercicio = Omit<PremissasExercicio, 'beneficios' | 'avisos'> & {
   diasUteisMes: number;
   semaforo: FaixasSemaforo;
+  /** Componentes com dado provisório (R14, GAP-CAR-005): a tela mostra o selo "Provisório". */
+  provisorios: readonly ComponenteFixo[];
 };
 
 const TEXTO_PERCENTUAL = /^-?\d{1,5}(\.\d{1,4})?$/;
@@ -93,7 +95,10 @@ export function validarParametros(e: EntradaParametros, contaValida: (classifica
   if (soma.gt(1)) erros.push({ campo: 'encargos', mensagem: 'A soma dos encargos não pode passar de 100%.' });
 
   for (const c of COMPONENTES_COM_CONTA) {
-    if (!contaValida(e.contas[c])) erros.push({ campo: `contas.${c}`, mensagem: 'A conta deve ser analítica e ativa.' });
+    if (typeof e.contas[c] !== 'string' || !contaValida(e.contas[c])) erros.push({ campo: `contas.${c}`, mensagem: 'A conta deve ser analítica e ativa.' });
+  }
+  for (const c of Object.keys(e.contas)) {
+    if (!(COMPONENTES_COM_CONTA as readonly string[]).includes(c)) erros.push({ campo: `contas.${c}`, mensagem: 'Componente desconhecido.' });
   }
 
   if (erros.length > 0 || !reajuste || !ipca || !verde || !amarelo || !laranja) return falha(erros);
@@ -104,7 +109,7 @@ export function validarParametros(e: EntradaParametros, contaValida: (classifica
     diasUteisMes: e.diasUteisMes,
     semaforo: { verdeAte: verde, amareloAte: amarelo, laranjaAte: laranja },
     encargos,
-    contas: { ...e.contas },
+    contas: Object.fromEntries(COMPONENTES_COM_CONTA.map((c) => [c, e.contas[c]])) as ParametrosValidados['contas'],
   });
 }
 

@@ -100,11 +100,8 @@ describe('privilégios do cad (R6)', () => {
     expect(colunas.rows.map((r) => r.l)).toEqual(
       [
         'conta_componente_exercicio.conta',
-        'conta_componente_exercicio.provisorio',
         'encargo_exercicio.conta',
-        'encargo_exercicio.nome',
         'encargo_exercicio.percentual',
-        'encargo_exercicio.provisorio',
         'parametro_sistema.valor',
         ...['atualizado_em', 'congelado_em', 'dias_uteis_mes', 'ipca', 'mes_data_base', 'provisorio', 'reajuste', 'salario_minimo',
           'semaforo_amarelo_ate', 'semaforo_laranja_ate', 'semaforo_verde_ate', 'versao'].map((c) => `parametros_exercicio.${c}`),

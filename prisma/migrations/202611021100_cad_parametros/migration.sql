@@ -85,10 +85,16 @@ BEGIN
     END IF;
     RETURN NEW;
   END IF;
-  ano_alvo := CASE WHEN TG_OP = 'DELETE' THEN OLD."ano" ELSE NEW."ano" END;
-  IF EXISTS (SELECT 1 FROM "parametros_exercicio" WHERE "ano" = ano_alvo AND "congelado_em" IS NOT NULL) THEN
-    RAISE EXCEPTION 'Os parâmetros do exercício % estão congelados', ano_alvo USING ERRCODE = 'check_violation';
-  END IF;
+  -- No UPDATE, os dois anos: tirar uma linha de um ano congelado também é mudar esse ano.
+  FOR ano_alvo IN
+    SELECT a FROM unnest(ARRAY[CASE WHEN TG_OP <> 'INSERT' THEN OLD."ano" END, CASE WHEN TG_OP <> 'DELETE' THEN NEW."ano" END]) AS a
+    WHERE a IS NOT NULL
+  LOOP
+    PERFORM 1 FROM "parametros_exercicio" WHERE "ano" = ano_alvo FOR SHARE;
+    IF EXISTS (SELECT 1 FROM "parametros_exercicio" WHERE "ano" = ano_alvo AND "congelado_em" IS NOT NULL) THEN
+      RAISE EXCEPTION 'Os parâmetros do exercício % estão congelados', ano_alvo USING ERRCODE = 'check_violation';
+    END IF;
+  END LOOP;
   RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END $$;
 CREATE TRIGGER "parametros_exercicio_congelado" BEFORE UPDATE ON "parametros_exercicio"
@@ -103,13 +109,14 @@ REVOKE ALL ON "parametros_exercicio", "encargo_exercicio", "conta_componente_exe
 REVOKE DELETE ON "parametros_exercicio", "encargo_exercicio", "conta_componente_exercicio", "parametro_sistema" FROM sgo_app;
 -- Chaves e congelamento só pelo caminho certo: o app cria o ano (garantir), altera os valores e
 -- congela; a chave do parâmetro do sistema vem da seed.
+-- `provisorio` sai quando a GFIN confirma os parâmetros (Task 9b); `congelado_em` é o congelar do C2.
 REVOKE UPDATE ON "parametros_exercicio" FROM sgo_app;
 GRANT UPDATE ("reajuste", "mes_data_base", "ipca", "salario_minimo", "dias_uteis_mes", "semaforo_verde_ate",
   "semaforo_amarelo_ate", "semaforo_laranja_ate", "provisorio", "congelado_em", "versao", "atualizado_em")
   ON "parametros_exercicio" TO sgo_app;
 REVOKE UPDATE ON "encargo_exercicio" FROM sgo_app;
-GRANT UPDATE ("nome", "percentual", "conta", "provisorio") ON "encargo_exercicio" TO sgo_app;
+GRANT UPDATE ("percentual", "conta") ON "encargo_exercicio" TO sgo_app;
 REVOKE UPDATE ON "conta_componente_exercicio" FROM sgo_app;
-GRANT UPDATE ("conta", "provisorio") ON "conta_componente_exercicio" TO sgo_app;
+GRANT UPDATE ("conta") ON "conta_componente_exercicio" TO sgo_app;
 REVOKE INSERT, UPDATE ON "parametro_sistema" FROM sgo_app;
 GRANT UPDATE ("valor") ON "parametro_sistema" TO sgo_app;

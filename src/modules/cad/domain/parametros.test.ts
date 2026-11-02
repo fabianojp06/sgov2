@@ -42,6 +42,8 @@ describe('validarParametros', () => {
     ['dias úteis 0', { diasUteisMes: 0 }, 'diasUteisMes'],
     ['faixas fora de ordem', { semaforo: { verdeAte: '85', amareloAte: '70', laranjaAte: '95' } }, 'semaforo'],
     ['faixas iguais', { semaforo: { verdeAte: '70', amareloAte: '70', laranjaAte: '95' } }, 'semaforo'],
+    ['IPCA abaixo de -100', { ipca: '-100.01' }, 'ipca'],
+    ['semáforo acima de 999', { semaforo: { verdeAte: '70', amareloAte: '85', laranjaAte: '999.01' } }, 'semaforo.laranjaAte'],
   ] as const)('%s → erro', (_caso, e, campo) => {
     expect(campos(e as Partial<EntradaParametros>)).toContain(campo);
   });
@@ -52,6 +54,8 @@ describe('validarParametros', () => {
     expect(campos({ encargos: [{ ...enc[0]!, percentual: '90' }, ...enc.slice(1)] })).toContain('encargos');
     expect(campos({ encargos: enc.slice(1) })).toContain('encargos');
     expect(campos({ encargos: [...enc, enc[0]!] })).toContain('encargos.5.componente');
+    // Soma exatamente 100 é aceita (o limite é "não passar de 100").
+    expect(campos({ encargos: [{ ...enc[0]!, percentual: '87' }, ...enc.slice(1)] })).toEqual([]);
   });
 
   it('conta que não é analítica ativa (índice do C1) → erro no encargo e no componente', () => {
@@ -64,6 +68,10 @@ describe('validarSalarioMinimo', () => {
   it('válido com 2 casas', () => {
     const r = validarSalarioMinimo('1518,00');
     expect(r.ok && r.valor.paraString()).toBe('1518.00');
+  });
+
+  it('999999,99 é o maior aceito', () => {
+    expect(validarSalarioMinimo('999999,99').ok).toBe(true);
   });
 
   it.each(['0', '0.00', '-1', '1518.001', 'mil', '1000000.00'])('%s → erro', (v) => {

@@ -10,6 +10,7 @@ describe('classificarSemaforo', () => {
     ['70.00', 'VERDE'],
     ['70.01', 'AMARELO'],
     ['85.00', 'AMARELO'],
+    ['85.01', 'LARANJA'],
     ['95.00', 'LARANJA'],
     ['95.01', 'VERMELHO'],
     ['131.91', 'VERMELHO'],

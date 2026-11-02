@@ -80,6 +80,7 @@ describe('parâmetros por exercício', () => {
     expect(p!.reajuste.paraString()).toBe('5.0000');
     expect(p!.semaforo.amareloAte.paraString()).toBe('85.0000');
     expect(p!.encargos.reduce((t, e) => t + Number(e.percentual.paraString()), 0)).toBeCloseTo(51);
+    expect(p!.provisorios).toEqual(['adicional', 'encargo.obrigacoes', 'encargo.riscos']);
     expect(await obterParametroSistema(app, 'instituicao.nome_exibicao')).toBe('');
   });
 
@@ -110,9 +111,32 @@ describe('parâmetros por exercício', () => {
     expect(await versao()).toBe(v + 1);
     expect((await ultimoHistorico()).depois).toEqual({ salarioMinimo: '1518.00' });
     v = await versao();
+    expect((await alterarSalarioMinimo(grh(), 2027, v, '1520', { cliente: app })).ok).toBe(true);
+    expect((await ultimoHistorico()).antes).toEqual({ salarioMinimo: '1518.00' });
+    v = await versao();
     const mudaEncargo = { ...entrada, encargos: [{ ...entrada.encargos[0]!, percentual: '36' }, ...entrada.encargos.slice(1)] };
     expect((await alterarParametrosExercicio(gfin(), 2027, v, mudaEncargo, { cliente: app })).ok).toBe(true);
     expect(await versao()).toBe(v + 1);
+    v = await versao();
+    const mudaConta = { ...mudaEncargo, contas: { ...entrada.contas, adicional: '4.1.1.1.014' } };
+    expect((await alterarParametrosExercicio(gfin(), 2027, v, mudaConta, { cliente: app })).ok).toBe(true);
+    expect(await versao()).toBe(v + 1);
+    expect((await migrator.query(`SELECT conta FROM conta_componente_exercicio WHERE ano = 2027 AND componente = 'adicional'`)).rows[0].conta).toBe(
+      '4.1.1.1.014',
+    );
+  });
+
+  it('chave desconhecida em contas, ano ou versão inválidos → erro de formulário, nada gravado', async () => {
+    const v = await versao();
+    const extra = { ...entrada, contas: { ...entrada.contas, 'encargo.inss': '4.1.1.1.001' } } as unknown as EntradaParametros;
+    expect(await alterarParametrosExercicio(gfin(), 2027, v, extra, { cliente: app })).toEqual({
+      ok: false,
+      erros: [{ campo: 'contas.encargo.inss', mensagem: 'Componente desconhecido.' }],
+    });
+    for (const [ano, ver] of [[2027.5, v], [2027, Number.NaN], [2027, 0]] as const) {
+      expect((await alterarParametrosExercicio(gfin(), ano, ver, entrada, { cliente: app })).ok).toBe(false);
+    }
+    expect(await versao()).toBe(v);
   });
 
   it('permissão: a GRH altera o SMN, mas não os parâmetros (ErroPermissao)', async () => {
@@ -120,12 +144,20 @@ describe('parâmetros por exercício', () => {
   });
 
   it('origem blindada (M4): provisorio ou versao no payload → recusado e auditado, nada muda', async () => {
-    for (const campo of ['provisorio', 'versao', 'congeladoEm']) {
+    const contar = async () => (await migrator.query(`SELECT count(*)::int AS n FROM historico_operacao WHERE descricao LIKE 'cad.violacao_governanca%'`)).rows[0].n as number;
+    const brutos = [
+      ...['provisorio', 'versao', 'congeladoEm'].map((campo) => ({ ...entrada, [campo]: false })),
+      { ...entrada, encargos: [{ ...entrada.encargos[0]!, provisorio: false }, ...entrada.encargos.slice(1)] },
+      { ...entrada, contas: { ...entrada.contas, provisorio: false } },
+    ];
+    for (const bruto of brutos) {
       const v = await versao();
-      const bruto = { ...entrada, [campo]: false } as unknown as EntradaParametros;
-      await expect(alterarParametrosExercicio(gfin(), 2027, v, bruto, { cliente: app })).rejects.toMatchObject({ codigo: 'cad.violacao_governanca' });
+      const n = await contar();
+      await expect(alterarParametrosExercicio(gfin(), 2027, v, bruto as unknown as EntradaParametros, { cliente: app })).rejects.toMatchObject({
+        codigo: 'cad.violacao_governanca',
+      });
       expect(await versao()).toBe(v);
-      expect((await ultimoHistorico()).descricao).toContain('cad.violacao_governanca');
+      expect(await contar()).toBe(n + 1);
     }
   });
 
@@ -141,11 +173,21 @@ describe('parâmetros por exercício', () => {
     expect(await versao()).toBe(v);
   });
 
+  it('garantir concorrente do mesmo ano: as duas chamadas terminam, uma cria', async () => {
+    const [a, b] = await Promise.all([
+      app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2040)),
+      app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2040)),
+    ]);
+    expect(a.ano).toBe(2040);
+    expect(b.ano).toBe(2040);
+    expect((await migrator.query('SELECT count(*)::int AS n FROM encargo_exercicio WHERE ano = 2040')).rows[0].n).toBe(5);
+  });
+
   it('garantir(2028) copia 2027 e audita; a segunda chamada não faz nada; sem ano anterior, usa os padrões', async () => {
     const p = await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2028));
     expect(p).toMatchObject({ ano: 2028, versao: 1, beneficios: [] });
     expect(p.reajuste.paraString()).toBe('6.0000');
-    expect(p.salarioMinimo?.paraString()).toBe('1518.00');
+    expect(p.salarioMinimo?.paraString()).toBe('1520.00');
     const n = (await migrator.query('SELECT count(*)::int AS n FROM historico_operacao')).rows[0].n;
     await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2028));
     expect((await migrator.query('SELECT count(*)::int AS n FROM historico_operacao')).rows[0].n).toBe(n);
@@ -165,6 +207,22 @@ describe('parâmetros por exercício', () => {
       /congelados/,
     );
     await expect(migrator.query(`UPDATE parametros_exercicio SET congelado_em = NULL WHERE ano = 2027`)).rejects.toThrow(/congelados/);
+    expect(await alterarParametrosExercicio(gfin(), 2027, v, entrada, { cliente: app })).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: expect.stringContaining('congelados') }],
+    });
+    // Defesa no banco, como o dono das tabelas: INSERT, DELETE, UPDATE e troca de ano, nas duas tabelas filhas.
+    await expect(migrator.query(`DELETE FROM encargo_exercicio WHERE ano = 2027 AND componente = 'encargo.pis'`)).rejects.toThrow(/congelados/);
+    await expect(migrator.query(`UPDATE conta_componente_exercicio SET conta = 'x' WHERE ano = 2027`)).rejects.toThrow(/congelados/);
+    await expect(migrator.query(`UPDATE encargo_exercicio SET ano = 2028 WHERE ano = 2027 AND componente = 'encargo.pis'`)).rejects.toThrow(/congelados/);
+    await migrator.query(`DELETE FROM encargo_exercicio WHERE ano = 2028 AND componente = 'encargo.riscos'`);
+    await migrator.query(`UPDATE parametros_exercicio SET congelado_em = now() WHERE ano = 2028`);
+    await expect(
+      migrator.query(`INSERT INTO encargo_exercicio (ano, componente, nome, percentual, conta) VALUES (2028, 'encargo.riscos', 'R', 0.2, '4.1.1.8.004')`),
+    ).rejects.toThrow(/congelados/);
+    await expect(
+      migrator.query(`INSERT INTO conta_componente_exercicio (ano, componente, conta) VALUES (2028, 'salario', '4.1.1.1.001') ON CONFLICT DO NOTHING`),
+    ).rejects.toThrow(/congelados/);
     // Congelar de novo é idempotente; ano sem parâmetros dá erro.
     await expect(app.$transaction((tx) => congelarPremissasExercicio(tx, SISTEMA, 2027))).resolves.toBeUndefined();
     await expect(app.$transaction((tx) => congelarPremissasExercicio(tx, SISTEMA, 2099))).rejects.toMatchObject({ codigo: 'cad.premissas_inexistentes' });

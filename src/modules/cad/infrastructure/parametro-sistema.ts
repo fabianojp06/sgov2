@@ -1,6 +1,7 @@
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
 import { Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
+import { COMPONENTES_FIXOS } from '../domain/custo-pessoal';
 import { ENCARGOS, COMPONENTES_COM_CONTA, type ParametrosExercicio } from '../domain/parametros';
 
 // Parâmetros por exercício e do sistema, sem guarda (plano do P4, R10 e R22): usados pelos casos de
@@ -55,6 +56,9 @@ export async function lerParametrosExercicio(tx: TxCliente, ano: number): Promis
       if (!e) throw new ErroDominio('cad.parametros_incompletos', `O exercício ${ano} está sem o encargo ${c}.`);
       return { componente: c, nome: e.nome, percentual: pct(e.percentual), conta: e.conta };
     }),
+    provisorios: [...p.encargos.filter((e) => e.provisorio).map((e) => e.componente), ...p.contas.filter((c) => c.provisorio).map((c) => c.componente)]
+      .filter((c): c is ParametrosExercicio['provisorios'][number] => (COMPONENTES_FIXOS as readonly string[]).includes(c))
+      .sort(),
     contas: Object.fromEntries(
       COMPONENTES_COM_CONTA.map((c) => {
         const conta = porComponente.get(c);
@@ -93,6 +97,8 @@ const PADRAO = {
  */
 export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAuditoria, ano: number): Promise<boolean> {
   if (!Number.isInteger(ano) || ano < 2000 || ano > 2099) throw new ErroDominio('cad.ano_invalido', 'O exercício deve ser de 2000 a 2099.');
+  // Trava por ano: duas chamadas concorrentes (duplo clique, frente A e seed) não colidem (C2: idempotente).
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('cad-exercicio'), ${ano}::int)`;
   if (await tx.parametrosExercicio.findUnique({ where: { ano }, select: { ano: true } })) return false;
   const base = await tx.parametrosExercicio.findFirst({ where: { ano: { lt: ano } }, orderBy: { ano: 'desc' }, include: { encargos: true, contas: true } });
   if (base) {
