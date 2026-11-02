@@ -21,6 +21,13 @@ export {
 } from './ui/grade-arvore';
 export { ErroDoCampo, Formulario, type PropsFormulario } from './ui/formulario';
 export {
+  aplicarFiltros,
+  lerFiltrosSalvos,
+  validarValoresFiltro,
+  type DefinicaoFiltro,
+  type ValoresFiltro,
+} from './ui/grade-filtros';
+export {
   exportarXlsx,
   LIMITE_EXPORTACAO_SINCRONA,
   type PlanilhaExportacao,
