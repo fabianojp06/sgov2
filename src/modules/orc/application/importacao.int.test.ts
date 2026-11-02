@@ -187,7 +187,7 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
       erros: [{ campo: '_', mensagem: 'A planilha não tem lançamentos.' }],
     });
     await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
-    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = ${USUARIO}::uuid WHERE id = ${e.id}::uuid`;
     expect(await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.4')] }) }, e.deps())).toEqual({
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }],
