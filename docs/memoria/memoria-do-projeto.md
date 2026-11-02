@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
+Última atualização: 02/11/2026 (frente B, P4: contratos C1/C2 e US-043, US-053, US-046 e US-021 em PRs empilhados); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
 
 ---
 
@@ -102,6 +102,19 @@
   - **Papéis de hml e prod (#191):** `deploy/postgres/01-papeis-ambiente.sql`. O dev ganhou o `docker/postgres/init/03-privilegios.sql`: sem TEMP, funções sem EXECUTE para PUBLIC e pgvector. **Volumes de dev já existentes só recebem o 03 se forem recriados ou com o comando do `docs/operacao/ambientes.md`. O volume da frente B (56432) ainda não tem nem o `sgo_fila`.**
 - **Deploy (`docs/operacao/deploy.md`):** cada merge na `main` publica `sgov2:hml` e chama os webhooks de hml (por enquanto só avisa, sem webhook). O prod sai de tag `v*`, com aprovação do PO. Imagem única: CMD `app` ou `worker`.
 - **Teste da imagem na VPS** (`docker/testes/testar-imagem.sh`): conferir antes que a outra frente não está rodando `vitest`/build (D12). Na sessão de 25/10, a frente B esqueceu de conferir uma vez.
+- **P4 da frente B (02/11), em PRs empilhados, todos com a revisão 12.12 aprovada e o CI verde.** Ordem de merge, de baixo para cima:
+  1. #208 (US-025 parte 2, base `main`);
+  2. #209 (C1) → #210 (C2) → #212 (US-043 parte 1, leitor seguro de .xlsx) → #214 (US-043 parte 2, plano de contas, staging e merge no worker como `sgo_sync`) → #215 (US-043 parte 3, seeds) → #217 (Task 4d, compartilhado: seeds no `prisma/seed.ts`) → #216 (US-053 parte 1, parâmetros por exercício) → #220 (US-046 parte 1, centros de custo) → #225 (US-050 parte 1, Tabela Mestre) → #226 (US-051 parte 1, motor real do C2);
+  3. #219 (US-021 parte 1, base `main`) → #222 (US-021 parte 3, filtros);
+  4. #221 (US-021 parte 2, exportação real) está empilhado sobre o #212 e depende do "de acordo" da frente A na #223 (contrato C3); #224 é o PR `compartilhado` da documentação do C3.
+
+  Depois de cada merge *squash*, rebasear o PR de cima com `git rebase --onto <nova main> <commit antigo da base>`.
+  - **Conflitos esperados no rebase sobre o #208:** `src/modules/ger/servidor.ts` (manter as duas exportações), `worker/index.ts` (manter os trabalhadores do ger e o processador de cargas) e `worker/build.mjs` (manter o metafile e o plugin `semArgon2`; o `worker/build.test.ts` reprova se o plugin sumir).
+  - **Migrations novas do cad:** `202611021000_cad_plano_contas`, `202611021100_cad_parametros` e `202611021200_cad_centros_custo`. O dev da frente B (56432) já está com as três, e o `migrate diff` dá zero.
+  - **Desempenho:** a carga de 10.000 linhas leva de 15 a 26 s, contra o limite de 30 s (RNF_DES_003); a margem é curta com a VPS carregada. A auditoria em lote dependeria do `@/shared/audit`, da frente A.
+  - **C3 mudou de lugar:** o `exportarXlsx` real sai só pelo `@/modules/ger/servidor`, porque o `index.ts` do ger vai para o navegador (Review Focus 10). Para usá-lo, chamar de `application/` (caso de uso ou `'use server'`), nunca de `app/`. Falta atualizar o plano-mestre e o P3 (PR `compartilhado`) e ter o "de acordo" da frente A.
+  - **Stub do argon2 no bundle do worker:** a seed do cad usa o `index.ts` do adm, que alcança o `@node-rs/argon2`. O conserto limpo é o `adm/servidor.ts` (#213).
+  - **Revisão 12.12:** o plano permite no máximo 2 rodadas, depois disso o PO decide. A US-043 parte 1 (#212) teve 3 rodadas, e o PR registra isso.
 
 **Repositório (documentação)**
 - Spec oficial **versão 1.4** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3; 1.4: `prisma/schema/nucleo.prisma` da frente A). Status: aguardando a aprovação final do PO.
@@ -166,6 +179,12 @@
 - [ ] PO, na Tarefa 6: segredos `EASYPANEL_WEBHOOK` e `EASYPANEL_WEBHOOK_WORKER` nos dois *environments* e `GHCR_PROD_TOKEN` no `producao`. Depois, incluir o check `Imagem` nos obrigatórios da `main`.
 - [ ] Frente A: `statement_timeout`/`lock_timeout` nas conexões do worker (`src/shared/db`), sugestão da revisão do #198. Revisão de consumidor dos contratos C3 e C4.
 - [ ] Frente B: subir as actions que ainda usam Node 20, que está sendo descontinuado (checkout, setup-buildx, login, build-push).
+- [ ] PO: merge da pilha do P4 da frente B, na ordem da seção 5 (#208, #209, #210, #212, #214, #215, #217, #216, #220, #225 e #226; #219, #222; #221 e #224 depois da #223).
+- [ ] PO: decidir a M5 do #222 (sintético que casa com a busca mostra ou não os filhos) e o limite de 3 rodadas no #212 (o plano permite 2).
+- [ ] PO, no `worker` de hml e prod: `SYNC_DATABASE_URL` com o `sgo_sync`, e o `app` **sem** ela; `AMBIENTE` no `app`, no `worker` e no serviço de migração (`docs/operacao/ambientes.md`). As variáveis da seed no deploy ficaram na #195.
+- [ ] Frente A: `adm/servidor.ts` com `instalarFuncionalidades` (#213); usuário GFIN no `global-setup` do e2e (#218); `exibirNoMenu` no C6 (#211); "de acordo" com o `exportarXlsx` só pelo `servidor.ts` (#223); C2 real (`calcularCustoPosicao`, `obterPremissasExercicio`, `garantir`, `congelar`) pronto para a US-121 depois do merge da pilha.
+- [ ] Frente B: trocar o `ambienteDoCad` (`cad/infrastructure/ambiente.ts`) pelo `lerAmbiente` do ger quando o #208 entrar; tirar o stub do argon2 quando a #213 entrar; filtrar o `meta` do Prisma no log dos lotes de cargos (Task 12a).
+- [ ] Frente B, Tasks seguintes do P4: 7a/7b (telas do plano de contas), 8 (telas de CC), 9b (telas dos parâmetros), US-050 parte 2 (inclusão pela tela e seletor de ano), 12a a 12c, 13 e 14. As telas dependem da estrutura de páginas da frente A (layout de `(sistema)`, US-031 no #206).
 - [ ] Frente A: detalhar o plano do P5 (Acesso) com writing-plans.
 
 **Com SMEs**
@@ -177,6 +196,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 02/11/2026 | B | P4 em modo autônomo: CI do #208 voltou (cobrança do Actions regularizada); contratos C1 (#209) e C2 (#210); US-043 partes 1 a 4 (#212 leitor seguro de .xlsx, #214 staging e merge no worker, #215 seeds, #217 compartilhado); US-053 parte 1 (#216); US-046 parte 1 (#220); US-021 partes 1 a 3 (#219, #221, #222) e a documentação do C3 (#224); US-050 parte 1 (#225); US-051 parte 1 (#226, motor real do C2, valores conferidos à mão); issues #211, #213, #218 e #223 para a frente A; revisão 12.12 em todos, com mutantes |
 | 25/10/2026 | B | P3: verificações de PR (#176), contratos C3/C4 (#183/#184), travas no hook (#187), imagem e deploy (#188), origem pelo artefato do run da `main` (#192), papéis de hml/prod (#191), worker na imagem (#197/#198); revisão 12.12 em todos |
 | 25/10/2026 | B | Abertura da frente B (ambiente de dev, regras de confirmação para sgo-prod/sgo-hml na conta 2); plano do P3 Entrega com os contratos C3 e C4, revisão 12.12 em 3 rodadas |
 | 25/10/2026 | A | US-010 (worker, filas e outbox, #180/#181), fim do P1 Fundação com a `main` verde; menores na issue #182; merges do #176, #180 e #181 |
