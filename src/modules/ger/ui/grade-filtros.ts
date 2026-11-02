@@ -11,7 +11,8 @@ export type DefinicaoFiltro<C extends string = string> =
 
 export type ValoresFiltro = Readonly<Record<string, string | boolean>>;
 
-const LIMITE_TEXTO = 100;
+export const LIMITE_TEXTO_FILTRO = 100;
+const LIMITE_TEXTO = LIMITE_TEXTO_FILTRO;
 const CONTROLE = /\p{Cc}/u;
 const normalizar = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
@@ -20,12 +21,14 @@ const ehZero = (v: string | null | undefined) => v === null || v === undefined |
 
 type Casar<C extends string> = (no: NoGrade<C>) => boolean;
 
-function criterios<C extends string>(defs: readonly DefinicaoFiltro<C>[], valores: ValoresFiltro): Casar<C>[] {
+function criterios<C extends string>(defs: readonly DefinicaoFiltro<C>[], valores: ValoresFiltro): { lista: Casar<C>[]; texto: boolean } {
   const lista: Casar<C>[] = [];
+  let texto = false;
   for (const d of defs) {
     const v = valores[d.id];
     if (d.tipo === 'texto' && typeof v === 'string' && v.trim() !== '') {
       const alvo = normalizar(v.trim());
+      texto = true;
       lista.push((no) => d.campos.some((c) => normalizar(no.linha[c] ?? '').includes(alvo)));
     } else if (d.tipo === 'selecao' && typeof v === 'string' && v !== '') {
       lista.push((no) => no.linha[d.campo] === v);
@@ -33,19 +36,21 @@ function criterios<C extends string>(defs: readonly DefinicaoFiltro<C>[], valore
       lista.push((no) => d.campos.some((c) => !ehZero(no.linha[c])));
     }
   }
-  return lista;
+  return { lista, texto };
 }
 
 /**
  * Aplica os filtros: um nó fica se casa com todos os critérios ou se tem descendente que casa.
- * Devolve também os ids a abrir (ancestrais de quem casou). Sem filtro ativo, a mesma referência.
+ * Devolve também os ids a abrir: os ancestrais de quem casou, só quando há busca por texto (com
+ * seleção ou "ocultar zerados" sozinhos, a expansão do usuário fica como está, para não abrir a
+ * árvore inteira). Sem filtro ativo, a mesma referência.
  */
 export function aplicarFiltros<C extends string>(
   nos: readonly NoGrade<C>[],
   defs: readonly DefinicaoFiltro<C>[],
   valores: ValoresFiltro,
 ): { nos: readonly NoGrade<C>[]; abrir: ReadonlySet<string> } {
-  const lista = criterios(defs, valores);
+  const { lista, texto } = criterios(defs, valores);
   if (lista.length === 0) return { nos, abrir: new Set() };
   const abrir = new Set<string>();
   const filtrar = (ns: readonly NoGrade<C>[]): NoGrade<C>[] => {
@@ -53,7 +58,7 @@ export function aplicarFiltros<C extends string>(
     for (const no of ns) {
       const filhos = no.filhos ? filtrar(no.filhos) : [];
       const casa = lista.every((f) => f(no));
-      if (filhos.length > 0) abrir.add(no.id);
+      if (filhos.length > 0 && texto) abrir.add(no.id);
       if (casa || filhos.length > 0) saida.push(filhos.length > 0 || no.filhos ? { ...no, filhos } : no);
     }
     return saida;
@@ -70,9 +75,12 @@ export function validarValoresFiltro(defs: readonly DefinicaoFiltro[], valores: 
     const v = (valores as Record<string, unknown>)[d.id];
     if (v === undefined || v === '') continue;
     if (d.tipo === 'texto') {
-      if (typeof v !== 'string' || v.length > LIMITE_TEXTO || CONTROLE.test(v)) {
-        erros.push({ campo: d.id, mensagem: `O filtro "${d.rotulo}" aceita até ${LIMITE_TEXTO} caracteres de texto.` });
-      } else saida[d.id] = v;
+      // Tab e quebra de linha (texto colado do Excel) viram espaço; outro controle é recusado.
+      const t = typeof v === 'string' ? v.replace(/[\t\n\r]/g, ' ') : null;
+      if (t === null) erros.push({ campo: d.id, mensagem: `Valor inválido em "${d.rotulo}".` });
+      else if (t.length > LIMITE_TEXTO) erros.push({ campo: d.id, mensagem: `O filtro "${d.rotulo}" aceita até ${LIMITE_TEXTO} caracteres.` });
+      else if (CONTROLE.test(t)) erros.push({ campo: d.id, mensagem: `O filtro "${d.rotulo}" tem um caractere inválido.` });
+      else saida[d.id] = t;
     } else if (d.tipo === 'selecao') {
       if (typeof v !== 'string' || !d.opcoes.some((o) => o.valor === v)) erros.push({ campo: d.id, mensagem: `Opção inválida em "${d.rotulo}".` });
       else saida[d.id] = v;
@@ -97,4 +105,23 @@ export function lerFiltrosSalvos(texto: string | null, escopo: string | undefine
   } catch {
     return undefined;
   }
+}
+
+type Armazenamento = Pick<Storage, 'getItem'>;
+
+/**
+ * Filtros a restaurar ao montar a grade: só com o escopo da sessão (sem ele, o storage nem é lido) e
+ * só valores que ainda passam nas definições atuais.
+ */
+export function restaurarFiltros(
+  storage: Armazenamento,
+  idGrade: string,
+  escopo: string | undefined,
+  defs: readonly DefinicaoFiltro[],
+): ValoresFiltro | undefined {
+  if (!escopo || defs.length === 0) return undefined;
+  const salvos = lerFiltrosSalvos(storage.getItem(chaveFiltros(idGrade)), escopo);
+  if (!salvos) return undefined;
+  const v = validarValoresFiltro(defs, salvos);
+  return v.ok ? v.valor : undefined;
 }

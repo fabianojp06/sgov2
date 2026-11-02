@@ -149,6 +149,12 @@ describe('API pública do ger (C3)', () => {
     expect(typeof ger.ErroDoCampo).toBe('function');
     expect(typeof ger.exportarXlsx).toBe('function');
     expect(typeof ger.exportarXlsxFalso).toBe('function');
+    // Filtros da Tree Grid (US-021 parte 3): props opcionais filtros e escopoSessao.
+    expect(typeof ger.aplicarFiltros).toBe('function');
+    expect(typeof ger.validarValoresFiltro).toBe('function');
+    expect(typeof ger.lerFiltrosSalvos).toBe('function');
+    const props: PropsGradeArvore = { idGrade: 'g', nos: [], colunas: [], filtros: [{ tipo: 'texto', id: 'b', rotulo: 'Buscar', campos: [] }], escopoSessao: 'h' };
+    expect(props.filtros).toHaveLength(1);
     expect(typeof ger.LIMITE_EXPORTACAO_SINCRONA).toBe('number');
   });
 });

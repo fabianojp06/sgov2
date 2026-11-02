@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { GradeArvore } from './grade-arvore';
-import { aplicarFiltros, lerFiltrosSalvos, validarValoresFiltro, type DefinicaoFiltro } from './grade-filtros';
+import { aplicarFiltros, chaveFiltros, lerFiltrosSalvos, restaurarFiltros, validarValoresFiltro, type DefinicaoFiltro } from './grade-filtros';
 import type { NoGrade } from './grade-logica';
 
 // Filtros da Tree Grid (plano do P4, Task 6c, Step 1).
@@ -35,8 +35,11 @@ describe('aplicarFiltros', () => {
     expect(ids(aplicarFiltros(arvore, defs, { busca: '900' }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001']);
   });
 
-  it('ocultarZerados tira a Férias (0.00) e mantém o resto', () => {
-    expect(ids(aplicarFiltros(arvore, defs, { zerados: true }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001']);
+  it('ocultarZerados tira a Férias (0.00) e mantém o resto, sem abrir a árvore (só a busca abre)', () => {
+    const r = aplicarFiltros(arvore, defs, { zerados: true });
+    expect(ids(r.nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001']);
+    expect(r.abrir.size).toBe(0);
+    expect(aplicarFiltros(arvore, defs, { tipo: 'A' }).abrir.size).toBe(0);
   });
 
   it('seleção e combinação de critérios (E)', () => {
@@ -60,6 +63,12 @@ describe('validarValoresFiltro (RF0003)', () => {
     expect(validarValoresFiltro(defs, v).ok).toBe(false);
   });
 
+  it('tab e quebra de linha (texto colado) viram espaço; outro controle tem mensagem própria', () => {
+    expect(validarValoresFiltro(defs, { busca: 'Salários\t' })).toEqual({ ok: true, valor: { busca: 'Salários ' } });
+    const r = validarValoresFiltro(defs, { busca: 'a\u0007b' });
+    expect(r.ok === false && r.erros[0]?.mensagem).toBe('O filtro "Buscar" tem um caractere inválido.');
+  });
+
   it('valores válidos; chave desconhecida é descartada', () => {
     expect(validarValoresFiltro(defs, { busca: 'sal', tipo: 'A', zerados: true, outra: 'x' })).toEqual({
       ok: true,
@@ -76,6 +85,26 @@ describe('lerFiltrosSalvos', () => {
     expect(lerFiltrosSalvos(salvo, undefined)).toBeUndefined();
     expect(lerFiltrosSalvos('{corrompido', 'abc')).toBeUndefined();
     expect(lerFiltrosSalvos(null, 'abc')).toBeUndefined();
+  });
+});
+
+describe('restaurarFiltros', () => {
+  const armazenamento = (conteudo: Record<string, string>) => {
+    const lidas: string[] = [];
+    return { lidas, getItem: (k: string) => (lidas.push(k), conteudo[k] ?? null) };
+  };
+
+  it('sem escopoSessao, o storage nem é lido', () => {
+    const s = armazenamento({ [chaveFiltros('g')]: JSON.stringify({ escopo: 'abc', valores: { busca: 'x' } }) });
+    expect(restaurarFiltros(s, 'g', undefined, defs)).toBeUndefined();
+    expect(s.lidas).toEqual([]);
+  });
+
+  it('mesmo escopo restaura; valor salvo que não passa nas definições atuais é ignorado', () => {
+    const ok = armazenamento({ [chaveFiltros('g')]: JSON.stringify({ escopo: 'abc', valores: { busca: 'sal', tipo: 'A' } }) });
+    expect(restaurarFiltros(ok, 'g', 'abc', defs)).toEqual({ busca: 'sal', tipo: 'A' });
+    const invalido = armazenamento({ [chaveFiltros('g')]: JSON.stringify({ escopo: 'abc', valores: { tipo: 'Z' } }) });
+    expect(restaurarFiltros(invalido, 'g', 'abc', defs)).toBeUndefined();
   });
 });
 

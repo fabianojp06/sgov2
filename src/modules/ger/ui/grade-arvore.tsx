@@ -16,7 +16,8 @@ import {
 import {
   aplicarFiltros,
   chaveFiltros,
-  lerFiltrosSalvos,
+  LIMITE_TEXTO_FILTRO,
+  restaurarFiltros,
   validarValoresFiltro,
   type DefinicaoFiltro,
   type ValoresFiltro,
@@ -40,10 +41,12 @@ export type PropsGradeArvore<C extends string = string> = {
   alturaLinha?: number; // px, padrão 32
   alturaVisivel?: number; // px, padrão 600
   filtros?: readonly DefinicaoFiltro<C>[];
-  escopoSessao?: string; // hash do sessaoUid (R18); sem ele, os filtros não são retidos
+  // Hash do sessaoUid (R18), calculado no servidor; nunca o sessaoUid cru, que leva o IP para o HTML
+  // e para o storage. Sem ele, os filtros não são retidos.
+  escopoSessao?: string;
 };
 
-// Constante: um [] novo a cada render dispararia o efeito de leitura dos filtros sem parar.
+// Constante: sem ela, o padrão [] seria um array novo a cada render.
 const SEM_FILTROS: readonly DefinicaoFiltro[] = [];
 
 export function GradeArvore<C extends string = string>({
@@ -65,11 +68,13 @@ export function GradeArvore<C extends string = string>({
   const [erroFiltro, setErroFiltro] = useState<string | null>(null);
   // Filtro inválido mostra a mensagem e mantém o resultado anterior (UC0.01 A3).
   const filtrado = useMemo(() => aplicarFiltros(nos, filtros, valores), [nos, filtros, valores]);
-  const abertosVisao = useMemo(
-    () => (filtrado.abrir.size === 0 ? abertos : new Set([...abertos, ...filtrado.abrir])),
-    [abertos, filtrado.abrir],
-  );
-  const linhas = useMemo(() => visiveis(filtrado.nos, abertosVisao), [filtrado.nos, abertosVisao]);
+  // Uma fonte de verdade para a expansão: o que a busca abre entra em `abertos` (sem ir para o
+  // storage), e o usuário recolhe normalmente; aria-expanded, botão e teclado leem o mesmo conjunto.
+  const linhas = useMemo(() => visiveis(filtrado.nos, abertos), [filtrado.nos, abertos]);
+  const abrirDaBusca = (v: ValoresFiltro) => {
+    const { abrir } = aplicarFiltros(nos, filtros, v);
+    if (abrir.size > 0) setAbertos((atual) => new Set([...atual, ...abrir]));
+  };
   const [focoId, setFocoId] = useState<string | null>(null);
   // O foco só é movido depois de uma tecla na grade; um nos novo (revalidação) não puxa o foco de volta.
   const focoPendente = useRef(false);
@@ -97,16 +102,18 @@ export function GradeArvore<C extends string = string>({
   }, [idGrade]);
 
   // Filtros retidos só com o escopo da sessão (R18): outra sessão no mesmo navegador não os herda.
+  // Lidos uma vez por grade e escopo (um refresh com novas props não relê).
   useEffect(() => {
-    if (!escopoSessao || filtros.length === 0) return;
     try {
-      const salvos = lerFiltrosSalvos(sessionStorage.getItem(chaveFiltros(idGrade)), escopoSessao);
-      const v = salvos ? validarValoresFiltro(filtros, salvos) : undefined;
-      if (v?.ok) setValores(v.valor);
+      const v = restaurarFiltros(sessionStorage, idGrade, escopoSessao, filtros);
+      if (v) {
+        setValores(v);
+        abrirDaBusca(v);
+      }
     } catch {
       // sem armazenamento de sessão
     }
-  }, [idGrade, escopoSessao, filtros]);
+  }, [idGrade, escopoSessao]);
 
   const mudarFiltro = (id: string, valor: string | boolean) => {
     const v = validarValoresFiltro(filtros, { ...valores, [id]: valor });
@@ -116,6 +123,8 @@ export function GradeArvore<C extends string = string>({
     }
     setErroFiltro(null);
     setValores(v.valor);
+    abrirDaBusca(v.valor);
+    virtual.scrollToOffset(0);
     if (!escopoSessao) return;
     try {
       sessionStorage.setItem(chaveFiltros(idGrade), JSON.stringify({ escopo: escopoSessao, valores: v.valor }));
@@ -198,7 +207,10 @@ export function GradeArvore<C extends string = string>({
           f.tipo === 'texto' ? (
             <label key={f.id}>
               {f.rotulo}{' '}
-              <input type="search" maxLength={100} value={typeof valores[f.id] === 'string' ? (valores[f.id] as string) : ''} onChange={(e) => mudarFiltro(f.id, e.target.value)} />
+              <input
+                type="search"
+                maxLength={LIMITE_TEXTO_FILTRO}
+                {...(erroFiltro ? { 'aria-invalid': true, 'aria-describedby': `${idGrade}-erro-filtro` } : {})} value={typeof valores[f.id] === 'string' ? (valores[f.id] as string) : ''} onChange={(e) => mudarFiltro(f.id, e.target.value)} />
             </label>
           ) : f.tipo === 'selecao' ? (
             <label key={f.id}>
@@ -221,7 +233,12 @@ export function GradeArvore<C extends string = string>({
         <button type="button" onClick={limparFiltros}>
           Limpar filtros
         </button>
-        {erroFiltro && <p role="alert">{erroFiltro}</p>}
+        {erroFiltro && (
+          <p role="alert" id={`${idGrade}-erro-filtro`}>
+            {erroFiltro}
+          </p>
+        )}
+        <p role="status">{linhas.length === 0 ? 'Nenhum registro corresponde aos filtros.' : ''}</p>
       </div>
     );
 

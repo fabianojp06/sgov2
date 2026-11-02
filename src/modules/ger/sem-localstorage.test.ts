@@ -22,6 +22,19 @@ function usos(nome: string, codigo: string): number {
     if (ts.isIdentifier(no) && no.text === 'localStorage') n++;
     // window['localStorage'] e afins.
     if (ts.isElementAccessExpression(no) && ts.isStringLiteralLike(no.argumentExpression) && no.argumentExpression.text === 'localStorage') n++;
+    // Desestruturação e chave literal ou computada: { 'localStorage': x } = window, { ['localStorage']: x }.
+    const chave = ts.isBindingElement(no) ? no.propertyName : ts.isPropertyAssignment(no) ? no.name : undefined;
+    if (chave) {
+      const nome = chave;
+      const texto = ts.isStringLiteralLike(nome)
+        ? nome.text
+        : ts.isComputedPropertyName(nome) && ts.isStringLiteralLike(nome.expression)
+          ? nome.expression.text
+          : undefined;
+      if (texto === 'localStorage') n++;
+    }
+    // Reflect.get(window, 'localStorage').
+    if (ts.isCallExpression(no) && no.arguments.some((a) => ts.isStringLiteralLike(a) && a.text === 'localStorage') && /Reflect\.get$/.test(no.expression.getText())) n++;
     ts.forEachChild(no, visitar);
   };
   visitar(fonte);
@@ -42,5 +55,17 @@ describe('sem localStorage', () => {
     expect(tmp('localStorage.setItem("a", "b")')).toBe(1);
     expect(tmp('window["localStorage"].clear()')).toBe(1);
     expect(tmp('// localStorage aqui\nconst s = "localStorage";')).toBe(0);
+    for (const uso of [
+      'globalThis.localStorage.getItem("a")',
+      'self.localStorage.clear()',
+      'window?.localStorage.clear()',
+      'const { localStorage } = window;',
+      'const { localStorage: ls } = window;',
+      'const { "localStorage": ls } = window;',
+      'const { ["localStorage"]: ls } = window;',
+      'Reflect.get(window, "localStorage")',
+    ]) {
+      expect(tmp(uso), uso).toBeGreaterThan(0);
+    }
   });
 });
