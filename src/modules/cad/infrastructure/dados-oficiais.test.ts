@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as cadServidor from '@/modules/cad/servidor';
-import { ambienteDaSeed } from './seed-referencia';
+import { lerAmbiente } from '@/modules/ger/servidor';
 
 // Seeds pelo servidor.ts (E-N3) e a regra de AMBIENTE da seed (R25). A igualdade entre a planilha
 // de especificacao/ e o JSON oficial está no plano-contas-oficial.test.ts (Task 4a).
@@ -16,8 +16,8 @@ describe('seeds do cad', () => {
     [{ NODE_ENV: 'production', AMBIENTE: '  ' }, /AMBIENTE_AUSENTE/],
     [{ NODE_ENV: 'development', AMBIENTE: 'xyz' }, /AMBIENTE_INVALIDO/],
   ])('%j → erro', (env, erro) => {
-    expect(() => ambienteDaSeed(env as NodeJS.ProcessEnv)).toThrow(erro);
-    expect(() => ambienteDaSeed(env as NodeJS.ProcessEnv)).toThrow('AMBIENTE ausente ou inválido (use dev, hml ou producao)');
+    expect(() => lerAmbiente(env as NodeJS.ProcessEnv)).toThrow(erro);
+    expect(() => lerAmbiente(env as NodeJS.ProcessEnv)).toThrow('AMBIENTE ausente ou inválido (use dev, hml ou producao)');
   });
 
   it.each([
@@ -28,6 +28,6 @@ describe('seeds do cad', () => {
     [{ AMBIENTE: 'dev' }, 'dev'],
     [{ NODE_ENV: 'production', AMBIENTE: ' hml ' }, 'hml'],
   ])('%j → %s', (env, esperado) => {
-    expect(ambienteDaSeed(env as NodeJS.ProcessEnv)).toBe(esperado);
+    expect(lerAmbiente(env as NodeJS.ProcessEnv)).toBe(esperado);
   });
 });

@@ -14,8 +14,6 @@ import oficial from './dados/plano-contas-oficial.json';
 // migrator e o contexto "Sistema". Só com CARGA_DADOS_REFERENCIA=1, e nunca em produção.
 
 const SISTEMA: ContextoAuditoria = { usuarioId: null, usuarioRotulo: 'Sistema', sessaoUid: null, ip: null, unidadeId: null };
-// A regra de AMBIENTE (R25) é a do lerAmbiente do ger, a mesma do worker e do processador de cargas.
-export { lerAmbiente as ambienteDaSeed } from '@/modules/ger/servidor';
 
 async function carregarPlanoOficial(tx: TxCliente): Promise<void> {
   const validado = validarPlanoContas(oficial as LinhaLida[], sanearDescricao);
