@@ -8,9 +8,7 @@ import * as cadServidor from '@/modules/cad/servidor';
 import {
   calcularCustoPosicao,
   COMPONENTES_FIXOS,
-  congelarPremissasExercicio,
   custoPessoalFalso,
-  garantirPremissasExercicio,
   obterPremissasExercicio,
   premissasExemplo,
   type BeneficioPremissa,
@@ -107,6 +105,7 @@ describe('C2 — premissasExemplo', () => {
   });
 });
 
+// garantir e congelar já são reais (Task 9a); a prova é o parametros.int.test.ts.
 describe('C2 — reais antes da Task 11', () => {
   it('calcularCustoPosicao → cad.custo_pessoal_indisponivel', () => {
     expect(() => calcularCustoPosicao(posicao, premissasExemplo())).toThrow(
@@ -116,8 +115,6 @@ describe('C2 — reais antes da Task 11', () => {
 
   it.each([
     ['obterPremissasExercicio', () => obterPremissasExercicio(tx, 2027)],
-    ['garantirPremissasExercicio', () => garantirPremissasExercicio(tx, contexto, 2027)],
-    ['congelarPremissasExercicio', () => congelarPremissasExercicio(tx, contexto, 2027)],
   ])('%s → cad.custo_pessoal_indisponivel', async (_nome, chamar) => {
     await expect(chamar()).rejects.toMatchObject({ name: 'ErroDominio', codigo: 'cad.custo_pessoal_indisponivel' });
   });

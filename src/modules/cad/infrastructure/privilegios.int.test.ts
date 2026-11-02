@@ -75,4 +75,42 @@ describe('privilégios do cad (R6)', () => {
     await migrator.query(`UPDATE carga_estrutura SET situacao = 'FALHOU', erro = 'teste' WHERE id = $1`, [rows[0].id]);
     await expect(migrator.query(`UPDATE carga_estrutura SET situacao = 'PENDENTE' WHERE id = $1`, [rows[0].id])).rejects.toThrow(/terminado não muda/);
   });
+
+  it('parâmetros (B1): o sync não toca; o app lê, insere e altera só os valores; ninguém apaga', async () => {
+    const PARAM = ['parametros_exercicio', 'encargo_exercicio', 'conta_componente_exercicio', 'parametro_sistema'];
+    const tabela = await migrator.query<{ l: string }>(
+      `SELECT table_name || ' ' || grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants
+       WHERE table_name = ANY($1) AND grantee = ANY($2) ORDER BY 1`,
+      [PARAM, PAPEIS],
+    );
+    expect(tabela.rows.map((r) => r.l)).toEqual([
+      'conta_componente_exercicio sgo_app INSERT',
+      'conta_componente_exercicio sgo_app SELECT',
+      'encargo_exercicio sgo_app INSERT',
+      'encargo_exercicio sgo_app SELECT',
+      'parametro_sistema sgo_app SELECT',
+      'parametros_exercicio sgo_app INSERT',
+      'parametros_exercicio sgo_app SELECT',
+    ]);
+    const colunas = await migrator.query<{ l: string }>(
+      `SELECT table_name || '.' || column_name AS l FROM information_schema.column_privileges
+       WHERE table_name = ANY($1) AND grantee = 'sgo_app' AND privilege_type = 'UPDATE' ORDER BY 1`,
+      [PARAM],
+    );
+    expect(colunas.rows.map((r) => r.l)).toEqual(
+      [
+        'conta_componente_exercicio.conta',
+        'encargo_exercicio.conta',
+        'encargo_exercicio.percentual',
+        'parametro_sistema.valor',
+        ...['atualizado_em', 'congelado_em', 'dias_uteis_mes', 'ipca', 'mes_data_base', 'provisorio', 'reajuste', 'salario_minimo',
+          'semaforo_amarelo_ate', 'semaforo_laranja_ate', 'semaforo_verde_ate', 'versao'].map((c) => `parametros_exercicio.${c}`),
+      ].sort(),
+    );
+    const sync = await migrator.query(
+      `SELECT 1 FROM information_schema.column_privileges WHERE table_name = ANY($1) AND grantee = 'sgo_sync'`,
+      [PARAM],
+    );
+    expect(sync.rows).toEqual([]);
+  });
 });
