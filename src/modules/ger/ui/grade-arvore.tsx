@@ -13,9 +13,19 @@ import {
   type Expansao,
   type NoGrade,
 } from './grade-logica';
+import {
+  aplicarFiltros,
+  chaveFiltros,
+  LIMITE_TEXTO_FILTRO,
+  restaurarFiltros,
+  validarValoresFiltro,
+  type DefinicaoFiltro,
+  type ValoresFiltro,
+} from './grade-filtros';
 import { ALTURA_LINHA_PADRAO, ALTURA_VISIVEL_PADRAO, FOLGA_PADRAO, navegar, TECLAS, type Tecla } from './grade-virtual';
 
 export type { ColunaGrade, LinhaGrade, NoGrade } from './grade-logica';
+export type { DefinicaoFiltro, ValoresFiltro } from './grade-filtros';
 
 // Contrato C3: Tree Grid do sistema (US-021, R18): virtualizada (linhas de altura fixa e
 // espaçadores, @tanstack/react-virtual), com navegação por teclado de treegrid (WAI-ARIA) e foco
@@ -30,7 +40,14 @@ export type PropsGradeArvore<C extends string = string> = {
   textoVazio?: string;
   alturaLinha?: number; // px, padrão 32
   alturaVisivel?: number; // px, padrão 600
+  filtros?: readonly DefinicaoFiltro<C>[];
+  // Hash do sessaoUid (R18), calculado no servidor; nunca o sessaoUid cru, que leva o IP para o HTML
+  // e para o storage. Sem ele, os filtros não são retidos.
+  escopoSessao?: string;
 };
+
+// Constante: sem ela, o padrão [] seria um array novo a cada render.
+const SEM_FILTROS: readonly DefinicaoFiltro[] = [];
 
 export function GradeArvore<C extends string = string>({
   idGrade,
@@ -42,10 +59,22 @@ export function GradeArvore<C extends string = string>({
   textoVazio,
   alturaLinha = ALTURA_LINHA_PADRAO,
   alturaVisivel = ALTURA_VISIVEL_PADRAO,
+  filtros = SEM_FILTROS as readonly DefinicaoFiltro<C>[],
+  escopoSessao,
 }: PropsGradeArvore<C>) {
   const [abertos, setAbertos] = useState(() => expansaoInicial(nos, expandidos));
   const [, iniciarTransicao] = useTransition();
-  const linhas = useMemo(() => visiveis(nos, abertos), [nos, abertos]);
+  const [valores, setValores] = useState<ValoresFiltro>({});
+  const [erroFiltro, setErroFiltro] = useState<string | null>(null);
+  // Filtro inválido mostra a mensagem e mantém o resultado anterior (UC0.01 A3).
+  const filtrado = useMemo(() => aplicarFiltros(nos, filtros, valores), [nos, filtros, valores]);
+  // Uma fonte de verdade para a expansão: o que a busca abre entra em `abertos` (sem ir para o
+  // storage), e o usuário recolhe normalmente; aria-expanded, botão e teclado leem o mesmo conjunto.
+  const linhas = useMemo(() => visiveis(filtrado.nos, abertos), [filtrado.nos, abertos]);
+  const abrirDaBusca = (v: ValoresFiltro) => {
+    const { abrir } = aplicarFiltros(nos, filtros, v);
+    if (abrir.size > 0) setAbertos((atual) => new Set([...atual, ...abrir]));
+  };
   const [focoId, setFocoId] = useState<string | null>(null);
   // O foco só é movido depois de uma tecla na grade; um nos novo (revalidação) não puxa o foco de volta.
   const focoPendente = useRef(false);
@@ -71,6 +100,48 @@ export function GradeArvore<C extends string = string>({
       // sem armazenamento de sessão
     }
   }, [idGrade]);
+
+  // Filtros retidos só com o escopo da sessão (R18): outra sessão no mesmo navegador não os herda.
+  // Lidos uma vez por grade e escopo (um refresh com novas props não relê).
+  useEffect(() => {
+    try {
+      const v = restaurarFiltros(sessionStorage, idGrade, escopoSessao, filtros);
+      if (v) {
+        setValores(v);
+        abrirDaBusca(v);
+      }
+    } catch {
+      // sem armazenamento de sessão
+    }
+  }, [idGrade, escopoSessao]);
+
+  const mudarFiltro = (id: string, valor: string | boolean) => {
+    const v = validarValoresFiltro(filtros, { ...valores, [id]: valor });
+    if (!v.ok) {
+      setErroFiltro(v.erros.map((e) => e.mensagem).join(' '));
+      return;
+    }
+    setErroFiltro(null);
+    setValores(v.valor);
+    abrirDaBusca(v.valor);
+    virtual.scrollToOffset(0);
+    if (!escopoSessao) return;
+    try {
+      sessionStorage.setItem(chaveFiltros(idGrade), JSON.stringify({ escopo: escopoSessao, valores: v.valor }));
+    } catch {
+      // sem armazenamento de sessão
+    }
+  };
+
+  const limparFiltros = () => {
+    setValores({});
+    setErroFiltro(null);
+    try {
+      sessionStorage.removeItem(chaveFiltros(idGrade));
+    } catch {
+      // sem armazenamento de sessão
+    }
+  };
 
   // O foco segue o teclado: rola até a linha e foca o <tr> depois de desenhado.
   useEffect(() => {
@@ -129,7 +200,51 @@ export function GradeArvore<C extends string = string>({
   const espacoAntes = itens[0]?.start ?? 0;
   const espacoDepois = virtual.getTotalSize() - (itens.at(-1)?.end ?? 0);
 
+  const barraFiltros =
+    filtros.length === 0 ? null : (
+      <div role="search" aria-label={`Filtros de ${rotulo ?? idGrade}`}>
+        {filtros.map((f) =>
+          f.tipo === 'texto' ? (
+            <label key={f.id}>
+              {f.rotulo}{' '}
+              <input
+                type="search"
+                maxLength={LIMITE_TEXTO_FILTRO}
+                {...(erroFiltro ? { 'aria-invalid': true, 'aria-describedby': `${idGrade}-erro-filtro` } : {})} value={typeof valores[f.id] === 'string' ? (valores[f.id] as string) : ''} onChange={(e) => mudarFiltro(f.id, e.target.value)} />
+            </label>
+          ) : f.tipo === 'selecao' ? (
+            <label key={f.id}>
+              {f.rotulo}{' '}
+              <select value={typeof valores[f.id] === 'string' ? (valores[f.id] as string) : ''} onChange={(e) => mudarFiltro(f.id, e.target.value)}>
+                <option value="">Todos</option>
+                {f.opcoes.map((o) => (
+                  <option key={o.valor} value={o.valor}>
+                    {o.rotulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label key={f.id}>
+              <input type="checkbox" checked={valores[f.id] === true} onChange={(e) => mudarFiltro(f.id, e.target.checked)} /> {f.rotulo}
+            </label>
+          ),
+        )}
+        <button type="button" onClick={limparFiltros}>
+          Limpar filtros
+        </button>
+        {erroFiltro && (
+          <p role="alert" id={`${idGrade}-erro-filtro`}>
+            {erroFiltro}
+          </p>
+        )}
+        <p role="status">{linhas.length === 0 ? 'Nenhum registro corresponde aos filtros.' : ''}</p>
+      </div>
+    );
+
   return (
+    <>
+    {barraFiltros}
     <div ref={rolagem} style={{ maxHeight: alturaVisivel, overflowY: 'auto' }}>
     <table role="treegrid" aria-label={rotulo ?? idGrade} aria-rowcount={linhas.length + 1}>
       <thead>
@@ -214,5 +329,6 @@ export function GradeArvore<C extends string = string>({
       </tbody>
     </table>
     </div>
+    </>
   );
 }
