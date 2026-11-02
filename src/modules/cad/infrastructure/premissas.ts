@@ -20,7 +20,8 @@ function indisponivel(): never {
 /**
  * Custo mês a mês da posição, por componente e conta, na ordem de operações e com os
  * arredondamentos da R14 (encargos pela R13; benefício percentual pela R14a). Função pura: posição
- * inválida volta como erro por campo (R3), nunca como exceção.
+ * inválida volta como erro por campo (R3), nunca como exceção. Até a Task 11, lança
+ * ErroDominio('cad.custo_pessoal_indisponivel'): indisponível não é erro de validação.
  */
 export const calcularCustoPosicao: (posicao: PosicaoPessoal, premissas: PremissasExercicio) => Resultado<SerieMensalComponentes> =
   indisponivel;
@@ -35,6 +36,9 @@ export const obterPremissasExercicio: (tx: TxCliente, ano: number) => Promise<Pr
 export const garantirPremissasExercicio: (tx: TxCliente, contexto: ContextoAuditoria, ano: number) => Promise<PremissasExercicio> =
   indisponivelAssincrono;
 
-/** Congela os parâmetros do ano quando a frente A oficializa o exercício. Idempotente e auditado. */
+/**
+ * Congela os parâmetros do ano quando a frente A oficializa o exercício. Idempotente e auditado.
+ * Não muda a `versao`. Ano sem parâmetros: ErroDominio('cad.premissas_inexistentes').
+ */
 export const congelarPremissasExercicio: (tx: TxCliente, contexto: ContextoAuditoria, ano: number) => Promise<void> =
   indisponivelAssincrono;

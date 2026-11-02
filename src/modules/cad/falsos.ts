@@ -1,4 +1,4 @@
-import { Dinheiro, ok, Percentual } from '@/shared/kernel';
+import { Dinheiro, ErroDominio, ok, Percentual } from '@/shared/kernel';
 import {
   validarPosicao,
   type LinhaComponente,
@@ -180,7 +180,7 @@ export function custoPessoalFalso(premissas: readonly PremissasExercicio[] = [pr
       );
       const total = Dinheiro.somarTodos(meses);
       const linha: LinhaComponente = { componente: 'salario', conta: p.contas.salario, meses, total };
-      return ok({ ano: p.ano, versaoPremissas: p.versao, linhas: [linha], totalMes: meses, total });
+      return ok({ ano: p.ano, versaoPremissas: p.versao, linhas: [linha], totalMes: [...meses], total });
     },
     obterPremissasExercicio: async (_tx, ano) => porAno.get(ano) ?? null,
     garantirPremissasExercicio: async (_tx, _contexto, ano) => {
@@ -191,9 +191,10 @@ export function custoPessoalFalso(premissas: readonly PremissasExercicio[] = [pr
       return criadas;
     },
     congelarPremissasExercicio: async (_tx, _contexto, ano) => {
-      congelados.add(ano);
       const atual = porAno.get(ano);
-      if (atual) porAno.set(ano, { ...atual, congelado: true });
+      if (!atual) throw new ErroDominio('cad.premissas_inexistentes', `O exercício ${ano} não tem parâmetros.`);
+      congelados.add(ano);
+      porAno.set(ano, { ...atual, congelado: true });
     },
   };
 }

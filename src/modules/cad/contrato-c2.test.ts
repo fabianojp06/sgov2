@@ -36,18 +36,33 @@ describe('C2 — falso', () => {
     const ativos = r.valor.totalMes.map((v, i) => (v.ehZero() ? null : i + 1)).filter((m) => m !== null);
     expect(ativos).toEqual([3, 4, 5, 6, 7, 8, 9, 10]);
     expect(r.valor.linhas.map((l) => [l.componente, l.conta])).toEqual([['salario', '4.1.1.1.001']]);
+    expect(r.valor.linhas[0]!.meses).toHaveLength(12);
     expect(r.valor.total.paraString()).toBe('120000.00');
   });
 
   it.each([
     ['quantidade', { ...posicao, quantidade: 0 }],
     ['quantidade', { ...posicao, quantidade: 1.5 }],
+    ['quantidade', { ...posicao, quantidade: 1e7 }],
     ['salarioMensal', { ...posicao, salarioMensal: Dinheiro.zero() }],
+    ['salarioMensal', { ...posicao, salarioMensal: Dinheiro.de('-1.00') }],
+    ['salarioMensal', { ...posicao, salarioMensal: Dinheiro.de('1000000.00') }],
     ['mesInicio', { ...posicao, mesInicio: 13 }],
+    ['mesInicio', { ...posicao, mesInicio: 0 }],
+    ['mesInicio', { ...posicao, mesInicio: 2.5 }],
     ['mesSaida', { ...posicao, mesSaida: 2 }],
-  ])('posição inválida → erro no campo %s, sem exceção', (campo, p) => {
+    ['mesSaida', { ...posicao, mesSaida: 13 }],
+  ])('posição inválida → erro no campo %s, sem exceção e sem o valor', (campo, p) => {
     const r = custoPessoalFalso().calcularCustoPosicao(p, premissasExemplo());
     expect(r).toEqual({ ok: false, erros: [expect.objectContaining({ campo })] });
+    expect(JSON.stringify(r)).not.toMatch(/7500|7\.500/);
+  });
+
+  it.each([
+    ['periculosidade', { tipo: 'PERICULOSIDADE' } as const],
+    ['insalubridade com salário mínimo', { tipo: 'INSALUBRIDADE', grau: 'MAXIMO' } as const],
+  ])('%s é válida', (_caso, adicional) => {
+    expect(custoPessoalFalso().calcularCustoPosicao({ ...posicao, adicional }, premissasExemplo()).ok).toBe(true);
   });
 
   it('insalubridade sem salário mínimo → erro no adicional', () => {
@@ -66,7 +81,10 @@ describe('C2 — falso', () => {
     expect(await falso.garantirPremissasExercicio(tx, contexto, 2028)).toBe(criadas);
     await falso.congelarPremissasExercicio(tx, contexto, 2027);
     expect([...falso.congelados]).toEqual([2027]);
-    expect((await falso.obterPremissasExercicio(tx, 2027))?.congelado).toBe(true);
+    const congeladas = await falso.obterPremissasExercicio(tx, 2027);
+    expect(congeladas).toMatchObject({ congelado: true, versao: 1 });
+    await expect(falso.congelarPremissasExercicio(tx, contexto, 2030)).rejects.toMatchObject({ codigo: 'cad.premissas_inexistentes' });
+    expect(falso.congelados.has(2030)).toBe(false);
   });
 });
 
@@ -78,7 +96,7 @@ describe('C2 — premissasExemplo', () => {
     expect(p.encargos.map((e) => e.componente)).toEqual(COMPONENTES_FIXOS.filter((c) => c.startsWith('encargo.')));
   });
 
-  it('contas da §6.6 e benefícios do exemplo da planilha-modelo', () => {
+  it('contas da R14 e benefícios do exemplo da planilha-modelo', () => {
     const p = premissasExemplo();
     expect(p.contas).toEqual({ salario: '4.1.1.1.001', adicional: '4.1.1.1.025', ferias: '4.1.1.1.003', decimo_terceiro: '4.1.1.1.005' });
     expect(p.beneficios.map((b) => [b.conta, b.forma === 'VALOR_MENSAL' ? b.valorMensal.paraString() : null])).toEqual([
