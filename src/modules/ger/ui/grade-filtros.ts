@@ -1,6 +1,6 @@
 // Filtros declarativos da GradeArvore (US-021, R18; plano do P4, Task 6c). Lógica pura: aplicada no
 // cliente sobre a árvore; um nó aparece se ele ou algum descendente casa, e os ancestrais de quem
-// casa abrem. O estado fica no sessionStorage, com o escopo da sessão (nunca no localStorage).
+// casa pelo próprio texto (e fica visível) abrem. O estado fica no sessionStorage, com o escopo da sessão (nunca no localStorage).
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import type { NoGrade } from './grade-logica';
 
@@ -39,10 +39,11 @@ function criterios<C extends string>(defs: readonly DefinicaoFiltro<C>[], valore
 }
 
 /**
- * Aplica os filtros: um nó fica se casa com todos os critérios ou se tem descendente que casa.
+ * Aplica os filtros: um nó fica se casa (pelo texto próprio ou herdado, e pelos outros critérios) ou
+ * se tem descendente que casa.
  * Quem casa pela busca por texto leva a subárvore inteira, que passa só pelos outros critérios
  * (M5 do #222, decisão do PO: buscar "pessoal" mostra as contas abaixo de "DESPESAS DE PESSOAL").
- * Devolve também os ids a abrir: os ancestrais de quem casou pelo próprio texto, só quando há
+ * Devolve também os ids a abrir: os ancestrais de quem casou pelo próprio texto e ficou visível, só quando há
  * busca (com seleção ou "ocultar zerados" sozinhos, a expansão do usuário fica como está, para não
  * abrir a árvore inteira). Sem filtro ativo, a mesma referência.
  */
@@ -59,14 +60,18 @@ export function aplicarFiltros<C extends string>(
     const saida: NoGrade<C>[] = [];
     let achou = false;
     for (const no of ns) {
-      const casaTextoProprio = texto.length > 0 && texto.every((f) => f(no));
-      const casaTexto = herdado || texto.every((f) => f(no));
+      // Sem filtro de texto, todo nó "casa" pelo texto; `casaTextoProprio` só vale com busca.
+      const proprio = texto.every((f) => f(no));
+      const casaTextoProprio = texto.length > 0 && proprio;
+      const casaTexto = herdado || proprio;
       const sub = no.filhos ? filtrar(no.filhos, casaTexto) : { saida: [], achou: false };
       const filhos = sub.saida;
       if (sub.achou) abrir.add(no.id);
-      achou ||= casaTextoProprio || sub.achou;
       const casa = casaTexto && outros.every((f) => f(no));
-      if (casa || filhos.length > 0) saida.push(filhos.length > 0 || no.filhos ? { ...no, filhos } : no);
+      const visivel = casa || filhos.length > 0;
+      // Quem casa pelo texto mas é ocultado pelos outros critérios não abre os ancestrais.
+      achou ||= (casaTextoProprio && visivel) || sub.achou;
+      if (visivel) saida.push(filhos.length > 0 || no.filhos ? { ...no, filhos } : no);
     }
     return { saida, achou };
   };

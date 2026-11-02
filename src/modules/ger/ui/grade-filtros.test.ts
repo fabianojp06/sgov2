@@ -60,6 +60,34 @@ describe('aplicarFiltros', () => {
     expect([...aplicarFiltros(arvore, defs, { busca: 'despesas' }).abrir]).toEqual(['4']);
   });
 
+  it('M5: quem casa pelo texto mas é ocultado pelos outros critérios não abre os ancestrais', () => {
+    const r = aplicarFiltros(arvore, defs, { busca: 'ferias', zerados: true });
+    expect(r.nos).toEqual([]);
+    expect(r.abrir.size).toBe(0);
+  });
+
+  it('a raiz que casa sozinha leva a árvore e não abre nada', () => {
+    const r = aplicarFiltros(arvore, defs, { busca: 'despesas', tipo: 'A' });
+    expect(ids(r.nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001', '4.1.1.1.003']);
+    const soRaiz = [no('9', 'RAIZ ÚNICA', '', '1.00', [no('9.1', 'Filha', '', '1.00')])];
+    expect([...aplicarFiltros(soRaiz, defs, { busca: 'unica' }).abrir]).toEqual([]);
+    expect(ids(aplicarFiltros(soRaiz, defs, { busca: 'unica' }).nos)).toEqual(['9', '9.1']);
+  });
+
+  it('vários filtros de texto: todos precisam casar, e a herança exige todos no ancestral', () => {
+    const doisTextos: DefinicaoFiltro<C>[] = [
+      { tipo: 'texto', id: 'b1', rotulo: 'Conta', campos: ['conta'] },
+      { tipo: 'texto', id: 'b2', rotulo: 'Reduzido', campos: ['reduzido'] },
+    ];
+    // "pessoal" casa no pai, "900" só na Salários: o pai não casa com os dois, então não há herança.
+    expect(ids(aplicarFiltros(arvore, doisTextos, { b1: 'pessoal', b2: '900' }).nos)).toEqual([]);
+    expect(ids(aplicarFiltros(arvore, doisTextos, { b1: 'sal', b2: '900' }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001']);
+  });
+
+  it('dois critérios que não são de texto (E)', () => {
+    expect(ids(aplicarFiltros(arvore, defs, { tipo: 'A', zerados: true }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001']);
+  });
+
   it('sem filtro ativo, a mesma referência', () => {
     expect(aplicarFiltros(arvore, defs, {}).nos).toBe(arvore);
     expect(aplicarFiltros(arvore, defs, { busca: '  ', zerados: false }).nos).toBe(arvore);
