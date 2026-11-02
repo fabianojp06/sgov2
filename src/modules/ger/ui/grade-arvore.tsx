@@ -104,7 +104,8 @@ export function GradeArvore<C extends string = string>({
   const aoTeclar = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     const atual = focavel === undefined ? undefined : linhas.find((l) => l.no.id === focavel)?.no;
-    if ((e.key === 'Enter' || e.key === ' ') && atual) {
+    // Enter/Espaço só com o foco na linha (no botão de expandir, valem o clique do botão).
+    if ((e.key === 'Enter' || e.key === ' ') && atual && e.target === e.currentTarget.querySelector(`[data-id="${CSS.escape(atual.id)}"]`)) {
       // Enter/Espaço na linha: segue o link da primeira célula ou seleciona (a acaoSelecionar).
       const href = atual.href !== undefined && ehCaminhoInterno(atual.href) ? atual.href : undefined;
       if (e.key === 'Enter' && href) {
@@ -120,7 +121,8 @@ export function GradeArvore<C extends string = string>({
     e.preventDefault();
     const r = navegar(linhas, focavel ?? linhas[0]!.no.id, e.key as Tecla, abertos);
     if (r.alternar) alternar(r.alternar);
-    focoPendente.current = true;
+    // Tecla sem efeito (↓ na última, → numa folha) não deixa o foco pendente para depois.
+    if (r.foco !== focavel || r.alternar) focoPendente.current = true;
     setFocoId(r.foco);
   };
   const itens = virtual.getVirtualItems();
