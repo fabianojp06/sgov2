@@ -225,6 +225,7 @@ describe('validarPlanilha: Receitas', () => {
         receita(12, { 'TP / versão': '003', Descrição: '=HYPERLINK()' }),
         receita(13, { 'TP / versão': '004', Abr: '100000000000' }),
         receita(14, { 'TP / versão': '005', Situação: 'constructor' }),
+        receita(15, { 'TP / versão': '2026-01-01' }),
       ],
     });
     expect(erros(r)).toEqual([
@@ -239,6 +240,7 @@ describe('validarPlanilha: Receitas', () => {
       'Receitas:12:Descrição:Texto não pode começar com =, + ou @.',
       'Receitas:13:Abr:Valor do mês precisa ser menor que R$ 100.000.000.000,00.',
       'Receitas:14:Situação:Situação obrigatória: Confirmado ou Previsto.',
+      'Receitas:15:TP / versão:O Excel converteu o TP / versão em data: formate a célula como texto e digite de novo.',
     ]);
   });
 

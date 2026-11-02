@@ -34,11 +34,17 @@ const ABAS: readonly { aba: Aba; colunas: readonly string[] }[] = [
 ];
 
 const erroGeral = (mensagem: string): Resultado<never> => falha([{ campo: '_', mensagem }]);
-// Erros por linha: o relatório agrupa por aba, na ordem das linhas.
+// Erros por linha: o relatório agrupa por aba, na ordem das linhas, com teto (a resposta não cresce
+// sem limite com uma planilha inteira errada).
+const MAXIMO_ERROS = 500;
 const comoCampos = (erros: readonly ErroPlanilha[]): ErroCampo[] => [
   { campo: '_', mensagem: MENSAGENS_ORC.PLANILHA_COM_ERROS },
-  ...erros.map((e) => ({ campo: `linhas.${e.aba}.${e.linha}.${e.coluna ?? '_'}`, mensagem: e.mensagem })),
+  ...erros.slice(0, MAXIMO_ERROS).map((e) => ({ campo: `linhas.${e.aba}.${e.linha}.${e.coluna ?? '_'}`, mensagem: e.mensagem })),
+  ...(erros.length > MAXIMO_ERROS ? [{ campo: '_', mensagem: MENSAGENS_ORC.MAIS_ERROS(erros.length - MAXIMO_ERROS) }] : []),
 ];
+// Erro de arquivo do leitor: cabeçalho ausente vira a mensagem do layout (R6); o resto, como veio.
+const erroDeArquivo = (aba: Aba, colunas: readonly string[], mensagem: string) =>
+  mensagem.startsWith('Cabeçalho não encontrado') ? MENSAGENS_ORC.FORA_DO_LAYOUT(aba, colunas) : mensagem;
 
 export async function importarPlanilha(
   ctx: ContextoRequisicao,
@@ -52,12 +58,15 @@ export async function importarPlanilha(
   const escopo = await resolverEscopo(deps.cliente, ctx, indice, deps);
 
   // Três leituras, uma por aba, só com as colunas de entrada (R6). Erro de arquivo reprova tudo.
+  // Sem colunasTexto: um CC de dois segmentos ("4.4") pode chegar como número da lista do Excel e
+  // é lido certo; CC de 3 a 5 segmentos e conta nunca são número. TP convertido em data é recusado
+  // na validação.
   const lidas: Record<Aba, readonly LinhaPlanilha[]> = { Pessoal: [], 'Pacotes base zero': [], Receitas: [] };
   const errosCelula: ErroPlanilha[] = [];
   let nomeArquivo = entrada.arquivo.nome;
   for (const { aba, colunas } of ABAS) {
     const r = await lerPlanilha(entrada.arquivo, { aba, colunas, linhaCabecalhoMax: 4 });
-    if (!r.ok) return falha(r.erros.map((e) => ({ campo: '_', mensagem: `Aba ${aba}: ${e.mensagem}` })));
+    if (!r.ok) return falha(r.erros.map((e) => ({ campo: 'arquivo', mensagem: erroDeArquivo(aba, colunas, e.mensagem) })));
     lidas[aba] = r.valor.linhas;
     nomeArquivo = r.valor.nomeArquivo;
     errosCelula.push(...r.valor.errosCelula.map((e) => ({ ...e, aba })));
@@ -128,7 +137,8 @@ export async function importarPlanilha(
         tipo: 'INSERCAO',
         registroId: importacao.id,
         descricao: `Planilha ${nomeArquivo} importada no exercício ${e.ano}: ${posicoes.length} posições e ${pacotes.length} pacotes em ${ccs.length} CCs, ${receitas.length} receitas`,
-        depois: { arquivo: nomeArquivo, sha256, porCc: resumoPorCc, receitas: receitas.map((r) => r.tp) },
+        // Só contagens: o total de um CC com uma só posição revelaria o custo daquela pessoa.
+        depois: { arquivo: nomeArquivo, sha256, porCc: resumoContagem, receitas: receitas.map((r) => r.tp) },
       });
       return ok({
         posicoes: posicoes.length,

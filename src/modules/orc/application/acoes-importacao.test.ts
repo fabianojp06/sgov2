@@ -13,12 +13,17 @@ vi.mock('./importacao', () => ({
 }));
 const { importarPlanilhaAcao } = await import('./acoes-importacao');
 
-const ctx: ContextoRequisicao = { usuarioId: 'u1', usuarioRotulo: 'u', sessaoUid: 's1', ip: null, permissoes: new Set(['orc.importacao:executar']) };
+let ctx: ContextoRequisicao;
+const negacoes: string[] = [];
 
 beforeEach(() => {
   chamadas.length = 0;
+  negacoes.length = 0;
+  ctx = { usuarioId: 'u1', usuarioRotulo: 'u', sessaoUid: 's1', ip: null, permissoes: new Set(['orc.importacao:executar']) };
   configurarProvedorContexto({ obter: async () => ctx });
-  configurarAuditorNegacao(async () => undefined);
+  configurarAuditorNegacao(async (e) => {
+    negacoes.push(e.funcionalidade);
+  });
 });
 
 const formulario = (bytes: number) => {
@@ -44,5 +49,13 @@ describe('importarPlanilhaAcao', () => {
     f.set('exercicioId', 'e1');
     const r = await importarPlanilhaAcao(f);
     expect(r.ok).toBe(false);
+  });
+
+  it('sem orc.importacao:executar: 403 com a negação auditada, sem ler o arquivo', async () => {
+    ctx = { ...ctx, usuarioId: 'u2', permissoes: new Set(['orc.importacao:consultar']) };
+    const r = await importarPlanilhaAcao(formulario(10));
+    expect(r).toMatchObject({ ok: false });
+    expect(negacoes).toEqual(['orc.importacao']);
+    expect(chamadas).toEqual([]);
   });
 });

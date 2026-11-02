@@ -35,7 +35,9 @@ describe('página de importação', () => {
 
   it('GFIN: formulário no exercício editável; fora de edição, o aviso da situação', async () => {
     contexto = ctx(['orc.importacao:consultar', 'orc.importacao:executar']);
-    expect(await html()).toContain('Planilha (layout ADMC-ORC v1.0)');
+    const h = await html();
+    expect(h).toContain('Planilha (layout ADMC-ORC v1.0)');
+    expect(h).toContain('aria-label="Exercício"');
     situacao.valor = 'EM_APROVACAO';
     situacao.rotulo = 'Em Aprovação';
     expect(await html()).toContain('Este exercício não pode ser alterado na situação Em Aprovação.');

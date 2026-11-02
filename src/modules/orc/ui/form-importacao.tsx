@@ -33,7 +33,7 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
           <input id="importacao-arquivo" name="arquivo" type="file" accept=".xlsx" required />
         </p>
         <button type="submit" disabled={pendente}>
-          Importar
+          {pendente ? 'Importando…' : 'Importar'}
         </button>
       </form>
       <div role="status">
@@ -71,7 +71,7 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
           ))}
           {erros.porLinha.length > 0 && (
             <table>
-              <caption>Erros por linha</caption>
+              <caption>{`Erros por linha (${erros.porLinha.length})`}</caption>
               <thead>
                 <tr>
                   <th scope="col">Aba</th>
@@ -83,7 +83,7 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
               <tbody>
                 {erros.porLinha.map((e, i) => (
                   <tr key={i}>
-                    <td>{e.aba}</td>
+                    <th scope="row">{e.aba}</th>
                     <td>{e.linha}</td>
                     <td>{e.coluna}</td>
                     <td>{e.mensagem}</td>

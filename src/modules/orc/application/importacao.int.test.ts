@@ -3,6 +3,8 @@ import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
 import { falha } from '@/shared/kernel';
+import { readFileSync } from 'node:fs';
+import { lerPlanilhaSegura } from '@/modules/ger/servidor';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import type { DepsImportacao } from './importacao';
 import { importarPlanilha } from './importacao';
@@ -130,8 +132,13 @@ describe('importarPlanilha: reimportação (Review Focus 3, R7)', () => {
       ['002/2026', '1000'],
     ]);
     const antes = await contagem(e.id);
+    const totais = async () => (await migrator.linhaOrcada.findMany({ where: { exercicioId: e.id }, orderBy: [{ cc: 'asc' }, { conta: 'asc' }] })).map((l) => [l.cc, l.total.toString()]);
+    const totaisAntes = await totais();
+    const versaoAntes = (await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versao;
     await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: so44 }, e.deps());
     expect(await contagem(e.id)).toEqual(antes);
+    expect(await totais()).toEqual(totaisAntes);
+    expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versao).toBe(versaoAntes + 1);
     expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.importacao' , descricao: { contains: `exercício ${e.ano}` } } })).toBe(3);
   });
 });
@@ -164,7 +171,10 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
     const e = await exercicio();
     const sem = await montarPlanilha({ pessoal: [linhaPessoal('4.4')], semColuna: { aba: 'Pessoal', coluna: 'Cargo' } });
     const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: sem }, e.deps());
-    expect(r.ok ? '' : r.erros[0]!.mensagem).toMatch(/^Aba Pessoal: Cabeçalho não encontrado/);
+    expect(r.ok ? '' : r.erros[0]).toEqual({
+      campo: 'arquivo',
+      mensagem: expect.stringMatching(/^Planilha fora do layout ADMC-ORC v1\.0: a aba Pessoal precisa do cabeçalho, até a linha 4, com as colunas CC analítico, Cargo,/),
+    });
     const lixo = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: { nome: 'x.xlsx', conteudo: new TextEncoder().encode('não sou zip') } }, e.deps());
     expect(lixo.ok).toBe(false);
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
@@ -194,6 +204,7 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
     expect(r.ok).toBe(false);
     expect((await migrator.posicaoOrcada.findMany({ where: { exercicioId: e.id } })).map((p) => p.quantidade)).toEqual([2]);
     expect(await migrator.importacaoPlanilha.count({ where: { exercicioId: e.id } })).toBe(1);
+    expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.importacao', descricao: { contains: `exercício ${e.ano}` } } })).toBe(1);
   });
 });
 
@@ -219,20 +230,55 @@ describe('importarPlanilha: escopo e §10.2', () => {
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
   });
 
-  it('duas importações simultâneas do mesmo exercício: serializadas, estado igual ao de uma', async () => {
+  it('duas importações simultâneas do mesmo exercício: serializadas pela trava, estado igual ao de uma', async () => {
     const e = await exercicio();
     const arquivo = await montarPlanilha({ pessoal: [linhaPessoal('4.4'), linhaPessoal('4.3.0')] });
-    // O leitor atende uma leitura por processo: as duas leituras acontecem uma depois da outra.
-    const r1 = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps());
-    const [r2, r3] = await Promise.all([
-      app.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT 1 FROM orc_exercicio WHERE id = ${e.id}::uuid FOR UPDATE`;
-        await new Promise((ok) => setTimeout(ok, 200));
-        return 'trava';
-      }),
-      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps()),
+    // As abas são lidas uma vez com o leitor real e servidas de memória, para as duas importações
+    // chegarem juntas à transação (o leitor real atende uma leitura por processo).
+    const lidas = new Map<string, Awaited<ReturnType<typeof lerPlanilhaSegura>>>();
+    for (const aba of ['Pessoal', 'Pacotes base zero', 'Receitas']) {
+      const { COLUNAS_PACOTES, COLUNAS_PESSOAL, COLUNAS_RECEITAS } = await import('../domain/planilha');
+      const colunas = aba === 'Pessoal' ? COLUNAS_PESSOAL : aba === 'Receitas' ? COLUNAS_RECEITAS : COLUNAS_PACOTES;
+      lidas.set(aba, await lerPlanilhaSegura(arquivo, { aba, colunas, linhaCabecalhoMax: 4 }));
+    }
+    const lerPlanilha: typeof lerPlanilhaSegura = async (_a, o) => lidas.get(o.aba!)!;
+    const [r1, r2] = await Promise.all([
+      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps({ lerPlanilha })),
+      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps({ lerPlanilha })),
     ]);
-    expect(r1.ok && r3.ok && r2).toBe('trava');
+    expect(r1.ok && r2.ok).toBe(true);
+    // Sem a trava, as duas apagariam antes de a outra gravar e o exercício ficaria com 4 posições.
     expect(await contagem(e.id)).toMatchObject({ posicoes: 2, linhas: 2 });
+    expect(await migrator.importacaoPlanilha.count({ where: { exercicioId: e.id } })).toBe(2);
+    expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versao).toBe(2);
+  });
+
+  it('nome do arquivo saneado no registro e no Histórico; mais de 500 erros: relatório com teto', async () => {
+    const e = await exercicio();
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.4')], nome: '../../x\u0007.xlsx' }) }, e.deps());
+    expect(r.ok).toBe(true);
+    expect((await migrator.importacaoPlanilha.findFirstOrThrow({ where: { exercicioId: e.id } })).arquivoNome).toBe('x.xlsx');
+    const ruins = Array.from({ length: 600 }, () => linhaPessoal('4.4', { Cargo: null }));
+    const muitos = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: ruins }) }, e.deps());
+    expect(muitos.ok ? 0 : muitos.erros.length).toBe(502);
+    expect(muitos.ok ? '' : muitos.erros.at(-1)!.mensagem).toBe('E mais 100 erro(s) não listados. Corrija os acima e importe de novo.');
+  });
+
+  it('CC presente só em Pacotes também tem as posições substituídas; total do resumo vem do motor', async () => {
+    const e = await exercicio();
+    await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.4')] }) }, e.deps());
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4')] }) }, e.deps());
+    expect(await migrator.posicaoOrcada.count({ where: { exercicioId: e.id } })).toBe(0);
+    // Pacote 12 × 350,00 com o IPCA das premissas de exemplo (4,5%).
+    expect(r.ok && r.valor.resumoPorCc.map((c) => [c.cc, c.total.paraString()])).toEqual([['4.4', '4389.00']]);
+  });
+
+  it('a planilha-modelo real (docs/modelos), vazia: lida sem erro de célula, "sem lançamentos"', async () => {
+    const e = await exercicio();
+    const conteudo = new Uint8Array(readFileSync('docs/modelos/orcamento-adm-central-2027-modelo-v1.0.xlsx'));
+    expect(await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: { nome: 'modelo.xlsx', conteudo } }, e.deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'A planilha não tem lançamentos.' }],
+    });
   });
 });
