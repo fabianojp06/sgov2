@@ -1,4 +1,4 @@
-import { falha, ok, type Dinheiro, type ErroCampo, type Percentual, type Resultado } from '@/shared/kernel';
+import { Dinheiro, falha, ok, type ErroCampo, type Percentual, type Resultado } from '@/shared/kernel';
 
 // C2 — Custo de pessoal (spec §6.4, §6.6, C33; plano do P4, Task 3). Mês 1 = janeiro; as séries
 // têm sempre 12 posições. Valores em Dinheiro (NUMERIC(15,2), Half-Even); number só para contagem e mês.
@@ -12,9 +12,9 @@ export type AdicionalTrabalhista =
   | { tipo: 'INSALUBRIDADE'; grau: 'MINIMO' | 'MEDIO' | 'MAXIMO' };
 
 export type PosicaoPessoal = {
-  /** Inteiro ≥ 1 (contagem de pessoas). */
+  /** Inteiro de 1 a QUANTIDADE_MAXIMA (contagem de pessoas). */
   quantidade: number;
-  /** > 0; Fonte Ativa do cargo ou o salário digitado (C34). */
+  /** > 0 e < SALARIO_LIMITE; Fonte Ativa do cargo ou o salário digitado (C34). */
   salarioMensal: Dinheiro;
   /** 1..12. */
   mesInicio: number;
@@ -43,16 +43,18 @@ export type CodigoComponente = ComponenteFixo | `beneficio.${string}`;
  * Benefício por pessoa. VALOR_MENSAL: valor × quantidade, exato. PERCENTUAL_SALARIO: sobre o
  * salário do mês, já reajustado, de toda a posição, com um arredondamento (R14a).
  */
-export type BeneficioPremissa =
+export type BeneficioPremissa = Readonly<
   | { componente: `beneficio.${string}`; nome: string; forma: 'VALOR_MENSAL'; valorMensal: Dinheiro; conta: string }
-  | { componente: `beneficio.${string}`; nome: string; forma: 'PERCENTUAL_SALARIO'; percentual: Percentual; conta: string };
+  | { componente: `beneficio.${string}`; nome: string; forma: 'PERCENTUAL_SALARIO'; percentual: Percentual; conta: string }
+>;
 
 /** Parâmetros do exercício (US-053). Contas são classificações de analíticas ativas (C1). */
-export type PremissasExercicio = {
+export type PremissasExercicio = Readonly<{
   ano: number;
   /**
    * Muda com QUALQUER escrita nos parâmetros do ano: premissas, encargos, contas por componente,
    * SMN e Tabela Mestre (R10). O consumidor guarda a versão para saber se a série está velha.
+   * Congelar não muda a versão: os valores não mudam.
    */
   versao: number;
   /** Congelado quando a frente A oficializa o exercício: nenhuma escrita depois disso. */
@@ -70,16 +72,17 @@ export type PremissasExercicio = {
    * R13: o total é a base × soma dos percentuais, com um único Half-Even; cada componente é
    * arredondado em separado e a diferença de centavo vai para o INSS.
    */
-  encargos: readonly { componente: ComponenteEncargo; nome: string; percentual: Percentual; conta: string }[];
+  encargos: readonly Readonly<{ componente: ComponenteEncargo; nome: string; percentual: Percentual; conta: string }>[];
   /** Conta analítica de cada componente fixo que não é encargo (R14). */
   contas: Readonly<Record<Exclude<ComponenteFixo, ComponenteEncargo>, string>>;
   beneficios: readonly BeneficioPremissa[];
   avisos: readonly string[];
-};
+}>;
 
-export type LinhaComponente = { componente: CodigoComponente; conta: string; meses: readonly Dinheiro[]; total: Dinheiro };
+/** `meses` tem 12 posições. */
+export type LinhaComponente = Readonly<{ componente: CodigoComponente; conta: string; meses: readonly Dinheiro[]; total: Dinheiro }>;
 
-export type SerieMensalComponentes = {
+export type SerieMensalComponentes = Readonly<{
   ano: number;
   versaoPremissas: number;
   /** Só os componentes com algum mês diferente de zero. */
@@ -87,18 +90,25 @@ export type SerieMensalComponentes = {
   /** 12 posições. */
   totalMes: readonly Dinheiro[];
   total: Dinheiro;
-};
+}>;
+
+/** Limites da posição: com eles, nenhuma conta da R14 passa de NUMERIC(15,2). */
+export const QUANTIDADE_MAXIMA = 9999;
+const SALARIO_LIMITE = Dinheiro.de('1000000.00');
 
 const ehMes = (m: number) => Number.isInteger(m) && m >= 1 && m <= 12;
 
-/** Validação da posição, igual no falso e no motor real. Erros por campo ([TRAVA O ERRO]). */
+/** Validação da posição, igual no falso e no motor real. Erros por campo ([TRAVA O ERRO]), nunca exceção. */
 export function validarPosicao(posicao: PosicaoPessoal, premissas: PremissasExercicio): Resultado<PosicaoPessoal> {
   const erros: ErroCampo[] = [];
-  if (!Number.isInteger(posicao.quantidade) || posicao.quantidade < 1) {
-    erros.push({ campo: 'quantidade', mensagem: 'A quantidade deve ser um número inteiro a partir de 1.' });
+  if (!Number.isInteger(posicao.quantidade) || posicao.quantidade < 1 || posicao.quantidade > QUANTIDADE_MAXIMA) {
+    erros.push({ campo: 'quantidade', mensagem: `A quantidade deve ser um número inteiro de 1 a ${QUANTIDADE_MAXIMA}.` });
   }
+  // As mensagens nunca citam o valor do salário (Review Focus 5).
   if (posicao.salarioMensal.ehNegativo() || posicao.salarioMensal.ehZero()) {
     erros.push({ campo: 'salarioMensal', mensagem: 'O salário mensal deve ser maior que zero.' });
+  } else if (posicao.salarioMensal.comparar(SALARIO_LIMITE) >= 0) {
+    erros.push({ campo: 'salarioMensal', mensagem: 'O salário mensal deve ser menor que 1.000.000,00.' });
   }
   if (!ehMes(posicao.mesInicio)) erros.push({ campo: 'mesInicio', mensagem: 'O mês de início deve ser de 1 a 12.' });
   if (!ehMes(posicao.mesSaida) || (ehMes(posicao.mesInicio) && posicao.mesSaida < posicao.mesInicio)) {

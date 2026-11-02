@@ -24,6 +24,7 @@ export {
 // C2 — Custo de pessoal (Task 3).
 export {
   COMPONENTES_FIXOS,
+  QUANTIDADE_MAXIMA,
   type AdicionalTrabalhista,
   type BeneficioPremissa,
   type CodigoComponente,
