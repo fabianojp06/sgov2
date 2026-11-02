@@ -2,7 +2,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 
-// Matriz de privilégios das tabelas do orc (migration 202610260700_orc_orcamento; plano do P6,
+// Matriz de privilégios das tabelas do orc (migration 202611022100_orc_orcamento; plano do P6,
 // Task 1). Privilégio a mais ou a menos reprova, inclusive TRUNCATE, TRIGGER e REFERENCES.
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let migrator: pg.Client;

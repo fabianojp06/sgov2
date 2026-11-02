@@ -27,6 +27,7 @@ afterAll(async () => {
 
 const MESES = `ARRAY[${Array(12).fill('1.00').join(',')}]::numeric(15,2)[]`;
 const USUARIO = '0b1e6f1a-5c39-4c2b-9e0a-3d6f1f2a4b5c';
+const OUTRO_USUARIO = '5d2c8e4b-7a61-4f0e-b3c9-1e8a6d4f2b70';
 const negadoPor = (mensagem: string) => expect.objectContaining({ message: mensagem });
 const negado = expect.objectContaining({ code: '42501' });
 const violou = (constraint: string) => expect.objectContaining({ code: '23514', constraint });
@@ -48,13 +49,14 @@ const tramite = (exercicioId: string, de: string, para: string) =>
 const snapshot = (exercicioId: string) =>
   app.query(`INSERT INTO orc_snapshot (exercicio_id, sha256, conteudo) VALUES ($1, $2, '{}')`, [exercicioId, 'b'.repeat(64)]);
 
-// Cada transição como a aplicação faz: UPDATE e trâmite na mesma transação; a oficialização com
-// a data, o snapshot e o trâmite.
+// Cada transição como a aplicação faz: UPDATE e trâmite na mesma transação; o envio com o
+// remetente; a oficialização com a data, o snapshot e o trâmite.
 async function transitar(id: string, de: string, para: string): Promise<void> {
   await emTransacao(async () => {
     const oficializar = para === 'OFICIALIZADO';
+    const enviar = para === 'EM_APROVACAO';
     await app.query(
-      `UPDATE orc_exercicio SET situacao = $1, versao = versao + 1${oficializar ? ', oficializado_em = clock_timestamp()' : ''} WHERE id = $2`,
+      `UPDATE orc_exercicio SET situacao = $1, versao = versao + 1${oficializar ? ', oficializado_em = clock_timestamp()' : ''}${enviar ? `, enviado_por = '${USUARIO}'` : ''} WHERE id = $2`,
       [para, id],
     );
     if (oficializar) await snapshot(id);
@@ -131,7 +133,7 @@ describe('ciclo de vida do exercício (§6.2)', () => {
 
   it('Em Aprovação: teto, premissas e remetente não mudam; situação e versão mudam', async () => {
     const id = await exercicio('EM_ELABORACAO', 'EM_APROVACAO');
-    for (const set of ['teto_manual = 1', 'versao_premissas = 9', `enviado_por = '${USUARIO}'`]) {
+    for (const set of ['teto_manual = 1', 'versao_premissas = 9', `enviado_por = '${OUTRO_USUARIO}'`]) {
       await expect(app.query(`UPDATE orc_exercicio SET ${set} WHERE id = $1`, [id])).rejects.toEqual(negadoPor('orc.exercicio_nao_editavel'));
     }
     // A lista do que pode mudar vale até para o dono: coluna fora dela fica travada.
@@ -139,6 +141,16 @@ describe('ciclo de vida do exercício (§6.2)', () => {
       negadoPor('orc.exercicio_nao_editavel'),
     );
     await expect(transitar(id, 'EM_APROVACAO', 'EM_ELABORACAO')).resolves.toBeUndefined();
+  });
+
+  it('Em Aprovação exige o remetente (D-P6-3)', async () => {
+    const id = await exercicio('EM_ELABORACAO');
+    await expect(
+      emTransacao(async () => {
+        await app.query(`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', versao = versao + 1 WHERE id = $1`, [id]);
+        await tramite(id, 'EM_ELABORACAO', 'EM_APROVACAO');
+      }),
+    ).rejects.toEqual(violou('orc_exercicio_enviado_check'));
   });
 
   it('Oficializado: nada muda no exercício, nem pelo migrator; data da oficialização exigida', async () => {

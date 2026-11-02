@@ -190,7 +190,9 @@ ALTER TABLE "orc_exercicio"
   ADD CONSTRAINT "orc_exercicio_situacao_check" CHECK ("situacao" IN ('RASCUNHO', 'EM_ELABORACAO', 'EM_APROVACAO', 'OFICIALIZADO')),
   ADD CONSTRAINT "orc_exercicio_teto_check" CHECK ("teto_manual" IS NULL OR "teto_manual" > 0),
   ADD CONSTRAINT "orc_exercicio_versao_check" CHECK ("versao" >= 0),
-  ADD CONSTRAINT "orc_exercicio_oficializado_check" CHECK (("situacao" = 'OFICIALIZADO') = ("oficializado_em" IS NOT NULL));
+  ADD CONSTRAINT "orc_exercicio_oficializado_check" CHECK (("situacao" = 'OFICIALIZADO') = ("oficializado_em" IS NOT NULL)),
+  -- Sem remetente gravado, ninguém aprova (D-P6-3): Em Aprovação exige quem enviou.
+  ADD CONSTRAINT "orc_exercicio_enviado_check" CHECK ("situacao" <> 'EM_APROVACAO' OR "enviado_por" IS NOT NULL);
 
 -- Limites alinhados ao C2 (QUANTIDADE_MAXIMA 9.999; salário < 1.000.000,00) e à validação da Task 4a.
 ALTER TABLE "orc_posicao"
