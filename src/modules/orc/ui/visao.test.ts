@@ -39,6 +39,7 @@ describe('VisaoCc', () => {
     expect(h).toContain('role="treegrid"');
     expect(h).toContain('14.180 · 4 DIREX');
     expect(h).toContain('href="/orc/orcamento?ano=2027&amp;cc=4"');
+    expect(h).toContain('(Inativo)');
   });
 
   it('rótulo do CC: reduzido, classificação e o selo de inativo', () => {
@@ -51,6 +52,7 @@ describe('VisaoCc', () => {
       visao({
         detalhe: {
           cc: '4.3',
+          codigoReduzido: '14.310',
           descricao: 'Diretoria',
           serie: { pessoal: m12('15000'), baseZero: m12('365.75'), total: m12('15365.75') },
           linhas: [
@@ -60,7 +62,9 @@ describe('VisaoCc', () => {
         },
       }),
     );
-    expect(h).toContain('Detalhe: 4.3 Diretoria');
+    expect(h).toContain('Detalhe: 14.310 · 4.3 Diretoria');
+    expect(h).toContain('aria-labelledby="tabela-serie"');
+    expect(h).toContain('id="tabela-serie"');
     expect(h).toContain('Base zero · 4.1.1.5.005 Material');
     expect(h).toContain('Pessoal · 4.1.1.1.001 Salários');
     expect(h).toContain('180.000,00');

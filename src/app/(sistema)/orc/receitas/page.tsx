@@ -23,7 +23,7 @@ export default async function Receitas({ searchParams }: { searchParams: Promise
       </main>
     );
   }
-  const dados = await listarReceitas(ctx, atual.id).catch(naoEncontradoSeNegado);
+  const dados = await listarReceitas(ctx, atual.id).catch(naoEncontradoSeNegado(ctx));
   return (
     <main>
       <h1>{`Receitas – Rateio dos TPs (${atual.ano})`}</h1>

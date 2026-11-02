@@ -98,7 +98,8 @@ describe('obterVisaoExercicio: árvore e indicadores', () => {
 
   it('ano inexistente: o mais recente', async () => {
     const e = await exercicioCalculado();
-    expect((await obterVisaoExercicio(ctx(), 1999, null, e.deps()))!.exercicio.ano).toBeGreaterThanOrEqual(e.ano);
+    const maior = await migrator.orcamentoExercicio.aggregate({ _max: { ano: true } });
+    expect((await obterVisaoExercicio(ctx(), 1999, null, e.deps()))!.exercicio.ano).toBe(maior._max.ano);
   });
 });
 
@@ -136,6 +137,36 @@ describe('obterVisaoExercicio: escopo (C25, Review Focus 5)', () => {
     expect((await obterVisaoExercicio(ctx(), e.ano, '4.4', e.deps()))!.detalhe?.cc).toBe('4.4');
   });
 
+  it('gestor de 4.4: os indicadores filtram pacotes, empregados, pessoal e prioridades', async () => {
+    const e = await exercicioCalculado();
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ obterEscopo: async () => '4.4' })))!;
+    expect(v.arvore.map((n) => n.cc)).toEqual(['4.4']);
+    expect(v.indicadores.empregadosDezembro).toBe(0); // a posição de 4.4 sai em junho; a de 4.3.2.11 não conta
+    expect(v.indicadores.pacotes).toBe(1);
+    expect(s(v.indicadores.pessoal)).toBe('30000.00');
+    expect(s(v.indicadores.porPrioridade.IMPORTANTE)).toBe('0.00');
+    expect(s(v.indicadores.porPrioridade.ESSENCIAL)).toBe('1000.00');
+  });
+
+  it('R16: raiz do escopo inativa → nada aparece (o índice do C1 não a conhece)', async () => {
+    const e = await exercicioCalculado();
+    const inativa = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => marcarInativo(n, '4.3')) });
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ estrutura: inativa, obterEscopo: async () => '4.3' })))!;
+    expect(v.arvore).toEqual([]);
+    expect(s(v.indicadores.orcamentoAno)).toBe('0.00');
+    expect(v.indicadores.pacotes).toBe(0);
+    expect(v.indicadores.empregadosDezembro).toBe(0);
+    await expect(obterVisaoExercicio(ctx(), e.ano, '4.3.2.11', e.deps({ estrutura: inativa, obterEscopo: async () => '4.3' }))).rejects.toBeInstanceOf(ErroPermissao);
+  });
+
+  it('R16: CC de escopo fora da estrutura, mesmo com linhas nele → nada aparece', async () => {
+    const e = await exercicioCalculado({ ccOrfao: '9.9.9' });
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ obterEscopo: async () => '9.9.9' })))!;
+    expect(v.arvore).toEqual([]);
+    expect(s(v.indicadores.orcamentoAno)).toBe('0.00');
+    expect(v.indicadores.empregadosDezembro).toBe(0);
+  });
+
   it('escopo com raiz inexistente: árvore vazia e zero, nunca tudo (R16)', async () => {
     const e = await exercicioCalculado();
     const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ obterEscopo: async () => '9.9' })))!;
@@ -152,6 +183,15 @@ describe('obterVisaoExercicio: inativos, CC fora da estrutura e premissas', () =
     const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ estrutura: inativa })))!;
     expect(achar(v.arvore, '4.4')).toMatchObject({ inativo: true });
     expect(s(achar(v.arvore, '4')?.total)).toBe('215389.00');
+  });
+
+  it('inativo herdado: filho de sintético inativo aparece inativo na visão total', async () => {
+    const e = await exercicioCalculado();
+    const inativa = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => marcarInativo(n, '4.3')) });
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ estrutura: inativa })))!;
+    expect(achar(v.arvore, '4.3')?.inativo).toBe(true);
+    expect(achar(v.arvore, '4.3.2.11')?.inativo).toBe(true);
+    expect(achar(v.arvore, '4.4')?.inativo).toBe(false);
   });
 
   it('CC que nem a árvore conhece: nó próprio marcado fora da estrutura', async () => {

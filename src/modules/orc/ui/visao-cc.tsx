@@ -1,5 +1,5 @@
 import { GradeArvore, type ColunaGrade, type NoGrade } from '@/modules/ger';
-import type { Dinheiro, Percentual } from '@/shared/kernel';
+import { Dinheiro, type Percentual } from '@/shared/kernel';
 import { valorParaTela } from '../domain/valor-tela';
 import { AcaoConfirmada, type AcaoFormulario } from './acao-confirmada';
 
@@ -30,7 +30,7 @@ export type DadosVisao = {
     empregadosDezembro: number;
     porPrioridade: Readonly<Record<'ESSENCIAL' | 'IMPORTANTE' | 'DESEJAVEL', Dinheiro>>;
   };
-  detalhe: { cc: string; descricao: string; serie: { pessoal: readonly Dinheiro[]; baseZero: readonly Dinheiro[]; total: readonly Dinheiro[] }; linhas: readonly Linha[] } | null;
+  detalhe: { cc: string; codigoReduzido: string; descricao: string; serie: { pessoal: readonly Dinheiro[]; baseZero: readonly Dinheiro[]; total: readonly Dinheiro[] }; linhas: readonly Linha[] } | null;
   avisos: readonly string[];
 };
 
@@ -69,11 +69,12 @@ function paraGrade(n: No, ano: number): NoGrade<Campos> {
   };
 }
 
-function TabelaSerie({ titulo, linhas }: { titulo: string; linhas: readonly { rotulo: string; meses: readonly Dinheiro[]; total: Dinheiro }[] }) {
+function TabelaSerie({ id, titulo, linhas }: { id: string; titulo: string; linhas: readonly { rotulo: string; meses: readonly Dinheiro[]; total: Dinheiro }[] }) {
+  // Tabela larga (14 colunas): região rolável e focável, sem rolar a página inteira.
   return (
-    <div role="region" aria-labelledby={`tabela-${titulo}`} tabIndex={0}>
+    <div role="region" aria-labelledby={id} tabIndex={0} style={{ overflowX: 'auto' }}>
       <table>
-        <caption id={`tabela-${titulo}`}>{titulo}</caption>
+        <caption id={id}>{titulo}</caption>
         <thead>
           <tr>
             <th scope="col">Linha</th>
@@ -101,7 +102,7 @@ function TabelaSerie({ titulo, linhas }: { titulo: string; linhas: readonly { ro
   );
 }
 
-const soma = (xs: readonly Dinheiro[]) => xs.reduce((a, b) => a.somar(b));
+const soma = (xs: readonly Dinheiro[]) => Dinheiro.somarTodos(xs);
 
 export function VisaoCc({ visao, podeRecalcular, recalcular, aviso }: { visao: DadosVisao; podeRecalcular: boolean; recalcular: AcaoFormulario; aviso?: string | undefined }) {
   const { exercicio, indicadores: i, detalhe } = visao;
@@ -111,8 +112,8 @@ export function VisaoCc({ visao, podeRecalcular, recalcular, aviso }: { visao: D
       {(aviso || visao.avisos.length > 0) && (
         <div role="status">
           {aviso && <p>{aviso}</p>}
-          {visao.avisos.map((a) => (
-            <p key={a}>{a}</p>
+          {visao.avisos.map((a, i) => (
+            <p key={i}>{a}</p>
           ))}
         </div>
       )}
@@ -146,13 +147,15 @@ export function VisaoCc({ visao, podeRecalcular, recalcular, aviso }: { visao: D
           rotulo={`Orçamento ${exercicio.ano} por centro de custo`}
           nos={visao.arvore.map((n) => paraGrade(n, exercicio.ano))}
           colunas={COLUNAS}
+          expandidos="todos"
           textoVazio="Nenhum centro de custo no seu escopo."
         />
       </section>
       {detalhe && (
         <section aria-labelledby="detalhe-cc">
-          <h2 id="detalhe-cc">{`Detalhe: ${detalhe.cc} ${detalhe.descricao}`}</h2>
+          <h2 id="detalhe-cc">{`Detalhe: ${rotuloCc({ ...detalhe, inativo: false })}`}</h2>
           <TabelaSerie
+            id="tabela-serie"
             titulo="Série mês a mês (R$)"
             linhas={[
               { rotulo: 'Pessoal + encargos', meses: detalhe.serie.pessoal, total: soma(detalhe.serie.pessoal) },
@@ -164,6 +167,7 @@ export function VisaoCc({ visao, podeRecalcular, recalcular, aviso }: { visao: D
             <p>Nenhum lançamento neste centro de custo.</p>
           ) : (
             <TabelaSerie
+              id="tabela-linhas"
               titulo="Linhas CC × conta (R$)"
               linhas={detalhe.linhas.map((l) => ({ rotulo: `${ORIGEM[l.origem]} · ${l.conta} ${l.descricaoConta}`, meses: l.meses, total: l.total }))}
             />

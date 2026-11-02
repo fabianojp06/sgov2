@@ -22,12 +22,16 @@ const { default: Pagina } = await import('../../../app/(sistema)/orc/orcamento/p
 
 const ctx = (permissoes: string[]): ContextoRequisicao => ({ usuarioId: 'u1', usuarioRotulo: 'u', sessaoUid: 's1', ip: null, permissoes: new Set(permissoes) });
 let contexto: ContextoRequisicao;
+let negacoes: string[];
 
 beforeEach(() => {
   caso.visao = 'vazia';
+  negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
-  configurarAuditorNegacao(async () => undefined);
+  configurarAuditorNegacao(async (e) => {
+    negacoes.push(e.funcionalidade);
+  });
 });
 
 const digest = (p: Promise<unknown>) => p.then(() => 'sem erro', (e: { digest?: string }) => e.digest ?? String(e));
@@ -43,6 +47,7 @@ describe('página do orçamento', () => {
     contexto = ctx(['orc.orcamento:consultar']);
     caso.visao = 'fora';
     expect(await digest(Pagina({ searchParams: sp({ cc: '4.4' }) }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
+    expect(negacoes).toEqual(['orc.orcamento']); // negação do escopo auditada
     caso.visao = 'inexistente';
     expect(await digest(Pagina({ searchParams: sp({ cc: '9.9' }) }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
   });

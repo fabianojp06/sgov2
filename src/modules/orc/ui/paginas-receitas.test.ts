@@ -60,6 +60,7 @@ describe('páginas de receitas', () => {
     contexto = ctx(['orc.receitas:consultar', 'orc.receitas:alterar']);
     caso.comEscopo = true;
     expect(await digest(Lista({ searchParams }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
+    expect(negacoes.map((n) => n.funcionalidade)).toContain('orc.receitas');
     expect(await digest(Alterar({ params }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
   });
 

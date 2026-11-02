@@ -24,3 +24,11 @@ export async function exigirPagina(funcionalidade: string, acao: Acao): Promise<
   }
   return ctx;
 }
+
+// Negação que vem do caso de uso depois da guarda (ex.: escopo do usuário): a página responde 404
+// com a negação auditada, como a exigirPagina. Outros erros seguem.
+export async function negarNaPagina(ctx: ContextoRequisicao, erro: unknown): Promise<never> {
+  if (!(erro instanceof ErroPermissao)) throw erro;
+  await registrarNegacao(ctx, erro);
+  notFound();
+}

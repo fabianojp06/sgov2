@@ -32,6 +32,7 @@ export type NoVisao = {
 export type LinhaDetalhe = { conta: string; descricaoConta: string; origem: 'PESSOAL' | 'BASE_ZERO'; meses: readonly Dinheiro[]; total: Dinheiro };
 export type DetalheCc = {
   cc: string;
+  codigoReduzido: string;
   descricao: string;
   serie: { pessoal: readonly Dinheiro[]; baseZero: readonly Dinheiro[]; total: readonly Dinheiro[] };
   linhas: readonly LinhaDetalhe[];
@@ -80,6 +81,19 @@ function descricoesContas(nos: readonly NoConta[], saida = new Map<string, strin
   return saida;
 }
 
+function ancestraisAteRaiz(plano: Map<string, NoPlano>, ccs: ReadonlySet<string>, raiz: string): Set<string> {
+  const ids = new Set<string>();
+  for (const cc of ccs) {
+    let atual: string | null = cc;
+    while (atual !== null && !ids.has(atual)) {
+      ids.add(atual);
+      if (atual === raiz) break;
+      atual = plano.get(atual)?.paiId ?? null;
+    }
+  }
+  return ids;
+}
+
 function subarvore(plano: Map<string, NoPlano>, raiz: string): Set<string> {
   const ids = new Set<string>();
   const visitar = (id: string) => {
@@ -116,15 +130,20 @@ export async function obterVisaoExercicio(
   achatar(arvoreCc, null, false, plano);
   const contas = descricoesContas(arvoreContas);
 
-  const todas = await c.linhaOrcada.findMany({ where: { exercicioId: ex.id }, include: { pacote: { select: { prioridade: true } } } });
+  const todas = await c.linhaOrcada.findMany({
+    where: { exercicioId: ex.id, ...(escopo.tipo === 'TOTAL' ? {} : { cc: { in: [...escopo.ccs] } }) },
+    include: { pacote: { select: { prioridade: true } } },
+  });
   // CC usado no orçamento que nem a árvore com inativos conhece: nó próprio na raiz (o totalizador
   // não aceita valor em nó ausente), marcado como fora da estrutura.
   for (const l of todas) {
     if (!plano.has(l.cc)) plano.set(l.cc, { cc: l.cc, paiId: null, codigoReduzido: '', descricao: MENSAGENS_ORC.CC_DESCONHECIDO, tipo: 'ANALITICO', inativo: true, filhos: [] });
   }
-  // Escopo: a subárvore da raiz do gestor (vazia se a raiz não existe); sem escopo, tudo.
-  const visiveis = escopo.tipo === 'TOTAL' ? new Set(plano.keys()) : subarvore(plano, escopo.raiz);
-  const noEscopo = (cc: string) => (escopo.tipo === 'TOTAL' ? true : escopo.ccs.has(cc) || (visiveis.has(cc) && plano.get(cc)?.tipo === 'ANALITICO'));
+  // Escopo (R8, R16): com CC de escopo, só os CCs analíticos ATIVOS que o índice do C1 põe sob a
+  // raiz, mais os ancestrais deles até a raiz (para a árvore). Raiz inexistente ou inativa: o índice
+  // devolve vazio e nada aparece. Linha em CC inativo ou fora da estrutura só a visão total mostra.
+  const visiveis = escopo.tipo === 'TOTAL' ? new Set(plano.keys()) : ancestraisAteRaiz(plano, escopo.ccs, escopo.raiz);
+  const noEscopo = (cc: string) => (escopo.tipo === 'TOTAL' ? true : escopo.ccs.has(cc));
   const linhas = todas.filter((l) => noEscopo(l.cc));
 
   const serie = (l: (typeof todas)[number]) => l.meses.map((m) => Dinheiro.de(m.toString()));
@@ -179,6 +198,7 @@ export async function obterVisaoExercicio(
     const baseZero = sBase.valor(ccDetalhe);
     detalhe = {
       cc: ccDetalhe,
+      codigoReduzido: plano.get(ccDetalhe)!.codigoReduzido,
       descricao: plano.get(ccDetalhe)!.descricao,
       serie: { pessoal, baseZero, total: somarSeries(pessoal, baseZero) },
       linhas: [...agrupadas.values()].sort((a, b) => a.origem.localeCompare(b.origem) || a.conta.localeCompare(b.conta)),
@@ -186,7 +206,7 @@ export async function obterVisaoExercicio(
   }
 
   // Indicadores do escopo (§6.6).
-  const filtroCc = escopo.tipo === 'TOTAL' ? {} : { cc: { in: [...visiveis].filter((cc) => noEscopo(cc)) } };
+  const filtroCc = escopo.tipo === 'TOTAL' ? {} : { cc: { in: [...escopo.ccs] } };
   const [pacotes, dezembro] = await Promise.all([
     c.pacoteBaseZero.count({ where: { exercicioId: ex.id, ...filtroCc } }),
     c.posicaoOrcada.aggregate({ where: { exercicioId: ex.id, mesSaida: 12, ...filtroCc }, _sum: { quantidade: true } }),
