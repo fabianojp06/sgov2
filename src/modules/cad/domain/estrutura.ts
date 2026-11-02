@@ -44,11 +44,14 @@ export type NoCentroCusto = {
   filhos: readonly NoCentroCusto[];
 };
 
-/** Padrão: só ativos. */
+/**
+ * Padrão: só ativos. "Ativo" é efetivo: o nó e todos os ancestrais ativos. Um nó ativo sob um pai
+ * inativo fica fora da árvore e do índice; a carga também não grava esse caso (M-n3).
+ */
 export type OpcoesArvore = { incluirInativos?: boolean };
 
 /** Mesmo formato do NoArvore de @/shared/totalizer (o domain/ não importa o totalizer). */
-export type NoIndice = { id: string; paiId: string | null; tipo: 'SINTETICA' | 'ANALITICA' };
+export type NoIndice = { readonly id: string; readonly paiId: string | null; readonly tipo: 'SINTETICA' | 'ANALITICA' };
 
 export type IndiceEstruturaFinanceira = {
   contaAnaliticaAtiva(classificacao: string): boolean;
@@ -69,16 +72,30 @@ export type IndiceEstruturaFinanceira = {
   nosCentrosCusto: readonly NoIndice[];
 };
 
-/** Ordem da classificação por segmentos numéricos: '4.3.2.9' vem antes de '4.3.2.10'. */
+/**
+ * Ordem da classificação por segmentos numéricos: '4.3.2.9' vem antes de '4.3.2.10'. Ordem total:
+ * segmento não numérico vai depois dos numéricos, e o empate ('4.01' × '4.1') cai na ordem do texto.
+ */
 export function compararClassificacao(a: string, b: string): number {
   const sa = a.split('.');
   const sb = b.split('.');
   for (let i = 0; i < Math.min(sa.length, sb.length); i++) {
-    const na = Number(sa[i]);
-    const nb = Number(sb[i]);
-    if (na !== nb) return na - nb;
+    const na = /^\d+$/.test(sa[i]!) ? Number(sa[i]) : Number.POSITIVE_INFINITY;
+    const nb = /^\d+$/.test(sb[i]!) ? Number(sb[i]) : Number.POSITIVE_INFINITY;
+    if (na !== nb) return na < nb ? -1 : 1;
   }
-  return sa.length - sb.length;
+  if (sa.length !== sb.length) return sa.length - sb.length;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Congela a árvore inteira (os exemplos dos falsos são compartilhados entre testes). */
+export function congelarArvore<T extends { filhos: readonly T[] }>(nos: readonly T[]): readonly T[] {
+  for (const no of nos) {
+    congelarArvore(no.filhos);
+    Object.freeze(no.filhos);
+    Object.freeze(no);
+  }
+  return Object.freeze(nos);
 }
 
 type NoGenerico = { classificacao: string; filhos: readonly NoGenerico[] };
@@ -105,7 +122,7 @@ function planificar<T extends NoGenerico>(raizes: readonly T[], analitico: (no: 
   const plano: Plano = { analiticas: new Set(), sob: new Map(), nos: [] };
   const visitar = (no: T, paiId: string | null): string[] => {
     const eh = analitico(no);
-    plano.nos.push({ id: no.classificacao, paiId, tipo: eh ? 'ANALITICA' : 'SINTETICA' });
+    plano.nos.push(Object.freeze({ id: no.classificacao, paiId, tipo: eh ? 'ANALITICA' : 'SINTETICA' }));
     const abaixo = eh ? [no.classificacao] : [];
     if (eh) plano.analiticas.add(no.classificacao);
     for (const filho of no.filhos as readonly T[]) abaixo.push(...visitar(filho, no.classificacao));
@@ -116,7 +133,7 @@ function planificar<T extends NoGenerico>(raizes: readonly T[], analitico: (no: 
   return plano;
 }
 
-/** Índice em memória das árvores ativas, para os consumidores que validam muitas linhas (US-121). */
+/** Índice em memória das árvores ativas, para os consumidores que validam muitas linhas (US-121). Imutável. */
 export function montarIndice(contas: readonly NoConta[], ccs: readonly NoCentroCusto[]): IndiceEstruturaFinanceira {
   const pc = planificar(prepararArvoreContas(contas), (c) => c.tipo === 'ANALITICA');
   const cc = planificar(prepararArvoreCentrosCusto(ccs), (c) => c.tipo === 'ANALITICO');

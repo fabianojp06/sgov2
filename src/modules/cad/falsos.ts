@@ -1,4 +1,5 @@
 import {
+  congelarArvore,
   montarIndice,
   prepararArvoreCentrosCusto,
   prepararArvoreContas,
@@ -21,7 +22,7 @@ const conta = (classificacao: string, descricao: string, codigoReduzido: string 
 };
 
 /** Trecho real do plano de contas oficial de 5 níveis (spec §6.1). */
-export const CONTAS_EXEMPLO: readonly NoConta[] = [
+export const CONTAS_EXEMPLO: readonly NoConta[] = congelarArvore([
   conta('4', 'DESPESAS', null, [
     conta('4.1', 'DESPESAS OPERACIONAIS', null, [
       conta('4.1.1', 'DESPESAS DE SERVIÇOS', null, [
@@ -35,7 +36,7 @@ export const CONTAS_EXEMPLO: readonly NoConta[] = [
       ]),
     ]),
   ]),
-];
+]);
 
 const cc = (
   classificacao: string,
@@ -62,7 +63,7 @@ const cc = (
 };
 
 /** Trecho real da minuta do plano de centros de custo (Rev23102026), ainda sem aprovação da DIREX. */
-export const CENTROS_CUSTO_EXEMPLO: readonly NoCentroCusto[] = [
+export const CENTROS_CUSTO_EXEMPLO: readonly NoCentroCusto[] = congelarArvore([
   cc('4', '14.180', 'DIREX', false, [
     cc('4.3', '14.310', 'Diretoria Administrativa Financeira', false, [
       cc('4.3.0', '14.500', 'Gabinete da Diretoria Administrativa Financeira', true),
@@ -73,7 +74,7 @@ export const CENTROS_CUSTO_EXEMPLO: readonly NoCentroCusto[] = [
     ]),
     cc('4.4', '14.450', 'Suporte Administrativo', true),
   ]),
-];
+]);
 
 /**
  * Falso do C1: mesma semântica dos reais (só ativos por padrão, filhos ordenados pela
