@@ -1,5 +1,5 @@
 import { Competencia, Dinheiro, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
-import { CELULA_INVALIDA, type TipoColuna, type ValorCelula } from '../domain/celula';
+import { CELULA_INVALIDA, lerDataIso, type TipoColuna, type ValorCelula } from '../domain/celula';
 import { validarPlanilhas, type PlanilhaExportacao } from './exportacao';
 
 // Contrato C3: exportação para XLSX (US-021, R21). Só pelo servidor.ts (R22): o index.ts do ger é
@@ -11,18 +11,27 @@ import { validarPlanilhas, type PlanilhaExportacao } from './exportacao';
 export async function exportarXlsx(planilhas: readonly PlanilhaExportacao[]): Promise<Resultado<Uint8Array>> {
   const v = validarPlanilhas(planilhas);
   if (!v.ok) return falha(v.erros);
+  try {
+    return ok(await gerar(planilhas));
+  } catch {
+    // O ExcelJS ainda pode recusar algo que a validação não previu: vira erro, nunca rejeição.
+    return falha([{ campo: 'planilhas', mensagem: 'Não foi possível gerar a planilha.' }]);
+  }
+}
 
+async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Array> {
 
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   for (const p of planilhas) {
     const ws = wb.addWorksheet(p.nome);
     ws.columns = p.colunas.map((c) => ({
-      header: c.titulo,
-      // Largura em caracteres: cerca de 7 px por caractere.
-      width: c.largura ? Math.max(4, Math.round(c.largura / 7)) : 18,
+      header: textoXml(c.titulo),
+      // Largura em caracteres: cerca de 7 px por caractere (o Excel aceita até 255).
+      width: c.largura ? Math.min(255, Math.max(4, Math.round(c.largura / 7))) : 18,
       ...(c.tipo === 'dinheiro' ? { style: { numFmt: '#,##0.00' } } : {}),
-      ...(c.tipo === 'percentual' ? { style: { numFmt: '#,##0.00##' } } : {}),
+      // Em pontos (51 = 51%), com o símbolo literal para não confundir com fração.
+      ...(c.tipo === 'percentual' ? { style: { numFmt: '#,##0.00##"%"' } } : {}),
       ...(c.tipo === 'data' ? { style: { numFmt: 'dd/mm/yyyy' } } : {}),
     }));
     ws.getRow(1).font = { bold: true };
@@ -33,7 +42,15 @@ export async function exportarXlsx(planilhas: readonly PlanilhaExportacao[]): Pr
       });
     }
   }
-  return ok(new Uint8Array(await wb.xlsx.writeBuffer()));
+  return new Uint8Array(await wb.xlsx.writeBuffer());
+}
+
+// Só caracteres permitidos no XML 1.0 (um U+FFFE num cadastro estragaria o arquivo inteiro) e no
+// máximo 32.767 por célula, o limite do Excel.
+const FORA_DO_XML = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu;
+const LIMITE_CELULA = 32_767;
+export function textoXml(t: string): string {
+  return t.replace(FORA_DO_XML, '').slice(0, LIMITE_CELULA);
 }
 
 // Valor gravado na célula, sempre a partir do texto do contrato e pelo kernel. Fora do formato do
@@ -43,19 +60,15 @@ function valorDaCelula(tipo: TipoColuna, v: ValorCelula): string | number | Date
   try {
     switch (tipo) {
       case 'texto':
-        return v;
+        return textoXml(v);
       case 'dinheiro':
         return Number(Dinheiro.de(v).paraString());
       case 'percentual':
         return Number(Percentual.dePontos(v).paraString());
       case 'competencia':
         return Competencia.parse(v).formatar();
-      case 'data': {
-        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
-        if (!m) return CELULA_INVALIDA;
-        const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-        return d.getUTCDate() === Number(m[3]) ? d : CELULA_INVALIDA;
-      }
+      case 'data':
+        return lerDataIso(v) ?? CELULA_INVALIDA;
     }
   } catch {
     return CELULA_INVALIDA;

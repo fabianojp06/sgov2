@@ -13,8 +13,17 @@ export const LIMITE_EXPORTACAO_SINCRONA = 5000; // RF_IMP_003, total de linhas s
 
 const PROIBIDOS_NA_ABA = /[:\\/?*[\]]/;
 
+// "History" é reservado pelo Excel (sem diferenciar maiúsculas); caracteres fora do XML 1.0 estragam o arquivo.
+const FORA_DO_XML = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u;
 function nomeDeAbaValido(nome: string): boolean {
-  return nome.length >= 1 && nome.length <= 31 && !PROIBIDOS_NA_ABA.test(nome) && !/^'|'$/.test(nome);
+  return (
+    nome.length >= 1 &&
+    nome.length <= 31 &&
+    !PROIBIDOS_NA_ABA.test(nome) &&
+    !/^'|'$/.test(nome) &&
+    !FORA_DO_XML.test(nome) &&
+    nome.toLowerCase() !== 'history'
+  );
 }
 
 /** Valida as abas antes de gerar o arquivo (nomes do Excel, uma célula por coluna, limite síncrono). */
