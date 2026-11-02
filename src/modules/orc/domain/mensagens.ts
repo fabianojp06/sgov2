@@ -36,6 +36,12 @@ export const MENSAGENS_ORC = {
   SITUACAO_RECEITA: 'Situação obrigatória: Confirmado ou Previsto.',
   TP_REPETIDO: (linhas: readonly number[]) => `TP / versão repetido nas linhas ${linhas.slice(0, -1).join(', ')} e ${linhas.at(-1)}.`,
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
+  // Importação (Task 4b)
+  PLANILHA_COM_ERROS: 'A planilha tem erros. Nada foi importado.',
+  PLANILHA_VAZIA: 'A planilha não tem lançamentos.',
+  ARQUIVO_GRANDE: 'Arquivo maior que 1 MB.',
+  IMPORTADA: (posicoes: number, pacotes: number, ccs: number, receitas: number) =>
+    `Planilha importada: ${posicoes} posições e ${pacotes} pacotes em ${ccs} CCs, ${receitas} receitas.`,
   // Receitas (Task 5)
   RECEITA_DUPLICADA: (tp: string) => `Já existe receita do TP ${tp} neste exercício.`,
   RECEITA_INEXISTENTE: 'Receita não encontrada.',
