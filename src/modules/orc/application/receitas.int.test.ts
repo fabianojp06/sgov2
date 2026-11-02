@@ -105,7 +105,7 @@ describe('incluirReceita', () => {
   it('exercício Em Aprovação: mensagem da situação', async () => {
     const e = await exercicio();
     await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
-    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = ${USUARIO}::uuid WHERE id = ${e.id}::uuid`;
     expect(await incluirReceita(ctx(), { ...dados(), exercicioId: e.id }, deps())).toEqual({
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }],
@@ -198,7 +198,7 @@ describe('alterar e excluir: governança e exercício não editável', () => {
     const r = await incluirReceita(ctx(), { ...dados(), exercicioId: e.id }, deps());
     const id = r.ok ? r.valor.id : '';
     await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
-    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = ${USUARIO}::uuid WHERE id = ${e.id}::uuid`;
     const situacao = { ok: false, erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }] };
     expect(await alterarReceita(ctx(), { ...dados(), id, versao: '0' }, deps())).toEqual(situacao);
     expect(await excluirReceita(ctx(), { id, versao: '0' }, deps())).toEqual(situacao);
