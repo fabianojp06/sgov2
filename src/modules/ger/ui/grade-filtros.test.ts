@@ -46,6 +46,20 @@ describe('aplicarFiltros', () => {
     expect(ids(aplicarFiltros(arvore, defs, { tipo: 'A', busca: 'f' }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.003']);
   });
 
+  it('M5: o sintético que casa pelo texto leva os filhos, sem abrir a si mesmo', () => {
+    const r = aplicarFiltros(arvore, defs, { busca: 'pessoal' });
+    expect(ids(r.nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001', '4.1.1.1.003']);
+    expect([...r.abrir]).toEqual(['4']);
+  });
+
+  it('M5: a subárvore herdada ainda passa pelos outros critérios, mesmo com o pai reprovado neles', () => {
+    expect(ids(aplicarFiltros(arvore, defs, { busca: 'pessoal', zerados: true }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001']);
+    // O pai é sintético (reprova no tipo A), mas casou pelo texto: as analíticas abaixo aparecem.
+    expect(ids(aplicarFiltros(arvore, defs, { busca: 'pessoal', tipo: 'A' }).nos)).toEqual(['4', '4.1.1.1', '4.1.1.1.001', '4.1.1.1.003']);
+    // Buscar a raiz não abre a árvore inteira: só o que casa pelo próprio texto abre os ancestrais.
+    expect([...aplicarFiltros(arvore, defs, { busca: 'despesas' }).abrir]).toEqual(['4']);
+  });
+
   it('sem filtro ativo, a mesma referência', () => {
     expect(aplicarFiltros(arvore, defs, {}).nos).toBe(arvore);
     expect(aplicarFiltros(arvore, defs, { busca: '  ', zerados: false }).nos).toBe(arvore);

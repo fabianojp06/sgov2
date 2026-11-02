@@ -21,49 +21,56 @@ const ehZero = (v: string | null | undefined) => v === null || v === undefined |
 
 type Casar<C extends string> = (no: NoGrade<C>) => boolean;
 
-function criterios<C extends string>(defs: readonly DefinicaoFiltro<C>[], valores: ValoresFiltro): { lista: Casar<C>[]; texto: boolean } {
-  const lista: Casar<C>[] = [];
-  let texto = false;
+function criterios<C extends string>(defs: readonly DefinicaoFiltro<C>[], valores: ValoresFiltro): { texto: Casar<C>[]; outros: Casar<C>[] } {
+  const texto: Casar<C>[] = [];
+  const outros: Casar<C>[] = [];
   for (const d of defs) {
     const v = valores[d.id];
     if (d.tipo === 'texto' && typeof v === 'string' && v.trim() !== '') {
       const alvo = normalizar(v.trim());
-      texto = true;
-      lista.push((no) => d.campos.some((c) => normalizar(no.linha[c] ?? '').includes(alvo)));
+      texto.push((no) => d.campos.some((c) => normalizar(no.linha[c] ?? '').includes(alvo)));
     } else if (d.tipo === 'selecao' && typeof v === 'string' && v !== '') {
-      lista.push((no) => no.linha[d.campo] === v);
+      outros.push((no) => no.linha[d.campo] === v);
     } else if (d.tipo === 'ocultarZerados' && v === true) {
-      lista.push((no) => d.campos.some((c) => !ehZero(no.linha[c])));
+      outros.push((no) => d.campos.some((c) => !ehZero(no.linha[c])));
     }
   }
-  return { lista, texto };
+  return { texto, outros };
 }
 
 /**
  * Aplica os filtros: um nó fica se casa com todos os critérios ou se tem descendente que casa.
- * Devolve também os ids a abrir: os ancestrais de quem casou, só quando há busca por texto (com
- * seleção ou "ocultar zerados" sozinhos, a expansão do usuário fica como está, para não abrir a
- * árvore inteira). Sem filtro ativo, a mesma referência.
+ * Quem casa pela busca por texto leva a subárvore inteira, que passa só pelos outros critérios
+ * (M5 do #222, decisão do PO: buscar "pessoal" mostra as contas abaixo de "DESPESAS DE PESSOAL").
+ * Devolve também os ids a abrir: os ancestrais de quem casou pelo próprio texto, só quando há
+ * busca (com seleção ou "ocultar zerados" sozinhos, a expansão do usuário fica como está, para não
+ * abrir a árvore inteira). Sem filtro ativo, a mesma referência.
  */
 export function aplicarFiltros<C extends string>(
   nos: readonly NoGrade<C>[],
   defs: readonly DefinicaoFiltro<C>[],
   valores: ValoresFiltro,
 ): { nos: readonly NoGrade<C>[]; abrir: ReadonlySet<string> } {
-  const { lista, texto } = criterios(defs, valores);
-  if (lista.length === 0) return { nos, abrir: new Set() };
+  const { texto, outros } = criterios(defs, valores);
+  if (texto.length === 0 && outros.length === 0) return { nos, abrir: new Set() };
   const abrir = new Set<string>();
-  const filtrar = (ns: readonly NoGrade<C>[]): NoGrade<C>[] => {
+  // `herdado`: um ancestral casou pelo texto. Devolve também se alguém abaixo casou pelo próprio texto.
+  const filtrar = (ns: readonly NoGrade<C>[], herdado: boolean): { saida: NoGrade<C>[]; achou: boolean } => {
     const saida: NoGrade<C>[] = [];
+    let achou = false;
     for (const no of ns) {
-      const filhos = no.filhos ? filtrar(no.filhos) : [];
-      const casa = lista.every((f) => f(no));
-      if (filhos.length > 0 && texto) abrir.add(no.id);
+      const casaTextoProprio = texto.length > 0 && texto.every((f) => f(no));
+      const casaTexto = herdado || texto.every((f) => f(no));
+      const sub = no.filhos ? filtrar(no.filhos, casaTexto) : { saida: [], achou: false };
+      const filhos = sub.saida;
+      if (sub.achou) abrir.add(no.id);
+      achou ||= casaTextoProprio || sub.achou;
+      const casa = casaTexto && outros.every((f) => f(no));
       if (casa || filhos.length > 0) saida.push(filhos.length > 0 || no.filhos ? { ...no, filhos } : no);
     }
-    return saida;
+    return { saida, achou };
   };
-  return { nos: filtrar(nos), abrir };
+  return { nos: filtrar(nos, false).saida, abrir };
 }
 
 /** RF0003: só valores conhecidos, texto de até 100 caracteres sem controle, opção existente. */
