@@ -63,6 +63,14 @@ describe('seedDadosReferenciaCad', () => {
     expect(await retrato()).toEqual(antes);
   });
 
+  it('AMBIENTE=producao sem a carga → não faz nada, sem erro (caminho normal de prod)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AMBIENTE', 'producao');
+    const antes = await retrato();
+    await executarSeeds(cliente, [seedDadosReferenciaCad]);
+    expect(await retrato()).toEqual(antes);
+  });
+
   it('AMBIENTE=producao com a carga → erro (R15), sem gravar nada', async () => {
     vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
     vi.stubEnv('AMBIENTE', 'producao');
@@ -80,9 +88,10 @@ describe('seedDadosReferenciaCad', () => {
     });
   });
 
-  it('CARGA_DADOS_REFERENCIA=1 → 174 contas, auditoria "Sistema"; a segunda vez não grava nada', async () => {
+  it('CARGA_DADOS_REFERENCIA=1 em AMBIENTE=dev sem NODE_ENV → 174 contas, auditoria "Sistema"; a segunda vez não grava nada', async () => {
     vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
-    vi.stubEnv('AMBIENTE', 'hml');
+    vi.stubEnv('AMBIENTE', 'dev');
+    vi.stubEnv('NODE_ENV', undefined);
     await executarSeeds(cliente, [seedDadosReferenciaCad]);
     expect(await cliente.contaContabil.count({ where: { ativa: true } })).toBe(174);
     const h = await cliente.$queryRaw<{ rotulo: string; origem: string; n: number }[]>`
@@ -92,6 +101,14 @@ describe('seedDadosReferenciaCad', () => {
     expect(await cliente.cargaEstrutura.findMany({ select: { situacao: true, incluidas: true } })).toEqual([{ situacao: 'CONCLUIDA', incluidas: 174 }]);
     const antes = await retrato();
     await executarSeeds(cliente, [seedDadosReferenciaCad]);
+    expect(await retrato()).toEqual(antes);
+  });
+
+  it('depois da carga, produção com a carga continua recusada e nada muda', async () => {
+    vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
+    vi.stubEnv('AMBIENTE', 'producao');
+    const antes = await retrato();
+    await expect(executarSeeds(cliente, [seedDadosReferenciaCad])).rejects.toThrow();
     expect(await retrato()).toEqual(antes);
   });
 });

@@ -18,12 +18,11 @@ const AMBIENTES = ['dev', 'hml', 'producao'] as const;
  * quando ele estiver na main, esta função passa a usá-lo.
  */
 export function ambienteDaSeed(env: NodeJS.ProcessEnv = process.env): (typeof AMBIENTES)[number] {
-  const a = env.AMBIENTE;
-  if (a !== undefined && (AMBIENTES as readonly string[]).includes(a)) return a as (typeof AMBIENTES)[number];
-  if (env.NODE_ENV === 'production') {
-    throw new Error('[AMBIENTE_AUSENTE] AMBIENTE (dev, hml ou producao) é obrigatório com NODE_ENV=production (R25)');
-  }
-  if (a !== undefined && a !== '') throw new Error('[AMBIENTE_INVALIDO] AMBIENTE deve ser dev, hml ou producao (R25)');
+  const a = (env.AMBIENTE ?? '').trim();
+  if ((AMBIENTES as readonly string[]).includes(a)) return a as (typeof AMBIENTES)[number];
+  // Mensagem da R25; o código entre colchetes separa ausente de inválido no log.
+  if (a !== '') throw new Error('[AMBIENTE_INVALIDO] AMBIENTE ausente ou inválido (use dev, hml ou producao)');
+  if (env.NODE_ENV === 'production') throw new Error('[AMBIENTE_AUSENTE] AMBIENTE ausente ou inválido (use dev, hml ou producao)');
   return 'dev';
 }
 
