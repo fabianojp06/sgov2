@@ -10,11 +10,12 @@ const pasta = mkdtempSync(join(tmpdir(), 'sgo-worker-'));
 afterAll(() => rmSync(pasta, { recursive: true, force: true }));
 
 describe('bundle do worker', () => {
-  it('builda, sem o argon2 nativo e com o stub no lugar', () => {
+  it('builda, sem o argon2', () => {
     const saida = join(pasta, 'index.mjs');
     execFileSync(process.execPath, ['worker/build.mjs', saida], { stdio: 'pipe' });
     const codigo = readFileSync(saida, 'utf8');
-    expect(codigo).toContain('[WORKER_SEM_ARGON2]');
-    expect(codigo).not.toMatch(/argon2-linux|\.node['"]/);
+    // O worker nunca gera nem confere senha: a seed do cad usa o adm/servidor.ts, sem login nem
+    // senha. Um import que volte a alcançar o @node-rs/argon2 (módulo nativo) reprova aqui.
+    expect(codigo).not.toMatch(/argon2/i);
   }, 60_000);
 });

@@ -1,5 +1,5 @@
-import type { DeclaracaoFuncionalidade } from '@/modules/adm';
-import { instalarFuncionalidades } from '@/modules/adm';
+import type { DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
+import { instalarFuncionalidades } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 
 // Seed do cad em todos os ambientes (plano do P4, R15): as funcionalidades do módulo (contrato C6).
