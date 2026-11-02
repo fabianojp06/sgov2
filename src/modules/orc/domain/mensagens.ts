@@ -36,6 +36,11 @@ export const MENSAGENS_ORC = {
   SITUACAO_RECEITA: 'Situação obrigatória: Confirmado ou Previsto.',
   TP_REPETIDO: (linhas: readonly number[]) => `TP / versão repetido nas linhas ${linhas.slice(0, -1).join(', ')} e ${linhas.at(-1)}.`,
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
+  // Visão (Task 6)
+  PREMISSAS_INEXISTENTES: 'O exercício ainda não tem premissas cadastradas.',
+  PREMISSAS_INDISPONIVEIS: 'As premissas do exercício ainda não estão disponíveis.',
+  SEM_EXERCICIO: 'Nenhum exercício cadastrado.',
+  CC_DESCONHECIDO: '(CC fora da estrutura)',
   // Importação (Task 4b)
   PLANILHA_COM_ERROS: 'A planilha tem erros. Nada foi importado.',
   PLANILHA_VAZIA: 'A planilha não tem lançamentos.',

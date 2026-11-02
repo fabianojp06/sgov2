@@ -110,7 +110,7 @@ export async function recalcular(
   ctx: ContextoRequisicao,
   exercicioId: string,
   depsParciais: Partial<DepsOrc> = {},
-): Promise<Resultado<ResumoRecalculo & { mensagem: string }>> {
+): Promise<Resultado<ResumoRecalculo & { ano: number; mensagem: string }>> {
   exigir(ctx, 'orc.orcamento', 'alterar');
   const deps = resolverDeps(depsParciais);
   try {
@@ -127,7 +127,7 @@ export async function recalcular(
         antes: { versaoPremissas: e.versaoPremissas },
         depois: { versaoPremissas: r.versaoPremissas, linhas: r.linhas },
       });
-      return ok({ ...r, mensagem: MENSAGENS_ORC.RECALCULADO });
+      return ok({ ...r, ano: e.ano, mensagem: MENSAGENS_ORC.RECALCULADO });
     });
   } catch (erro) {
     if (erro instanceof ErroRecalculo) return falha(erro.erros);
