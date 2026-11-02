@@ -11,6 +11,23 @@ if (!saida) {
   process.exit(64);
 }
 
+// O worker importa o servidor.ts do cad, que reexporta as seeds; a seed do cad usa o index.ts do adm,
+// que alcança o @node-rs/argon2 (módulo nativo, sem lugar no bundle). O worker nunca gera nem confere
+// senha: o pacote vira um stub que lança erro se for chamado. Sai quando o adm tiver um servidor.ts
+// sem login nem senha (issue para a frente A).
+const semArgon2 = {
+  name: 'sem-argon2',
+  setup(b) {
+    b.onResolve({ filter: /^@node-rs\/argon2$/ }, () => ({ path: 'argon2', namespace: 'stub' }));
+    b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
+      contents:
+        "const erro = () => { throw new Error('[WORKER_SEM_ARGON2] o worker não gera nem confere senha'); };" +
+        'export const hash = erro; export const verify = erro;',
+      loader: 'js',
+    }));
+  },
+};
+
 const resultado = await build({
   entryPoints: ['worker/index.ts'],
   outfile: saida,
@@ -26,5 +43,6 @@ const resultado = await build({
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
   logLevel: 'warning',
   metafile: Boolean(metafile),
+  plugins: [semArgon2],
 });
 if (metafile) writeFileSync(metafile, JSON.stringify(resultado.metafile));
