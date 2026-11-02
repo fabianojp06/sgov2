@@ -44,4 +44,9 @@ export function opcoesCookieSessao(expires: Date, env: EnvAcesso = lerEnvAcesso(
   return { httpOnly: true, sameSite: 'lax' as const, path: '/', secure: env.seguro, expires };
 }
 
-export const COOKIE_UNIDADE = 'sgo_unidade';
+// Cookie do TP ativo (§6.7): mesmo prefixo do de sessão, para que um subdomínio ou uma resposta http
+// não plante a unidade com Domain= (cookie tossing). O valor nunca é confiado: o provedor só o aceita
+// dentro da lista do usuário.
+export function nomeCookieUnidade(env: EnvAcesso = lerEnvAcesso()): string {
+  return env.seguro ? '__Host-sgo_unidade' : 'sgo_unidade';
+}

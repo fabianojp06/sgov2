@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 import { NextResponse, type NextRequest } from 'next/server';
-import { COOKIE_UNIDADE, lerEnvAcesso, nomeCookieSessao } from '@/shared/config';
+import { lerEnvAcesso, nomeCookieSessao, nomeCookieUnidade } from '@/shared/config';
 
 // Proxy (o middleware do Next 16), da frente A (spec §12.3). Só confere se o cookie existe: quem
 // valida a sessão é o provedor de contexto do aut. Também resolve o IP do cliente, limpa os
@@ -48,7 +48,7 @@ export function proxy(req: NextRequest): NextResponse {
   const site = req.headers.get('sec-fetch-site');
   if (pathname === '/login' && searchParams.get('saiu') === '1' && (site === 'same-origin' || site === 'none')) {
     resposta.cookies.set(nomeSessao, '', { maxAge: 0, path: '/', httpOnly: true, secure: env.seguro, sameSite: 'lax' });
-    resposta.cookies.set(COOKIE_UNIDADE, '', { maxAge: 0, path: '/', httpOnly: true, secure: env.seguro, sameSite: 'lax' });
+    resposta.cookies.set(nomeCookieUnidade(env), '', { maxAge: 0, path: '/', httpOnly: true, secure: env.seguro, sameSite: 'lax' });
     resposta.headers.set('Clear-Site-Data', '"storage"');
   }
   return resposta;
