@@ -155,7 +155,7 @@ describe('definirTeto', () => {
       erros: [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }],
     });
     await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
-    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO' WHERE id = ${e.id}::uuid`;
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = '0b1e6f1a-5c39-4c2b-9e0a-3d6f1f2a4b5c'::uuid WHERE id = ${e.id}::uuid`;
     expect(await definirTeto(ctx(), { exercicioId: e.id, versao: '0', teto: '10' }, e.deps())).toEqual({
       ok: false,
       erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }],
