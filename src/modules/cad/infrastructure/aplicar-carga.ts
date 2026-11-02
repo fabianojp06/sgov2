@@ -57,6 +57,8 @@ export async function aplicarCarga(
   });
   const plano = planejarCarga(banco.map(comoAtual), linhas.map(comoNova));
   if (plano.erros.length > 0) throw new ErroCargaLinhas(plano.erros);
+  // A seed audita como "Sistema" (contexto sem usuário); a carga do worker, com o usuário do lote.
+  const origem = contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO';
 
   const porClassificacao = new Map(banco.map((c) => [c.classificacao, c]));
   const agora = new Date();
@@ -66,6 +68,7 @@ export async function aplicarCarga(
     await tx.contaContabil.update({ where: { id: antes.id }, data: { ativa: false, inativadaEm: agora, cargaId: carga.id } });
     await auditar(tx, {
       contexto,
+      origem,
       funcionalidade: FUNCIONALIDADE,
       tipo: 'ALTERACAO',
       registroId: classificacao,
@@ -80,6 +83,7 @@ export async function aplicarCarga(
     await tx.contaContabil.update({ where: { id: antes.id }, data: { ativa: true, inativadaEm: null, descricao: r.descricao, cargaId: carga.id } });
     await auditar(tx, {
       contexto,
+      origem,
       funcionalidade: FUNCIONALIDADE,
       tipo: 'ALTERACAO',
       registroId: r.classificacao,
@@ -112,6 +116,7 @@ export async function aplicarCarga(
     for (const d of dados) {
       await auditar(tx, {
         contexto,
+        origem,
         funcionalidade: FUNCIONALIDADE,
         tipo: 'INSERCAO',
         registroId: d.classificacao,
@@ -128,6 +133,7 @@ export async function aplicarCarga(
     for (const a of plano.alterarDescricao) {
       await auditar(tx, {
         contexto,
+        origem,
         funcionalidade: FUNCIONALIDADE,
         tipo: 'ALTERACAO',
         registroId: a.classificacao,
