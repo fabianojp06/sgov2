@@ -36,7 +36,7 @@ Cada contrato é um PR pequeno com o `index.ts` do módulo (tipos, assinaturas e
 | --- | --- | --- | --- | --- |
 | C1 Estrutura financeira | B (`cad`) | A (`orc`) | `listarArvoreContas()`, `listarArvoreCentrosCusto()`, `ehContaAnaliticaAtiva(classificacao)`, `ehCentroCustoAnalitico(classificacao)`, tipos `NoConta`/`NoCentroCusto` | US-121 |
 | C2 Custo de pessoal | B (`cad`) | A (`orc`) | `calcularCustoPosicao(posicao, premissas): SerieMensalComponentes` (spec §6.6, C33) e `obterPremissasExercicio(ano)` | US-121 |
-| C3 Componentes de tela | B (`ger`) | A (todas as telas) | `<GradeArvore>`, `<Formulario>` com `Resultado`, `exportarXlsx()` | US-031 |
+| C3 Componentes de tela | B (`ger`) | A (todas as telas) | `<GradeArvore>`, `<Formulario>` com `Resultado` (pelo `@/modules/ger`); `exportarXlsx()` só pelo `@/modules/ger/servidor`, chamado de `application/`, nunca de `app/` nem de `ui/` (P4, Task 6b) | US-031 |
 | C4 E-mail | B (`ger`) | A (`aut`, `adm`) | `enviarEmail(tx, modelo, destinatario, dados)` via *outbox* | US-038 |
 | C5 Autorização e auditoria | A (`shared`) | B (todos os casos de uso) | `definirAcao`, `exigir`, `auditar` (entregues no P1) | P4 |
 | C6 Catálogo de funcionalidades | A (`adm`) | B (seeds de `cad`, `ger`, `rel`, `int`) | `DeclaracaoFuncionalidade`, `CODIGOS_PERFIL`, `MODULOS_MENU`, `instalarFuncionalidades(tx, itens)` | primeira seed de módulo da frente B (P4) |
