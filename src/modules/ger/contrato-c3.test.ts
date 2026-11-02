@@ -14,7 +14,6 @@ import {
   celulaDinheiro,
   celulaPercentual,
   ErroDoCampo,
-  exportarXlsx,
   exportarXlsxFalso,
   formatarCelula,
   Formulario,
@@ -25,6 +24,7 @@ import {
   type PlanilhaExportacao,
   type PropsGradeArvore,
 } from '@/modules/ger';
+import { exportarXlsx } from '@/modules/ger/servidor';
 
 // Contrato C3 (plano do P3, Tarefa 2): componentes de tela do módulo ger.
 const aba = (nome: string, linhas: number): PlanilhaExportacao => ({
@@ -143,11 +143,14 @@ describe('Formulario', () => {
 });
 
 describe('API pública do ger (C3)', () => {
-  it('exporta componentes, exportação e falsos pelo index.ts', () => {
+  it('exporta componentes, validação da exportação e falsos pelo index.ts; o gerador pelo servidor.ts', () => {
     expect(typeof ger.GradeArvore).toBe('function');
     expect(typeof ger.Formulario).toBe('function');
     expect(typeof ger.ErroDoCampo).toBe('function');
-    expect(typeof ger.exportarXlsx).toBe('function');
+    // O gerador do .xlsx sai só pelo servidor.ts (o ExcelJS fora do navegador); o index.ts tem a validação.
+    expect('exportarXlsx' in ger).toBe(false);
+    expect(typeof ger.validarPlanilhas).toBe('function');
+    expect(typeof exportarXlsx).toBe('function');
     expect(typeof ger.exportarXlsxFalso).toBe('function');
     expect(typeof ger.LIMITE_EXPORTACAO_SINCRONA).toBe('number');
   });

@@ -8,7 +8,8 @@ import {
   type Destinatario,
   type ModeloEmail,
 } from './domain/modelos-email';
-import type { exportarXlsx, PlanilhaExportacao } from './infrastructure/exportar-xlsx';
+import type { PlanilhaExportacao } from './infrastructure/exportacao';
+import type { exportarXlsx } from './infrastructure/exportar-xlsx';
 
 // Adaptadores falsos dos contratos do ger, só para testes dos módulos consumidores (spec §12.6).
 
