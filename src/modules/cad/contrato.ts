@@ -49,3 +49,7 @@ export {
   estruturaFinanceiraFalsa,
   premissasExemplo,
 } from './falsos';
+
+// Parâmetros por exercício (Task 9a): semáforo (RN_PLA_006) e tipos da tela.
+export { classificarSemaforo, type FaixaSemaforo, type FaixasSemaforo } from './domain/semaforo';
+export type { EntradaParametros, ParametrosExercicio } from './domain/parametros';

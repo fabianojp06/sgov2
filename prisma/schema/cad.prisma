@@ -88,3 +88,58 @@ model CargaEstruturaLinha {
   @@id([cargaId, numero])
   @@map("carga_estrutura_linha")
 }
+
+// Parâmetros por exercício (US-053; plano do P4, Task 9a, R10). Toda escrita em qualquer tabela do
+// ano incrementa `versao` na mesma transação (I6); com `congeladoEm`, o ano não muda mais.
+model ParametrosExercicio {
+  ano                Int                        @id @db.SmallInt
+  reajuste           Decimal                    @db.Decimal(9, 4)
+  mesDataBase        Int                        @map("mes_data_base") @db.SmallInt
+  ipca               Decimal                    @db.Decimal(9, 4)
+  salarioMinimo      Decimal?                   @map("salario_minimo") @db.Decimal(15, 2)
+  diasUteisMes       Int                        @map("dias_uteis_mes") @db.SmallInt
+  semaforoVerdeAte   Decimal                    @map("semaforo_verde_ate") @db.Decimal(9, 4)
+  semaforoAmareloAte Decimal                    @map("semaforo_amarelo_ate") @db.Decimal(9, 4)
+  semaforoLaranjaAte Decimal                    @map("semaforo_laranja_ate") @db.Decimal(9, 4)
+  provisorio         Boolean                    @default(true)
+  congeladoEm        DateTime?                  @map("congelado_em") @db.Timestamptz(6)
+  versao             Int                        @default(1)
+  atualizadoEm       DateTime                   @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  encargos           EncargoExercicio[]
+  contas             ContaComponenteExercicio[]
+
+  @@map("parametros_exercicio")
+}
+
+model EncargoExercicio {
+  ano        Int                 @db.SmallInt
+  exercicio  ParametrosExercicio @relation(fields: [ano], references: [ano], onDelete: Restrict)
+  componente String
+  nome       String
+  percentual Decimal             @db.Decimal(9, 4)
+  conta      String
+  provisorio Boolean             @default(true)
+
+  @@id([ano, componente])
+  @@map("encargo_exercicio")
+}
+
+model ContaComponenteExercicio {
+  ano        Int                 @db.SmallInt
+  exercicio  ParametrosExercicio @relation(fields: [ano], references: [ano], onDelete: Restrict)
+  componente String
+  conta      String
+  provisorio Boolean             @default(true)
+
+  @@id([ano, componente])
+  @@map("conta_componente_exercicio")
+}
+
+// Parâmetros do sistema (R10): nome de exibição e logotipo da instituição (spec §6.7), vazios até a
+// tela da Administração.
+model ParametroSistema {
+  chave String @id
+  valor String @default("")
+
+  @@map("parametro_sistema")
+}

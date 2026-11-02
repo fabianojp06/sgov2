@@ -10,3 +10,6 @@ export { iniciarProcessadorCargas } from './infrastructure/processador-cargas';
 // Seeds (R15, E-N3): o prisma/seed.ts importa daqui, nunca do index.ts.
 export { seedCad, FUNCIONALIDADES_CAD } from './infrastructure/seed';
 export { seedDadosReferenciaCad } from './infrastructure/seed-referencia';
+
+// Parâmetros sem guarda (R10, R22): nome de exibição para o e-mail e a versão única do ano.
+export { obterParametroSistema, tocarVersaoExercicio, type ChaveParametroSistema } from './infrastructure/parametro-sistema';
