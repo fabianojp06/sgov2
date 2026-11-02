@@ -9,12 +9,12 @@ export function FormRejeicao({ id, versao, rejeitar }: { id: string; versao: num
     <Formulario acao={rejeitar} textoEnviar="Rejeitar">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="versao" value={versao} />
-      <p>
+      <div>
         <label htmlFor="rejeicao-justificativa">Justificativa da rejeição</label>
         <span id="rejeicao-regra">Pelo menos 15 caracteres.</span>
         <textarea id="rejeicao-justificativa" name="justificativa" required minLength={15} maxLength={1000} aria-describedby="rejeicao-regra erro-justificativa" />
         <ErroDoCampo campo="justificativa" />
-      </p>
+      </div>
     </Formulario>
   );
 }

@@ -9,7 +9,7 @@ vi.mock('@/modules/orc', async (original) => {
   const { ErroPermissao } = await import('@/shared/authz');
   return {
     ...(await original<typeof import('@/modules/orc')>()),
-    listarExercicios: async () => [{ id: 'e1', ano: 2027, situacao: 'EM_APROVACAO', rotuloSituacao: 'Em Aprovação', versao: 2 }],
+    listarExercicios: async () => [{ id: 'e1', ano: 2027, situacao: 'EM_APROVACAO', rotuloSituacao: 'Em Aprovação', versao: 2, oficializadoEm: null }],
     listarTramites: async () => {
       if (caso.comEscopo) throw new ErroPermissao('orc.aprovacao', 'consultar');
       return [];

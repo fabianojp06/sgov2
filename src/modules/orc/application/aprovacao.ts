@@ -3,6 +3,8 @@ import { obterUsuarioParaSessao } from '@/modules/adm';
 import { auditar } from '@/shared/audit';
 import { exigir, type Acao, type ContextoRequisicao } from '@/shared/authz';
 import type { TxCliente } from '@/shared/db';
+import { totalizarSerie, type NoArvore } from '@/shared/totalizer';
+import type { NoCentroCusto } from '@/modules/cad/servidor';
 import { Dinheiro, ErroDominio, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { ROTULO_SITUACAO, transicionar, type EventoCiclo, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
@@ -48,7 +50,7 @@ async function abrir<T>(ctx: ContextoRequisicao, acao: Acao, bruto: unknown, sch
 async function conferirPreCondicoes(tx: TxCliente, e: ExercicioTravado, deps: DepsOrc) {
   const premissas = await deps.custoPessoal.obterPremissasExercicio(tx, e.ano);
   if (!premissas || premissas.versao !== e.versaoPremissas) recusar(MENSAGENS_ORC.PREMISSAS_DESATUALIZADAS);
-  const linhas = await tx.linhaOrcada.findMany({ where: { exercicioId: e.id } });
+  const linhas = await tx.linhaOrcada.findMany({ where: { exercicioId: e.id }, orderBy: [{ cc: 'asc' }, { conta: 'asc' }, { id: 'asc' }] });
   if (linhas.length === 0) recusar(MENSAGENS_ORC.EXERCICIO_VAZIO);
   const indice = await deps.estrutura.carregarIndiceEstrutura(tx);
   const invalidas = new Map<string, string>();
@@ -57,7 +59,7 @@ async function conferirPreCondicoes(tx: TxCliente, e: ExercicioTravado, deps: De
   }
   if (invalidas.size > 0) throw new ErroCiclo([...invalidas.values()].map((mensagem) => ({ campo: '_', mensagem })));
   const ex = await tx.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id }, select: { tetoManual: true, tetoJustificativa: true } });
-  const receitas = await tx.receitaRateio.findMany({ where: { exercicioId: e.id } });
+  const receitas = await tx.receitaRateio.findMany({ where: { exercicioId: e.id }, orderBy: { tp: 'asc' } });
   if (ex.tetoManual !== null) {
     const confirmada = Dinheiro.somarTodos(receitas.filter((r) => r.situacao === 'CONFIRMADO').map((r) => Dinheiro.de(r.total.toString())));
     const v = validarTeto(Dinheiro.de(ex.tetoManual.toString()), ex.tetoJustificativa, confirmada);
@@ -136,10 +138,18 @@ export async function aprovarExercicio(ctx: ContextoRequisicao, bruto: unknown, 
     const e = await travarExercicio(tx, entrada.id);
     if (e.versao !== entrada.versao) versaoVelha();
     if (e.situacao !== 'EM_APROVACAO') recusar(MENSAGENS_ORC.SITUACAO_NAO_EDITAVEL(ROTULO_SITUACAO[e.situacao]));
-    if (e.enviadoPor === ctx.usuarioId) recusar(MENSAGENS_ORC.QUEM_ENVIOU_NAO_APROVA); // D-P6-3
+    // D-P6-3: quem enviou não aprova; sem remetente gravado, também não (falha fechada).
+    if (!e.enviadoPor || e.enviadoPor === ctx.usuarioId) recusar(MENSAGENS_ORC.QUEM_ENVIOU_NAO_APROVA);
     const { premissas, linhas, receitas, tetoManual } = await conferirPreCondicoes(tx, e, deps);
     const oficializadoEm = deps.agora();
     const para = await transitar(ctx, tx, e, 'APROVAR', deps, { oficializadoEm });
+
+    // R10: congela as premissas no C2 e relê na mesma transação; se uma escrita da GRH/GFIN entrou
+    // entre a leitura e o congelamento, a versão muda e tudo é desfeito. O snapshot guarda as
+    // premissas já congeladas.
+    await deps.custoPessoal.congelarPremissasExercicio(tx, contextoAuditoria(ctx), e.ano);
+    const congeladas = await deps.custoPessoal.obterPremissasExercicio(tx, e.ano);
+    if (!congeladas || congeladas.versao !== premissas.versao) recusar(MENSAGENS_ORC.PREMISSAS_MUDARAM_NA_APROVACAO);
 
     // Snapshot sempre com a Adm. Central inteira, independente de quem aprova.
     const despesasMes = Array.from({ length: 12 }, (_, i) => Dinheiro.somarTodos(linhas.map((l) => Dinheiro.de(l.meses[i]!.toString()))));
@@ -148,13 +158,17 @@ export async function aprovarExercicio(ctx: ContextoRequisicao, bruto: unknown, 
       receitas.map((r) => ({ situacao: r.situacao as 'CONFIRMADO' | 'PREVISTO', meses: r.meses.map((m) => Dinheiro.de(m.toString())) })),
       tetoManual === null ? null : Dinheiro.de(tetoManual.toString()),
     );
-    const [posicoes, pacotes] = await Promise.all([tx.posicaoOrcada.findMany({ where: { exercicioId: e.id } }), tx.pacoteBaseZero.findMany({ where: { exercicioId: e.id } })]);
+    const [posicoes, pacotes] = await Promise.all([
+      tx.posicaoOrcada.findMany({ where: { exercicioId: e.id }, orderBy: { id: 'asc' } }),
+      tx.pacoteBaseZero.findMany({ where: { exercicioId: e.id }, orderBy: { id: 'asc' } }),
+    ]);
     const dinheiro = (v: { toString(): string }) => Dinheiro.de(v.toString());
     const { conteudo, sha256 } = montarSnapshot({
       ano: e.ano,
       oficializadoEm,
-      premissas,
+      premissas: congeladas,
       painel,
+      totaisPorCc: await totaisPorCc(tx, linhas, deps),
       posicoes: posicoes.map((p) => ({ id: p.id, cc: p.cc, cargo: p.cargo, quantidade: p.quantidade, salarioMensal: dinheiro(p.salarioMensal), mesInicio: p.mesInicio, mesSaida: p.mesSaida })),
       pacotes: pacotes.map((k) => ({ id: k.id, cc: k.cc, conta: k.conta, justificativa: k.justificativa, prioridade: k.prioridade, quantidade: k.quantidade, valorUnitario: dinheiro(k.valorUnitario), corrigirIpca: k.corrigirIpca, distribuicao: k.distribuicao, mesOcorrencia: k.mesOcorrencia })),
       receitas: receitas.map((r) => ({ tp: r.tp, situacao: r.situacao, origem: r.origem, meses: r.meses.map(dinheiro), total: dinheiro(r.total) })),
@@ -162,16 +176,36 @@ export async function aprovarExercicio(ctx: ContextoRequisicao, bruto: unknown, 
     });
     await tx.snapshotExercicio.create({ data: { exercicioId: e.id, sha256, conteudo: conteudo as object } });
     await registrarTramite(ctx, tx, e, para);
-
-    // R10: congela as premissas no C2 e relê na mesma transação; se uma escrita da GRH/GFIN entrou
-    // entre a leitura e o congelamento, a versão muda e tudo é desfeito.
-    await deps.custoPessoal.congelarPremissasExercicio(tx, contextoAuditoria(ctx), e.ano);
-    const depois = await deps.custoPessoal.obterPremissasExercicio(tx, e.ano);
-    if (!depois || depois.versao !== premissas.versao) recusar(MENSAGENS_ORC.PREMISSAS_MUDARAM_NA_APROVACAO);
     return { ano: e.ano };
   });
 }
 
+// Totais por CC para o snapshot (§6.2: "sintéticas calculadas"): a árvore de CC do C1 com inativos,
+// somada pelo TotalizerService; CC fora da estrutura vira nó próprio na raiz.
+async function totaisPorCc(tx: TxCliente, linhas: readonly { cc: string; meses: readonly { toString(): string }[] }[], deps: DepsOrc) {
+  const nos: NoArvore[] = [];
+  const visitar = (lista: readonly NoCentroCusto[], paiId: string | null) => {
+    for (const n of lista) {
+      nos.push({ id: n.classificacao, paiId, tipo: n.tipo === 'SINTETICO' ? 'SINTETICA' : 'ANALITICA' });
+      visitar(n.filhos, n.classificacao);
+    }
+  };
+  visitar(await deps.estrutura.listarArvoreCentrosCusto(tx, { incluirInativos: true }), null);
+  const conhecidos = new Set(nos.map((n) => n.id));
+  const valores = new Map<string, Dinheiro[]>();
+  for (const l of linhas) {
+    if (!conhecidos.has(l.cc)) {
+      nos.push({ id: l.cc, paiId: null, tipo: 'ANALITICA' });
+      conhecidos.add(l.cc);
+    }
+    const atual = valores.get(l.cc) ?? Array.from({ length: 12 }, () => Dinheiro.zero());
+    valores.set(l.cc, atual.map((v, i) => v.somar(Dinheiro.de(l.meses[i]!.toString()))));
+  }
+  const serie = totalizarSerie(nos, valores);
+  return nos.map((n) => ({ cc: n.id, tipo: n.tipo, meses: serie.valor(n.id), total: Dinheiro.somarTodos(serie.valor(n.id)) }));
+}
+
+// Quem enviou pode rejeitar o próprio envio (devolve para Em Elaboração); D-P6-3 trata só da aprovação.
 export async function rejeitarExercicio(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<{ ano: number }>> {
   const deps = resolverDeps(depsParciais);
   const entrada = await abrir(ctx, 'aprovar', bruto, entradaRejeicao, deps);

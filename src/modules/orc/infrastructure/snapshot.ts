@@ -6,6 +6,10 @@ import { Dinheiro, Percentual } from '@/shared/kernel';
 function canonico(v: unknown): unknown {
   if (v instanceof Dinheiro || v instanceof Percentual) return v.paraString();
   if (v instanceof Date) return v.toISOString();
+  // Outras classes com valor (ex.: Prisma.Decimal): o valor serializado, nunca os campos internos.
+  if (v !== null && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) !== Object.prototype && typeof (v as { toJSON?: unknown }).toJSON === 'function') {
+    return canonico((v as { toJSON(): unknown }).toJSON());
+  }
   if (Array.isArray(v)) return v.map(canonico);
   if (v !== null && typeof v === 'object') {
     return Object.fromEntries(

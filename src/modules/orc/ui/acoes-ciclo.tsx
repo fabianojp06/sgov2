@@ -18,7 +18,7 @@ export function AcoesCiclo({
   rejeitar,
   aviso,
 }: {
-  exercicio: { id: string; ano: number; situacao: string; rotuloSituacao: string; versao: number };
+  exercicio: { id: string; ano: number; situacao: string; rotuloSituacao: string; versao: number; oficializadoEm: Date | null };
   tramites: readonly Tramite[];
   podeEnviar: boolean;
   podeAprovar: boolean;
@@ -27,13 +27,12 @@ export function AcoesCiclo({
   rejeitar: AcaoFormulario;
   aviso?: string | undefined;
 }) {
-  const oficializacao = tramites.findLast((t) => t.para === 'Oficializado');
   const campos = { id: exercicio.id, versao: String(exercicio.versao) };
   return (
     <>
       {aviso && <p role="status">{aviso}</p>}
       <p>{`Situação: ${exercicio.rotuloSituacao}`}</p>
-      {exercicio.situacao === 'OFICIALIZADO' && oficializacao && <p>{`Oficializado em ${dataHora(oficializacao.em)}`}</p>}
+      {exercicio.situacao === 'OFICIALIZADO' && exercicio.oficializadoEm && <p>{`Oficializado em ${dataHora(exercicio.oficializadoEm)}`}</p>}
       {exercicio.situacao === 'EM_ELABORACAO' && podeEnviar && (
         <AcaoConfirmada rotulo="Enviar para aprovação" pergunta={MENSAGENS_ORC.CONFIRMA_ENVIO(exercicio.ano)} acao={enviar} campos={campos} />
       )}

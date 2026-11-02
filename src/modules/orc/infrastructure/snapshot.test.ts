@@ -12,6 +12,16 @@ describe('montarSnapshot', () => {
     expect(JSON.stringify(a.conteudo)).toBe('{"a":{"x":"z","y":[1,2]},"b":1}');
   });
 
+  it('classe com toJSON (ex.: Decimal) vira o valor, não os campos internos', () => {
+    class Decimal {
+      constructor(private readonly v: string) {}
+      toJSON() {
+        return this.v;
+      }
+    }
+    expect(montarSnapshot({ x: new Decimal('1.5') }).conteudo).toEqual({ x: '1.5' });
+  });
+
   it('Dinheiro e Percentual como string decimal; Date em ISO; um centavo muda o sha256', () => {
     const s = montarSnapshot({ v: Dinheiro.de('1234.5'), p: Percentual.dePontos('51'), d: new Date('2026-11-30T12:00:00Z') });
     expect(s.conteudo).toEqual({ d: '2026-11-30T12:00:00.000Z', p: Percentual.dePontos('51').paraString(), v: '1234.50' });

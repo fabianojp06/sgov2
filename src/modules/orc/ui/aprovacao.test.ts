@@ -6,7 +6,7 @@ import { FormRejeicao } from './form-rejeicao';
 
 // Tela de envio e aprovação (US-061; plano do P6, Task 8).
 const acao = async () => ({ ok: true as const, valor: undefined });
-const ex = (situacao: string, rotulo: string) => ({ id: 'e1', ano: 2027, situacao, rotuloSituacao: rotulo, versao: 4 });
+const ex = (situacao: string, rotulo: string, oficializadoEm: Date | null = null) => ({ id: 'e1', ano: 2027, situacao, rotuloSituacao: rotulo, versao: 4, oficializadoEm });
 const html = (p: Partial<Parameters<typeof AcoesCiclo>[0]>) =>
   renderToString(createElement(AcoesCiclo, { exercicio: ex('EM_ELABORACAO', 'Em Elaboração'), tramites: [], podeEnviar: true, podeAprovar: true, enviar: acao, aprovar: acao, rejeitar: acao, ...p }));
 
@@ -27,7 +27,7 @@ describe('AcoesCiclo', () => {
 
   it('Oficializado: a data e nenhum botão; trâmites em tabela', () => {
     const h = html({
-      exercicio: ex('OFICIALIZADO', 'Oficializado'),
+      exercicio: ex('OFICIALIZADO', 'Oficializado', new Date('2026-11-30T15:30:00Z')),
       tramites: [
         { de: 'Em Elaboração', para: 'Em Aprovação', usuario: 'Gestora GFIN', justificativa: null, em: new Date('2026-11-27T13:00:00Z') },
         { de: 'Em Aprovação', para: 'Oficializado', usuario: 'Diretor', justificativa: null, em: new Date('2026-11-30T15:30:00Z') },

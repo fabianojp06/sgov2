@@ -6,6 +6,8 @@ import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { aprovarExercicio, enviarParaAprovacao, listarTramites, rejeitarExercicio } from './aprovacao';
 import { recalcular, recalcularExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
+import { importarPlanilha } from './importacao';
+import { linhaPessoal, montarPlanilha } from './planilhas-teste';
 import { incluirReceita } from './receitas';
 import { definirTeto } from './teto';
 
@@ -90,6 +92,22 @@ describe('enviarParaAprovacao', () => {
     expect((await recalcular(GFIN(), e.id, e.deps())).ok).toBe(false);
     expect((await definirTeto(GFIN(), { exercicioId: e.id, versao: String(ex.versao), teto: '10' }, e.deps())).ok).toBe(false);
     expect((await incluirReceita(GFIN(), { exercicioId: e.id, tp: '002', situacao: 'Confirmado' }, e.deps())).ok).toBe(false);
+    expect(await importarPlanilha(GFIN(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.4')] }) }, e.deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }],
+    });
+    await expect(app.$executeRaw`INSERT INTO orc_posicao (exercicio_id, cc, cargo, quantidade, salario_mensal, mes_inicio, mes_saida, origem)
+      VALUES (${e.id}::uuid, '4.4', 'X', 1, 10, 1, 12, 'IMPORTACAO')`).rejects.toBeDefined();
+  });
+
+  it('envio com a versão de antes de um recálculo: concorrência', async () => {
+    const e = await exercicio();
+    const antes = String(await e.versao());
+    expect((await recalcular(GFIN(), e.id, e.deps())).ok).toBe(true);
+    expect(await enviarParaAprovacao(GFIN(), { id: e.id, versao: antes }, e.deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }],
+    });
   });
 
   it('premissas desatualizadas (Review Focus 4), exercício vazio, CC inativo (R2) e Rascunho: recusados', async () => {
@@ -159,13 +177,29 @@ describe('aprovarExercicio', () => {
     expect(ex.situacao).toBe('OFICIALIZADO');
     expect(ex.oficializadoEm).not.toBeNull();
     const snap = await migrator.snapshotExercicio.findUniqueOrThrow({ where: { exercicioId: e.id } });
-    const c = snap.conteudo as { ano: number; painel: { orcado: string; tetoPadrao: string; resultadoAno: string }; linhas: unknown[]; receitas: unknown[]; posicoes: unknown[] };
+    const c = snap.conteudo as {
+      ano: number;
+      painel: { orcado: string; tetoPadrao: string; resultadoAno: string };
+      premissas: { congelado: boolean; encargos: unknown[] };
+      totaisPorCc: { cc: string; total: string }[];
+      linhas: unknown[];
+      receitas: unknown[];
+      posicoes: unknown[];
+    };
     expect(c.ano).toBe(e.ano);
     expect(c.painel.orcado).toBe('61200.00'); // 60.000,00 (posição no falso) + 1.200,00 (pacote)
     expect(c.painel.tetoPadrao).toBe('120000.00');
     expect(c.painel.resultadoAno).toBe('58800.00');
     expect(c.linhas).toHaveLength(2);
     expect(c.posicoes).toHaveLength(1);
+    expect(c.receitas).toHaveLength(1);
+    expect(c.premissas.congelado).toBe(true); // premissas guardadas já congeladas
+    expect(c.premissas.encargos).toHaveLength(5);
+    // §6.2: as sintéticas calculadas: 4 (raiz) = 61.200,00; 4.3 = o pacote de 4.3.0.
+    expect(c.totaisPorCc.find((t) => t.cc === '4')?.total).toBe('61200.00');
+    expect(c.totaisPorCc.find((t) => t.cc === '4.3')?.total).toBe('1200.00');
+    // Um UPDATE no exercício oficializado é recusado pelo banco.
+    await expect(app.$executeRaw`UPDATE orc_exercicio SET versao = versao + 1 WHERE id = ${e.id}::uuid`).rejects.toBeDefined();
     expect(snap.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(e.custo.congelados.has(e.ano)).toBe(true);
     expect((await listarTramites(DIREX(), e.id, e.deps())).map((t) => t.para)).toEqual(['Em Aprovação', 'Oficializado']);
@@ -181,6 +215,13 @@ describe('aprovarExercicio', () => {
       erros: [{ campo: '_', mensagem: 'Quem enviou o orçamento para aprovação não pode aprová-lo.' }],
     });
     expect(await situacao(e.id)).toBe('EM_APROVACAO');
+    // Sem remetente gravado (caminho fora do caso de uso), ninguém aprova (falha fechada).
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_APROVACAO', enviado_por = NULL WHERE id = ${e.id}::uuid`;
+    expect(await aprovarExercicio(DIREX(), { id: e.id, versao: String(await e.versao()) }, e.deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Quem enviou o orçamento para aprovação não pode aprová-lo.' }],
+    });
   });
 
   it('falha ao congelar as premissas: nada muda (situação, snapshot e trâmite desfeitos)', async () => {
@@ -194,12 +235,17 @@ describe('aprovarExercicio', () => {
 
   it('corrida com as premissas (R10): outra versão depois do congelamento → mensagem e nada muda', async () => {
     const e = await enviado();
-    let leituras = 0;
+    // A versão muda só na leitura feita DEPOIS do congelamento: prova a ordem congelar → reler.
+    let congelou = false;
     const corrida = {
       ...e.custo,
+      congelarPremissasExercicio: async (...args: Parameters<typeof e.custo.congelarPremissasExercicio>) => {
+        congelou = true;
+        return e.custo.congelarPremissasExercicio(...args);
+      },
       obterPremissasExercicio: async (tx: Parameters<typeof e.custo.obterPremissasExercicio>[0], a: number) => {
         const p = await e.custo.obterPremissasExercicio(tx, a);
-        return ++leituras >= 2 && p ? { ...p, versao: p.versao + 1 } : p;
+        return congelou && p ? { ...p, versao: p.versao + 1 } : p;
       },
     };
     expect(await aprovarExercicio(DIREX(), { id: e.id, versao: String(await e.versao()) }, e.deps({ custoPessoal: corrida }))).toEqual({
@@ -239,9 +285,22 @@ describe('rejeitarExercicio', () => {
     expect((await recalcular(GFIN(), e.id, e.deps())).ok).toBe(true);
   });
 
-  it('GFIN rejeitando e listar trâmites com escopo: ErroPermissao', async () => {
+  it('GFIN rejeitando, escopo e listar trâmites com escopo: ErroPermissao', async () => {
     const e = await enviado();
     await expect(rejeitarExercicio(GFIN(), { id: e.id, versao: '0', justificativa: 'Mais de quinze letras' }, e.deps())).rejects.toBeInstanceOf(ErroPermissao);
+    await expect(rejeitarExercicio(DIREX(), { id: e.id, versao: '0', justificativa: 'Mais de quinze letras' }, e.deps({ obterEscopo: async () => '4.3' }))).rejects.toBeInstanceOf(ErroPermissao);
     await expect(listarTramites(DIREX(), e.id, e.deps({ obterEscopo: async () => '4.3' }))).rejects.toBeInstanceOf(ErroPermissao);
+  });
+
+  it('rejeição fora de Em Aprovação: mensagem da situação; auditoria falhando: nada muda', async () => {
+    const e = await exercicio();
+    expect(await rejeitarExercicio(DIREX(), { id: e.id, versao: String(await e.versao()), justificativa: 'Mais de quinze letras' }, e.deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Elaboração.' }],
+    });
+    const enviado2 = await enviado();
+    falhaAuditoria.ligada = true;
+    await expect(rejeitarExercicio(DIREX(), { id: enviado2.id, versao: String(await enviado2.versao()), justificativa: 'Mais de quinze letras' }, enviado2.deps())).rejects.toThrow('auditoria indisponível');
+    expect(await situacao(enviado2.id)).toBe('EM_APROVACAO');
   });
 });
