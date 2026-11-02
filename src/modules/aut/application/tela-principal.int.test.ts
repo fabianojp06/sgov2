@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hashSenha, seedAdm } from '@/modules/adm';
+import { hashSenha, instalarFuncionalidades, seedAdm, type DeclaracaoFuncionalidade } from '@/modules/adm';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
@@ -81,6 +81,33 @@ describe('carregarTelaPrincipal', () => {
     } finally {
       await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: true } });
     }
+  });
+});
+
+// C6 exibirNoMenu (R24 do P4): a permissão vale, mas a funcionalidade não entra no menu.
+describe('exibirNoMenu', () => {
+  const item = (codigo: string, exibirNoMenu?: boolean): DeclaracaoFuncionalidade => ({
+    codigo,
+    modulo: 'CADASTROS',
+    grupo: 'Pessoal',
+    nome: `Tela ${codigo}`,
+    rota: `/cad/${codigo.slice(4)}`,
+    ordem: 1,
+    acoes: ['consultar'],
+    perfisPadrao: { AUDITOR: ['consultar'] },
+    ...(exibirNoMenu === undefined ? {} : { exibirNoMenu }),
+  });
+  const codigosDoMenu = (t: Awaited<ReturnType<typeof carregarTelaPrincipal>>) =>
+    t.menu.flatMap((m) => m.grupos.flatMap((g) => g.itens.map((i) => i.codigo)));
+
+  it('false: some do menu, a permissão continua; reinstalar com true faz aparecer', async () => {
+    await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', false)]));
+    const ctx = await logado('duda', 'AUDITOR', []);
+    expect(ctx.permissoes.has('cad.oculta:consultar')).toBe(true);
+    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app }))).toEqual(['cad.visivel']);
+
+    await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', true)]));
+    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).sort()).toEqual(['cad.oculta', 'cad.visivel']);
   });
 });
 
