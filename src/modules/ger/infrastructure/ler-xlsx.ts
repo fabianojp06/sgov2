@@ -39,6 +39,8 @@ export type OpcoesLeitura = {
   colunas: readonly string[];
   /** O cabeçalho é a primeira linha, até esta, que tem todas as colunas. */
   linhaCabecalhoMax: number;
+  /** Prazo da leitura pelo ExcelJS; padrão 30 s. */
+  prazoMs?: number;
   /** Colunas que não aceitam célula numérica ("14.180" viraria 14,18; GAP-CC-003). */
   colunasTexto?: readonly string[];
   limites?: Partial<LimitesPlanilha>;
@@ -70,10 +72,15 @@ const DTD = /<!(DOCTYPE|ENTITY)/i;
 const SST_VAZIO = '<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="0" uniqueCount="0"/>';
 const decodificador = new TextDecoder('utf-8', { fatal: false });
 
+// Código fora do Unicode ou de surrogate vira U+FFFD (String.fromCodePoint lançaria).
+function caractere(codigo: number): string {
+  return codigo > 0x10ffff || (codigo >= 0xd800 && codigo <= 0xdfff) ? '\uFFFD' : String.fromCodePoint(codigo);
+}
+
 function desfazerEntidades(v: string): string {
   return v
-    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(Number.parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]{1,8});/gi, (_, h: string) => caractere(Number.parseInt(h, 16)))
+    .replace(/&#(\d{1,10});/g, (_, d: string) => caractere(Number(d)))
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
@@ -83,7 +90,9 @@ function desfazerEntidades(v: string): string {
 
 function atributos(tag: string): Map<string, string> {
   const m = new Map<string, string>();
-  for (const [, nome, v1, v2] of tag.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) m.set(nome!, desfazerEntidades(v1 ?? v2 ?? ''));
+  // O espaço antes do nome ancora cada tentativa: sem ele, uma sequência longa sem "=" volta
+  // atrás a cada posição (tempo quadrático com o event loop parado).
+  for (const [, nome, v1, v2] of tag.matchAll(/\s([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) m.set(nome!, desfazerEntidades(v1 ?? v2 ?? ''));
   return m;
 }
 
@@ -95,10 +104,13 @@ function alvoNoZip(target: string): string {
 }
 
 /** Abas na ordem do workbook, com o arquivo de cada uma. O ExcelJS não entende alvo absoluto. */
+// workbook.xml e .rels reais têm poucos KB; o teto limita o custo das regexes.
+const LIMITE_XML_WORKBOOK = 256 * 1024;
+
 function abasDoWorkbook(entradas: ReadonlyMap<string, Uint8Array>): { nome: string; arquivo: string }[] | null {
   const workbook = entradas.get('xl/workbook.xml');
   const rels = entradas.get('xl/_rels/workbook.xml.rels');
-  if (!workbook || !rels) return null;
+  if (!workbook || !rels || workbook.length > LIMITE_XML_WORKBOOK || rels.length > LIMITE_XML_WORKBOOK) return null;
   const alvos = new Map<string, string>();
   for (const [tag] of decodificador.decode(rels).matchAll(/<Relationship\b[^>]*>/g)) {
     const a = atributos(tag);
@@ -247,8 +259,7 @@ async function ler(arquivo: { nome: string; conteudo: Uint8Array }, opcoes: Opco
   const errosCelula: ErroLinha[] = [];
   const somenteTexto = new Set(opcoes.colunasTexto ?? []);
 
-  const prazo = setTimeout(() => fonte.destroy(new Error('prazo de leitura')), PRAZO_LEITURA_MS);
-  try {
+  async function consumir(): Promise<void> {
     for await (const planilha of leitor) {
       let indices: Map<string, number> | null = null;
       let lidas = 0;
@@ -307,10 +318,28 @@ async function ler(arquivo: { nome: string; conteudo: Uint8Array }, opcoes: Opco
         falhaArquivo = `Cabeçalho não encontrado. Colunas esperadas: ${exigidas.map((c) => c.nome).join(', ')}.`;
       }
     }
+  }
+
+  // Prazo pela promessa, não pelo stream: destruir a fonte não encerra o parser do ExcelJS (e um
+  // 'error' sem ouvinte derrubaria o processo). Depois do prazo, a leitura é recusada e o
+  // semáforo, liberado; o que sobrar do parser termina sozinho, sem ninguém esperando.
+  fonte.on('error', () => undefined);
+  const consumo = consumir();
+  consumo.catch(() => undefined);
+  let temporizador: NodeJS.Timeout | undefined;
+  const estouro = new Promise<'prazo'>((resolver) => {
+    temporizador = setTimeout(() => resolver('prazo'), opcoes.prazoMs ?? PRAZO_LEITURA_MS);
+  });
+  try {
+    if ((await Promise.race([consumo.then(() => 'lida' as const), estouro])) === 'prazo') {
+      fonte.destroy();
+      return recusar('prazo de leitura');
+    }
   } catch (e) {
-    return recusar(`leitura da planilha: ${e instanceof Error ? e.message.slice(0, 60) : 'desconhecido'}`);
+    // Só a classe do erro: a mensagem do parser pode trazer nomes escolhidos pelo arquivo.
+    return recusar(`leitura da planilha: ${e instanceof Error ? e.name : 'desconhecido'}`);
   } finally {
-    clearTimeout(prazo);
+    clearTimeout(temporizador);
   }
   if (falhaArquivo !== null) return erroArquivo(falhaArquivo);
   return ok({ nomeArquivo, linhas, errosCelula });

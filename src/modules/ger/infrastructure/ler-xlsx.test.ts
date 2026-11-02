@@ -256,6 +256,45 @@ describe('lerPlanilhaSegura — revisão 12.12', () => {
   }, 60_000);
 });
 
+describe('lerPlanilhaSegura — revisão 12.12, rodada 2', () => {
+  it('prazo estourado: recusa, sem derrubar o processo, e a leitura seguinte funciona', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const linhas: unknown[][] = [COLUNAS];
+    for (let i = 0; i < 5000; i++) linhas.push([String(i), 'x', i]);
+    const x = await planilha(linhas);
+    const r = await ler(x, { prazoMs: 1 });
+    expect(r).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'Planilha inválida ou grande demais.' }] });
+    expect(aviso).toHaveBeenCalledWith('[PLANILHA_RECUSADA]', { motivo: 'prazo de leitura' });
+    expect((await ler(x)).ok).toBe(true);
+    aviso.mockRestore();
+  });
+
+  it('.rels com uma sequência longa sem "=" é lido em tempo linear', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const x = await planilha([COLUNAS, ['4', 'DESPESAS', null]]);
+    const entradas = lerZipSeguro(x, LIMITES_PADRAO);
+    const rels = comoTexto(entradas.get('xl/_rels/workbook.xml.rels')).replace('</Relationships>', `<Relationship ${'a'.repeat(200_000)}/></Relationships>`);
+    entradas.set('xl/_rels/workbook.xml.rels', doTexto(rels));
+    const inicio = performance.now();
+    const r = await ler(empacotarSemCompressao(entradas));
+    expect(performance.now() - inicio).toBeLessThan(1000);
+    expect(r.ok).toBe(true);
+    // Acima de 256 KB, o workbook nem é examinado.
+    entradas.set('xl/_rels/workbook.xml.rels', doTexto(rels.replace('</Relationships>', `<!--${'b'.repeat(300_000)}--></Relationships>`)));
+    expect((await ler(empacotarSemCompressao(entradas))).ok).toBe(false);
+    vi.restoreAllMocks();
+  });
+
+  it('entidade numérica fora do Unicode no nome da aba devolve Resultado (não rejeita)', async () => {
+    const x = await planilha([COLUNAS, ['4', 'DESPESAS', null]]);
+    const entradas = lerZipSeguro(x, LIMITES_PADRAO);
+    const wb = comoTexto(entradas.get('xl/workbook.xml')).replace(/name="Plano de Contas"/, 'name="&#99999999;&#xD800;"');
+    entradas.set('xl/workbook.xml', doTexto(wb));
+    const r = await ler(empacotarSemCompressao(entradas), { aba: 'Plano de Contas' });
+    expect(r).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'A aba "Plano de Contas" não foi encontrada.' }] });
+  });
+});
+
 describe('lerPlanilhaSegura — memória num processo com 256 MB de heap', () => {
   // Dentro do repositório, para o processo filho achar o exceljs em node_modules.
   const pasta = mkdtempSync(join(process.cwd(), 'node_modules', '.sgo-xlsx-'));
