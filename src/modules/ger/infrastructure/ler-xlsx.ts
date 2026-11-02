@@ -39,7 +39,7 @@ export type OpcoesLeitura = {
   colunas: readonly string[];
   /** O cabeçalho é a primeira linha, até esta, que tem todas as colunas. */
   linhaCabecalhoMax: number;
-  /** Prazo da leitura pelo ExcelJS; padrão 30 s. */
+  /** Prazo da leitura pelo ExcelJS, para testes: no máximo (e por padrão) 30 s. */
   prazoMs?: number;
   /** Colunas que não aceitam célula numérica ("14.180" viraria 14,18; GAP-CC-003). */
   colunasTexto?: readonly string[];
@@ -322,13 +322,14 @@ async function ler(arquivo: { nome: string; conteudo: Uint8Array }, opcoes: Opco
 
   // Prazo pela promessa, não pelo stream: destruir a fonte não encerra o parser do ExcelJS (e um
   // 'error' sem ouvinte derrubaria o processo). Depois do prazo, a leitura é recusada e o
-  // semáforo, liberado; o que sobrar do parser termina sozinho, sem ninguém esperando.
+  // semáforo, liberado; o que sobrar do parser termina sozinho, sem ninguém esperando. Nesse
+  // instante, o limite de uma leitura por processo deixa de ser estrito (o parser parado não custa).
   fonte.on('error', () => undefined);
   const consumo = consumir();
   consumo.catch(() => undefined);
   let temporizador: NodeJS.Timeout | undefined;
   const estouro = new Promise<'prazo'>((resolver) => {
-    temporizador = setTimeout(() => resolver('prazo'), opcoes.prazoMs ?? PRAZO_LEITURA_MS);
+    temporizador = setTimeout(() => resolver('prazo'), Math.min(opcoes.prazoMs ?? PRAZO_LEITURA_MS, PRAZO_LEITURA_MS));
   });
   try {
     if ((await Promise.race([consumo.then(() => 'lida' as const), estouro])) === 'prazo') {
