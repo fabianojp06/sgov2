@@ -1,0 +1,146 @@
+// Modelos do módulo orc (frente A, spec §12.3): orçamento anual da Administração Central (UC04.17,
+// spec §6.6; plano do P6, Task 1). CC e conta são guardados pela classificação do C1, sem FK
+// cruzada (§12.7 item 1). Situações, origens e prioridades são texto com CHECK na migration.
+
+// Um exercício por ano, com o ciclo da §6.2. O trigger orc_ciclo_exercicio impõe as transições.
+model OrcamentoExercicio {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ano               Int                  @unique
+  situacao          String               @default("RASCUNHO")
+  tetoManual        Decimal?             @map("teto_manual") @db.Decimal(15, 2)
+  tetoJustificativa String?              @map("teto_justificativa")
+  // Versão das premissas do C2 usada no último cálculo das linhas (R9).
+  versaoPremissas   Int?                 @map("versao_premissas")
+  enviadoPor        String?              @map("enviado_por") @db.Uuid
+  versao            Int                  @default(0)
+  criadoEm          DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm      DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  oficializadoEm    DateTime?            @map("oficializado_em") @db.Timestamptz(6)
+  posicoes          PosicaoOrcada[]
+  pacotes           PacoteBaseZero[]
+  linhas            LinhaOrcada[]
+  receitas          ReceitaRateio[]
+  importacoes       ImportacaoPlanilha[]
+  tramites          TramiteExercicio[]
+  snapshot          SnapshotExercicio?
+
+  @@map("orc_exercicio")
+}
+
+// Posição de pessoal (driver): cargo em texto livre na trilha (C34); salário sem cifra (D-P6-1).
+model PosicaoOrcada {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId   String             @map("exercicio_id") @db.Uuid
+  exercicio     OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  cc            String
+  cargo         String
+  quantidade    Int
+  salarioMensal Decimal            @map("salario_mensal") @db.Decimal(15, 2)
+  mesInicio     Int                @map("mes_inicio")
+  mesSaida      Int                @map("mes_saida")
+  observacao    String?
+  origem        String
+  importacaoId  String?            @map("importacao_id") @db.Uuid
+  linhas        LinhaOrcada[]
+
+  @@index([exercicioId, cc])
+  @@map("orc_posicao")
+}
+
+model PacoteBaseZero {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId   String             @map("exercicio_id") @db.Uuid
+  exercicio     OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  cc            String
+  conta         String
+  justificativa String
+  prioridade    String
+  quantidade    Int
+  valorUnitario Decimal            @map("valor_unitario") @db.Decimal(15, 2)
+  corrigirIpca  Boolean            @map("corrigir_ipca")
+  distribuicao  String
+  mesOcorrencia Int?               @map("mes_ocorrencia")
+  origem        String
+  importacaoId  String?            @map("importacao_id") @db.Uuid
+  linhas        LinhaOrcada[]
+
+  @@index([exercicioId, cc])
+  @@map("orc_pacote")
+}
+
+// Valor calculado (ORIGEM BLINDADA): uma linha por componente do C2 em cada posição, e uma por pacote.
+model LinhaOrcada {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId String             @map("exercicio_id") @db.Uuid
+  exercicio   OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  cc          String
+  conta       String
+  origem      String
+  componente  String?
+  posicaoId   String?            @map("posicao_id") @db.Uuid
+  posicao     PosicaoOrcada?     @relation(fields: [posicaoId], references: [id], onDelete: Cascade)
+  pacoteId    String?            @map("pacote_id") @db.Uuid
+  pacote      PacoteBaseZero?    @relation(fields: [pacoteId], references: [id], onDelete: Cascade)
+  meses       Decimal[]          @db.Decimal(15, 2)
+  total       Decimal            @db.Decimal(15, 2)
+
+  @@index([exercicioId, cc])
+  @@map("orc_linha")
+}
+
+// Rateio de um TP digitado na transição (C35): origem MANUAL_TRANSICAO, substituído na F3 (US-073).
+model ReceitaRateio {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId  String             @map("exercicio_id") @db.Uuid
+  exercicio    OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  tp           String
+  descricao    String
+  situacao     String
+  origem       String             @default("MANUAL_TRANSICAO")
+  meses        Decimal[]          @db.Decimal(15, 2)
+  total        Decimal            @db.Decimal(15, 2)
+  versao       Int                @default(0)
+  importacaoId String?            @map("importacao_id") @db.Uuid
+
+  @@unique([exercicioId, tp])
+  @@map("orc_receita")
+}
+
+model ImportacaoPlanilha {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId   String             @map("exercicio_id") @db.Uuid
+  exercicio     OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  arquivoNome   String             @map("arquivo_nome")
+  arquivoSha256 String             @map("arquivo_sha256") @db.Char(64)
+  resumo        Json
+  criadoPor     String             @map("criado_por") @db.Uuid
+  criadoEm      DateTime           @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+
+  @@map("orc_importacao")
+}
+
+// Histórico do ciclo de vida (avançar, enviar, aprovar, rejeitar com justificativa).
+model TramiteExercicio {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId   String             @map("exercicio_id") @db.Uuid
+  exercicio     OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  de            String
+  para          String
+  usuarioId     String             @map("usuario_id") @db.Uuid
+  justificativa String?
+  em            DateTime           @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+
+  @@index([exercicioId, em])
+  @@map("orc_tramite")
+}
+
+// Snapshot imutável da oficialização (§6.2): JSON canônico e o sha256 dele.
+model SnapshotExercicio {
+  exercicioId String             @id @map("exercicio_id") @db.Uuid
+  exercicio   OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  geradoEm    DateTime           @default(dbgenerated("clock_timestamp()")) @map("gerado_em") @db.Timestamptz(6)
+  sha256      String             @db.Char(64)
+  conteudo    Json
+
+  @@map("orc_snapshot")
+}
