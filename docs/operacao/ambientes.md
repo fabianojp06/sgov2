@@ -66,5 +66,7 @@ No `psql` como `postgres`, use `\password sgo_app` (pede a senha sem eco e não 
 ## Próximos passos (Tarefa 6)
 
 - Projetos `sgo-hml` e `sgo-prod` no Easypanel, cada um com o serviço `db` (`pgvector/pgvector:pg16`) e o `app`.
-- Variáveis do `app`: `DATABASE_URL` (`sgo_app`) e `MIGRATE_DATABASE_URL` (`sgo_migrator`), apontando para o banco `sgo`.
+- Variáveis do `app`: `DATABASE_URL` (`sgo_app`), `MIGRATE_DATABASE_URL` (`sgo_migrator`), `URL_PUBLICA` e `AMBIENTE`, apontando para o banco `sgo`.
+- Variáveis do `worker`: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), a mesma `URL_PUBLICA` do app, `AMBIENTE` e as de SMTP (`docs/operacao/deploy.md`, serviço `worker`).
+- **Checklist do PO, `AMBIENTE`:** `hml` em todos os serviços de hml e `producao` em todos os de prod (app, worker e o serviço de migração/seed). Na imagem, a falta dele impede o worker de partir.
 - Domínios (GAP-INF-001) e a prova do deploy de ponta a ponta.
