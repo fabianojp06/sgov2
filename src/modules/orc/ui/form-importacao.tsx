@@ -23,7 +23,9 @@ export function separarErros(erros: readonly ErroCampo[]) {
 
 export function FormImportacao({ exercicioId, importar }: { exercicioId: string; importar: AcaoImportacao }) {
   const [estado, enviar, pendente] = useActionState((_anterior: Resultado<ResumoImportacaoTela> | null, dados: FormData) => importar(dados), null);
-  const erros = estado && !estado.ok ? separarErros(estado.erros) : null;
+  // Durante o envio as regiões vivas ficam vazias: a mesma frase de novo é anunciada outra vez.
+  const erros = estado && !estado.ok && !pendente ? separarErros(estado.erros) : null;
+  const sucesso = estado?.ok && !pendente ? estado.valor : null;
   return (
     <>
       <form action={enviar} aria-busy={pendente}>
@@ -37,8 +39,8 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
         </button>
       </form>
       {/* A região viva fica sempre montada e só com a frase; o resumo vem fora dela. */}
-      <div role="status">{estado?.ok && <p>{estado.valor.mensagem}</p>}</div>
-      {estado?.ok && (
+      <div role="status">{sucesso && <p>{sucesso.mensagem}</p>}</div>
+      {sucesso && (
         <table>
           <caption>Resumo por centro de custo</caption>
           <thead>
@@ -50,7 +52,7 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
             </tr>
           </thead>
           <tbody>
-            {estado.valor.porCc.map((c) => (
+            {sucesso.porCc.map((c) => (
               <tr key={c.cc}>
                 <th scope="row">{c.cc}</th>
                 <td>{c.posicoes}</td>

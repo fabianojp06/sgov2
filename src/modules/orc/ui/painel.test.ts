@@ -33,7 +33,7 @@ describe('PainelTeto', () => {
     expect(h).toContain('padrão: R$ 1.200.000,00');
   });
 
-  it('sem receita confirmada nem teto: o texto de sem teto; sem semáforo: traço', () => {
+  it('sem receita confirmada nem teto: o texto de sem teto; sem semáforo: Indisponível', () => {
     const h = html(painel('90000', null, null, []));
     expect(h).toContain('Sem teto: não há receita confirmada nem teto manual.');
     expect(h).toContain('<dd>Indisponível</dd>');

@@ -136,6 +136,10 @@ export async function importarPlanilha(
         })),
       });
       const recalculo = await recalcularExercicio(tx, e.id, deps);
+      // As premissas são relidas no recálculo: uma versão nova gravada entre as duas leituras também desfaz.
+      if (escopo.tipo !== 'TOTAL' && e.versaoPremissas !== null && recalculo.versaoPremissas !== e.versaoPremissas) {
+        throw new ErroRecalculo([{ campo: '_', mensagem: MENSAGENS_ORC.PREMISSAS_DESATUALIZADAS_ESCOPO }]);
+      }
       const linhas = await tx.linhaOrcada.findMany({ where: { exercicioId: e.id, cc: { in: ccs } }, select: { cc: true, total: true } });
       const resumoPorCc = resumoContagem.map((c) => ({
         ...c,
