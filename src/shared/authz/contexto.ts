@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { auditar, type EventoAuditoria } from '@/shared/audit';
 import { prisma } from '@/shared/db';
 import type { ContextoRequisicao, ProvedorContexto } from './tipos';
@@ -47,9 +48,15 @@ export function configurarAuditorNegacao(fn: AuditorNegacao): void {
   estado.auditor = fn;
 }
 
+// Um render do RSC chama o provedor no layout, na página e na tela principal: o cache do React junta
+// essas chamadas numa só por render (ressalva 4 do P5, #280). Fora de um render (Server Action, rota,
+// testes), o cache do React só repassa a chamada: a ação que troca a senha ou sai não reaproveita um
+// contexto antigo, e o render que vem depois dela é outro, com os cookies novos.
+export const obterContexto = cache(obterContextoSemCache);
+
 // Sem provedor, ninguém está autenticado (401). Fora dos testes, avisa no log uma vez:
 // um aut que esqueceu de registrar o provedor deixaria todos em "Sessão expirada" sem pista.
-export async function obterContexto(): Promise<ContextoRequisicao | null> {
+async function obterContextoSemCache(): Promise<ContextoRequisicao | null> {
   if (!estado.provedor) {
     if (!estado.avisouSemProvedor && process.env.NODE_ENV !== 'test') {
       estado.avisouSemProvedor = true;
