@@ -104,6 +104,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       env: {
         ...process.env,
         MIGRATE_DATABASE_URL: banco.urlMigrator,
+        // Plano de contas oficial e minuta de CC (C1 real) só no banco efêmero do teste.
+        AMBIENTE: 'dev',
+        CARGA_DADOS_REFERENCIA: '1',
         ADMIN_INICIAL_LOGIN: ADMIN_INICIAL.login,
         ADMIN_INICIAL_EMAIL: ADMIN_INICIAL.email,
         ADMIN_INICIAL_SENHA: ADMIN_INICIAL.senha,
