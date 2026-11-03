@@ -3,3 +3,4 @@ export { calcularDelta } from './delta';
 export { descrever } from './descricao';
 export { serializarParaAuditoria } from './serializar';
 export type { ContextoAuditoria, EventoAuditoria, OrigemOperacao, TipoOperacao } from './tipos';
+export { ErroAuditoria, type CodigoErroAuditoria } from './erros';

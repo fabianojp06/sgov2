@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { EventoAuditoria } from '@/shared/audit';
+import { ErroAuditoria, type EventoAuditoria } from '@/shared/audit';
 import { ErroDominio, ok } from '@/shared/kernel';
 import { configurarAuditorNegacao, configurarProvedorContexto } from './configuracao';
 import { definirAcao } from './definir-acao';
@@ -120,6 +120,16 @@ describe('definirAcao', () => {
     expect(await acao({ nome: 'a' })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Mensagem clara' }] });
   });
 
+  it('erro de programação da auditoria (ErroAuditoria) é inesperado: mensagem genérica, não o texto técnico', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    contexto = comPermissao('usuarios:incluir');
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, async () => {
+      throw new ErroAuditoria('AUDITORIA_INVALIDA', 'Evento de auditoria inválido');
+    });
+    expect(await acao({ nome: 'a' })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
+    expect(log).toHaveBeenCalled();
+  });
+
   it('erro qualquer vira mensagem genérica e vai para o log', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     contexto = comPermissao('usuarios:incluir');
@@ -181,6 +191,17 @@ describe('definirRota', () => {
     expect(r.status).toBe(500);
     expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
     expect(log).toHaveBeenCalled();
+  });
+
+  it('ErroAuditoria no handler → 500 genérico, não 422 com o texto técnico', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    contexto = comPermissao('usuarios:exportar');
+    const rota = definirRota({ funcionalidade: 'usuarios', acao: 'exportar' }, async () => {
+      throw new ErroAuditoria('AUDITORIA_INVALIDA', 'Evento de auditoria inválido');
+    });
+    const r = await rota(new Request('http://x/'));
+    expect(r.status).toBe(500);
+    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
   });
 });
 

@@ -56,6 +56,49 @@ describe('serializarParaAuditoria: sem perda silenciosa e sem dado sensível (re
     expect(() => serializarParaAuditoria(v)).toThrow(naoSerializavel);
   });
 
+  it('toJSON que devolve outra instância da mesma classe: recusa com o caminho, sem estourar a pilha', () => {
+    class Volta {
+      toJSON() {
+        return new Volta();
+      }
+    }
+    expect(() => serializarParaAuditoria({ x: new Volta() })).toThrow(
+      expect.objectContaining({ codigo: 'AUDITORIA_NAO_SERIALIZAVEL', message: 'Valor não serializável para auditoria em $.x: toJSON recursivo' }),
+    );
+  });
+
+  it('ciclo de toJSON entre duas classes e em objeto simples: recusa com o caminho', () => {
+    class B {
+      toJSON(): unknown {
+        return new A();
+      }
+    }
+    class A {
+      toJSON(): unknown {
+        return new B();
+      }
+    }
+    const recursivo = (caminho: string) =>
+      expect.objectContaining({ codigo: 'AUDITORIA_NAO_SERIALIZAVEL', message: `Valor não serializável para auditoria em ${caminho}: toJSON recursivo` });
+    expect(() => serializarParaAuditoria({ x: new A() })).toThrow(recursivo('$.x'));
+    const f = (): unknown => ({ toJSON: f });
+    expect(() => serializarParaAuditoria({ y: { toJSON: f } })).toThrow(recursivo('$.y'));
+  });
+
+  it('toJSON encadeado que termina (abaixo do limite) continua valendo', () => {
+    class Folha {
+      toJSON() {
+        return { ok: true };
+      }
+    }
+    class Meio {
+      toJSON() {
+        return new Folha();
+      }
+    }
+    expect(serializarParaAuditoria({ x: new Meio() })).toEqual({ x: { ok: true } });
+  });
+
   it('usa toJSON quando o objeto oferece', () => {
     expect(serializarParaAuditoria({ x: { toJSON: () => ({ a: 1 }) } })).toEqual({ x: { a: 1 } });
   });

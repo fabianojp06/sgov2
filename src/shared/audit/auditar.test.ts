@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { $Enums } from '@/generated/prisma/client';
 import type { TxCliente } from '@/shared/db';
+import { ErroDominio } from '@/shared/kernel';
 import { auditar } from './auditar';
+import { ErroAuditoria } from './erros';
 import { ORIGENS_OPERACAO, TIPOS_OPERACAO, type EventoAuditoria } from './tipos';
 
 // Transação falsa: só registra o que seria gravado.
@@ -52,6 +54,13 @@ describe('auditar: validação do evento (revisão 12.12)', () => {
     await auditar(tx, { ...base, contexto });
     await auditar(tx, { ...base, contexto: { ...contexto, ip: '10.0.0.1' } });
     expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('evento inválido lança ErroAuditoria, e não ErroDominio (não é texto de tela)', async () => {
+    const { tx } = txFalsa();
+    const erro = await auditar(tx, { ...base, descricao: ' ' }).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(ErroAuditoria);
+    expect(erro).not.toBeInstanceOf(ErroDominio);
   });
 
   it('recusa ser chamada fora de uma transação (cliente raiz do Prisma)', async () => {
