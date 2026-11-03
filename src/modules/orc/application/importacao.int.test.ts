@@ -159,6 +159,13 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
   });
 
+  it('pacote numa conta de pessoal (raízes 4.1.1.1 e 4.1.1.2): conta não permitida e nada gravado', async () => {
+    const e = await exercicio();
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4', { 'Conta analítica': '4.1.1.1.001' })] }) }, e.deps());
+    expect(r.ok ? [] : r.erros).toContainEqual({ campo: 'linhas.Pacotes base zero.5.Conta analítica', mensagem: 'Conta não permitida em pacote base zero.' });
+    expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
+  });
+
   it('erro de célula do leitor (3 casas) aparece uma vez só, sem repetir a validação', async () => {
     const e = await exercicio();
     const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4', { 'Valor unitário (R$)': 350.123 })] }) }, e.deps());

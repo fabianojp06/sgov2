@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CENTROS_CUSTO_EXEMPLO, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo, type NoCentroCusto } from '@/modules/cad/servidor';
+import { CENTROS_CUSTO_EXEMPLO, CONTAS_EXEMPLO, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo, type NoCentroCusto, type NoConta } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
@@ -97,7 +97,7 @@ describe('enviarParaAprovacao', () => {
       erros: [{ campo: '_', mensagem: 'Este exercício não pode ser alterado na situação Em Aprovação.' }],
     });
     await expect(app.$executeRaw`INSERT INTO orc_posicao (exercicio_id, cc, cargo, quantidade, salario_mensal, mes_inicio, mes_saida, origem)
-      VALUES (${e.id}::uuid, '4.4', 'X', 1, 10, 1, 12, 'IMPORTACAO')`).rejects.toBeDefined();
+      VALUES (${e.id}::uuid, '4.4', 'X', 1, 10, 1, 12, 'IMPORTACAO')`).rejects.toThrow(/orc\.exercicio_nao_editavel/);
   });
 
   it('envio com a versão de antes de um recálculo: concorrência', async () => {
@@ -123,6 +123,11 @@ describe('enviarParaAprovacao', () => {
       ok: false,
       erros: [{ campo: '_', mensagem: 'CC 4.4 ou conta 4.1.1.1.001 não é mais analítico ativo: reimporte a planilha antes de enviar.' }],
     });
+    // Conta que deixou de ser analítica ativa (R2), com o CC ativo: também recusa.
+    const inativarConta = (n: NoConta): NoConta => ({ ...n, ativa: n.classificacao === '4.1.1.1.001' ? false : n.ativa, filhos: n.filhos.map(inativarConta) });
+    const contaInativa = estruturaFinanceiraFalsa({ contas: CONTAS_EXEMPLO.map(inativarConta) });
+    const r = await enviarParaAprovacao(GFIN(), { id: e.id, versao: v }, e.deps({ estrutura: contaInativa }));
+    expect(r.ok ? '' : r.erros[0]?.mensagem).toMatch(/^CC [\d.]+ ou conta 4\.1\.1\.1\.001 não é mais analítico ativo/);
     const vazio = await migrator.orcamentoExercicio.create({ data: { ano: 2090, versaoPremissas: 1 } });
     await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${vazio.id}::uuid`;
     expect(await enviarParaAprovacao(GFIN(), { id: vazio.id, versao: '0' }, e.deps({ custoPessoal: custoPessoalFalso([premissasExemplo(2090)]) }))).toEqual({
@@ -199,11 +204,11 @@ describe('aprovarExercicio', () => {
     expect(c.totaisPorCc.find((t) => t.cc === '4')?.total).toBe('61200.00');
     expect(c.totaisPorCc.find((t) => t.cc === '4.3')?.total).toBe('1200.00');
     // Um UPDATE no exercício oficializado é recusado pelo banco.
-    await expect(app.$executeRaw`UPDATE orc_exercicio SET versao = versao + 1 WHERE id = ${e.id}::uuid`).rejects.toBeDefined();
+    await expect(app.$executeRaw`UPDATE orc_exercicio SET versao = versao + 1 WHERE id = ${e.id}::uuid`).rejects.toThrow(/orc\.exercicio_oficializado/);
     expect(snap.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(e.custo.congelados.has(e.ano)).toBe(true);
     expect((await listarTramites(DIREX(), e.id, e.deps())).map((t) => t.para)).toEqual(['Em Aprovação', 'Oficializado']);
-    await expect(app.$executeRaw`UPDATE orc_snapshot SET sha256 = ${'0'.repeat(64)} WHERE exercicio_id = ${e.id}::uuid`).rejects.toBeDefined();
+    await expect(app.$executeRaw`UPDATE orc_snapshot SET sha256 = ${'0'.repeat(64)} WHERE exercicio_id = ${e.id}::uuid`).rejects.toThrow(/permission denied/);
     expect((await rejeitarExercicio(DIREX(), { id: e.id, versao: String(ex.versao), justificativa: 'Mais de quinze letras' }, e.deps())).ok).toBe(false);
   });
 
