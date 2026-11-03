@@ -6,9 +6,12 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { planejarCarga } from '../domain/carga';
+import { COLUNAS_CARGOS, COLUNAS_TEXTO_CARGOS, validarCargosRubi } from '../domain/cargo';
 import { COLUNAS_CENTROS_CUSTO, validarCentrosCusto } from '../domain/centros-custo';
 import { COLUNAS_PLANO_CONTAS, validarPlanoContas, type ErroLinha } from '../domain/plano-contas';
 import { comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from '../infrastructure/aplicar-carga';
+import { paraStaging, type LinhaCargoStaging } from '../infrastructure/aplicar-carga-cargos';
+import { criarCifraSalarios, type CifraSalarios } from '../infrastructure/cifra-salarios';
 import { sanearDescricao } from './saneamento';
 
 // Importação de estrutura no app (plano do P4, R6; US-043): só o sgo_app. Lê e valida o arquivo
@@ -227,6 +230,70 @@ export async function solicitarCargaCentrosCusto(
     });
   } catch (e) {
     if (emAndamento(e)) return falha([{ campo: 'arquivo', mensagem: EM_ANDAMENTO_CC }]);
+    throw e;
+  }
+  return ok({ cargaId, avisos: validado.avisos });
+}
+
+const EM_ANDAMENTO_CARGOS = 'Já existe uma carga de cargos em andamento. Tente de novo em instantes.';
+
+/**
+ * Pede a carga dos cargos do Rubi (cad.cargos:executar; R20, layout CAD-CARGOS v1.0). O app cifra o
+ * salário real ao montar o staging (R7), porque é ele quem tem a chave; quando o valor não mudou,
+ * reaproveita o envelope atual, para a recarga não acusar mudança falsa. I9: nenhuma mensagem cita
+ * o valor. CARGOS e CARGOS_RECIFRA dividem o grupo (m5): uma em andamento recusa a outra.
+ */
+export async function solicitarCargaCargos(
+  ctx: ContextoRequisicao,
+  arquivo: ArquivoCarga,
+  deps: { cliente?: PrismaClient; cifra?: CifraSalarios } = {},
+): Promise<Resultado<{ cargaId: string; avisos: readonly ErroLinha[] }>> {
+  exigir(ctx, 'cad.cargos', 'executar');
+  const cliente = deps.cliente ?? prisma;
+
+  const lida = await lerPlanilhaSegura(arquivo, { colunas: COLUNAS_CARGOS, linhaCabecalhoMax: 10, colunasTexto: [...COLUNAS_TEXTO_CARGOS] });
+  if (!lida.ok) return lida;
+  if (lida.valor.errosCelula.length > 0) return falha(porLinha(lida.valor.errosCelula));
+  const validado = validarCargosRubi(lida.valor.linhas, sanearDescricao);
+  if (!validado.ok) return falha(porLinha(validado.erros));
+
+  const cifra = deps.cifra ?? criarCifraSalarios();
+  const atuais = new Map(
+    (await cliente.cargo.findMany({ select: { codigo: true, salarioRealCifrado: true } })).map((c) => [c.codigo, c.salarioRealCifrado]),
+  );
+  const staging: LinhaCargoStaging[] = validado.cargos.map((c) => {
+    if (c.salarioReal === null) return paraStaging(c, null);
+    const contexto = { codigoCargo: c.codigo, campo: 'salario_real' as const };
+    const atual = atuais.get(c.codigo) ?? null;
+    if (atual !== null) {
+      try {
+        if (cifra.decifrar(atual, contexto).comparar(c.salarioReal) === 0) return paraStaging(c, atual);
+      } catch {
+        // Envelope de uma chave que já saiu do keyring: cifra de novo com a atual.
+      }
+    }
+    return paraStaging(c, cifra.cifrar(c.salarioReal, contexto));
+  });
+
+  const cargaId = randomUUID();
+  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: ctx.unidadeId ?? null };
+  try {
+    await cliente.$transaction(async (tx) => {
+      await tx.$executeRaw`INSERT INTO "carga_estrutura" ("id", "tipo", "arquivo_nome", "arquivo_sha256", "linhas", "contexto_auditoria")
+        VALUES (${cargaId}::uuid, 'CARGOS', ${lida.valor.nomeArquivo}, ${createHash('sha256').update(arquivo.conteudo).digest('hex')},
+          ${staging.length}, ${JSON.stringify(contexto)}::jsonb)`;
+      await tx.cargaEstruturaLinha.createMany({ data: staging.map((c) => ({ cargaId, numero: c.linha, dados: c as unknown as Prisma.InputJsonValue })) });
+      await auditar(tx, {
+        contexto,
+        funcionalidade: 'cad.cargos',
+        tipo: 'INSERCAO',
+        registroId: cargaId,
+        descricao: 'Importação dos cargos solicitada',
+        depois: { arquivo: lida.valor.nomeArquivo, linhas: staging.length, avisos: validado.avisos.length },
+      });
+    });
+  } catch (e) {
+    if (emAndamento(e)) return falha([{ campo: 'arquivo', mensagem: EM_ANDAMENTO_CARGOS }]);
     throw e;
   }
   return ok({ cargaId, avisos: validado.avisos });

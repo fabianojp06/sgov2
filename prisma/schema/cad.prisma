@@ -66,32 +66,33 @@ model ContaContabil {
 // Lote de carga (R6): gravado PENDENTE pelo app (sgo_app, só as colunas de entrada) e processado
 // pelo worker (sgo_sync). `grupo` é preenchido por trigger (CARGOS_RECIFRA conta como CARGOS, m5).
 model CargaEstrutura {
-  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tipo                TipoCarga
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo               TipoCarga
   // O app grava o lote por SQL explícito, só nas colunas de entrada (S-N3): o Prisma mandaria
   // estes defaults estáticos no INSERT, e o sgo_app não tem privilégio nessas colunas.
-  grupo               String                @default("")
-  situacao            SituacaoCarga         @default(PENDENTE)
-  arquivoNome         String                @map("arquivo_nome")
-  arquivoSha256       String                @map("arquivo_sha256")
-  linhas              Int
-  incluidas           Int?
-  alteradas           Int?
-  inativadas          Int?
-  inalteradas         Int?
-  avisos              Json?
-  erros               Json?
-  erro                String?
-  provisoria          Boolean               @default(false)
-  aprovacaoData       DateTime?             @map("aprovacao_data") @db.Date
-  aprovacaoDocumento  String?               @map("aprovacao_documento")
-  contextoAuditoria   Json                  @map("contexto_auditoria")
-  criadoEm            DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  processandoDesde    DateTime?             @map("processando_desde") @db.Timestamptz(6)
-  concluidoEm         DateTime?             @map("concluido_em") @db.Timestamptz(6)
-  linhasStaging       CargaEstruturaLinha[]
-  contas              ContaContabil[]
-  centrosCusto        CentroCusto[]
+  grupo              String                @default("")
+  situacao           SituacaoCarga         @default(PENDENTE)
+  arquivoNome        String                @map("arquivo_nome")
+  arquivoSha256      String                @map("arquivo_sha256")
+  linhas             Int
+  incluidas          Int?
+  alteradas          Int?
+  inativadas         Int?
+  inalteradas        Int?
+  avisos             Json?
+  erros              Json?
+  erro               String?
+  provisoria         Boolean               @default(false)
+  aprovacaoData      DateTime?             @map("aprovacao_data") @db.Date
+  aprovacaoDocumento String?               @map("aprovacao_documento")
+  contextoAuditoria  Json                  @map("contexto_auditoria")
+  criadoEm           DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  processandoDesde   DateTime?             @map("processando_desde") @db.Timestamptz(6)
+  concluidoEm        DateTime?             @map("concluido_em") @db.Timestamptz(6)
+  linhasStaging      CargaEstruturaLinha[]
+  contas             ContaContabil[]
+  centrosCusto       CentroCusto[]
+  cargos             Cargo[]
 
   @@index([situacao, criadoEm])
   @@map("carga_estrutura")
@@ -212,4 +213,63 @@ model BeneficioMestre {
 
   @@id([ano, codigo])
   @@map("beneficio_mestre")
+}
+
+enum FonteAtiva {
+  MINIMO
+  MAXIMO
+  TOTAL
+  REAL
+  DEFINIDO
+}
+
+enum AdicionalTrabalhista {
+  PERICULOSIDADE
+  INSALUBRIDADE
+}
+
+enum GrauInsalubridade {
+  MINIMO
+  MEDIO
+  MAXIMO
+}
+
+// Cargos e salários (US-049; plano do P4, Task 12a; R7, R11, R20). Os campos de origem Rubi chegam
+// pela carga (staging no app, merge no worker como sgo_sync); os manuais, pelo app (Task 12b). O
+// casamento é pelo código, que nunca muda (trigger). Salário real, definido e função gratificada vão
+// cifrados (envelope v1, R7); mínimo e máximo de mercado ficam em claro. Privilégios por coluna na migration.
+model Cargo {
+  id                       String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo                   String                @unique
+  // Origem Rubi (R20, layout CAD-CARGOS v1.0).
+  nomeOficial              String                @map("nome_oficial")
+  nomeMercado              String?               @map("nome_mercado")
+  tabelaSalarialCodigo     String?               @map("tabela_salarial_codigo")
+  tabelaSalarialDescricao  String?               @map("tabela_salarial_descricao")
+  faixaCodigo              String?               @map("faixa_codigo")
+  faixaDescricao           String?               @map("faixa_descricao")
+  nivelCodigo              String?               @map("nivel_codigo")
+  nivelDescricao           String?               @map("nivel_descricao")
+  salarioRealCifrado       String?               @map("salario_real_cifrado")
+  // Manuais (Task 12b).
+  funcaoGratificadaCifrada String?               @map("funcao_gratificada_cifrada")
+  salarioDefinidoCifrado   String?               @map("salario_definido_cifrado")
+  mercadoMinimo            Decimal?              @map("mercado_minimo") @db.Decimal(15, 2)
+  mercadoMaximo            Decimal?              @map("mercado_maximo") @db.Decimal(15, 2)
+  origemMercado            String?               @map("origem_mercado")
+  origemMercadoRotulo      String?               @map("origem_mercado_rotulo")
+  fonteAtiva               FonteAtiva?           @map("fonte_ativa")
+  adicionalTipo            AdicionalTrabalhista? @map("adicional_tipo")
+  adicionalGrau            GrauInsalubridade?    @map("adicional_grau")
+  // R11: opcional e sem FK até a US-048 (pendência P2).
+  vinculoFuncionalId       String?               @map("vinculo_funcional_id") @db.Uuid
+  // Controle.
+  ativo                    Boolean               @default(true)
+  versao                   Int                   @default(1)
+  cargaId                  String?               @map("carga_id") @db.Uuid
+  carga                    CargaEstrutura?       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  criadoEm                 DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm             DateTime              @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@map("cargo")
 }
