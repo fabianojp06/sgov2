@@ -4,6 +4,11 @@
 #                        migração com falha → sai com erro antes de abrir a porta, e o Easypanel
 #                        (atualização start-first) mantém a versão anterior no ar
 #   migrar               só a migração (prisma migrate deploy), com o código de saída do Prisma
+#   semear               roda a seed (/app/seed/seed.mjs, o prisma/seed.ts em bundle; #195) com a
+#                        MIGRATE_DATABASE_URL, como o usuário node; com o código de saída dela
+#   implantar            migrar e, só se passar, semear: o serviço migracao do deploy. Depois fica
+#                        parado (sleep, sem as variáveis no processo) e saudável, para o Swarm do
+#                        Easypanel não reiniciá-lo em laço; falha → sai com erro
 #   resolver <migration> marca uma migration com falha como desfeita (prisma migrate resolve
 #                        --rolled-back), para o PO destravar o deploy (runbook, "migration presa")
 #   worker               sobe o worker (outbox e filas, US-010), sem migrar: quem migra é o app
@@ -18,7 +23,7 @@ MIGRADOR_DIR="${MIGRADOR_DIR:-/opt/migrador}"
 APP_USUARIO="${APP_USUARIO-node}"
 
 uso() {
-  echo "Uso: entrypoint.sh app | migrar | resolver <migration> | worker" >&2
+  echo "Uso: entrypoint.sh app | migrar | semear | implantar | resolver <migration> | worker" >&2
   exit 64
 }
 
@@ -31,7 +36,8 @@ exigir_url_migracao() {
 
 prisma() {
   # O migrador é autossuficiente: prisma, prisma.config.ts e as migrations ficam em /opt/migrador.
-  (cd "$MIGRADOR_DIR" && ./node_modules/.bin/prisma "$@")
+  # As ADMIN_INICIAL_* (só do implantar) não vão para o prisma.
+  (cd "$MIGRADOR_DIR" && env -u ADMIN_INICIAL_LOGIN -u ADMIN_INICIAL_EMAIL -u ADMIN_INICIAL_SENHA ./node_modules/.bin/prisma "$@")
 }
 
 # Troca o processo pelo comando dado, sem a credencial do sgo_migrator (dono do DDL) e, como
@@ -59,6 +65,30 @@ migrar() {
   prisma migrate deploy
 }
 
+# Marcador do serviço migracao: o saude.sh responde saudável com ele (o serviço não tem servidor).
+IMPLANTAR="${IMPLANTAR_MARCADOR:-/tmp/sgo-implantar}"
+
+# Como o APP_USUARIO, sem capacidades, mas com o ambiente (a seed precisa da MIGRATE_DATABASE_URL
+# e das ADMIN_INICIAL_*). Sem exec: quem chama decide o que vem depois.
+como_app() {
+  if [[ -n "$APP_USUARIO" && "$(id -u)" == 0 ]]; then
+    setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups \
+      --inh-caps=-all --bounding-set=-all --no-new-privs "$@"
+    return
+  fi
+  if [[ -n "$APP_USUARIO" ]]; then
+    echo "Aviso: o entrypoint não roda como root (uid $(id -u)); a seed roda com o mesmo usuário do PID 1." >&2
+  fi
+  "$@"
+}
+
+semear() {
+  exigir_url_migracao
+  echo "Aplicando as seeds..."
+  cd "$APP_DIR"
+  como_app node --enable-source-maps "$APP_DIR/seed/seed.mjs"
+}
+
 case "${1:-}" in
   app)
     migrar
@@ -67,6 +97,17 @@ case "${1:-}" in
     ;;
   migrar)
     migrar
+    ;;
+  semear)
+    semear
+    ;;
+  implantar)
+    : > "$IMPLANTAR"
+    migrar
+    semear
+    echo "[IMPLANTAR_CONCLUIDO] migrations e seeds aplicadas; o serviço fica parado até o próximo deploy"
+    # Parado e sem as variáveis neste processo (o PID 1, do root, ainda as tem: tire as ADMIN_INICIAL_*).
+    exec env -i PATH="$PATH" sleep infinity
     ;;
   resolver)
     [[ -n "${2:-}" ]] || uso

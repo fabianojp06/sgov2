@@ -10,17 +10,24 @@ setup() {
   cat > "$T/migrador/node_modules/.bin/prisma" <<'SH'
 #!/bin/sh
 echo "prisma $*" >> "$REGISTRO"
+[ -z "${ADMIN_INICIAL_SENHA:-}" ] || echo "prisma-com-senha" >> "$REGISTRO"
 exit "${PRISMA_SAIDA:-0}"
 SH
   cat > "$T/bin/node" <<'SH'
 #!/bin/sh
 echo "node $*" >> "$REGISTRO"
 echo "node-env MIGRATE_DATABASE_URL=${MIGRATE_DATABASE_URL:-<ausente>}" >> "$REGISTRO"
+exit "${NODE_SAIDA:-0}"
+SH
+  # O sleep do implantar roda com env -i: o caminho do registro vai fixo no script.
+  cat > "$T/bin/sleep" <<SH
+#!/bin/sh
+echo "sleep \$* senha=\${ADMIN_INICIAL_SENHA:-<ausente>} migrate=\${MIGRATE_DATABASE_URL:-<ausente>}" >> "$T/registro"
 exit 0
 SH
   mkdir -p "$T/migrador/prisma/migrations/202610260000_nucleo_x"
-  chmod +x "$T/migrador/node_modules/.bin/prisma" "$T/bin/node"
-  export REGISTRO="$T/registro" PATH="$T/bin:$PATH" MIGRADOR_DIR="$T/migrador" APP_DIR="$T"
+  chmod +x "$T/migrador/node_modules/.bin/prisma" "$T/bin/node" "$T/bin/sleep"
+  export REGISTRO="$T/registro" PATH="$T/bin:$PATH" MIGRADOR_DIR="$T/migrador" APP_DIR="$T" IMPLANTAR_MARCADOR="$T/implantar"
   export MIGRATE_DATABASE_URL="postgresql://sgo_migrator:x@db:5432/sgo"
   # Por padrão, sem troca de usuário (o teste roda como root na VPS e sem root no CI).
   export APP_USUARIO=""
@@ -47,6 +54,45 @@ teardown() { rm -rf "$T"; }
   PRISMA_SAIDA=3 run "$SCRIPT" migrar
   [ "$status" -eq 3 ]
   ! grep -q '^node' "$REGISTRO"
+}
+
+@test "semear: roda a seed com a MIGRATE_DATABASE_URL e o código dela, sem migrar" {
+  NODE_SAIDA=5 run "$SCRIPT" semear
+  [ "$status" -eq 5 ]
+  grep -q "^node --enable-source-maps $T/seed/seed.mjs$" "$REGISTRO"
+  grep -q '^node-env MIGRATE_DATABASE_URL=postgresql://sgo_migrator' "$REGISTRO"
+  ! grep -q '^prisma' "$REGISTRO"
+  [ ! -e "$T/implantar" ]
+}
+
+@test "semear sem MIGRATE_DATABASE_URL → sai com erro, sem chamar a seed" {
+  unset MIGRATE_DATABASE_URL
+  run "$SCRIPT" semear
+  [ "$status" -ne 0 ]
+  ! grep -q '^node' "$REGISTRO"
+}
+
+@test "implantar: migra, semeia e fica parado sem as variáveis; com o marcador do saude.sh" {
+  ADMIN_INICIAL_SENHA=segredo-do-teste run "$SCRIPT" implantar
+  [ "$status" -eq 0 ]
+  [ "$(sed -n 1p "$REGISTRO")" = 'prisma migrate deploy' ]
+  grep -q "^node --enable-source-maps $T/seed/seed.mjs$" "$REGISTRO"
+  grep -q '^\[IMPLANTAR_CONCLUIDO\]' <<< "$output"
+  # O sleep final não tem a senha nem a URL do migrador; o prisma também não recebe a senha.
+  grep -q '^sleep infinity senha=<ausente> migrate=<ausente>$' "$REGISTRO"
+  ! grep -q '^prisma-com-senha$' "$REGISTRO"
+  [ -e "$T/implantar" ]
+}
+
+@test "implantar: migração ou seed com falha → sai com erro, sem ficar parado" {
+  PRISMA_SAIDA=1 run "$SCRIPT" implantar
+  [ "$status" -ne 0 ]
+  ! grep -q '^node' "$REGISTRO"
+  ! grep -q '^sleep' "$REGISTRO"
+  : > "$REGISTRO"
+  NODE_SAIDA=4 run "$SCRIPT" implantar
+  [ "$status" -eq 4 ]
+  ! grep -q '^sleep' "$REGISTRO"
 }
 
 @test "resolver <migration> → migrate resolve --rolled-back" {

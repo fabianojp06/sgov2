@@ -123,6 +123,34 @@ aplicadas=$(psql_pg -d sgo_teste -c "SELECT count(*) FROM _prisma_migrations WHE
 [[ "$esperadas" -gt 0 && "$aplicadas" == "$esperadas" ]] \
   || falhar "migrations aplicadas: $aplicadas; esperadas (pastas em prisma/migrations): $esperadas"
 
+echo "3b. semear (#195): sem administrador e sem as variáveis, falha; com elas, cria; de novo, não muda"
+semear() {
+  docker run --rm --name "$PREFIXO-semear-$RANDOM" --network "$REDE" "${LIMITES[@]}" \
+    -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e AMBIENTE=producao "$@" "$IMAGEM" semear 2>&1
+}
+if saida=$(semear); then falhar "a seed passou sem administrador e sem as ADMIN_INICIAL_*"; fi
+grep -q 'Administrador inicial: defina' <<< "$saida" || falhar "a seed falhou, mas não pela falta do administrador: $(tail -5 <<< "$saida")"
+# Senha só deste teste, montada aqui (um literal "SENHA=valor" parece credencial para o GitGuardian).
+senha_teste=$(printf 'Senha%sImagem2026x' Da)
+saida=$(semear -e ADMIN_INICIAL_LOGIN=admin.imagem -e ADMIN_INICIAL_EMAIL=admin.imagem@example.org -e "ADMIN_INICIAL_SENHA=$senha_teste") \
+  || falhar "a seed com as ADMIN_INICIAL_* falhou: $(tail -5 <<< "$saida")"
+! grep -qF "$senha_teste" <<< "$saida" || falhar "a senha do administrador inicial apareceu no log da seed"
+[[ "$(psql_pg -d sgo_teste -c "SELECT count(*) FROM usuario WHERE login = 'admin.imagem'")" == 1 ]] || falhar "a seed não criou o administrador inicial"
+saida=$(semear) || falhar "a segunda seed, com o administrador já ativo, falhou: $(tail -5 <<< "$saida")"
+[[ "$(psql_pg -d sgo_teste -c "SELECT count(*) FROM usuario")" == 1 ]] || falhar "a segunda seed mudou os usuários"
+! grep -q '\[ADMIN_INICIAL_' <<< "$saida" || falhar "a segunda seed avisou sem motivo: $(grep '\[ADMIN_INICIAL_' <<< "$saida")"
+# R15: dados de referência em produção são recusados.
+if saida=$(semear -e CARGA_DADOS_REFERENCIA=1); then falhar "a seed de produção aceitou CARGA_DADOS_REFERENCIA=1"; fi
+grep -q 'CARGA_DADOS_REFERENCIA não pode ser usada em produção' <<< "$saida" || falhar "a seed de produção falhou, mas não pela R15: $(tail -5 <<< "$saida")"
+# O serviço migracao: implantar migra, semeia, fica saudável e parado (o Swarm não o reinicia em laço).
+docker run -d --name "$PREFIXO-implantar" --network "$REDE" "${LIMITES[@]}" \
+  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e AMBIENTE=producao "$IMAGEM" implantar > /dev/null
+estado=$(esperar_saude "$PREFIXO-implantar")
+[[ "$estado" == healthy ]] || falhar "o implantar não ficou saudável ($estado): $(docker logs "$PREFIXO-implantar" 2>&1 | tail -5)"
+grep -q '\[IMPLANTAR_CONCLUIDO\]' <<< "$(docker logs "$PREFIXO-implantar" 2>&1)" || falhar "o implantar ficou saudável sem concluir"
+[[ "$(docker inspect -f '{{.State.Running}}' "$PREFIXO-implantar")" == true ]] || falhar "o implantar não ficou parado depois de concluir"
+docker rm -f "$PREFIXO-implantar" > /dev/null
+
 echo "4. migrar com migration quebrada → falha pela migration (P3018), não por outro motivo"
 if saida=$(docker run --rm --name "$PREFIXO-quebrada" --network "$REDE" "${LIMITES[@]}" -v "$MIGRATION_QUEBRADA" \
   -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_shadow" "$IMAGEM" migrar 2>&1); then

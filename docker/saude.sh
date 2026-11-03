@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Healthcheck da imagem (HEALTHCHECK do app.Dockerfile).
 # - app: GET /login responde 200;
+# - migracao (entrypoint implantar, marcador /tmp/sgo-implantar): saudável enquanto migra e semeia
+#   e depois, parado; uma falha encerra o contêiner (#195). O app nunca tem o marcador: durante a
+#   migração dele, o healthcheck continua esperando o /login;
 # - worker (processo do /app/worker/index.mjs): o sinal de vida que ele grava a cada tique, depois
 #   do primeiro ciclo do outbox com sucesso, tem menos de 60 s. Ele para de gravar com o outbox
 #   falhando ou com um ciclo em curso há mais de 60 s, e sai com um ciclo preso há mais de 5 min
@@ -10,6 +13,8 @@ set -euo pipefail
 
 VIVO=/tmp/sgo-worker-vivo
 LIMITE_S=60
+
+[[ -f "${IMPLANTAR_MARCADOR:-/tmp/sgo-implantar}" ]] && exit 0
 
 for p in /proc/[0-9]*; do
   if tr '\0' '\n' < "$p/cmdline" 2>/dev/null | grep -qx '/app/worker/index.mjs'; then
