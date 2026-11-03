@@ -238,13 +238,22 @@
 - [x] Frente A: detalhar o plano do P5 (Acesso) com writing-plans.
 
 **Frente A (03/11)**
-- [ ] PO: validar as decisões D-P6-1 a D-P6-7, a manutenção do CC de escopo já gravado (#264) e os textos [PROVISÓRIOS] da US-038 e das ressalvas do P5 (#263, #264, #266).
+- [x] **Decisões do PO de 03/11, todas pela recomendação:**
+  - D-P6-1 a D-P6-7 validadas como estão no plano;
+  - o CC de escopo já gravado é mantido pelo Salvar (#264);
+  - na revisão de bloco do P6 (#298): o snapshot sem o salário de cada posição; o veto em pacote das contas que as premissas usam (encargos 4.1.1.8.x incluídos); e o `conferirSnapshot`;
+  - dívida técnica:
+    - a origem padrão da auditoria fica como está (login anônimo é ação de pessoa);
+    - o Histórico não é truncado;
+    - a unidade nas negações de funcionalidade global fica até existir funcionalidade por TP;
+    - a tipagem do C5 será combinada com a frente B.
+- [ ] PO: validar os textos [PROVISÓRIOS] (não houve recomendação):
+  - os da US-038;
+  - os das ressalvas do P5 (#263, #264, #266);
+  - os das fronteiras de erro (#290);
+  - os do semáforo e da importação com escopo (#273);
+  - os textos de tela do `orc` fora do `MENSAGENS_ORC`.
 - [ ] PO: marcar como falso positivo, no painel do GitGuardian, os incidentes 39442399 e 39442400 (#237).
-- [ ] PO, decisões da revisão de bloco do P6 (#273):
-  - salário de cada posição em claro no snapshot imutável, sem como cifrar depois da oficialização. Recomendação: tirar o `salarioMensal` do snapshot antes da primeira oficialização em produção (D-P6-1);
-  - contas de encargo `4.1.1.8.003/004` fora das raízes vetadas em pacote base zero (`RAIZES_CONTAS_PESSOAL`, [PROVISÓRIA] §6.6);
-  - conferência do sha256 do snapshot pelo banco: o `jsonb` reordena as chaves. Sugestão: `conferirSnapshot` ou guardar o texto canônico.
-- [ ] Textos de tela do `orc` fora do `MENSAGENS_ORC` (avisos de aprovação, importação, lista de exercícios e receitas, rótulos do painel) entram na validação dos [PROVISÓRIOS] pelo PO.
 - [x] Ressalvas da revisão de bloco do P5, todas corrigidas (issue #280):
   - 1 e 5 no #266;
   - 2 e 3 no #263;
@@ -253,7 +262,7 @@
   - fronteiras de erro da raiz em pt-BR (#290, compartilhado);
   - diálogos do `aut` com foco e Esc, sem `aria-modal` (#281);
   - um `<main>` só na área logada (#291, com teste que lê os arquivos da frente A).
-- [ ] A negação auditada (`guarda.ts`) grava a unidade do contexto também para funcionalidade global.
+- [ ] A negação auditada (`guarda.ts`) grava a unidade do contexto também para funcionalidade global. Por decisão do PO, fica até existir funcionalidade por TP.
 - [ ] **Para a frente B:**
   - páginas do `cad` em `src/app/(sistema)/cad/` com `<main>` aninhado dentro do `main.sgo-conteudo` da casca (11 ocorrências; a frente A trocou as suas no #291);
   - `trabalhador-email.ts` (`motivoDoErro`): com o `ErroAuditoria` (#282), o log mostra só o nome, sem o código;
@@ -266,8 +275,8 @@
   - #165: #283 (shadow vazia; mensagens sem credencial) e #286 (proxy do prisma);
   - #168: #285 (expoente e dígitos do Decimal; mensagem escapada; `igual()`);
   - #182: #289 (testes de privilégios do `sgo_fila` e do índice do outbox).
-  - O resto continua aberto: origem padrão da auditoria, limite de tamanho, regex de credencial, tipos do C5, lint compartilhado.
-- [ ] "De acordo" da frente A no C3 (#223, `exportarXlsx` só pelo `ger/servidor`): o texto foi preparado, mas o comentário na issue foi negado pelo classificador em 03/11. Falta o PO publicar ou autorizar; ele destrava o #221 da frente B.
+  - O resto continua aberto: regex de credencial, tipos do C5 (a combinar com a frente B) e lint compartilhado.
+- [x] "De acordo" da frente A no C3 publicado na #223, com a autorização do PO. Destrava o #221 da frente B, que ainda precisa da aprovação do PO.
 - [ ] Criação de issue e comentário em issue pelo agente: o classificador nega sem autorização explícita do PO. A #280 foi aberta com a autorização dele.
 - [ ] D12: em 03/11, duas rodadas de E2E da frente A coincidiram com o `vitest` da frente B (o `flock` do #257 só vale para quem usa `npm run test:int`/`test:e2e`; rodar o vitest direto escapa do lock).
 
