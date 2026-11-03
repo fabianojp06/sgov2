@@ -9,11 +9,13 @@ describe('validarShadow (spec §11.5)', () => {
     expect(() => validarShadow(dev, 'postgresql://u:x@10.0.1.5:5432/sgo_shadow')).toThrow(
       'SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); encontrado 10.0.1.5:5432/sgo_shadow',
     );
-    try {
-      validarShadow(dev, 'postgresql://u:x@10.0.1.5:5432/sgo_shadow');
-    } catch (e) {
-      expect(String(e)).not.toContain('u:x');
-    }
+    // Senha com "/" sem escape: o parser lê o usuário como host e o resto da senha vai para o path.
+    expect(() => validarShadow(dev, 'postgresql://u:1234/abcd@10.0.0.1:5432/x')).toThrow(
+      'SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); destino não mostrado (URL fora do formato)',
+    );
+    expect(() => validarShadow(dev, 'postgresql://u:x@127.0.0.1:55432/sgo_shadow?host=outro')).toThrow(
+      'shadow fora do dev local (spec §11.5); a query da URL altera o host ou a porta',
+    );
     expect(() => validarShadow(dev, 'postgresql://[nao-e-host')).toThrow('SHADOW_DATABASE_URL: não é uma URL válida');
   });
 

@@ -29,17 +29,28 @@ export function validarShadow(databaseUrl: string, shadowUrl: string | undefined
   } catch {
     throw new Error('SHADOW_DATABASE_URL: não é uma URL válida');
   }
-  const destino = `${shadow.hostname}:${shadow.port || '5432'}${shadow.pathname}`;
+  const destino = descreverDestino(shadow);
   if (!ehDevLocal(shadowUrl)) {
-    throw new Error(`SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); encontrado ${destino}`);
+    throw new Error(`SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); ${destino}`);
   }
   if (!shadow.pathname.replace(/^\//, '').endsWith('_shadow')) {
-    throw new Error(`SHADOW_DATABASE_URL: o banco shadow deve terminar em _shadow; encontrado ${destino}`);
+    throw new Error(`SHADOW_DATABASE_URL: o banco shadow deve terminar em _shadow; ${destino}`);
   }
 }
 
 // O driver e o Prisma honram host, hostaddr e port na query string, que trocariam o destino.
 const PARAMETROS_DE_DESTINO = new Set(['host', 'hostaddr', 'port']);
+
+// "encontrado host:porta/banco", só quando dá para dizer sem expor credencial. postgresql:// não é
+// esquema especial do WHATWG: uma senha com "/" sem escape vira host, porta e path, e o path leva o
+// resto da senha e o "@". Nesses casos, e quando a query troca o destino, a mensagem não mostra a URL.
+function descreverDestino(url: URL): string {
+  if ([...url.searchParams.keys()].some((chave) => PARAMETROS_DE_DESTINO.has(chave.toLowerCase()))) {
+    return 'a query da URL altera o host ou a porta';
+  }
+  if (url.pathname.includes('@') || !/^[A-Za-z0-9._-]+$/.test(url.hostname)) return 'destino não mostrado (URL fora do formato)';
+  return `encontrado ${url.hostname}:${url.port || '5432'}${url.pathname}`;
+}
 
 function ehDevLocal(url: string): boolean {
   const { hostname, port, searchParams } = new URL(url);
