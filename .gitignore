@@ -8,3 +8,7 @@ src/generated/
 coverage/
 *.tsbuildinfo
 next-env.d.ts
+# Artefatos do Playwright (E2E)
+test-results/
+playwright-report/
+blob-report/
