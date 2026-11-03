@@ -165,6 +165,17 @@ describe('criarExercicio copiando o anterior', () => {
     });
   });
 
+  it('R18 em qualquer situação: a origem Em Elaboração também é copiada', async () => {
+    const origem = await exercicioComLancamentos(2075);
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${origem.id}::uuid`;
+    const r = await criarExercicio(ctx(), { ano: 2076, forma: 'COPIA' }, deps({ custoPessoal: custoPessoalFalso([premissasExemplo(2076)]) }).d);
+    if (!r.ok) throw new Error('esperava sucesso');
+    // A origem é o 2075 (e não o 2072 de outro teste, em Rascunho, que também tem 2 posições).
+    const h = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'orc.exercicios', registroId: r.valor.id } });
+    expect(h.descricao).toContain('copiando 2075');
+    expect(r.valor.copiadas.posicoes).toBe(2);
+  });
+
   it('erro de cálculo na cópia: nada é criado (ErroRecalculo desfaz a transação)', async () => {
     await exercicioComLancamentos(2080);
     const custo = custoPessoalFalso([premissasExemplo(2081)]);
