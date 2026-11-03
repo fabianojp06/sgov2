@@ -27,3 +27,9 @@ export { obterTelaParametros, obterTelaSalarioMinimo } from './application/tela-
 export { FormParametros } from './ui/form-parametros';
 export { FormSalarioMinimo } from './ui/form-salario-minimo';
 export { SeletorAno } from './ui/seletor-ano';
+
+// Cargos e salários (US-049 parte 2): ações, casos de uso de leitura e telas.
+export { acaoAlterarCargo, acaoConsultarCargaCargos, acaoImportarCargos, acaoRegravarSalarios } from './application/acoes-cargos';
+export { listarCargos, obterCargo } from './application/cargos';
+export { FormCargo } from './ui/form-cargo';
+export { ListaCargos } from './ui/lista-cargos';

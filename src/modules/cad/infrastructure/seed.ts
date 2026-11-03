@@ -55,6 +55,42 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     },
   },
   {
+    codigo: 'cad.cargos',
+    modulo: 'CADASTROS',
+    grupo: 'Pessoal',
+    nome: 'Cargos e Salários',
+    rota: '/cad/cargos',
+    ordem: 2,
+    nivelLog: 'SIMPLES',
+    ajuda:
+      'Consulte os cargos e mantenha os dados manuais (mercado, fonte ativa, adicional). Os dados do Rubi entram pela importação da ' +
+      'planilha. Os salários aparecem só para quem tem a permissão de ver salários; para os outros, ficam mascarados.',
+    acoes: ['consultar', 'alterar', 'exportar', 'executar'],
+    perfisPadrao: {
+      ANALISTA_GRH: ['consultar', 'alterar', 'exportar', 'executar'],
+      GFIN: ['consultar', 'exportar'],
+      ORCAMENTISTA: ['consultar', 'exportar'],
+      AUDITOR: ['consultar', 'exportar'],
+      DIREX: ['consultar', 'exportar'],
+    },
+  },
+  // R24: ver salário sem máscara é permissão própria, auditada, fora do menu (C6 exibirNoMenu). Pendência P5.
+  {
+    codigo: 'cad.salarios',
+    modulo: 'CADASTROS',
+    grupo: 'Pessoal',
+    nome: 'Salários sem máscara',
+    rota: '/cad/cargos',
+    ordem: 3,
+    nivelLog: 'AVANCADO',
+    exibirNoMenu: false,
+    acoes: ['consultar'],
+    perfisPadrao: {
+      ANALISTA_GRH: ['consultar'],
+      GFIN: ['consultar'],
+    },
+  },
+  {
     codigo: 'cad.beneficios',
     modulo: 'CADASTROS',
     grupo: 'Pessoal',

@@ -80,6 +80,7 @@ describe('textoSituacao', () => {
     expect(textoSituacao(estado('FALHOU'))).toBe('A importação falhou e nada foi gravado.');
     expect(textoSituacao(estado('FALHOU', { erros: [{ linha: 4, mensagem: 'x' }] }))).toBe('A importação falhou e nada foi gravado. Confira os erros abaixo.');
     expect(textoSituacao(estado('PROCESSANDO'))).toBe('Importando 174 linhas…');
+    expect(textoSituacao(estado('CONCLUIDA', { tipo: 'CARGOS_RECIFRA', alteradas: 1, inalteradas: 2 }))).toBe('Salários regravados com a chave atual: 1 cargo; 2 sem alteração.');
     expect(textoSituacao(estado('CONCLUIDA', { tipo: 'CENTROS_CUSTO', incluidas: 60, alteradas: 0, inativadas: 0, inalteradas: 2 }))).toBe(
       'Centros de custo importados: 60 incluídos, 0 alterados, 0 inativados, 2 sem alteração.',
     );
