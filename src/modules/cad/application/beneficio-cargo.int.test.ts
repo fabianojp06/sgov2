@@ -146,6 +146,24 @@ describe('sobrescrita pela Tabela Mestre (RN_CAR_06, C8)', () => {
     expect((await vr()).versao).toBe(antes.versao);
   });
 
+  it('exercício novo (decisão do PO): os benefícios do cargo vêm do ano-base, com o ativo, o valor manual e a origem; um Histórico por cargo', async () => {
+    await manual('C1', 2028, '41,50');
+    await alterarBeneficiosCargo(grh(), cargos.C2!, 2028, await versao('C2'), [{ codigo: 'beneficio.vr', ativo: false, valorManual: null }], { cliente: app });
+    const versaoC1 = await versao('C1');
+    await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2029));
+    expect(await linha('C1', 2029)).toEqual({ origem: 'MANUAL', valor: '41.50' });
+    expect((await migrator.query(`SELECT ativo, origem::text AS origem FROM beneficio_cargo WHERE cargo_id = $1 AND ano = 2029 AND codigo = 'beneficio.vr'`, [cargos.C2])).rows[0]).toEqual({ ativo: false, origem: 'MESTRE' });
+    // O C3 não tinha linha em 2028: continua sem, e usa os padrões da posição.
+    expect((await migrator.query('SELECT count(*)::int AS n FROM beneficio_cargo WHERE cargo_id = $1 AND ano = 2029', [cargos.C3])).rows[0].n).toBe(0);
+    const h = await migrator.query(`SELECT registro_id FROM historico_operacao WHERE descricao LIKE 'Benefícios de 2029 do cargo % copiados de 2028' ORDER BY registro_id`);
+    expect(h.rows.map((x) => x.registro_id)).toEqual(['C1', 'C2']);
+    // A cópia não mexe na versão do cargo nem no ano-base; o ano que já existe não é copiado de novo.
+    expect(await versao('C1')).toBe(versaoC1);
+    expect(await linha('C1', 2028)).toEqual({ origem: 'MANUAL', valor: '41.50' });
+    await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2029));
+    expect((await migrator.query(`SELECT count(*)::int AS n FROM historico_operacao WHERE descricao LIKE 'Benefícios de 2029 do cargo %'`)).rows[0].n).toBe(2);
+  });
+
   it('congelado: com 2027 congelado, a alteração do cargo e a da Tabela Mestre são recusadas e nada muda (por último)', async () => {
     await manual('C1', 2027, '45');
     await migrator.query('BEGIN');

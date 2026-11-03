@@ -2,6 +2,7 @@ import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
 import { Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
 import { COMPONENTES_FIXOS } from '../domain/custo-pessoal';
+import { copiarBeneficiosCargoDoAno } from './beneficios-cargo';
 import { criarTabelaMestreDoAno } from './beneficios-mestre';
 import { ENCARGOS, COMPONENTES_COM_CONTA, type ParametrosExercicio } from '../domain/parametros';
 
@@ -93,8 +94,8 @@ const PADRAO = {
 };
 
 /**
- * US-055: cria os parâmetros do ano copiando o último ano anterior (sem o congelamento) ou, sem
- * nenhum, os padrões provisórios. Idempotente: o ano que já existe fica como está. Auditado.
+ * US-055: cria os parâmetros do ano copiando o último ano anterior (sem o congelamento), com a
+ * Tabela Mestre e os benefícios dos cargos, ou, sem nenhum, os padrões provisórios. Idempotente: o ano que já existe fica como está. Auditado.
  */
 export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAuditoria, ano: number): Promise<boolean> {
   if (!Number.isInteger(ano) || ano < 2000 || ano > 2099) throw new ErroDominio('cad.ano_invalido', 'O exercício deve ser de 2000 a 2099.');
@@ -122,6 +123,7 @@ export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAudi
     });
     await tx.contaComponenteExercicio.createMany({ data: base.contas.map((c) => ({ ano, componente: c.componente, conta: c.conta, provisorio: c.provisorio })) });
     await criarTabelaMestreDoAno(tx, ano, base.ano);
+    await copiarBeneficiosCargoDoAno(tx, contexto, ano, base.ano);
   } else {
     await tx.parametrosExercicio.create({
       data: {
