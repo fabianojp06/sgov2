@@ -7,7 +7,7 @@ import { validarCargosRubi } from '../domain/cargo';
 import { validarCentrosCusto, type LinhaCentroCustoValidada } from '../domain/centros-custo';
 import { validarPlanoContas, type ErroLinha, type LinhaPlanoValidada } from '../domain/plano-contas';
 import { aplicarCarga, aplicarCargaCentrosCusto, ErroCargaLinhas } from './aplicar-carga';
-import { aplicarCargaCargos, type LinhaCargoStaging } from './aplicar-carga-cargos';
+import { aplicarCargaCargos, aplicarRecifraCargos, type LinhaCargoStaging, type LinhaRecifra } from './aplicar-carga-cargos';
 import { cargoParaLinhaLida, centroParaLinhaLida, paraLinhaLida } from './staging';
 
 // Casca do merge no worker (plano do P4, R6): o único processo com SYNC_DATABASE_URL. A cada ciclo:
@@ -69,6 +69,23 @@ const linhaStagingCargo = z
     salarioRealCifrado: z.string().regex(ENVELOPE).nullable(),
   })
   .strict();
+
+const linhaStagingRecifra = z
+  .object({ linha: z.number().int().positive(), codigo: z.string(), envelopeAntigo: z.string().regex(ENVELOPE), envelopeNovo: z.string().regex(ENVELOPE) })
+  .strict();
+
+function revalidarRecifra(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): LinhaRecifra[] {
+  if (linhas.length !== esperadas) throw new ErroStaging([{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }]);
+  const erros: ErroLinha[] = [];
+  const validas: LinhaRecifra[] = [];
+  for (const l of linhas) {
+    const r = linhaStagingRecifra.safeParse(l.dados);
+    if (!r.success || r.data.linha !== l.numero) erros.push({ linha: l.numero, mensagem: 'Linha adulterada no staging.' });
+    else validas.push(r.data);
+  }
+  if (erros.length > 0) throw new ErroStaging(erros);
+  return validas;
+}
 
 const contextoLote = z.object({
   usuarioId: z.uuid().nullable(),
@@ -274,6 +291,9 @@ export function iniciarProcessadorCargas(deps: {
             const v = revalidarCentrosCusto(staging, lote.linhas);
             avisosValidacao = v.avisos;
             r = await aplicarCargaCentrosCusto(tx, contexto, { id: lote.id, provisoria }, v.linhas);
+          } else if (lote.tipo === 'CARGOS_RECIFRA') {
+            avisosValidacao = [];
+            r = await aplicarRecifraCargos(tx, contexto, { id: lote.id }, revalidarRecifra(staging, lote.linhas));
           } else if (lote.tipo === 'CARGOS') {
             const v = revalidarCargos(staging, lote.linhas);
             avisosValidacao = v.avisos;

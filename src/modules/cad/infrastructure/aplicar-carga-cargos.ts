@@ -132,3 +132,34 @@ export async function aplicarCargaCargos(
   }
   return { incluidas, alteradas, inativadas, inalteradas, avisos: [] };
 }
+
+/** Linha do lote CARGOS_RECIFRA (I7): o envelope do salário real lido pelo app e o novo, da chave atual. */
+export type LinhaRecifra = { linha: number; codigo: string; envelopeAntigo: string; envelopeNovo: string };
+
+/**
+ * Regravação do salário real com a chave atual (I7): só onde o envelope atual ainda é o antigo
+ * (otimista: o cargo recarregado ou regravado no meio fica como está).
+ */
+export async function aplicarRecifraCargos(tx: TxCliente, contexto: ContextoAuditoria, carga: { id: string }, linhas: readonly LinhaRecifra[]): Promise<ResultadoCarga> {
+  const origem = contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO';
+  let alteradas = 0;
+  for (const l of linhas) {
+    const r = await tx.cargo.updateMany({
+      where: { codigo: l.codigo, salarioRealCifrado: l.envelopeAntigo },
+      data: { salarioRealCifrado: l.envelopeNovo, versao: { increment: 1 }, cargaId: carga.id },
+    });
+    if (r.count === 0) continue;
+    alteradas++;
+    await auditar(tx, {
+      contexto,
+      origem,
+      funcionalidade: 'cad.cargos',
+      tipo: 'ALTERACAO',
+      registroId: l.codigo,
+      descricao: `Salário real do cargo ${l.codigo} regravado com a chave atual`,
+      antes: { salarioRealCifrado: l.envelopeAntigo },
+      depois: { salarioRealCifrado: l.envelopeNovo },
+    });
+  }
+  return { incluidas: 0, alteradas, inativadas: 0, inalteradas: linhas.length - alteradas, avisos: [] };
+}
