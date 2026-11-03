@@ -145,7 +145,10 @@ describe('enviarParaAprovacao', () => {
   it('Review Focus 4 até o fim: premissas novas recusam o envio; depois do Recalcular, o envio passa', async () => {
     const e = await exercicio();
     const outra = custoPessoalFalso([{ ...premissasExemplo(e.ano), versao: 9 }]);
-    expect((await enviarParaAprovacao(GFIN(), { id: e.id, versao: String(await e.versao()) }, e.deps({ custoPessoal: outra }))).ok).toBe(false);
+    expect(await enviarParaAprovacao(GFIN(), { id: e.id, versao: String(await e.versao()) }, e.deps({ custoPessoal: outra }))).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'As premissas do exercício mudaram depois do último cálculo. Recalcule o orçamento.' }],
+    });
     expect((await recalcular(GFIN(), e.id, e.deps({ custoPessoal: outra }))).ok).toBe(true);
     expect((await enviarParaAprovacao(GFIN(), { id: e.id, versao: String(await e.versao()) }, e.deps({ custoPessoal: outra }))).ok).toBe(true);
     expect(await situacao(e.id)).toBe('EM_APROVACAO');
