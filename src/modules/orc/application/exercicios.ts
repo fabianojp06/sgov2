@@ -15,7 +15,7 @@ import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 const CONSULTAS_ORC = ['orc.orcamento', 'orc.exercicios', 'orc.receitas', 'orc.importacao', 'orc.aprovacao'];
 
-export type ResumoExercicio = { id: string; ano: number; situacao: SituacaoExercicio; rotuloSituacao: string; versao: number };
+export type ResumoExercicio = { id: string; ano: number; situacao: SituacaoExercicio; rotuloSituacao: string; versao: number; oficializadoEm: Date | null };
 
 // Seletor de exercício e lista: quem consulta qualquer tela do orc (inclusive o Gestor de
 // Diretoria, pelo orçamento) vê os anos.
@@ -24,7 +24,7 @@ export async function listarExercicios(ctx: ContextoRequisicao, depsParciais: Pa
     throw new ErroPermissao('orc.orcamento', 'consultar');
   }
   const { cliente } = resolverDeps(depsParciais);
-  const linhas = await cliente.orcamentoExercicio.findMany({ orderBy: { ano: 'desc' }, select: { id: true, ano: true, situacao: true, versao: true } });
+  const linhas = await cliente.orcamentoExercicio.findMany({ orderBy: { ano: 'desc' }, select: { id: true, ano: true, situacao: true, versao: true, oficializadoEm: true } });
   return linhas.map((e) => ({ ...e, situacao: e.situacao as SituacaoExercicio, rotuloSituacao: ROTULO_SITUACAO[e.situacao as SituacaoExercicio] }));
 }
 

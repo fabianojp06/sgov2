@@ -15,7 +15,7 @@ import { exigirSemEscopo } from './escopo';
 
 export type ResumoRecalculo = { posicoes: number; pacotes: number; linhas: number; versaoPremissas: number; avisos: readonly string[] };
 
-export type ExercicioTravado = { id: string; ano: number; situacao: SituacaoExercicio; versao: number; versaoPremissas: number | null };
+export type ExercicioTravado = { id: string; ano: number; situacao: SituacaoExercicio; versao: number; versaoPremissas: number | null; enviadoPor: string | null };
 
 // Primeira coisa de toda escrita no exercício: a trava de linha (FOR UPDATE) antes de qualquer
 // outra escrita, porque os triggers leem o exercício com FOR SHARE (evita o deadlock entre duas
@@ -23,7 +23,7 @@ export type ExercicioTravado = { id: string; ano: number; situacao: SituacaoExer
 export async function travarExercicio(tx: TxCliente, id: string): Promise<ExercicioTravado> {
   if (!z.uuid().safeParse(id).success) throw inexistente();
   const [e] = await tx.$queryRaw<ExercicioTravado[]>`
-    SELECT id, ano, situacao, versao, versao_premissas AS "versaoPremissas"
+    SELECT id, ano, situacao, versao, versao_premissas AS "versaoPremissas", enviado_por AS "enviadoPor"
     FROM orc_exercicio WHERE id = ${id}::uuid FOR UPDATE`;
   if (!e) throw inexistente();
   return e;
