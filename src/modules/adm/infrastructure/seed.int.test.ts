@@ -87,6 +87,8 @@ describe('seedAdm', () => {
     ]);
     expect(perfis.every((p) => p.ativo)).toBe(true);
     expect(await permissoes('ADMINISTRADOR', 'adm.usuarios')).toEqual(['alterar', 'consultar', 'incluir']);
+    // Ajuda da tela (UC01.03, ícone de ajuda do menu).
+    expect((await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'adm.usuarios' } })).ajuda).toMatch(/senha.*e-mail/);
     const outros = await cliente.perfilPermissao.count({
       where: { funcionalidadeCodigo: 'adm.usuarios', perfil: { codigo: { not: 'ADMINISTRADOR' } } },
     });
@@ -122,6 +124,16 @@ describe('seedAdm', () => {
     await executarSeeds(cliente, [seedCom([{ ...cargos, nome: 'Cargos e salários' }])]);
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'cad.cargos' } });
     expect(f).toMatchObject({ nome: 'Cargos e salários', ativo: false });
+  });
+
+  it('trocar só o exibirNoMenu atualiza e audita, sem reativar o que o Administrador desligou (C6, RN_SEED_002)', async () => {
+    const salarios = { ...cargos, codigo: 'cad.salarios', nome: 'Salários', rota: '/cad/salarios' };
+    await executarSeeds(cliente, [seedCom([salarios])]);
+    await cliente.funcionalidade.update({ where: { codigo: 'cad.salarios' }, data: { ativo: false } });
+    await executarSeeds(cliente, [seedCom([{ ...salarios, exibirNoMenu: false }])]);
+    const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'cad.salarios' } });
+    expect(f).toMatchObject({ exibirNoMenu: false, ativo: false });
+    expect(await cliente.historicoOperacao.count({ where: { descricao: 'Seed: funcionalidade cad.salarios atualizada' } })).toBe(1);
   });
 
   it('ação padrão nova vai para quem ainda tem acesso; a removida não volta (R12)', async () => {

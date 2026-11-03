@@ -189,11 +189,14 @@ describe('trocarSenha: senha atual (D-P5-3)', () => {
 describe('trocarSenha: sucesso', () => {
   it('grava o hash, tira a obrigatoriedade, rotaciona o token e audita sem hash', async () => {
     const { ctx, token } = await logado('gil', true);
+    const versaoAntes = (await usuario('gil')).versao;
     const r = await trocar(ctx, { novaSenha: NOVA, repetirSenha: NOVA });
     if (!r.ok) throw new Error('esperava sucesso');
     const u = await usuario('gil');
     expect(await conferirSenha(u.senhaHash, NOVA)).toBe(true);
     expect(u).toMatchObject({ trocaSenhaObrigatoria: false, senhaExpiraEm: null });
+    // A versão do cadastro não muda: o formulário aberto do Administrador continua valendo.
+    expect(u.versao).toBe(versaoAntes);
     // Token velho não vale; o novo tem as permissões completas.
     expect(await provedorCom(token)).toBeNull();
     const novo = await provedorCom(r.valor.token);

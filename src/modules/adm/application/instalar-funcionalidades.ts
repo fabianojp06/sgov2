@@ -3,7 +3,7 @@ import { auditarSeed } from './auditar-seed';
 import { ErroDominio } from '@/shared/kernel';
 import { MODULO_EXCLUSIVO_ADMIN, validarDeclaracoes, type DeclaracaoFuncionalidade } from './catalogo';
 
-const CAMPOS_DESCRITIVOS = ['moduloCodigo', 'grupo', 'nome', 'rota', 'ordem', 'ajuda', 'nivelLog'] as const;
+const CAMPOS_DESCRITIVOS = ['moduloCodigo', 'grupo', 'nome', 'rota', 'ordem', 'ajuda', 'nivelLog', 'exibirNoMenu'] as const;
 
 // Instala as funcionalidades declaradas por um módulo (contrato C6). Idempotente e sem desfazer o
 // Administrador (RN_SEED_002): numa funcionalidade existente só os campos descritivos mudam, nunca
@@ -23,6 +23,7 @@ export async function instalarFuncionalidades(
       ordem: item.ordem,
       ajuda: item.ajuda ?? null,
       nivelLog: item.nivelLog ?? 'SIMPLES',
+      exibirNoMenu: item.exibirNoMenu ?? true,
       acoes: [...item.acoes],
     };
     const atual = await tx.funcionalidade.findUnique({ where: { codigo: item.codigo } });

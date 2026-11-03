@@ -3,7 +3,8 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Competencia, Dinheiro, ok, Percentual } from '@/shared/kernel';
 import { ehCaminhoInterno } from './domain/navegacao';
-import { errosDoCampo, idErroDoCampo } from './ui/formulario-logica';
+import { ContextoErros } from './ui/formulario';
+import { aplicarAria, errosDoCampo, idErroDoCampo, type ElementoAria } from './ui/formulario-logica';
 import { expansaoInicial, lerExpansaoSalva, visiveis } from './ui/grade-logica';
 import * as ger from '@/modules/ger';
 import {
@@ -17,6 +18,7 @@ import {
   exportarXlsxFalso,
   formatarCelula,
   Formulario,
+  LegendaComErro,
   GradeArvore,
   LIMITE_EXPORTACAO_SINCRONA,
   type ColunaGrade,
@@ -140,6 +142,18 @@ describe('Formulario', () => {
     expect(html).toContain('>Gravar</button>');
     expect(html).not.toContain('role="alert"');
   });
+
+  it('#229: LegendaComErro renderiza a legenda; sem erro, nenhum id de erro no HTML', () => {
+    const campos = createElement('fieldset', { name: 'forma' }, createElement(LegendaComErro, { campo: 'forma', children: 'Forma' }), createElement('input', { type: 'radio', name: 'forma', value: 'a' }));
+    const html = renderToString(createElement(Formulario, { acao: async () => ok(null), children: campos }));
+    expect(html).toMatch(/<legend>Forma<\/legend>/);
+    expect(html).not.toContain('erro-forma');
+    // Com erro: a mensagem dentro da legenda, separada do texto.
+    const comErro = renderToString(
+      createElement(ContextoErros.Provider, { value: [{ campo: 'forma', mensagem: 'Escolha uma.' }] }, createElement(LegendaComErro, { campo: 'forma', children: 'Forma' })),
+    );
+    expect(comErro).toMatch(/<legend>Forma.*<span id="erro-forma" data-campo="forma">Escolha uma\.<\/span><\/legend>/);
+  });
 });
 
 describe('API pública do ger (C3)', () => {
@@ -147,11 +161,18 @@ describe('API pública do ger (C3)', () => {
     expect(typeof ger.GradeArvore).toBe('function');
     expect(typeof ger.Formulario).toBe('function');
     expect(typeof ger.ErroDoCampo).toBe('function');
+    expect(typeof ger.LegendaComErro).toBe('function');
     // O gerador do .xlsx sai só pelo servidor.ts (o ExcelJS fora do navegador); o index.ts tem a validação.
     expect('exportarXlsx' in ger).toBe(false);
     expect(typeof ger.validarPlanilhas).toBe('function');
     expect(typeof exportarXlsx).toBe('function');
     expect(typeof ger.exportarXlsxFalso).toBe('function');
+    // Filtros da Tree Grid (US-021 parte 3): props opcionais filtros e escopoSessao.
+    expect(typeof ger.aplicarFiltros).toBe('function');
+    expect(typeof ger.validarValoresFiltro).toBe('function');
+    expect(typeof ger.lerFiltrosSalvos).toBe('function');
+    const props: PropsGradeArvore = { idGrade: 'g', nos: [], colunas: [], filtros: [{ tipo: 'texto', id: 'b', rotulo: 'Buscar', campos: [] }], escopoSessao: 'h' };
+    expect(props.filtros).toHaveLength(1);
     expect(typeof ger.LIMITE_EXPORTACAO_SINCRONA).toBe('number');
   });
 });
@@ -259,6 +280,67 @@ describe('lógica do formulário', () => {
     expect(errosDoCampo(erros, 'nome')).toEqual(['Obrigatório.', 'Curto demais.']);
     expect(errosDoCampo(erros, 'email')).toEqual([]);
     expect(idErroDoCampo('nome')).toBe('erro-nome');
+  });
+
+  // Elemento falso do DOM: o efeito do Formulario sem jsdom.
+  const el = (tagName: string, attrs: Record<string, string> = {}): ElementoAria & { attrs: Record<string, string> } => ({
+    tagName,
+    attrs: { ...attrs },
+    getAttribute(n) {
+      return n in this.attrs ? this.attrs[n]! : null;
+    },
+    setAttribute(n, v) {
+      this.attrs[n] = v;
+    },
+    removeAttribute(n) {
+      delete this.attrs[n];
+    },
+  });
+
+  it('#229: com erro, o campo recebe erro-<campo> e aria-invalid; sem erro, sai só o que o Formulario pôs', () => {
+    const ano = el('INPUT', { name: 'ano', 'aria-describedby': 'dica-ano' });
+    const nome = el('INPUT', { name: 'nome', 'aria-invalid': 'true' }); // posto pela tela
+    aplicarAria([ano, nome], [{ campo: 'ano', mensagem: 'Obrigatório.' }]);
+    expect(ano.attrs).toMatchObject({ 'aria-describedby': 'dica-ano erro-ano', 'aria-invalid': 'true' });
+    expect(nome.attrs['aria-invalid']).toBe('true');
+    aplicarAria([ano, nome], [{ campo: 'ano', mensagem: 'Obrigatório.' }]); // sem repetir o id
+    expect(ano.attrs['aria-describedby']).toBe('dica-ano erro-ano');
+    aplicarAria([ano, nome], []);
+    expect(ano.attrs).toEqual({ name: 'ano', 'aria-describedby': 'dica-ano' });
+    // O aria-invalid da tela não é do Formulario: fica.
+    expect(nome.attrs['aria-invalid']).toBe('true');
+  });
+
+  it('#229: fieldset sem name descrito pela tela perde o erro-<x> sem erro e o mantém com erro', () => {
+    const fs = el('FIELDSET', { 'aria-describedby': 'erro-forma' });
+    aplicarAria([fs], []);
+    expect(fs.attrs['aria-describedby']).toBeUndefined();
+    const fs2 = el('FIELDSET', { 'aria-describedby': 'regra erro-forma' });
+    aplicarAria([fs2], [{ campo: 'forma', mensagem: 'Escolha uma.' }]);
+    expect(fs2.attrs['aria-describedby']).toBe('regra erro-forma');
+    // O de outro campo com prefixo parecido (erro-anos × ano) segue a regra do próprio campo.
+    const x = el('INPUT', { name: 'ano', 'aria-describedby': 'erro-anos' });
+    aplicarAria([x], [{ campo: 'anos', mensagem: 'x' }]);
+    expect(x.attrs['aria-describedby']).toBe('erro-anos');
+  });
+
+  it('#229: radio, checkbox e hidden não recebem o aria do erro; o fieldset com name do grupo, sim; erro geral não marca nada', () => {
+    const r1 = el('INPUT', { name: 'forma', type: 'radio' });
+    const cb = el('INPUT', { name: 'perfis', type: 'checkbox' });
+    const oculto = el('INPUT', { name: 'versao', type: 'hidden' });
+    const grupo = el('FIELDSET', { name: 'forma' });
+    const erros = [
+      { campo: 'forma', mensagem: 'Escolha uma.' },
+      { campo: 'perfis', mensagem: 'Marque um.' },
+      { campo: 'versao', mensagem: 'x' },
+      { campo: '', mensagem: 'Erro geral.' },
+    ];
+    aplicarAria([r1, cb, oculto, grupo], erros);
+    for (const e of [r1, cb, oculto]) expect(e.attrs['aria-invalid'] ?? e.attrs['aria-describedby']).toBeUndefined();
+    expect(grupo.attrs).toMatchObject({ 'aria-describedby': 'erro-forma', 'aria-invalid': 'true' });
+    const geral = el('INPUT', { name: '' });
+    aplicarAria([geral], erros);
+    expect(geral.attrs).toEqual({ name: '' });
   });
 
   it('só caminho interno serve de destino', () => {

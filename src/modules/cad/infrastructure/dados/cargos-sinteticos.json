@@ -1,0 +1,122 @@
+[
+  {
+    "numero": 2,
+    "celulas": {
+      "Código do Cargo": "SINT-001",
+      "Cargo": "Analista Administrativo",
+      "Cargo Mercado": "Analista Administrativo Pleno",
+      "Tabela Salarial (código)": "TS01",
+      "Tabela Salarial (descrição)": "Administrativa",
+      "Faixa (código)": "F2",
+      "Faixa (descrição)": "Faixa 2",
+      "Nível (código)": "N2",
+      "Nível (descrição)": "Pleno",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 3,
+    "celulas": {
+      "Código do Cargo": "SINT-002",
+      "Cargo": "Assistente Administrativo",
+      "Cargo Mercado": "Assistente Administrativo",
+      "Tabela Salarial (código)": "TS01",
+      "Tabela Salarial (descrição)": "Administrativa",
+      "Faixa (código)": "F1",
+      "Faixa (descrição)": "Faixa 1",
+      "Nível (código)": "N1",
+      "Nível (descrição)": "Júnior",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 4,
+    "celulas": {
+      "Código do Cargo": "SINT-003",
+      "Cargo": "Analista Financeiro",
+      "Cargo Mercado": "Analista Financeiro Pleno",
+      "Tabela Salarial (código)": "TS01",
+      "Tabela Salarial (descrição)": "Administrativa",
+      "Faixa (código)": "F2",
+      "Faixa (descrição)": "Faixa 2",
+      "Nível (código)": "N2",
+      "Nível (descrição)": "Pleno",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 5,
+    "celulas": {
+      "Código do Cargo": "SINT-004",
+      "Cargo": "Coordenador de Projetos",
+      "Cargo Mercado": "Coordenador de Projetos",
+      "Tabela Salarial (código)": "TS02",
+      "Tabela Salarial (descrição)": "Gestão",
+      "Faixa (código)": "F3",
+      "Faixa (descrição)": "Faixa 3",
+      "Nível (código)": "N3",
+      "Nível (descrição)": "Sênior",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 6,
+    "celulas": {
+      "Código do Cargo": "SINT-005",
+      "Cargo": "Gerente de Área",
+      "Cargo Mercado": "Gerente",
+      "Tabela Salarial (código)": "TS02",
+      "Tabela Salarial (descrição)": "Gestão",
+      "Faixa (código)": "F4",
+      "Faixa (descrição)": "Faixa 4",
+      "Nível (código)": "N4",
+      "Nível (descrição)": "Gerência",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 7,
+    "celulas": {
+      "Código do Cargo": "SINT-006",
+      "Cargo": "Técnico de Laboratório",
+      "Cargo Mercado": "Técnico de Laboratório",
+      "Tabela Salarial (código)": "TS03",
+      "Tabela Salarial (descrição)": "Técnica",
+      "Faixa (código)": "F1",
+      "Faixa (descrição)": "Faixa 1",
+      "Nível (código)": "N2",
+      "Nível (descrição)": "Pleno",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 8,
+    "celulas": {
+      "Código do Cargo": "SINT-007",
+      "Cargo": "Engenheiro",
+      "Cargo Mercado": "Engenheiro Pleno",
+      "Tabela Salarial (código)": "TS03",
+      "Tabela Salarial (descrição)": "Técnica",
+      "Faixa (código)": "F3",
+      "Faixa (descrição)": "Faixa 3",
+      "Nível (código)": "N2",
+      "Nível (descrição)": "Pleno",
+      "Salário Real": null
+    }
+  },
+  {
+    "numero": 9,
+    "celulas": {
+      "Código do Cargo": "SINT-008",
+      "Cargo": "Motorista",
+      "Cargo Mercado": "Motorista",
+      "Tabela Salarial (código)": "TS04",
+      "Tabela Salarial (descrição)": "Operacional",
+      "Faixa (código)": "F1",
+      "Faixa (descrição)": "Faixa 1",
+      "Nível (código)": "N1",
+      "Nível (descrição)": "Único",
+      "Salário Real": null
+    }
+  }
+]

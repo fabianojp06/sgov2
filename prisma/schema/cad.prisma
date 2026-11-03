@@ -1,0 +1,336 @@
+// Modelos do módulo cad (frente B, spec §12.3): estrutura financeira e cargas de estrutura
+// (plano do P4, Task 4b). Regras que o Prisma não expressa (CHECK, triggers, índices parciais e
+// privilégios) ficam na migration, à mão.
+
+enum TipoConta {
+  SINTETICA
+  ANALITICA
+}
+
+enum TipoCarga {
+  PLANO_CONTAS
+  CENTROS_CUSTO
+  CARGOS
+  CARGOS_RECIFRA
+}
+
+enum TipoCentroCusto {
+  SINTETICO
+  ANALITICO
+}
+
+enum NaturezaCentroCusto {
+  FINALISTICO
+  APOIO
+  ADMINISTRATIVO
+  GESTAO
+}
+
+enum FormaBeneficio {
+  VALOR_MENSAL
+  VALOR_DIARIO
+  PERCENTUAL_SALARIO
+}
+
+enum SituacaoCarga {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDA
+  FALHOU
+}
+
+// Plano de contas de 5 níveis (spec §6.1). A classificação é a chave entre módulos e nunca muda
+// (R5): a recarga só atualiza descrição e situação. O reduzido é único entre as ativas
+// (índice parcial na migration).
+model ContaContabil {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classificacao  String          @unique
+  codigoReduzido String?         @map("codigo_reduzido")
+  descricao      String
+  nivel          Int             @db.SmallInt
+  tipo           TipoConta
+  paiId          String?         @map("pai_id") @db.Uuid
+  pai            ContaContabil?  @relation("ContaPai", fields: [paiId], references: [id], onDelete: Restrict)
+  filhos         ContaContabil[] @relation("ContaPai")
+  ativa          Boolean         @default(true)
+  inativadaEm    DateTime?       @map("inativada_em") @db.Timestamptz(6)
+  cargaId        String          @map("carga_id") @db.Uuid
+  carga          CargaEstrutura  @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  criadoEm       DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm   DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([paiId])
+  @@map("conta_contabil")
+}
+
+// Lote de carga (R6): gravado PENDENTE pelo app (sgo_app, só as colunas de entrada) e processado
+// pelo worker (sgo_sync). `grupo` é preenchido por trigger (CARGOS_RECIFRA conta como CARGOS, m5).
+model CargaEstrutura {
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo               TipoCarga
+  // O app grava o lote por SQL explícito, só nas colunas de entrada (S-N3): o Prisma mandaria
+  // estes defaults estáticos no INSERT, e o sgo_app não tem privilégio nessas colunas.
+  grupo              String                @default("")
+  situacao           SituacaoCarga         @default(PENDENTE)
+  arquivoNome        String                @map("arquivo_nome")
+  arquivoSha256      String                @map("arquivo_sha256")
+  linhas             Int
+  incluidas          Int?
+  alteradas          Int?
+  inativadas         Int?
+  inalteradas        Int?
+  avisos             Json?
+  erros              Json?
+  erro               String?
+  provisoria         Boolean               @default(false)
+  aprovacaoData      DateTime?             @map("aprovacao_data") @db.Date
+  aprovacaoDocumento String?               @map("aprovacao_documento")
+  contextoAuditoria  Json                  @map("contexto_auditoria")
+  criadoEm           DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  processandoDesde   DateTime?             @map("processando_desde") @db.Timestamptz(6)
+  concluidoEm        DateTime?             @map("concluido_em") @db.Timestamptz(6)
+  linhasStaging      CargaEstruturaLinha[]
+  contas             ContaContabil[]
+  centrosCusto       CentroCusto[]
+  cargos             Cargo[]
+
+  @@index([situacao, criadoEm])
+  @@map("carga_estrutura")
+}
+
+// Staging das linhas validadas pelo app; o worker revalida, aplica e apaga.
+model CargaEstruturaLinha {
+  cargaId String         @map("carga_id") @db.Uuid
+  carga   CargaEstrutura @relation(fields: [cargaId], references: [id], onDelete: Cascade)
+  numero  Int
+  dados   Json
+
+  @@id([cargaId, numero])
+  @@map("carga_estrutura_linha")
+}
+
+// Parâmetros por exercício (US-053; plano do P4, Task 9a, R10). Toda escrita em qualquer tabela do
+// ano incrementa `versao` na mesma transação (I6); com `congeladoEm`, o ano não muda mais.
+model ParametrosExercicio {
+  ano                Int                        @id @db.SmallInt
+  reajuste           Decimal                    @db.Decimal(9, 4)
+  mesDataBase        Int                        @map("mes_data_base") @db.SmallInt
+  ipca               Decimal                    @db.Decimal(9, 4)
+  salarioMinimo      Decimal?                   @map("salario_minimo") @db.Decimal(15, 2)
+  diasUteisMes       Int                        @map("dias_uteis_mes") @db.SmallInt
+  semaforoVerdeAte   Decimal                    @map("semaforo_verde_ate") @db.Decimal(9, 4)
+  semaforoAmareloAte Decimal                    @map("semaforo_amarelo_ate") @db.Decimal(9, 4)
+  semaforoLaranjaAte Decimal                    @map("semaforo_laranja_ate") @db.Decimal(9, 4)
+  provisorio         Boolean                    @default(true)
+  congeladoEm        DateTime?                  @map("congelado_em") @db.Timestamptz(6)
+  versao             Int                        @default(1)
+  atualizadoEm       DateTime                   @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  encargos           EncargoExercicio[]
+  contas             ContaComponenteExercicio[]
+  beneficios         BeneficioMestre[]
+
+  @@map("parametros_exercicio")
+}
+
+model EncargoExercicio {
+  ano        Int                 @db.SmallInt
+  exercicio  ParametrosExercicio @relation(fields: [ano], references: [ano], onDelete: Restrict)
+  componente String
+  nome       String
+  percentual Decimal             @db.Decimal(9, 4)
+  conta      String
+  provisorio Boolean             @default(true)
+
+  @@id([ano, componente])
+  @@map("encargo_exercicio")
+}
+
+model ContaComponenteExercicio {
+  ano        Int                 @db.SmallInt
+  exercicio  ParametrosExercicio @relation(fields: [ano], references: [ano], onDelete: Restrict)
+  componente String
+  conta      String
+  provisorio Boolean             @default(true)
+
+  @@id([ano, componente])
+  @@map("conta_componente_exercicio")
+}
+
+// Parâmetros do sistema (R10): nome de exibição e logotipo da instituição (spec §6.7), vazios até a
+// tela da Administração.
+model ParametroSistema {
+  chave String @id
+  valor String @default("")
+
+  @@map("parametro_sistema")
+}
+
+// Plano de centros de custo (spec §6.1a; plano do P4, Task 5). Mesma regra da R5: a classificação
+// nunca muda; o reduzido é único entre os ativos (índice parcial na migration), sem CHECK de formato
+// (GAP-CC-003). `provisorio`: carga sem aprovação da DIREX (GAP-CC-001, R16).
+model CentroCusto {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classificacao     String               @unique
+  codigoReduzido    String               @map("codigo_reduzido")
+  descricao         String
+  descricaoOriginal String?              @map("descricao_original")
+  nivel             Int                  @db.SmallInt
+  tipo              TipoCentroCusto
+  paiId             String?              @map("pai_id") @db.Uuid
+  pai               CentroCusto?         @relation("CentroCustoPai", fields: [paiId], references: [id], onDelete: Restrict)
+  filhos            CentroCusto[]        @relation("CentroCustoPai")
+  aceitaLancamento  Boolean              @map("aceita_lancamento")
+  deGestao          Boolean              @default(false) @map("de_gestao")
+  natureza          NaturezaCentroCusto?
+  provisorio        Boolean              @default(true)
+  ativo             Boolean              @default(true)
+  inativadoEm       DateTime?            @map("inativado_em") @db.Timestamptz(6)
+  cargaId           String               @map("carga_id") @db.Uuid
+  carga             CargaEstrutura       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  criadoEm          DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm      DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([paiId])
+  @@map("centro_custo")
+}
+
+// Tabela Mestre de Benefícios por exercício (US-050; plano do P4, Task 10, R12). Toda escrita toca a
+// versão única do ano (R10); ano congelado não muda (trigger). `provisorio`: sem valor confirmado.
+model BeneficioMestre {
+  ano           Int                 @db.SmallInt
+  exercicio     ParametrosExercicio @relation(fields: [ano], references: [ano], onDelete: Restrict)
+  codigo        String
+  nome          String
+  forma         FormaBeneficio
+  valor         Decimal?            @db.Decimal(15, 2)
+  percentual    Decimal?            @db.Decimal(9, 4)
+  conta         String
+  padraoPosicao Boolean             @default(false) @map("padrao_posicao")
+  ativo         Boolean             @default(true)
+  provisorio    Boolean             @default(true)
+  versao        Int                 @default(1)
+  atualizadoEm  DateTime            @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  cargos        BeneficioCargo[]
+
+  @@id([ano, codigo])
+  @@map("beneficio_mestre")
+}
+
+enum FonteAtiva {
+  MINIMO
+  MAXIMO
+  TOTAL
+  REAL
+  DEFINIDO
+}
+
+enum AdicionalTrabalhista {
+  PERICULOSIDADE
+  INSALUBRIDADE
+}
+
+enum GrauInsalubridade {
+  MINIMO
+  MEDIO
+  MAXIMO
+}
+
+// Cargos e salários (US-049; plano do P4, Task 12a; R7, R11, R20). Os campos de origem Rubi chegam
+// pela carga (staging no app, merge no worker como sgo_sync); os manuais, pelo app (Task 12b). O
+// casamento é pelo código, que nunca muda (trigger). Salário real, definido e função gratificada vão
+// cifrados (envelope v1, R7); mínimo e máximo de mercado ficam em claro. Privilégios por coluna na migration.
+model Cargo {
+  id                       String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo                   String                @unique
+  // Origem Rubi (R20, layout CAD-CARGOS v1.0).
+  nomeOficial              String                @map("nome_oficial")
+  nomeMercado              String?               @map("nome_mercado")
+  tabelaSalarialCodigo     String?               @map("tabela_salarial_codigo")
+  tabelaSalarialDescricao  String?               @map("tabela_salarial_descricao")
+  faixaCodigo              String?               @map("faixa_codigo")
+  faixaDescricao           String?               @map("faixa_descricao")
+  nivelCodigo              String?               @map("nivel_codigo")
+  nivelDescricao           String?               @map("nivel_descricao")
+  salarioRealCifrado       String?               @map("salario_real_cifrado")
+  // Manuais (Task 12b).
+  funcaoGratificadaCifrada String?               @map("funcao_gratificada_cifrada")
+  salarioDefinidoCifrado   String?               @map("salario_definido_cifrado")
+  mercadoMinimo            Decimal?              @map("mercado_minimo") @db.Decimal(15, 2)
+  mercadoMaximo            Decimal?              @map("mercado_maximo") @db.Decimal(15, 2)
+  origemMercado            String?               @map("origem_mercado")
+  origemMercadoRotulo      String?               @map("origem_mercado_rotulo")
+  fonteAtiva               FonteAtiva?           @map("fonte_ativa")
+  adicionalTipo            AdicionalTrabalhista? @map("adicional_tipo")
+  adicionalGrau            GrauInsalubridade?    @map("adicional_grau")
+  // R11: opcional e sem FK até a US-048 (pendência P2).
+  vinculoFuncionalId       String?               @map("vinculo_funcional_id") @db.Uuid
+  // Controle.
+  ativo                    Boolean               @default(true)
+  versao                   Int                   @default(1)
+  cargaId                  String?               @map("carga_id") @db.Uuid
+  carga                    CargaEstrutura?       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  faixas                   FaixaSalarial[]
+  beneficios               BeneficioCargo[]
+  criadoEm                 DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm             DateTime              @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@map("cargo")
+}
+
+// Senioridades da tabela salarial (US-049 parte 3; UC03.19 RN_TAB_01): Júnior, Pleno e Sênior são
+// padrão e protegidas; a GRH cadastra outras, que só se inativam sem faixa ativa (E4).
+model Senioridade {
+  id       String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome     String          @unique
+  padrao   Boolean         @default(false)
+  ativa    Boolean         @default(true)
+  ordem    Int             @default(100)
+  criadoEm DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  faixas   FaixaSalarial[]
+
+  @@map("senioridade")
+}
+
+// Tabela salarial de mercado (US-049 parte 3; UC03.19 §5, REQ_TAB_001): referência de pesquisa externa
+// por cargo do SGO e senioridade, sem vínculo com a tabela/faixa/nível do Rubi. O par cargo +
+// senioridade não é único (RN_TAB_03). Mínimo < máximo (RN_TAB_02, CHECK).
+model FaixaSalarial {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cargoId       String      @map("cargo_id") @db.Uuid
+  cargo         Cargo       @relation(fields: [cargoId], references: [id], onDelete: Restrict)
+  senioridadeId String      @map("senioridade_id") @db.Uuid
+  senioridade   Senioridade @relation(fields: [senioridadeId], references: [id], onDelete: Restrict)
+  minimo        Decimal     @db.Decimal(15, 2)
+  maximo        Decimal     @db.Decimal(15, 2)
+  ativa         Boolean     @default(true)
+  versao        Int         @default(1)
+  criadoEm      DateTime    @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm  DateTime    @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([cargoId])
+  @@map("faixa_salarial")
+}
+
+enum OrigemValorBeneficio {
+  MESTRE
+  MANUAL
+}
+
+// Benefícios do cargo por exercício (US-050 parte 2; plano do P4, Task 13; RN_CAR_06/07). Sem linha, o
+// cargo usa os itens "padrão da posição" da Tabela Mestre, no valor dela. Valor manual → MANUAL; a
+// alteração do item na Tabela Mestre apaga os manuais daquele (ano, código) e volta a MESTRE (C8).
+model BeneficioCargo {
+  cargoId      String               @map("cargo_id") @db.Uuid
+  cargo        Cargo                @relation(fields: [cargoId], references: [id], onDelete: Restrict)
+  ano          Int                  @db.SmallInt
+  codigo       String
+  item         BeneficioMestre      @relation(fields: [ano, codigo], references: [ano, codigo], onDelete: Restrict)
+  ativo        Boolean
+  valorManual  Decimal?             @map("valor_manual") @db.Decimal(15, 2)
+  origem       OrigemValorBeneficio @default(MESTRE)
+  atualizadoEm DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@id([cargoId, ano, codigo])
+  @@index([ano, codigo])
+  @@map("beneficio_cargo")
+}

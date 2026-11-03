@@ -19,7 +19,14 @@ export {
   type NoGrade,
   type PropsGradeArvore,
 } from './ui/grade-arvore';
-export { ErroDoCampo, Formulario, type PropsFormulario } from './ui/formulario';
+export { ErroDoCampo, Formulario, LegendaComErro, type PropsFormulario } from './ui/formulario';
+export {
+  aplicarFiltros,
+  lerFiltrosSalvos,
+  validarValoresFiltro,
+  type DefinicaoFiltro,
+  type ValoresFiltro,
+} from './ui/grade-filtros';
 // O gerador do .xlsx (exportarXlsx) sai só pelo servidor.ts: o ExcelJS não entra no navegador (R22).
 export { LIMITE_EXPORTACAO_SINCRONA, validarPlanilhas, type PlanilhaExportacao } from './infrastructure/exportacao';
 

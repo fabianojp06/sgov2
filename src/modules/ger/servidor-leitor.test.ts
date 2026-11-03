@@ -5,6 +5,8 @@ import * as gerServidor from '@/modules/ger/servidor';
 describe('ger/servidor: leitor de planilhas', () => {
   it('exporta lerPlanilhaSegura e LIMITES_PADRAO', () => {
     expect(gerServidor.lerPlanilhaSegura).toBeTypeOf('function');
+    expect(gerServidor.lerPlanilhasSegura).toBeTypeOf('function');
+    expect(gerServidor.MSG_LEITOR_OCUPADO).toBe('Outra planilha está sendo lida. Tente de novo em instantes.');
     expect(gerServidor.LIMITES_PADRAO).toEqual({
       bytes: 1024 * 1024,
       entradas: 50,

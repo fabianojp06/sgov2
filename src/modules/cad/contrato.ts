@@ -35,6 +35,7 @@ export {
   type PremissasExercicio,
   type SerieMensalComponentes,
 } from './domain/custo-pessoal';
+export { calcularEncargo } from './domain/motor-custo-pessoal';
 export {
   calcularCustoPosicao,
   congelarPremissasExercicio,
@@ -49,3 +50,7 @@ export {
   estruturaFinanceiraFalsa,
   premissasExemplo,
 } from './falsos';
+
+// Parâmetros por exercício (Task 9a): semáforo (RN_PLA_006) e tipos da tela.
+export { classificarSemaforo, type FaixaSemaforo, type FaixasSemaforo } from './domain/semaforo';
+export type { EntradaParametros, ParametrosExercicio } from './domain/parametros';

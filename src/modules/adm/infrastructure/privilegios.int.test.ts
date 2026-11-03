@@ -2,7 +2,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 
-// Privilégios das tabelas do adm (migration 202610260300_adm_acesso).
+// Privilégios das tabelas do adm (migrations 202610260300_adm_acesso e 202610260500_adm_unidade).
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let migrator: pg.Client;
 let app: pg.Client;
@@ -51,6 +51,7 @@ describe('privilégios do adm', () => {
     await expect(app.query(`UPDATE funcionalidade SET ativo = false WHERE codigo = 'xxx.f'`)).resolves.toBeDefined();
     await expect(app.query(`UPDATE modulo SET codigo = 'Y'`)).rejects.toEqual(negado);
     await expect(app.query(`UPDATE funcionalidade SET modulo_codigo = 'X', acoes = '{consultar}'`)).rejects.toEqual(negado);
+    await expect(app.query(`UPDATE funcionalidade SET exibir_no_menu = false`)).rejects.toEqual(negado);
     await expect(app.query(`INSERT INTO modulo (codigo, nome, ordem) VALUES ('Z', 'Z', 1)`)).rejects.toEqual(negado);
   });
 
@@ -62,6 +63,26 @@ describe('privilégios do adm', () => {
 
   it('sgo_app não lê os padrões aplicados pela seed', async () =>
     expect(app.query('SELECT * FROM permissao_padrao_aplicada')).rejects.toEqual(negado));
+
+  it('unidade: sgo_app muda nome e status, mas não o código, e não apaga (§11.5)', async () => {
+    await migrator.query(`INSERT INTO unidade (codigo, nome) VALUES ('TP-X', 'TP X')`);
+    await expect(app.query(`UPDATE unidade SET nome = 'TP X2', ativo = false WHERE codigo = 'TP-X'`)).resolves.toBeDefined();
+    await expect(app.query(`UPDATE unidade SET codigo = 'TP-Y'`)).rejects.toEqual(negado);
+    await expect(app.query('DELETE FROM unidade')).rejects.toEqual(negado);
+  });
+
+  it('usuario_unidade: sgo_app inclui e exclui o vínculo, mas não o reatribui', async () => {
+    const { rows } = await migrator.query(`INSERT INTO unidade (codigo, nome) VALUES ('TP-V', 'TP V') RETURNING id`);
+    const vinculo = `(SELECT id FROM usuario WHERE login = 'ana'), '${rows[0].id}'`;
+    await expect(app.query(`INSERT INTO usuario_unidade (usuario_id, unidade_id) VALUES (${vinculo})`)).resolves.toBeDefined();
+    await expect(app.query(`UPDATE usuario_unidade SET unidade_id = unidade_id`)).rejects.toEqual(negado);
+    await expect(app.query(`DELETE FROM usuario_unidade WHERE unidade_id = '${rows[0].id}'`)).resolves.toBeDefined();
+  });
+
+  it('sgo_sync não lê unidade nem vínculo', async () => {
+    await expect(sync.query('SELECT * FROM unidade')).rejects.toEqual(negado);
+    await expect(sync.query('SELECT * FROM usuario_unidade')).rejects.toEqual(negado);
+  });
 
   it('sgo_sync não lê usuário nem perfil', async () => {
     await expect(sync.query('SELECT * FROM usuario')).rejects.toEqual(negado);

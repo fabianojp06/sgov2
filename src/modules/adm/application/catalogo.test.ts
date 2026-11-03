@@ -25,6 +25,14 @@ describe('catálogo de funcionalidades (contrato C6)', () => {
 
   it('declaração válida passa', () => expect(() => validarDeclaracoes([base])).not.toThrow());
 
+  it('exibirNoMenu: false aceito (funcionalidade com permissão, fora do menu)', () =>
+    expect(() => validarDeclaracoes([{ ...base, exibirNoMenu: false }])).not.toThrow());
+
+  it('exibirNoMenu que não é booleano', () =>
+    expect(() =>
+      validarDeclaracoes([{ ...base, exibirNoMenu: 'nao' as unknown as boolean }]),
+    ).toThrow(expect.objectContaining({ codigo: 'seed.exibir_no_menu_invalido' })));
+
   it('módulo ADMINISTRACAO só para o ADMINISTRADOR (RN_SEED_003, R10)', () =>
     expect(() =>
       validarDeclaracoes([{ ...base, codigo: 'adm.y', modulo: 'ADMINISTRACAO', perfisPadrao: { AUDITOR: ['consultar'] } }]),

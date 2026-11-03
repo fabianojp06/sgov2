@@ -22,7 +22,7 @@ const esquema = z
     contexto: z.object({
       usuarioId: z.uuid('usuário deve ser UUID').nullable(),
       usuarioRotulo: textoObrigatorio('usuário obrigatório'),
-      sessaoUid: z.string().nullable(),
+      sessaoUid: z.string().min(1, 'sessão vazia').nullable(),
       // Um IP só: o X-Forwarded-For com vários saltos é resolvido antes, no proxy.
       ip: z.union([z.ipv4(), z.ipv6()], 'IP inválido').nullable(),
       unidadeId: z.uuid('unidade deve ser UUID').nullable().optional(),

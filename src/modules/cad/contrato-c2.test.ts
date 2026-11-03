@@ -8,9 +8,7 @@ import * as cadServidor from '@/modules/cad/servidor';
 import {
   calcularCustoPosicao,
   COMPONENTES_FIXOS,
-  congelarPremissasExercicio,
   custoPessoalFalso,
-  garantirPremissasExercicio,
   obterPremissasExercicio,
   premissasExemplo,
   type BeneficioPremissa,
@@ -107,19 +105,19 @@ describe('C2 — premissasExemplo', () => {
   });
 });
 
-describe('C2 — reais antes da Task 11', () => {
-  it('calcularCustoPosicao → cad.custo_pessoal_indisponivel', () => {
-    expect(() => calcularCustoPosicao(posicao, premissasExemplo())).toThrow(
-      expect.objectContaining({ codigo: 'cad.custo_pessoal_indisponivel' }),
-    );
+describe('C2 — real (Task 11)', () => {
+  it('o calcularCustoPosicao real sobre as premissasExemplo dá o total conferido à mão (370.271,72)', () => {
+    const r = calcularCustoPosicao({ quantidade: 2, salarioMensal: Dinheiro.de('7500.00'), mesInicio: 1, mesSaida: 12 }, premissasExemplo(2027));
+    expect(r.ok && r.valor.total.paraString()).toBe('370271.72');
   });
 
-  it.each([
-    ['obterPremissasExercicio', () => obterPremissasExercicio(tx, 2027)],
-    ['garantirPremissasExercicio', () => garantirPremissasExercicio(tx, contexto, 2027)],
-    ['congelarPremissasExercicio', () => congelarPremissasExercicio(tx, contexto, 2027)],
-  ])('%s → cad.custo_pessoal_indisponivel', async (_nome, chamar) => {
-    await expect(chamar()).rejects.toMatchObject({ name: 'ErroDominio', codigo: 'cad.custo_pessoal_indisponivel' });
+  it('o falso continua sem reproduzir a fórmula (tudo em salário)', () => {
+    const r = custoPessoalFalso().calcularCustoPosicao({ quantidade: 2, salarioMensal: Dinheiro.de('7500.00'), mesInicio: 1, mesSaida: 12 }, premissasExemplo(2027));
+    expect(r.ok && r.valor.total.paraString()).toBe('180000.00');
+  });
+
+  it('obterPremissasExercicio é real (a prova é o premissas.int.test.ts)', () => {
+    expect(obterPremissasExercicio).toBeTypeOf('function');
   });
 });
 

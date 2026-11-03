@@ -15,6 +15,8 @@ LIMITES=(--memory 768m --memory-swap 768m --oom-score-adj 500 --cpus 1)
 URL_MIGRATOR="postgresql://sgo_migrator:sgo_migrator@$PG:5432"
 URL_APP="postgresql://sgo_app:sgo_app@$PG:5432"
 URL_FILA="postgresql://sgo_fila:sgo_fila@$PG:5432"
+# A imagem roda com NODE_ENV=production: o worker exige AMBIENTE e URL_PUBLICA (plano do P4, R25).
+ENV_WORKER=(-e AMBIENTE=hml -e URL_PUBLICA=http://127.0.0.1:3000)
 MIGRATION_QUEBRADA="$RAIZ/docker/testes/migration-quebrada:/opt/migrador/prisma/migrations:ro"
 
 limpar() {
@@ -149,7 +151,7 @@ fi
 echo "8. worker: publica o outbox, roda como node sem a credencial do migrador e para no SIGTERM"
 docker run -d --name "$PREFIXO-worker" --network "$REDE" "${LIMITES[@]}" \
   -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e DATABASE_URL="$URL_APP/sgo_teste" \
-  -e FILA_DATABASE_URL="$URL_FILA/sgo_teste" "$IMAGEM" worker > /dev/null
+  -e FILA_DATABASE_URL="$URL_FILA/sgo_teste" "${ENV_WORKER[@]}" "$IMAGEM" worker > /dev/null
 id_msg=$(psql_pg -d sgo_teste -c "INSERT INTO outbox_mensagem (tipo, dados) VALUES ('teste.eco', '{\"prova\": 1}') RETURNING id")
 publicada=f
 for _ in $(seq 1 30); do
@@ -162,6 +164,9 @@ done
   || falhar "a mensagem do outbox foi marcada, mas o job não está no pg-boss"
 estado=$(esperar_saude "$PREFIXO-worker")
 [[ "$estado" == healthy ]] || falhar "healthcheck do worker: $estado"
+# O trabalhador de e-mail (US-025) está registrado: aparece na lista do log de partida.
+grep -q 'worker pronto.*email\.enviar' <<< "$(docker logs "$PREFIXO-worker" 2>&1 | tr -d '\n')" \
+  || falhar "o worker partiu sem o trabalhador email.enviar: $(docker logs "$PREFIXO-worker" 2>&1 | grep 'worker pronto')"
 WORKER='worker/index\.mjs'
 uid=$(docker top "$PREFIXO-worker" -eo pid,uid,args | PADRAO="$WORKER" awk '$0 ~ ENVIRON["PADRAO"] && !/awk/ { print $2; exit }')
 [[ "$uid" == 1000 ]] || falhar "o worker roda com uid '$uid' (esperado 1000, o usuário node)"
@@ -178,6 +183,12 @@ docker stop -t 10 "$PREFIXO-worker" > /dev/null
 grep -q 'SIGTERM recebido, encerrando' <<< "$(docker logs "$PREFIXO-worker" 2>&1)" \
   || falhar "o worker parou, mas não pelo encerramento ordenado do SIGTERM"
 
+# Sem AMBIENTE, o worker da imagem não parte (R25).
+saida=$(docker run --rm --name "$PREFIXO-sem-ambiente" --network "$REDE" "${LIMITES[@]}" \
+  -e DATABASE_URL="$URL_APP/sgo_teste" -e FILA_DATABASE_URL="$URL_FILA/sgo_teste" -e URL_PUBLICA=http://127.0.0.1:3000 \
+  "$IMAGEM" worker 2>&1) && falhar "o worker partiu sem AMBIENTE"
+grep -q 'AMBIENTE ausente ou inválido' <<< "$saida" || falhar "o worker sem AMBIENTE saiu, mas não por ele: $(tail -3 <<< "$saida")"
+
 echo "9. healthcheck não fica verde à toa: sem servidor, e com o worker sem conseguir publicar"
 if docker run --rm --name "$PREFIXO-saude" --network none "${LIMITES[@]}" --entrypoint /app/docker/saude.sh "$IMAGEM"; then
   falhar "o saude.sh deu saudável sem servidor e sem worker"
@@ -187,7 +198,8 @@ fi
 psql_pg -c "CREATE DATABASE sgo_sem_schema OWNER sgo_migrator"
 psql_pg -d sgo_sem_schema -c "CREATE SCHEMA pgboss AUTHORIZATION sgo_fila"
 docker run -d --name "$PREFIXO-worker-cedo" --network "$REDE" "${LIMITES[@]}" \
-  -e DATABASE_URL="$URL_APP/sgo_sem_schema" -e FILA_DATABASE_URL="$URL_FILA/sgo_sem_schema" "$IMAGEM" worker > /dev/null
+  -e DATABASE_URL="$URL_APP/sgo_sem_schema" -e FILA_DATABASE_URL="$URL_FILA/sgo_sem_schema" "${ENV_WORKER[@]}" \
+  "$IMAGEM" worker > /dev/null
 saida=$(timeout 150 docker wait "$PREFIXO-worker-cedo") || falhar "o worker sem schema não saiu em 150 s"
 [[ "$saida" == 1 ]] || falhar "o worker sem schema saiu com $saida (esperado 1)"
 grep -q 'falhas seguidas no outbox, encerrando' <<< "$(docker logs "$PREFIXO-worker-cedo" 2>&1)" \

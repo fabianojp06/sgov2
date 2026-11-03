@@ -1,15 +1,19 @@
 'use client';
 
-import { createContext, useActionState, useContext, useEffect, useTransition, type FormEvent, type ReactNode } from 'react';
+import { createContext, useActionState, useContext, useEffect, useMemo, useRef, useTransition, type FormEvent, type ReactNode } from 'react';
 import type { ErroCampo, Resultado } from '@/shared/kernel';
 import { ehCaminhoInterno } from '../domain/navegacao';
-import { errosDoCampo, idErroDoCampo } from './formulario-logica';
+import { aplicarAria, errosDoCampo, idErroDoCampo } from './formulario-logica';
 
 // Contrato C3: formulário que chama a Server Action do módulo dono e mostra os erros do Resultado.
 //
 // Erros: um resumo único no topo, com role="alert" (o leitor de tela anuncia uma vez), e,
-// ao lado de cada campo, <ErroDoCampo campo="…" /> sem role, com id `erro-<campo>` para o
-// campo apontar por aria-describedby. Erro geral (sem campo) usa campo: ''.
+// ao lado de cada campo, <ErroDoCampo campo="…" /> sem role, com id `erro-<campo>`. Depois de cada
+// resposta, o Formulario é dono do aria de erro (#229, regra em aplicarAria): o `erro-<campo>` só
+// fica nos aria-describedby enquanto o campo tem erro, e o campo com name recebe aria-invalid;
+// funciona também com campos de componentes de servidor. Grupo de radios ou checkboxes: o fieldset
+// leva o name (ou o aria-describedby) do grupo. No fieldset, use <LegendaComErro campo="…"> OU um
+// <ErroDoCampo> do mesmo campo, nunca os dois (o id se repetiria). Erro geral usa campo: ''.
 //
 // Navegação após sucesso: o preferido é redirect() dentro da própria Server Action.
 // redirecionarPara serve para destino fixo e só aceita caminho interno.
@@ -21,7 +25,8 @@ export type PropsFormulario<T = unknown> = {
   redirecionarPara?: string; // após ok: true; só caminho interno (começando por "/")
 };
 
-const ContextoErros = createContext<readonly ErroCampo[]>([]);
+// Exportado só para os testes (renderizar com erro sem uma Server Action); o index.ts não o expõe.
+export const ContextoErros = createContext<readonly ErroCampo[]>([]);
 
 export function ErroDoCampo({ campo }: { campo: string }) {
   const mensagens = errosDoCampo(useContext(ContextoErros), campo);
@@ -33,13 +38,33 @@ export function ErroDoCampo({ campo }: { campo: string }) {
   );
 }
 
+/** Legenda de fieldset com o erro do grupo junto dela (#229). */
+export function LegendaComErro({ campo, children }: { campo: string; children: ReactNode }) {
+  const temErro = errosDoCampo(useContext(ContextoErros), campo).length > 0;
+  return (
+    <legend>
+      {children}
+      {temErro && ' '}
+      <ErroDoCampo campo={campo} />
+    </legend>
+  );
+}
+
 export function Formulario<T = unknown>({ acao, children, textoEnviar, mensagemSucesso, redirecionarPara }: PropsFormulario<T>) {
   const [estado, enviar, pendente] = useActionState(
     (_anterior: Resultado<T> | null, dados: FormData) => acao(dados),
     null,
   );
   const [, iniciarTransicao] = useTransition();
-  const erros = estado && !estado.ok ? estado.erros : [];
+  // Memorizado: o efeito do aria só roda quando a resposta muda.
+  const erros = useMemo(() => (estado && !estado.ok ? estado.erros : []), [estado]);
+  const refForm = useRef<HTMLFormElement>(null);
+
+  // aria-invalid e aria-describedby só com erro (#229); a regra está em aplicarAria.
+  useEffect(() => {
+    const form = refForm.current;
+    if (form) aplicarAria(form.querySelectorAll('[name], [aria-describedby], [data-invalido-formulario]'), erros);
+  }, [erros]);
 
   useEffect(() => {
     if (estado?.ok && redirecionarPara && ehCaminhoInterno(redirecionarPara)) window.location.assign(redirecionarPara);
@@ -55,7 +80,7 @@ export function Formulario<T = unknown>({ acao, children, textoEnviar, mensagemS
 
   return (
     <ContextoErros.Provider value={erros}>
-      <form onSubmit={aoEnviar} aria-busy={pendente} noValidate>
+      <form ref={refForm} onSubmit={aoEnviar} aria-busy={pendente} noValidate>
         {erros.length > 0 && (
           <ul role="alert">
             {erros.map((e, i) => (
