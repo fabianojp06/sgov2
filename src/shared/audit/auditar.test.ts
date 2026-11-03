@@ -29,6 +29,7 @@ describe('auditar: validação do evento (revisão 12.12)', () => {
     ['descricao vazia', { descricao: '  ' }],
     ['usuarioId que não é UUID', { contexto: { ...base.contexto, usuarioId: 'admin' } }],
     ['unidadeId que não é UUID', { contexto: { ...base.contexto, unidadeId: '' } }],
+    ['sessaoUid vazio', { contexto: { ...base.contexto, sessaoUid: '' } }],
     ['ip que não é IP', { contexto: { ...base.contexto, ip: 'unknown' } }],
     ['ip com vários saltos', { contexto: { ...base.contexto, ip: '1.2.3.4, 5.6.7.8' } }],
   ])('recusa %s', async (_caso, parcial) => {
