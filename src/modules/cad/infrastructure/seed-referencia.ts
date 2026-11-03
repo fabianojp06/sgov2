@@ -4,8 +4,11 @@ import type { Seed, TxCliente } from '@/shared/db';
 import { sanearDescricao } from '../application/saneamento';
 import { planejarCarga } from '../domain/carga';
 import { validarPlanoContas, type LinhaLida } from '../domain/plano-contas';
+import { validarCargosRubi } from '../domain/cargo';
 import { validarCentrosCusto } from '../domain/centros-custo';
 import { aplicarCarga, aplicarCargaCentrosCusto, comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from './aplicar-carga';
+import { aplicarCargaCargos, paraStaging } from './aplicar-carga-cargos';
+import cargosSinteticos from './dados/cargos-sinteticos.json';
 import minuta from './dados/cc-minuta-rev23102026.json';
 import oficial from './dados/plano-contas-oficial.json';
 
@@ -69,6 +72,22 @@ async function carregarMinutaCentrosCusto(tx: TxCliente): Promise<void> {
   });
 }
 
+// Cargos sintéticos para dev e hml (R20, pendência P3: o layout do Rubi ainda não foi confirmado pela
+// GRH). Entram SEM salário, e a seed roda sem a chave da cifra. Nunca sobrescrevem uma carga real.
+async function carregarCargosSinteticos(tx: TxCliente): Promise<void> {
+  if ((await tx.cargo.count()) > 0) return;
+  const validado = validarCargosRubi(cargosSinteticos as LinhaLida[], sanearDescricao);
+  if (!validado.ok) throw new Error(`Cargos sintéticos inválidos: ${validado.erros.length} erros`);
+  const linhas = validado.cargos.map((c) => paraStaging(c, null));
+  const [lote] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "carga_estrutura" ("tipo", "arquivo_nome", "arquivo_sha256", "linhas", "contexto_auditoria")
+    VALUES ('CARGOS', 'Seed: cargos sintéticos', 'seed', ${linhas.length}, ${JSON.stringify(SISTEMA)}::jsonb) RETURNING "id"`;
+  const r = await aplicarCargaCargos(tx, SISTEMA, { id: lote!.id }, linhas);
+  await tx.cargaEstrutura.update({
+    where: { id: lote!.id },
+    data: { situacao: 'CONCLUIDA', incluidas: r.incluidas, alteradas: 0, inativadas: 0, inalteradas: 0, avisos: [], erros: [], concluidoEm: new Date() },
+  });
+}
+
 export const seedDadosReferenciaCad: Seed = {
   nome: 'cad (dados de referência)',
   async executar(tx) {
@@ -77,5 +96,6 @@ export const seedDadosReferenciaCad: Seed = {
     if (ambiente === 'producao') throw new Error('CARGA_DADOS_REFERENCIA não pode ser usada em produção (R15)');
     await carregarPlanoOficial(tx);
     await carregarMinutaCentrosCusto(tx);
+    await carregarCargosSinteticos(tx);
   },
 };

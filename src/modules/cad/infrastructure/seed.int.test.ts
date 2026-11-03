@@ -9,7 +9,7 @@ import { seedDadosReferenciaCad } from './seed-referencia';
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let cliente: ReturnType<typeof criarPrisma>;
 
-const TABELAS = ['funcionalidade', 'perfil_permissao', 'permissao_padrao_aplicada', 'conta_contabil', 'carga_estrutura', 'historico_operacao'];
+const TABELAS = ['funcionalidade', 'perfil_permissao', 'permissao_padrao_aplicada', 'conta_contabil', 'carga_estrutura', 'historico_operacao', 'cargo'];
 
 // Retrato ordenado do conteúdo (não só da contagem): pega UPDATE indevido na segunda execução.
 async function retrato(): Promise<Record<string, unknown[]>> {
@@ -101,6 +101,8 @@ describe('seedDadosReferenciaCad', () => {
     expect(await cliente.cargaEstrutura.findMany({ select: { tipo: true, situacao: true, incluidas: true }, orderBy: { tipo: 'asc' } })).toEqual([
       { tipo: 'PLANO_CONTAS', situacao: 'CONCLUIDA', incluidas: 174 },
       { tipo: 'CENTROS_CUSTO', situacao: 'CONCLUIDA', incluidas: 35 },
+      // Cargos sintéticos (Task 12a, P3), sem salário.
+      { tipo: 'CARGOS', situacao: 'CONCLUIDA', incluidas: 8 },
     ]);
     const antes = await retrato();
     await executarSeeds(cliente, [seedDadosReferenciaCad]);

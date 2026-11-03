@@ -135,4 +135,23 @@ describe('privilégios do cad (R6)', () => {
     const sync = await migrator.query(`SELECT 1 FROM information_schema.column_privileges WHERE table_name = 'beneficio_mestre' AND grantee = 'sgo_sync'`);
     expect(sync.rows).toEqual([]);
   });
+
+  it('cargo (B1, R6, m2): os dois leem; o app altera só os campos manuais; o sync insere e altera só as colunas Rubi e de controle; ninguém apaga', async () => {
+    const t = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants WHERE table_name = 'cargo' AND grantee = ANY($1) ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(t.rows.map((r) => r.l)).toEqual(['sgo_app SELECT', 'sgo_sync SELECT']);
+    const c = await migrator.query<{ l: string }>(
+      `SELECT r.rolname || ' ' || x.privilege_type || ' ' || a.attname AS l
+       FROM pg_attribute a JOIN pg_class cl ON cl.oid = a.attrelid, aclexplode(a.attacl) x JOIN pg_roles r ON r.oid = x.grantee
+       WHERE cl.relname = 'cargo' AND r.rolname = ANY($1) AND a.attacl IS NOT NULL ORDER BY 1`,
+      [PAPEIS],
+    );
+    const manuais = ['funcao_gratificada_cifrada', 'salario_definido_cifrado', 'mercado_minimo', 'mercado_maximo', 'origem_mercado', 'origem_mercado_rotulo', 'fonte_ativa', 'adicional_tipo', 'adicional_grau', 'vinculo_funcional_id', 'versao', 'atualizado_em'];
+    const rubi = ['codigo', 'nome_oficial', 'nome_mercado', 'tabela_salarial_codigo', 'tabela_salarial_descricao', 'faixa_codigo', 'faixa_descricao', 'nivel_codigo', 'nivel_descricao', 'salario_real_cifrado', 'ativo', 'versao', 'atualizado_em', 'carga_id'];
+    expect(c.rows.map((r) => r.l)).toEqual(
+      [...manuais.map((x) => `sgo_app UPDATE ${x}`), ...rubi.map((x) => `sgo_sync INSERT ${x}`), ...rubi.map((x) => `sgo_sync UPDATE ${x}`)].sort(),
+    );
+  });
 });

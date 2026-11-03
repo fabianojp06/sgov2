@@ -3,10 +3,12 @@ import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 import { lerAmbiente } from '@/modules/ger/servidor';
 import type { ContextoAuditoria } from '@/shared/audit';
 import { sanearDescricao } from '../application/saneamento';
+import { validarCargosRubi } from '../domain/cargo';
 import { validarCentrosCusto, type LinhaCentroCustoValidada } from '../domain/centros-custo';
 import { validarPlanoContas, type ErroLinha, type LinhaPlanoValidada } from '../domain/plano-contas';
 import { aplicarCarga, aplicarCargaCentrosCusto, ErroCargaLinhas } from './aplicar-carga';
-import { centroParaLinhaLida, paraLinhaLida } from './staging';
+import { aplicarCargaCargos, type LinhaCargoStaging } from './aplicar-carga-cargos';
+import { cargoParaLinhaLida, centroParaLinhaLida, paraLinhaLida } from './staging';
 
 // Casca do merge no worker (plano do P4, R6): o único processo com SYNC_DATABASE_URL. A cada ciclo:
 // confere o papel (S-N1), limpa lotes presos ou vencidos (S-N2, E-N1) e processa o lote pendente
@@ -46,6 +48,25 @@ const linhaStagingCentroCusto = z
     tipo: z.enum(['SINTETICO', 'ANALITICO']),
     classificacaoPai: z.string().nullable(),
     deGestao: z.boolean(),
+  })
+  .strict();
+
+// O salário real chega cifrado pelo app (R7): o worker não tem a chave e confere só o formato do envelope.
+const ENVELOPE = /^v1:[A-Za-z0-9_-]{1,20}:[A-Za-z0-9_-]{16}:[A-Za-z0-9_-]{22}:[A-Za-z0-9_-]+$/;
+const textoOuNulo = z.string().nullable();
+const linhaStagingCargo = z
+  .object({
+    linha: z.number().int().positive(),
+    codigo: z.string(),
+    nomeOficial: z.string(),
+    nomeMercado: textoOuNulo,
+    tabelaSalarialCodigo: textoOuNulo,
+    tabelaSalarialDescricao: textoOuNulo,
+    faixaCodigo: textoOuNulo,
+    faixaDescricao: textoOuNulo,
+    nivelCodigo: textoOuNulo,
+    nivelDescricao: textoOuNulo,
+    salarioRealCifrado: z.string().regex(ENVELOPE).nullable(),
   })
   .strict();
 
@@ -144,6 +165,38 @@ function revalidarCentrosCusto(linhas: readonly { numero: number; dados: unknown
   return { linhas: [...r.centros], avisos: r.avisos };
 }
 
+const CAMPOS_CARGO = [
+  'linha',
+  'codigo',
+  'nomeOficial',
+  'nomeMercado',
+  'tabelaSalarialCodigo',
+  'tabelaSalarialDescricao',
+  'faixaCodigo',
+  'faixaDescricao',
+  'nivelCodigo',
+  'nivelDescricao',
+] as const;
+
+function revalidarCargos(linhas: readonly { numero: number; dados: unknown }[], esperadas: number): Revalidado<LinhaCargoStaging> {
+  if (linhas.length !== esperadas) throw new ErroStaging([{ linha: 0, mensagem: 'O staging não tem o número de linhas do lote.' }]);
+  const erros: ErroLinha[] = [];
+  const validas: LinhaCargoStaging[] = [];
+  for (const l of linhas) {
+    const r = linhaStagingCargo.safeParse(l.dados);
+    if (!r.success || r.data.linha !== l.numero) erros.push({ linha: l.numero, mensagem: 'Linha adulterada no staging.' });
+    else validas.push(r.data);
+  }
+  if (erros.length > 0) throw new ErroStaging(erros);
+  // O mesmo domínio do app, nos textos (o salário vai cifrado e já foi validado pelo app).
+  const r = validarCargosRubi(validas.map(cargoParaLinhaLida), sanearDescricao);
+  if (!r.ok) throw new ErroStaging(r.erros);
+  const porLinha = new Map(r.cargos.map((c) => [c.linha, c]));
+  const divergentes = validas.filter((v) => CAMPOS_CARGO.some((k) => porLinha.get(v.linha)?.[k] !== v[k]));
+  if (divergentes.length > 0) throw new ErroStaging(divergentes.map((d) => ({ linha: d.linha, mensagem: 'Linha adulterada no staging.' })));
+  return { linhas: validas, avisos: r.avisos };
+}
+
 export function iniciarProcessadorCargas(deps: {
   clienteSync: PrismaClient | null;
   agora?: () => Date;
@@ -221,6 +274,10 @@ export function iniciarProcessadorCargas(deps: {
             const v = revalidarCentrosCusto(staging, lote.linhas);
             avisosValidacao = v.avisos;
             r = await aplicarCargaCentrosCusto(tx, contexto, { id: lote.id, provisoria }, v.linhas);
+          } else if (lote.tipo === 'CARGOS') {
+            const v = revalidarCargos(staging, lote.linhas);
+            avisosValidacao = v.avisos;
+            r = await aplicarCargaCargos(tx, contexto, { id: lote.id }, v.linhas);
           } else {
             throw new Error(`tipo de carga sem processador: ${lote.tipo}`);
           }
