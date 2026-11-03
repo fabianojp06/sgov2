@@ -50,6 +50,7 @@ export async function registrarTrabalhadoresGer(
 
 // Leitura segura de .xlsx (R4; acréscimo ao C3 para o cad e para a US-121).
 export {
+  enderecoCelula,
   lerPlanilhaSegura,
   lerPlanilhasSegura,
   LIMITES_PADRAO,

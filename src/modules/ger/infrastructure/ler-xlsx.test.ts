@@ -6,7 +6,7 @@ import { crc32, deflateRawSync } from 'node:zlib';
 import { build } from 'esbuild';
 import ExcelJS from 'exceljs';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { lerPlanilhaSegura, lerPlanilhasSegura, LIMITES_PADRAO, MSG_LEITOR_OCUPADO, sanearNomeArquivo } from './ler-xlsx';
+import { enderecoCelula, lerPlanilhaSegura, lerPlanilhasSegura, LIMITES_PADRAO, MSG_LEITOR_OCUPADO, sanearNomeArquivo } from './ler-xlsx';
 import { empacotarSemCompressao, lerZipSeguro } from './zip-seguro';
 
 // Leitor seguro de .xlsx (plano do P4, Task 4a, Step 1). As planilhas são montadas com ExcelJS.
@@ -424,6 +424,48 @@ describe('lerPlanilhasSegura — várias abas numa chamada (#231)', () => {
     agora.mockRestore();
     expect(r).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'Planilha inválida ou grande demais.' }], indiceAba: 1 });
     expect((await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, pedidos)).ok).toBe(true);
+  });
+});
+
+describe('células avulsas (#232)', () => {
+  async function comInstrucoes(versao: unknown): Promise<Uint8Array> {
+    const wb = new ExcelJS.Workbook();
+    const ins = wb.addWorksheet('Instruções');
+    ins.getCell('A1').value = 'Preencha as abas abaixo.';
+    ins.getCell('E1').value = versao as ExcelJS.CellValue;
+    ins.getCell('B3').value = 'Responsável';
+    wb.addWorksheet('Plano de Contas').addRows([COLUNAS, ['4', 'DESPESAS', null]]);
+    return new Uint8Array(await wb.xlsx.writeBuffer());
+  }
+
+  it('lê Instruções!E1 numa aba sem tabela (colunas: []), junto das outras abas', async () => {
+    const r = await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: await comInstrucoes('ADMC-ORC v1.0') }, [
+      { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1', 'B3', 'C9'] },
+      { aba: 'Plano de Contas', colunas: COLUNAS, linhaCabecalhoMax: 10 },
+    ]);
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    expect(r.valor[0]!.celulasAvulsas).toEqual({ E1: 'ADMC-ORC v1.0', B3: 'Responsável', C9: null });
+    expect(r.valor[0]!.linhas).toEqual([]);
+    expect(r.valor[1]!.celulasAvulsas).toBeUndefined();
+    expect(r.valor[1]!.linhas).toHaveLength(1);
+  });
+
+  it('célula com fórmula sem resultado: erro de célula pelo endereço, sem o conteúdo', async () => {
+    const r = await lerPlanilhaSegura({ nome: 'orc.xlsx', conteudo: await comInstrucoes({ formula: 'A1' }) }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    expect(r.valor.celulasAvulsas).toEqual({ E1: null });
+    expect(r.valor.errosCelula).toEqual([{ linha: 1, coluna: 'E1', mensagem: 'Fórmula sem resultado calculado. Salve a planilha no Excel e envie de novo.' }]);
+  });
+
+  it('endereço: formato A1, coluna e linha dentro dos limites; fora disso, erro do chamador', async () => {
+    expect(enderecoCelula('E1')).toEqual({ linha: 1, coluna: 5 });
+    expect(enderecoCelula('AA10')).toEqual({ linha: 10, coluna: 27 });
+    for (const e of ['e1', 'E0', '1E', 'E1001', 'E1:F2', '']) expect(enderecoCelula(e), e).toBeNull();
+    const x = await comInstrucoes('v');
+    await expect(lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['AF1'] })).rejects.toThrow('formato A1');
+    await expect(lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: Array.from({ length: 21 }, (_, i) => `A${i + 1}`) })).rejects.toThrow();
+    // O semáforo foi liberado.
+    expect((await ler(await planilha([COLUNAS, ['4', 'DESPESAS', null]]))).ok).toBe(true);
   });
 });
 

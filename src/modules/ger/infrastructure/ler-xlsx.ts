@@ -44,14 +44,36 @@ export type OpcoesLeitura = {
   /** Colunas que não aceitam célula numérica ("14.180" viraria 14,18; GAP-CC-003). */
   colunasTexto?: readonly string[];
   limites?: Partial<LimitesPlanilha>;
+  /**
+   * Células avulsas pelo endereço (ex.: 'E1', a versão do layout; #232), lidas com a mesma conversão
+   * e os mesmos limites. Até 20, com linha até a do cabeçalho ou 1.000. Aba sem tabela: `colunas: []`.
+   */
+  celulas?: readonly string[];
 };
 
-export type PlanilhaLida = { nomeArquivo: string; linhas: readonly LinhaPlanilha[]; errosCelula: readonly ErroLinha[] };
+export type PlanilhaLida = {
+  nomeArquivo: string;
+  linhas: readonly LinhaPlanilha[];
+  errosCelula: readonly ErroLinha[];
+  /** Só com `opcoes.celulas`: o texto de cada endereço pedido (null se vazia ou com erro). */
+  celulasAvulsas?: Readonly<Record<string, string | null>>;
+};
 
 const MSG_INVALIDA = 'Planilha inválida ou grande demais.';
 /** Texto exato da recusa pelo semáforo (uma leitura por processo), parte do contrato (#231). */
 export const MSG_LEITOR_OCUPADO = 'Outra planilha está sendo lida. Tente de novo em instantes.';
 const erroArquivo = (mensagem: string) => falha([{ campo: 'arquivo', mensagem }]);
+
+const MAXIMO_CELULAS = 20;
+const LINHA_MAXIMA_CELULA = 1_000;
+/** 'E1' → { linha: 1, coluna: 5 }; fora do formato (ou além dos limites), null. */
+export function enderecoCelula(endereco: string): { linha: number; coluna: number } | null {
+  const m = /^([A-Z]{1,3})([1-9]\d{0,6})$/.exec(endereco);
+  if (!m) return null;
+  const coluna = [...m[1]!].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0);
+  const linha = Number(m[2]);
+  return linha <= LINHA_MAXIMA_CELULA ? { linha, coluna } : null;
+}
 
 /** Nome sem caminho nem caractere de controle, com até 120 caracteres. */
 export function sanearNomeArquivo(nome: string): string {
@@ -285,6 +307,12 @@ function abrir(arquivo: { nome: string; conteudo: Uint8Array }, limites: Limites
 }
 
 async function ler({ nomeArquivo, entradas, abas }: Aberto, opcoes: OpcoesLeitura, limites: LimitesPlanilha): Promise<Resultado<PlanilhaLida>> {
+  // Erro do chamador (endereço fixo no código), não do arquivo.
+  const avulsas = (opcoes.celulas ?? []).map((e) => ({ endereco: e, pos: enderecoCelula(e) }));
+  if (avulsas.length > MAXIMO_CELULAS || avulsas.some((a) => a.pos === null || a.pos.coluna > limites.colunas)) {
+    throw new Error(`lerPlanilhaSegura: até ${MAXIMO_CELULAS} células, no formato A1, até a linha ${LINHA_MAXIMA_CELULA} e a coluna ${limites.colunas}`);
+  }
+  const celulasAvulsas: Record<string, string | null> = Object.fromEntries(avulsas.map((a) => [a.endereco, null]));
   const abaPedida = opcoes.aba === undefined ? undefined : normalizarNomeColuna(opcoes.aba);
   const aba = abaPedida === undefined ? abas[0] : abas.find((a) => normalizarNomeColuna(a.nome) === abaPedida);
   if (!aba) return erroArquivo(`A aba "${opcoes.aba}" não foi encontrada.`);
@@ -334,6 +362,15 @@ async function ler({ nomeArquivo, entradas, abas }: Aberto, opcoes: OpcoesLeitur
         if (valores.length - 1 > limites.colunas) {
           falhaArquivo = `A planilha passa de ${limites.colunas} colunas.`;
           continue;
+        }
+        // Células avulsas desta linha (#232): mesma conversão e limite de caracteres das outras.
+        for (const a of avulsas) {
+          if (a.pos!.linha !== linha.number) continue;
+          const c = converter(valores[a.pos!.coluna]);
+          if ('erro' in c) errosCelula.push({ linha: linha.number, coluna: a.endereco, mensagem: c.erro });
+          else if (c.valor !== null && c.valor.length > limites.caracteresCelula)
+            errosCelula.push({ linha: linha.number, coluna: a.endereco, mensagem: `Célula com mais de ${limites.caracteresCelula} caracteres.` });
+          else celulasAvulsas[a.endereco] = c.valor;
         }
         if (indices === null) {
           if (linha.number > opcoes.linhaCabecalhoMax) {
@@ -401,5 +438,5 @@ async function ler({ nomeArquivo, entradas, abas }: Aberto, opcoes: OpcoesLeitur
     clearTimeout(temporizador);
   }
   if (falhaArquivo !== null) return erroArquivo(falhaArquivo);
-  return ok({ nomeArquivo, linhas, errosCelula });
+  return ok({ nomeArquivo, linhas, errosCelula, ...(avulsas.length > 0 ? { celulasAvulsas: Object.freeze(celulasAvulsas) } : {}) });
 }
