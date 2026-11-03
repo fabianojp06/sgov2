@@ -154,4 +154,20 @@ describe('privilégios do cad (R6)', () => {
       [...manuais.map((x) => `sgo_app UPDATE ${x}`), ...rubi.map((x) => `sgo_sync INSERT ${x}`), ...rubi.map((x) => `sgo_sync UPDATE ${x}`)].sort(),
     );
   });
+
+  it('beneficio_cargo (B1): o app lê, inclui e altera só o conteúdo; ninguém apaga; o sgo_sync não toca', async () => {
+    const t = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants WHERE table_name = 'beneficio_cargo' AND grantee = ANY($1) ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(t.rows.map((r) => r.l)).toEqual(['sgo_app INSERT', 'sgo_app SELECT']);
+    const c = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type || ' ' || column_name AS l FROM information_schema.column_privileges
+       WHERE table_name = 'beneficio_cargo' AND grantee = ANY($1) AND privilege_type = 'UPDATE' ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(c.rows.map((r) => r.l)).toEqual(['ativo', 'atualizado_em', 'origem', 'valor_manual'].map((x) => `sgo_app UPDATE ${x}`));
+    const sync = await migrator.query(`SELECT 1 FROM information_schema.column_privileges WHERE table_name = 'beneficio_cargo' AND grantee = 'sgo_sync'`);
+    expect(sync.rows).toEqual([]);
+  });
 });

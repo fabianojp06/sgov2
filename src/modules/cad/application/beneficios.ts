@@ -4,6 +4,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma, type TxCliente } from '@/shared/db';
 import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
 import { validarBeneficio, type BeneficioMestre, type EntradaBeneficio } from '../domain/beneficios';
+import { sobrescreverManuaisDoItem } from '../infrastructure/beneficios-cargo';
 import { lerBeneficiosMestre } from '../infrastructure/beneficios-mestre';
 import { carregarIndiceEstrutura } from '../infrastructure/estrutura-financeira';
 import { MSG_CONCORRENCIA, tocarVersaoExercicio } from '../infrastructure/parametro-sistema';
@@ -147,6 +148,8 @@ export async function alterarBeneficioMestre(
         antes,
         depois: { ...v.valor, provisorio: provisorio(v.valor) },
       });
+      // RN_CAR_06 / C8: o item mudou na Tabela Mestre; os valores manuais dos cargos voltam a ele (mesmo tx).
+      await sobrescreverManuaisDoItem(tx, contextoDe(ctx), ano, codigo);
       return ok(undefined);
     });
   } catch (e) {

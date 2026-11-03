@@ -63,3 +63,17 @@ export type FaixaTela = {
   versao: number;
 };
 export type SenioridadeTela = { id: string; nome: string; padrao: boolean; ativa: boolean };
+
+/** Benefício do cargo no exercício (US-050 parte 2), em texto para a tela. */
+export type BeneficioCargoTela = {
+  codigo: string;
+  nome: string;
+  forma: 'VALOR_MENSAL' | 'VALOR_DIARIO' | 'PERCENTUAL_SALARIO';
+  /** Do item na Tabela Mestre (texto); null se sem valor ou mascarado. */
+  valorMestre: string | null;
+  percentualMestre: string | null;
+  ativo: boolean;
+  valorManual: string | null;
+  /** RN_CAR_07: de onde vem o valor usado. */
+  origem: 'MESTRE' | 'MANUAL';
+};

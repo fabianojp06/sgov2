@@ -210,6 +210,7 @@ model BeneficioMestre {
   provisorio    Boolean             @default(true)
   versao        Int                 @default(1)
   atualizadoEm  DateTime            @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  cargos        BeneficioCargo[]
 
   @@id([ano, codigo])
   @@map("beneficio_mestre")
@@ -269,6 +270,7 @@ model Cargo {
   cargaId                  String?               @map("carga_id") @db.Uuid
   carga                    CargaEstrutura?       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
   faixas                   FaixaSalarial[]
+  beneficios               BeneficioCargo[]
   criadoEm                 DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm             DateTime              @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
 
@@ -307,4 +309,28 @@ model FaixaSalarial {
 
   @@index([cargoId])
   @@map("faixa_salarial")
+}
+
+enum OrigemValorBeneficio {
+  MESTRE
+  MANUAL
+}
+
+// Benefícios do cargo por exercício (US-050 parte 2; plano do P4, Task 13; RN_CAR_06/07). Sem linha, o
+// cargo usa os itens "padrão da posição" da Tabela Mestre, no valor dela. Valor manual → MANUAL; a
+// alteração do item na Tabela Mestre apaga os manuais daquele (ano, código) e volta a MESTRE (C8).
+model BeneficioCargo {
+  cargoId      String               @map("cargo_id") @db.Uuid
+  cargo        Cargo                @relation(fields: [cargoId], references: [id], onDelete: Restrict)
+  ano          Int                  @db.SmallInt
+  codigo       String
+  item         BeneficioMestre      @relation(fields: [ano, codigo], references: [ano, codigo], onDelete: Restrict)
+  ativo        Boolean
+  valorManual  Decimal?             @map("valor_manual") @db.Decimal(15, 2)
+  origem       OrigemValorBeneficio @default(MESTRE)
+  atualizadoEm DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@id([cargoId, ano, codigo])
+  @@index([ano, codigo])
+  @@map("beneficio_cargo")
 }
