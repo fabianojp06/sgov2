@@ -74,11 +74,13 @@ describe('ErroCarregamento (UC01.03 E1, E2)', () => {
   });
 });
 
-describe('error.tsx do (sistema) (UC01.03 E1)', () => {
-  it('mensagem igual à do ErroCarregamento de módulos, com Tentar novamente e Sair', async () => {
+describe('error.tsx do (sistema): erro de página', () => {
+  it('texto de página, não o do catálogo (que o layout trata), com Tentar novamente e Sair', async () => {
     const { default: Erro } = await import('../../../app/(sistema)/error');
     const html = renderToString(createElement(Erro, { error: new Error('x'), reset: () => {}, retry: () => {} }));
-    expect(html).toContain(MENSAGENS_CARREGAMENTO.modulos);
+    expect(html).toContain('Não foi possível exibir esta página. Tente novamente ou contate o Administrador.');
+    expect(html).not.toContain(MENSAGENS_CARREGAMENTO.modulos);
+    expect(html).not.toContain(MENSAGENS_CARREGAMENTO.permissoes);
     expect(html).toContain('Tentar novamente');
     expect(html).toContain('Sair');
   });
