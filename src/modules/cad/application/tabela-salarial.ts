@@ -20,7 +20,7 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
   usuarioRotulo: ctx.usuarioRotulo,
   sessaoUid: ctx.sessaoUid,
   ip: ctx.ip,
-  unidadeId: ctx.unidadeId ?? null,
+  unidadeId: null,
 });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

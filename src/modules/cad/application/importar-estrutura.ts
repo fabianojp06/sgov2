@@ -78,7 +78,7 @@ export async function solicitarCargaPlanoContas(
   if (plano.erros.length > 0) return falha(porLinha(plano.erros));
 
   const cargaId = randomUUID();
-  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: ctx.unidadeId ?? null };
+  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null };
   try {
     await cliente.$transaction(async (tx) => {
       // SQL explícito, só nas colunas de entrada (S-N3): situação, grupo e resultado vêm do banco.
@@ -201,7 +201,7 @@ export async function solicitarCargaCentrosCusto(
   if (plano.erros.length > 0) return falha(porLinha(plano.erros));
 
   const cargaId = randomUUID();
-  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: ctx.unidadeId ?? null };
+  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null };
   const provisoria = aprovacao === null;
   try {
     await cliente.$transaction(async (tx) => {
@@ -278,7 +278,7 @@ export async function solicitarCargaCargos(
   });
 
   const cargaId = randomUUID();
-  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: ctx.unidadeId ?? null };
+  const contexto = { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null };
   try {
     await cliente.$transaction(async (tx) => {
       await tx.$executeRaw`INSERT INTO "carga_estrutura" ("id", "tipo", "arquivo_nome", "arquivo_sha256", "linhas", "contexto_auditoria")

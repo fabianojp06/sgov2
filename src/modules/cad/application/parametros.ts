@@ -21,7 +21,7 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
   usuarioRotulo: ctx.usuarioRotulo,
   sessaoUid: ctx.sessaoUid,
   ip: ctx.ip,
-  unidadeId: ctx.unidadeId ?? null,
+  unidadeId: null,
 });
 
 // A violação é auditada numa transação própria: a operação em si não acontece.

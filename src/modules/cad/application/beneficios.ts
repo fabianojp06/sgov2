@@ -21,7 +21,7 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
   usuarioRotulo: ctx.usuarioRotulo,
   sessaoUid: ctx.sessaoUid,
   ip: ctx.ip,
-  unidadeId: ctx.unidadeId ?? null,
+  unidadeId: null,
 });
 
 async function recusarOrigemBlindada(cliente: PrismaClient, ctx: ContextoRequisicao, registro: string, campos: string[]): Promise<never> {

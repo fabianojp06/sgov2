@@ -10,7 +10,7 @@ import { conferirOrigemBlindadaCargo } from './cargos';
 
 // Server Action dos benefícios do cargo (US-050 parte 2). A negação (403) é auditada pela definirAcao
 // (C5); a entrada chega bruta para a origem blindada do cargo ser auditada antes do parse (M-n4).
-const PORTUGUES = z.locales.pt().localeError;
+const PORTUGUES = z.locales.ptBR().localeError;
 const esquema = z
   .object({
     idCargo: z.string().max(36),

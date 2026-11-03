@@ -244,6 +244,37 @@ describe('importação dos cargos do Rubi (R20)', () => {
   });
 });
 
+describe('contexto de auditoria do lote (#266, #268)', () => {
+  const solicitar = async (extra: Partial<ContextoRequisicao>) => {
+    const ctx = { ...grh(), ...extra };
+    const r = await solicitarCargaCargos(ctx, await xlsx([linha('C1')]), { cliente: app, cifra });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+    return await consultarCarga(grh(), r.valor.cargaId, { cliente: app });
+  };
+
+  it('cadastro global: com um TP no seletor, o Histórico da carga sai com unidade nula', async () => {
+    const carga = await solicitar({ unidadeId: '00000000-0000-4000-8000-000000000002' });
+    expect(carga?.situacao).toBe('CONCLUIDA');
+    const h = await migrator.query(`SELECT unidade_id FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND registro_id = 'C1'`);
+    expect(h.rows.length).toBeGreaterThan(0);
+    expect(h.rows.every((x) => x.unidade_id === null)).toBe(true);
+  });
+
+  it('sessaoUid vazio: o app recusa ao auditar; num lote forjado, o worker recusa, o lote FALHOU e nada é aplicado', async () => {
+    await expect(solicitar({ sessaoUid: '' })).rejects.toMatchObject({ codigo: 'AUDITORIA_INVALIDA' });
+    const r = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    // O trigger protege a entrada do lote: o teste o desliga só para forjar o contexto.
+    await migrator.query('ALTER TABLE carga_estrutura DISABLE TRIGGER USER');
+    await migrator.query(`UPDATE carga_estrutura SET contexto_auditoria = contexto_auditoria || '{"sessaoUid": ""}'::jsonb WHERE id = $1`, [r.valor.cargaId]);
+    await migrator.query('ALTER TABLE carga_estrutura ENABLE TRIGGER USER');
+    await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+    expect((await consultarCarga(grh(), r.valor.cargaId, { cliente: app }))?.situacao).toBe('FALHOU');
+    expect(await cargo('C1')).toBeUndefined();
+  });
+});
+
 describe('seed dos cargos sintéticos (R20, P3)', () => {
   it('com CARGA_DADOS_REFERENCIA=1, entram sem salário, e a seed roda sem a chave; a segunda vez não muda nada', async () => {
     const m = criarPrisma(banco.urlMigrator);

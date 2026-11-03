@@ -13,7 +13,7 @@ import { solicitarCargaCargos } from './importar-estrutura';
 // Server Actions dos cargos (US-049 parte 2). A negação (403) é auditada pela definirAcao (C5). A
 // alteração chega bruta (z.unknown) para a origem blindada ser conferida e auditada antes do parse
 // (M4/M-n4); depois vem o schema .strict(), em português.
-const PORTUGUES = z.locales.pt().localeError;
+const PORTUGUES = z.locales.ptBR().localeError;
 const dinheiro = z.string().max(30, 'Informe o valor com até 2 casas decimais.').nullable();
 
 const esquemaAlterar = z
