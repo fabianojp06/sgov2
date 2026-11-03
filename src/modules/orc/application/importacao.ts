@@ -42,6 +42,11 @@ const comoCampos = (erros: readonly ErroPlanilha[]): ErroCampo[] => [
   ...erros.slice(0, MAXIMO_ERROS).map((e) => ({ campo: `linhas.${e.aba}.${e.linha}.${e.coluna ?? '_'}`, mensagem: e.mensagem })),
   ...(erros.length > MAXIMO_ERROS ? [{ campo: '_', mensagem: MENSAGENS_ORC.MAIS_ERROS(erros.length - MAXIMO_ERROS) }] : []),
 ];
+// Com escopo, o erro de posição de CC fora dele vira um aviso só, sem CC nem cargo.
+function errosNoEscopo(erro: ErroRecalculo, ccs: ReadonlySet<string>): ErroCampo[] {
+  const dentro = erro.erros.filter((_, i) => erro.ccs[i] === null || ccs.has(erro.ccs[i]!));
+  return dentro.length === erro.erros.length ? [...erro.erros] : [...dentro, { campo: '_', mensagem: MENSAGENS_ORC.RECALCULO_FORA_DO_ESCOPO }];
+}
 // Erro de arquivo do leitor: cabeçalho ausente vira a mensagem do layout (R6); o resto, como veio.
 const erroDeArquivo = (aba: Aba, colunas: readonly string[], mensagem: string) =>
   mensagem.startsWith('Cabeçalho não encontrado') ? MENSAGENS_ORC.FORA_DO_LAYOUT(aba, colunas) : mensagem;
@@ -98,6 +103,12 @@ export async function importarPlanilha(
     return await deps.cliente.$transaction(async (tx) => {
       const e = await travarExercicio(tx, entrada.exercicioId);
       if (!editavel(e.situacao)) return falha(errosNaoEditavel(e.situacao));
+      // A importação recalcula o exercício inteiro. Com escopo, ela não pode trazer premissas novas para
+      // os CCs de fora: isso é o Recalcular que a R15 nega ao gestor.
+      if (escopo.tipo !== 'TOTAL' && e.versaoPremissas !== null) {
+        const atuais = await deps.custoPessoal.obterPremissasExercicio(tx, e.ano);
+        if (atuais && atuais.versao !== e.versaoPremissas) return erroGeral(MENSAGENS_ORC.PREMISSAS_DESATUALIZADAS_ESCOPO);
+      }
       const importacao = await tx.importacaoPlanilha.create({
         data: { exercicioId: e.id, arquivoNome: nomeArquivo, arquivoSha256: sha256, criadoPor: ctx.usuarioId, resumo: { porCc: resumoContagem, receitas: receitas.map((r) => r.tp) } },
       });
@@ -124,7 +135,7 @@ export async function importarPlanilha(
           total: Dinheiro.somarTodos(r.meses).paraString(), importacaoId: importacao.id,
         })),
       });
-      await recalcularExercicio(tx, e.id, deps);
+      const recalculo = await recalcularExercicio(tx, e.id, deps);
       const linhas = await tx.linhaOrcada.findMany({ where: { exercicioId: e.id, cc: { in: ccs } }, select: { cc: true, total: true } });
       const resumoPorCc = resumoContagem.map((c) => ({
         ...c,
@@ -138,7 +149,16 @@ export async function importarPlanilha(
         registroId: importacao.id,
         descricao: `Planilha ${nomeArquivo} importada no exercício ${e.ano}: ${posicoes.length} posições e ${pacotes.length} pacotes em ${ccs.length} CCs, ${receitas.length} receitas`,
         // Só contagens: o total de um CC com uma só posição revelaria o custo daquela pessoa.
-        depois: { arquivo: nomeArquivo, sha256, porCc: resumoContagem, receitas: receitas.map((r) => r.tp) },
+        // O recálculo embutido refaz o exercício inteiro (R9): a versão das premissas vai junto.
+        antes: { versaoPremissas: e.versaoPremissas },
+        depois: {
+          arquivo: nomeArquivo,
+          sha256,
+          porCc: resumoContagem,
+          receitas: receitas.map((r) => r.tp),
+          versaoPremissas: recalculo.versaoPremissas,
+          linhas: recalculo.linhas,
+        },
       });
       return ok({
         posicoes: posicoes.length,
@@ -150,7 +170,7 @@ export async function importarPlanilha(
       });
     });
   } catch (erro) {
-    if (erro instanceof ErroRecalculo) return falha(erro.erros);
+    if (erro instanceof ErroRecalculo) return falha(escopo.tipo === 'TOTAL' ? erro.erros : errosNoEscopo(erro, escopo.ccs));
     throw erro;
   }
 }
