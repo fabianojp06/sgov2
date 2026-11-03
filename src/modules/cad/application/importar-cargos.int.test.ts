@@ -155,6 +155,24 @@ describe('importação dos cargos do Rubi (R20)', () => {
     }
   });
 
+  it('falha real do banco no lote: o log não tem o nome nem o envelope do cargo (Task 12a)', async () => {
+    await migrator.query(`ALTER TABLE cargo ADD CONSTRAINT teste_falha_log CHECK (codigo <> 'C9')`);
+    try {
+      const r = await solicitarCargaCargos(grh(), await xlsx([linha('C9', { Cargo: 'Cargo Sigiloso C9' })]), { cliente: app, cifra });
+      if (!r.ok) throw new Error('recusada');
+      const espiao = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+      expect((await consultarCarga(grh(), r.valor.cargaId, { cliente: app }))?.situacao).toBe('FALHOU');
+      const log = JSON.stringify(espiao.mock.calls);
+      expect(log).toContain('CARGA_FALHOU');
+      expect(log).not.toContain('Sigiloso');
+      expect(log).not.toMatch(/v1:[A-Za-z0-9_-]+:[A-Za-z0-9_-]{16}:/);
+      expect(log).not.toContain('7500');
+    } finally {
+      await migrator.query('ALTER TABLE cargo DROP CONSTRAINT teste_falha_log');
+    }
+  });
+
   it('rotação adiantada: com k0 ainda em _ANTERIORES, a recarga troca o envelope para a chave atual (mesmo valor)', async () => {
     const k0b64 = Buffer.alloc(32, 9).toString('base64');
     const k0 = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: k0b64, CHAVE_CIFRA_SALARIOS_ID: 'k0' });
