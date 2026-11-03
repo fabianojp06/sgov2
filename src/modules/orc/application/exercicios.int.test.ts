@@ -151,6 +151,14 @@ describe('criarExercicio copiando o anterior', () => {
     expect(h.descricao).toContain('puladas 1 posições e 1 pacotes');
   });
 
+  it('cópia pula pacote em conta que as premissas do novo ano usam para um encargo', async () => {
+    await exercicioComLancamentos(2066);
+    const p = premissasExemplo(2067);
+    const comEncargoNa5 = { ...p, encargos: p.encargos.map((x, i) => (i === 3 ? { ...x, conta: '4.1.1.5.005' } : x)) };
+    const r = await criarExercicio(ctx(), { ano: 2067, forma: 'COPIA' }, deps({ custoPessoal: custoPessoalFalso([comEncargoNa5]) }).d);
+    expect(r.ok && r.valor).toMatchObject({ copiadas: { pacotes: 0 }, puladas: { pacotes: 3 } });
+  });
+
   it('R18: a origem é o maior ano menor que o novo; sem anterior, mensagem', async () => {
     await exercicioComLancamentos(2070);
     await exercicioComLancamentos(2072);

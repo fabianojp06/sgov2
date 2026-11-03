@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { QUANTIDADE_MAXIMA } from '@/modules/cad/servidor';
 import { lerPlanilhaSegura, type LinhaPlanilha } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
@@ -10,13 +11,13 @@ import {
   COLUNAS_PACOTES,
   COLUNAS_PESSOAL,
   COLUNAS_RECEITAS,
-  RAIZES_CONTAS_PESSOAL,
   validarPlanilha,
   type Aba,
   type ErroPlanilha,
 } from '../domain/planilha';
 import { contextoAuditoria, ErroRecalculo, errosNaoEditavel, recalcularExercicio, travarExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
+import { contasVetadasEmPacote } from './contas-vetadas';
 import { resolverEscopo } from './escopo';
 
 // Importação da planilha-modelo ADMC-ORC v1.0 (US-121; plano do P6, Task 4b; R5–R7). Tudo ou
@@ -77,12 +78,19 @@ export async function importarPlanilha(
     errosCelula.push(...r.valor.errosCelula.map((e) => ({ ...e, aba })));
   }
 
-  const contasPessoal = new Set(RAIZES_CONTAS_PESSOAL.flatMap((r) => indice.contasAnaliticasSob(r)));
+  // Premissas do ano do exercício para o veto das contas de pessoal em pacote; o exercício é travado
+  // e relido depois, na transação.
+  // Id que não é UUID não vai ao banco (o Postgres recusaria com erro inesperado): a transação responde
+  // "Exercício não encontrado." como antes.
+  const ano = z.uuid().safeParse(entrada.exercicioId).success
+    ? (await deps.cliente.orcamentoExercicio.findUnique({ where: { id: entrada.exercicioId }, select: { ano: true } }))?.ano
+    : undefined;
+  const contasVetadas = contasVetadasEmPacote(indice, ano === undefined ? null : await deps.custoPessoal.obterPremissasExercicio(deps.cliente, ano));
   const validacao = validarPlanilha(
     { pessoal: lidas.Pessoal, pacotes: lidas['Pacotes base zero'], receitas: lidas.Receitas },
     {
       ccAnalitico: (cc) => indice.centroCustoAnalitico(cc),
-      contaPermitida: (conta) => indice.contaAnaliticaAtiva(conta) && !contasPessoal.has(conta),
+      contaPermitida: (conta) => indice.contaAnaliticaAtiva(conta) && !contasVetadas.has(conta),
       noEscopo: (cc) => escopo.tipo === 'TOTAL' || escopo.ccs.has(cc),
     },
     { quantidadeMaxima: QUANTIDADE_MAXIMA },

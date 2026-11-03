@@ -25,3 +25,10 @@ export function montarSnapshot(dados: unknown): { conteudo: unknown; sha256: str
   const conteudo = canonico(dados);
   return { conteudo, sha256: createHash('sha256').update(JSON.stringify(conteudo)).digest('hex') };
 }
+
+// Conferência do snapshot gravado (decisão do PO de 03/11): o jsonb do banco reordena as chaves e muda
+// os espaços, então o sha256 não se confere direto no SQL. Relido pelo app, o conteúdo volta ao JSON
+// canônico e o hash tem de ser o mesmo.
+export function conferirSnapshot(conteudo: unknown, sha256: string): boolean {
+  return createHash('sha256').update(JSON.stringify(canonico(conteudo))).digest('hex') === sha256;
+}
