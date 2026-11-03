@@ -23,7 +23,11 @@ function recusar(caminho: string, motivo: string): never {
   });
 }
 
-function serializar(v: unknown, caminho: string, vistos: WeakSet<object>): unknown {
+// Saltos de toJSON seguidos no mesmo caminho: um toJSON que devolve algo com outro toJSON, em ciclo
+// (uma classe, duas classes ou objeto simples), giraria sem fim. Acima do limite, recusa com o caminho.
+const MAXIMO_SALTOS_TOJSON = 8;
+
+function serializar(v: unknown, caminho: string, vistos: WeakSet<object>, saltos = 0): unknown {
   if (v === null || v === undefined || typeof v === 'string' || typeof v === 'boolean') return v;
   if (typeof v === 'number') return Number.isFinite(v) ? v : recusar(caminho, 'número não finito');
   if (typeof v === 'bigint') return v.toString();
@@ -38,19 +42,14 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>): unkno
   const simples = Array.isArray(v) || prototipo === Object.prototype || prototipo === null;
   if (!simples) {
     const toJSON = (v as { toJSON?: unknown }).toJSON;
-    if (typeof toJSON === 'function') {
-      const json: unknown = toJSON.call(v);
-      // Um toJSON que devolve outra instância da mesma classe giraria sem fim (RangeError sem contexto).
-      if (typeof json === 'object' && json !== null && Object.getPrototypeOf(json) === prototipo) return recusar(caminho, 'toJSON recursivo');
-      return serializar(json, caminho, vistos);
-    }
+    if (typeof toJSON === 'function') return seguirToJSON(toJSON.call(v), caminho, vistos, saltos);
     return recusar(caminho, `objeto ${(v as object).constructor?.name ?? 'sem tipo'}`);
   }
   vistos.add(v);
   try {
     if (Array.isArray(v)) return v.map((item, i) => serializar(item, `${caminho}[${i}]`, vistos));
     if (typeof (v as { toJSON?: unknown }).toJSON === 'function') {
-      return serializar((v as { toJSON(): unknown }).toJSON(), caminho, vistos);
+      return seguirToJSON((v as { toJSON(): unknown }).toJSON(), caminho, vistos, saltos);
     }
     const saida: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [chave, valor] of Object.entries(v)) {
@@ -61,4 +60,9 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>): unkno
   } finally {
     vistos.delete(v);
   }
+}
+
+function seguirToJSON(json: unknown, caminho: string, vistos: WeakSet<object>, saltos: number): unknown {
+  if (saltos >= MAXIMO_SALTOS_TOJSON) return recusar(caminho, 'toJSON recursivo');
+  return serializar(json, caminho, vistos, saltos + 1);
 }

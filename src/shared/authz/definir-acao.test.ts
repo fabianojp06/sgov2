@@ -192,6 +192,17 @@ describe('definirRota', () => {
     expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
     expect(log).toHaveBeenCalled();
   });
+
+  it('ErroAuditoria no handler → 500 genérico, não 422 com o texto técnico', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    contexto = comPermissao('usuarios:exportar');
+    const rota = definirRota({ funcionalidade: 'usuarios', acao: 'exportar' }, async () => {
+      throw new ErroAuditoria('AUDITORIA_INVALIDA', 'Evento de auditoria inválido');
+    });
+    const r = await rota(new Request('http://x/'));
+    expect(r.status).toBe(500);
+    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
+  });
 });
 
 describe('definirRota: exigir dentro do handler', () => {
