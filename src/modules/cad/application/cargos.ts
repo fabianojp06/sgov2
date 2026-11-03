@@ -73,14 +73,17 @@ function cifraPreguicosa(deps: Deps): () => CifraSalarios {
  * Um envelope que não volta (chave retirada cedo do keyring, adulteração, chave ausente) não derruba a
  * tela: o campo vem nulo e marcado ilegível, com o log só do código e do campo (I9).
  */
-function salariosDe(c: CargoBanco, cifra: () => CifraSalarios): { salarios: SalariosCargo; ilegivel: boolean } {
-  let ilegivel = false;
+type Ilegivel = CargoTela['salariosIlegiveis'][number];
+const CAMPO_TELA: Readonly<Record<CampoCifrado, Ilegivel>> = { funcao_gratificada: 'funcaoGratificada', salario_real: 'real', salario_definido: 'definido' };
+
+function salariosDe(c: CargoBanco, cifra: () => CifraSalarios): { salarios: SalariosCargo; ilegiveis: Ilegivel[] } {
+  const ilegiveis: Ilegivel[] = [];
   const decifrar = (envelope: string | null, campo: CampoCifrado): Dinheiro | null => {
     if (envelope === null) return null;
     try {
       return cifra().decifrar(envelope, { codigoCargo: c.codigo, campo });
     } catch {
-      ilegivel = true;
+      ilegiveis.push(CAMPO_TELA[campo]);
       console.error('[CIFRA_SALARIOS_ILEGIVEL]', { codigoCargo: c.codigo, campo });
       return null;
     }
@@ -92,12 +95,12 @@ function salariosDe(c: CargoBanco, cifra: () => CifraSalarios): { salarios: Sala
     real: decifrar(c.salarioRealCifrado, 'salario_real'),
     definido: decifrar(c.salarioDefinidoCifrado, 'salario_definido'),
   };
-  return { salarios, ilegivel };
+  return { salarios, ilegiveis };
 }
 
 const NULOS = { minimo: null, maximo: null, funcaoGratificada: null, real: null, definido: null };
 
-function paraTela(c: CargoBanco, lidos: { salarios: SalariosCargo; ilegivel: boolean } | null): CargoTela {
+function paraTela(c: CargoBanco, lidos: { salarios: SalariosCargo; ilegiveis: Ilegivel[] } | null): CargoTela {
   const salarios = lidos?.salarios ?? null;
   const txt = (d: Dinheiro | null) => d?.paraString() ?? null;
   return {
@@ -117,7 +120,7 @@ function paraTela(c: CargoBanco, lidos: { salarios: SalariosCargo; ilegivel: boo
     salarioDaFonte: salarios && c.fonteAtiva ? txt(salarioDaFonte(salarios, c.fonteAtiva)) : null,
     adicional: c.adicionalTipo === 'PERICULOSIDADE' ? { tipo: 'PERICULOSIDADE' } : c.adicionalTipo === 'INSALUBRIDADE' && c.adicionalGrau ? { tipo: 'INSALUBRIDADE', grau: c.adicionalGrau } : null,
     desvioDeMercado: salarios ? desvioDeMercado(salarios) : null,
-    salariosIlegiveis: lidos?.ilegivel ?? false,
+    salariosIlegiveis: lidos?.ilegiveis ?? [],
     ativo: c.ativo,
     versao: c.versao,
   };
@@ -323,10 +326,19 @@ export async function regravarCifraSalarios(ctx: ContextoRequisicao, deps: Deps 
   const cargos = await cliente.cargo.findMany({ select: { id: true, codigo: true, salarioRealCifrado: true, funcaoGratificadaCifrada: true, salarioDefinidoCifrado: true } });
   const contexto = contextoDe(ctx);
 
+  // Envelope que não volta: o cargo fica de fora (log só do código e do campo, I9), e o resto segue.
+  const recifrar = (envelope: string, codigoCargo: string, campo: CampoCifrado): string | null => {
+    try {
+      return cifra.cifrar(cifra.decifrar(envelope, { codigoCargo, campo }), { codigoCargo, campo });
+    } catch {
+      console.error('[CIFRA_SALARIOS_ILEGIVEL]', { codigoCargo, campo });
+      return null;
+    }
+  };
   let manuais = 0;
   for (const c of cargos) {
-    const fg = antigo(c.funcaoGratificadaCifrada) ? cifra.cifrar(cifra.decifrar(c.funcaoGratificadaCifrada, { codigoCargo: c.codigo, campo: 'funcao_gratificada' }), { codigoCargo: c.codigo, campo: 'funcao_gratificada' }) : null;
-    const def = antigo(c.salarioDefinidoCifrado) ? cifra.cifrar(cifra.decifrar(c.salarioDefinidoCifrado, { codigoCargo: c.codigo, campo: 'salario_definido' }), { codigoCargo: c.codigo, campo: 'salario_definido' }) : null;
+    const fg = antigo(c.funcaoGratificadaCifrada) ? recifrar(c.funcaoGratificadaCifrada, c.codigo, 'funcao_gratificada') : null;
+    const def = antigo(c.salarioDefinidoCifrado) ? recifrar(c.salarioDefinidoCifrado, c.codigo, 'salario_definido') : null;
     if (!fg && !def) continue;
     await cliente.$transaction(async (tx) => {
       // Otimista e por coluna: a coluna alterada no meio (envelope já diferente do lido) não é
@@ -349,14 +361,12 @@ export async function regravarCifraSalarios(ctx: ContextoRequisicao, deps: Deps 
     });
   }
 
-  const reais = cargos.filter((c) => antigo(c.salarioRealCifrado));
-  if (reais.length === 0) return ok({ manuais, cargaId: null });
-  const linhas = reais.map((c, i) => ({
-    linha: i + 1,
-    codigo: c.codigo,
-    envelopeAntigo: c.salarioRealCifrado as string,
-    envelopeNovo: cifra.cifrar(cifra.decifrar(c.salarioRealCifrado as string, { codigoCargo: c.codigo, campo: 'salario_real' }), { codigoCargo: c.codigo, campo: 'salario_real' }),
-  }));
+  const linhas = cargos
+    .filter((c) => antigo(c.salarioRealCifrado))
+    .map((c) => ({ codigo: c.codigo, envelopeAntigo: c.salarioRealCifrado as string, envelopeNovo: recifrar(c.salarioRealCifrado as string, c.codigo, 'salario_real') }))
+    .filter((l): l is { codigo: string; envelopeAntigo: string; envelopeNovo: string } => l.envelopeNovo !== null)
+    .map((l, i) => ({ linha: i + 1, ...l }));
+  if (linhas.length === 0) return ok({ manuais, cargaId: null });
   const cargaId = randomUUID();
   try {
     await cliente.$transaction(async (tx) => {
@@ -367,8 +377,10 @@ export async function regravarCifraSalarios(ctx: ContextoRequisicao, deps: Deps 
       await auditar(tx, { contexto, funcionalidade: 'cad.cargos', tipo: 'INSERCAO', registroId: cargaId, descricao: 'Regravação dos salários com a chave atual solicitada', depois: { linhas: linhas.length } });
     });
   } catch (e) {
+    // Uma carga entrou entre a conferência e o lote: os manuais já foram regravados; o salário real
+    // fica para a próxima rodada (regravar com a chave atual é inofensivo).
     if (e instanceof Prisma.PrismaClientKnownRequestError && JSON.stringify(e.meta ?? {}).concat(e.message).includes('carga_estrutura_grupo_andamento_key')) {
-      return falha([{ campo: '_', mensagem: EM_ANDAMENTO }]);
+      return ok({ manuais, cargaId: null });
     }
     throw e;
   }

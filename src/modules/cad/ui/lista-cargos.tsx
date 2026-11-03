@@ -34,7 +34,7 @@ export function ListaCargos({
       faixa: c.faixa,
       nivel: c.nivel,
       fonte: c.fonteAtiva ? ROTULO_FONTE[c.fonteAtiva] : null,
-      salario: c.mascarado ? 'mascarado' : c.salarioDaFonte,
+      salario: c.mascarado ? 'mascarado' : c.salariosIlegiveis.length > 0 && c.salarioDaFonte === null ? 'ilegível' : c.salarioDaFonte,
       desvio: c.desvioDeMercado ? ROTULO_DESVIO[c.desvioDeMercado] : null,
       situacao: c.ativo ? 'Ativo' : 'Inativo',
     },

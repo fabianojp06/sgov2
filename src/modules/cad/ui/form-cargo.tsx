@@ -38,7 +38,9 @@ export function montarEnvioCargo(c: CargoTela, versao: number, f: Campos): Envio
     periculosidade: f.adicional === 'PERICULOSIDADE',
     insalubridade: f.adicional === 'INSALUBRIDADE' ? f.grau : null,
     fonteAtiva: f.fonteAtiva === '' ? null : f.fonteAtiva,
-    ...(c.mascarado ? {} : { funcaoGratificada: vazioParaNulo(f.funcaoGratificada), salarioDefinido: vazioParaNulo(f.salarioDefinido) }),
+    // Mascarado não envia salário; o ilegível também não (vazio na tela, mandar null apagaria o gravado).
+    ...(c.mascarado || c.salariosIlegiveis.includes('funcaoGratificada') ? {} : { funcaoGratificada: vazioParaNulo(f.funcaoGratificada) }),
+    ...(c.mascarado || c.salariosIlegiveis.includes('definido') ? {} : { salarioDefinido: vazioParaNulo(f.salarioDefinido) }),
   };
 }
 
@@ -109,7 +111,9 @@ export function FormCargo({ cargo, podeAlterar, alterar }: { cargo: CargoTela; p
         {!cargo.mascarado && <Somente id="real" rotulo="Salário real" valor={cargo.salarios.real ? emReais(cargo.salarios.real) : ''} />}
       </fieldset>
       {cargo.mascarado && <p>Os salários ficam mascarados: você não tem a permissão de ver salários.</p>}
-      {cargo.salariosIlegiveis && <p role="alert">Algum salário deste cargo não pôde ser lido (chave de cifra). Avise o administrador.</p>}
+      {cargo.salariosIlegiveis.length > 0 && (
+        <p role="alert">Algum salário deste cargo não pôde ser lido (chave de cifra) e não muda ao salvar. Avise o administrador.</p>
+      )}
       <fieldset disabled={bloqueado}>
         <legend>Mercado e salários</legend>
         {!cargo.mascarado && (

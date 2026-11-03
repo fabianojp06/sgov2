@@ -171,7 +171,9 @@ describe('alterarCargo', () => {
     const semK0 = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: K1, CHAVE_CIFRA_SALARIOS_ID: 'k1' });
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const [c] = await listarCargos(grh(), { cliente: app, cifra: semK0 });
-    expect(c).toMatchObject({ salariosIlegiveis: true, salarios: { real: null } });
+    expect(c).toMatchObject({ salariosIlegiveis: ['real'], salarios: { real: null } });
+    // A regravação pula o ilegível, com o log, em vez de parar.
+    expect(await regravarCifraSalarios(grh(), { cliente: app, cifra: semK0 })).toEqual({ ok: true, valor: { manuais: 0, cargaId: null } });
     expect(log).toHaveBeenCalledWith('[CIFRA_SALARIOS_ILEGIVEL]', { codigoCargo: 'C1', campo: 'salario_real' });
   });
 

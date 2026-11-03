@@ -34,7 +34,7 @@ const aberto: CargoTela = {
   salarioDaFonte: '10200.00',
   adicional: null,
   desvioDeMercado: 'DENTRO',
-  salariosIlegiveis: false,
+  salariosIlegiveis: [],
   ativo: true,
   versao: 2,
 };
@@ -60,7 +60,7 @@ describe('FormCargo (SSR)', () => {
     // Exibição em pt-BR.
     expect(h).toContain('R$ 10.200,00');
     expect(h).not.toContain('Avise o administrador');
-    expect(html({ ...aberto, salariosIlegiveis: true })).toContain('Avise o administrador');
+    expect(html({ ...aberto, salariosIlegiveis: ['funcaoGratificada'] })).toContain('Avise o administrador');
   });
 
   it('mascarado (R24): nenhum valor no HTML, o aviso, e sem os campos de salário', () => {
@@ -75,6 +75,13 @@ describe('FormCargo (SSR)', () => {
     const envio = montarEnvioCargo(mascarado, 2, camposIniciais(mascarado));
     expect('funcaoGratificada' in envio || 'salarioDefinido' in envio).toBe(false);
     expect(montarEnvioCargo(aberto, 2, { ...camposIniciais(aberto), adicional: 'INSALUBRIDADE', grau: 'MEDIO' })).toMatchObject({ periculosidade: false, insalubridade: 'MEDIO' });
+  });
+
+  it('salário ilegível não vai no envio (mandar null apagaria o gravado)', () => {
+    const ilegivel = { ...aberto, salariosIlegiveis: ['funcaoGratificada'] as const, salarios: { ...aberto.salarios, funcaoGratificada: null } };
+    const envio = montarEnvioCargo(ilegivel, 2, camposIniciais(ilegivel));
+    expect('funcaoGratificada' in envio).toBe(false);
+    expect(envio).toMatchObject({ salarioDefinido: null });
   });
 
   it('sem poder alterar: sem Salvar', () => {
