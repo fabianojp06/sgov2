@@ -33,3 +33,15 @@ export { acaoAlterarCargo, acaoConsultarCargaCargos, acaoImportarCargos, acaoReg
 export { listarCargos, obterCargo } from './application/cargos';
 export { FormCargo } from './ui/form-cargo';
 export { ListaCargos } from './ui/lista-cargos';
+
+// Tabela salarial e senioridades (US-049 parte 3): ações, leitura e tela.
+export {
+  acaoAlterarFaixa,
+  acaoCopiarFaixaParaCargo,
+  acaoIncluirFaixa,
+  acaoIncluirSenioridade,
+  acaoInativarFaixa,
+  acaoInativarSenioridade,
+} from './application/acoes-tabela-salarial';
+export { listarOpcoesCargos, listarTabelaSalarial } from './application/tabela-salarial';
+export { TabelaSalarial } from './ui/tabela-salarial';

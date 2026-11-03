@@ -74,6 +74,23 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
       DIREX: ['consultar', 'exportar'],
     },
   },
+  {
+    codigo: 'cad.tabela_salarial',
+    modulo: 'CADASTROS',
+    grupo: 'Pessoal',
+    nome: 'Tabela Salarial',
+    rota: '/cad/tabela-salarial',
+    ordem: 4,
+    nivelLog: 'SIMPLES',
+    ajuda:
+      'Faixas salariais de mercado por cargo e senioridade (pesquisa externa, sem vínculo com o Rubi). No cargo, escolher uma faixa ' +
+      'preenche o mínimo e o máximo. Júnior, Pleno e Sênior são padrão; outras senioridades podem ser incluídas.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ANALISTA_GRH: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar'],
+    },
+  },
   // R24: ver salário sem máscara é permissão própria, auditada, fora do menu (C6 exibirNoMenu). Pendência P5.
   {
     codigo: 'cad.salarios',
