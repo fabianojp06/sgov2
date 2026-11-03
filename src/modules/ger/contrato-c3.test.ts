@@ -3,7 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Competencia, Dinheiro, ok, Percentual } from '@/shared/kernel';
 import { ehCaminhoInterno } from './domain/navegacao';
-import { errosDoCampo, idErroDoCampo } from './ui/formulario-logica';
+import { descricaoDoCampo, errosDoCampo, idErroDoCampo } from './ui/formulario-logica';
 import { expansaoInicial, lerExpansaoSalva, visiveis } from './ui/grade-logica';
 import * as ger from '@/modules/ger';
 import {
@@ -18,6 +18,7 @@ import {
   exportarXlsxFalso,
   formatarCelula,
   Formulario,
+  LegendaComErro,
   GradeArvore,
   LIMITE_EXPORTACAO_SINCRONA,
   type ColunaGrade,
@@ -140,6 +141,13 @@ describe('Formulario', () => {
     expect(html).toContain('>Gravar</button>');
     expect(html).not.toContain('role="alert"');
   });
+
+  it('#229: LegendaComErro renderiza a legenda; sem erro, nenhum id de erro no HTML', () => {
+    const campos = createElement('fieldset', { name: 'forma' }, createElement(LegendaComErro, { campo: 'forma', children: 'Forma' }), createElement('input', { type: 'radio', name: 'forma', value: 'a' }));
+    const html = renderToString(createElement(Formulario, { acao: async () => ok(null), children: campos }));
+    expect(html).toMatch(/<legend>Forma/);
+    expect(html).not.toContain('erro-forma');
+  });
 });
 
 describe('API pública do ger (C3)', () => {
@@ -147,6 +155,7 @@ describe('API pública do ger (C3)', () => {
     expect(typeof ger.GradeArvore).toBe('function');
     expect(typeof ger.Formulario).toBe('function');
     expect(typeof ger.ErroDoCampo).toBe('function');
+    expect(typeof ger.LegendaComErro).toBe('function');
     expect(typeof ger.exportarXlsx).toBe('function');
     expect(typeof ger.exportarXlsxFalso).toBe('function');
     // Filtros da Tree Grid (US-021 parte 3): props opcionais filtros e escopoSessao.
@@ -262,6 +271,16 @@ describe('lógica do formulário', () => {
     expect(errosDoCampo(erros, 'nome')).toEqual(['Obrigatório.', 'Curto demais.']);
     expect(errosDoCampo(erros, 'email')).toEqual([]);
     expect(idErroDoCampo('nome')).toBe('erro-nome');
+  });
+
+  it('#229: o erro-<campo> entra no aria-describedby só com erro e sai sem erro, sem perder as outras descrições', () => {
+    expect(descricaoDoCampo(null, 'ano', true)).toBe('erro-ano');
+    expect(descricaoDoCampo('erro-ano', 'ano', false)).toBeNull();
+    expect(descricaoDoCampo('regra erro-justificativa', 'justificativa', false)).toBe('regra');
+    expect(descricaoDoCampo('regra', 'justificativa', true)).toBe('regra erro-justificativa');
+    // Sem repetir o id; o de outro campo não é tocado.
+    expect(descricaoDoCampo('erro-ano', 'ano', true)).toBe('erro-ano');
+    expect(descricaoDoCampo('erro-anos', 'ano', false)).toBe('erro-anos');
   });
 
   it('só caminho interno serve de destino', () => {

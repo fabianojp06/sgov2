@@ -19,7 +19,7 @@ export {
   type NoGrade,
   type PropsGradeArvore,
 } from './ui/grade-arvore';
-export { ErroDoCampo, Formulario, type PropsFormulario } from './ui/formulario';
+export { ErroDoCampo, Formulario, LegendaComErro, type PropsFormulario } from './ui/formulario';
 export {
   aplicarFiltros,
   lerFiltrosSalvos,
