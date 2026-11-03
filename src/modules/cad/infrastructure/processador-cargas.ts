@@ -114,16 +114,30 @@ type Lote = {
   aprovacao_documento: string | null;
 };
 
-// Diagnóstico para o log: classe, código do Prisma/Postgres e a mensagem do banco (cita só
-// estrutura, como a classificação; nunca o conteúdo de uma linha do staging).
-function diagnostico(e: unknown): Record<string, unknown> {
+// Diagnóstico para o log: classe, código do Prisma/Postgres e a mensagem do banco, só com estrutura
+// (tabela, restrição, coluna), nunca o conteúdo de uma linha (Task 12a: o salário cifrado, o nome).
+// O Postgres põe valores no fim da mensagem ("Failing row contains (...)", "Key (codigo)=(C1)") e o
+// meta do Prisma pode trazer a causa do driver: do meta, só as chaves de estrutura.
+const META_PERMITIDO = new Set(['modelName', 'target', 'constraint', 'field_name', 'column_name', 'table', 'code']);
+
+export function textoSemValores(mensagem: string): string {
+  return mensagem
+    .replace(/\s*(Failing row contains|DETAIL:|Detalhe:|A linha que falhou contém).*$/is, '')
+    .replace(/=\([^)]*\)/g, '=(…)')
+    .slice(0, 300);
+}
+
+export function diagnostico(e: unknown): Record<string, unknown> {
   if (!(e instanceof Error)) return { erro: 'desconhecido' };
   const d: Record<string, unknown> = { erro: e.name };
-  if (e instanceof Prisma.PrismaClientKnownRequestError) Object.assign(d, { code: e.code, meta: e.meta });
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    const meta = Object.fromEntries(Object.entries(e.meta ?? {}).filter(([k, v]) => META_PERMITIDO.has(k) && (typeof v === 'string' || Array.isArray(v))));
+    Object.assign(d, { code: e.code, meta });
+  }
   if (e instanceof Prisma.PrismaClientKnownRequestError || e instanceof Prisma.PrismaClientUnknownRequestError) {
-    d.mensagem = e.message.split('\n').slice(-1)[0]?.slice(0, 300);
+    d.mensagem = textoSemValores(e.message.split('\n').slice(-1)[0] ?? '');
   } else if (!(e instanceof ErroStaging) && !(e instanceof ErroCargaLinhas) && e.name !== 'ZodError') {
-    d.mensagem = e.message.slice(0, 300);
+    d.mensagem = textoSemValores(e.message);
   }
   return d;
 }
