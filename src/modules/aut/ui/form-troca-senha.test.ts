@@ -17,6 +17,7 @@ describe('FormTrocaSenha (UC02.19)', () => {
     expect(renderToString(createElement(FormTrocaSenha, { login: 'ana', obrigatoria: false, trocar }))).toContain('Senha atual'));
   it('confirmação com Sim e Não', () => {
     const html = renderToString(createElement(FormTrocaSenha, { login: 'ana', obrigatoria: true, trocar, confirmando: true }));
+    expect(html).not.toContain('aria-modal');
     expect(html).toContain('Deseja confirmar a alteração da senha?');
     expect(html).toContain('Sim');
     expect(html).toContain('Não');

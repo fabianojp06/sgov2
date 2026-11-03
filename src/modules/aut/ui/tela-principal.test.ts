@@ -85,6 +85,15 @@ describe('error.tsx do (sistema): erro de página', () => {
     expect(html).toContain('Sair');
   });
 
+  it('Sair aberto: caixa Sim/Não rotulada pela pergunta, sem aria-modal', async () => {
+    const { SairComConfirmacao } = await import('../../../app/(sistema)/aut/sair-com-confirmacao');
+    const html = renderToString(createElement(SairComConfirmacao, { aberto: true }));
+    expect(html).toContain('role="alertdialog" aria-labelledby="sair-erro-pergunta"');
+    expect(html).toContain('<p id="sair-erro-pergunta">Deseja realmente sair?</p>');
+    expect(html).toMatch(/>Sim<\/button>.*>Não<\/button>/s);
+    expect(html).not.toContain('aria-modal');
+  });
+
   it('a saída encerra a sessão no servidor como o sairDoSistema (E1.3)', async () => {
     const { sairComErro } = await import('../../../app/(sistema)/aut/sair-erro');
     const fetchFalso = vi.fn(async () => new Response(null, { status: 204 }));
