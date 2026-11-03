@@ -218,10 +218,11 @@ export function FormCargo({
           </div>
         )}
       </fieldset>
+      {/* O link aparece também sem faixa: é quando a GRH mais precisa ir criar uma. */}
+      {!cargo.mascarado && copiarFaixa && <a href={`/cad/tabela-salarial?cargo=${cargo.id}`}>Abrir a tabela salarial deste cargo</a>}
       {!bloqueado && !cargo.mascarado && copiarFaixa && faixas.length > 0 && (
         <section aria-labelledby="titulo-tabela-salarial">
           <h2 id="titulo-tabela-salarial">Tabela salarial deste cargo</h2>
-          <a href={`/cad/tabela-salarial?cargo=${cargo.id}`}>Abrir a tabela salarial deste cargo</a>
           <ul>
             {faixas.map((fx) => (
               <li key={fx.id}>

@@ -195,7 +195,7 @@ describe('regras que os mutantes pegam', () => {
     const r = await incluirSenioridade(grh(), 'Trainee', { cliente: app });
     if (!r.ok) throw new Error('recusada');
     await inativarSenioridade(grh(), r.valor.id, { cliente: app });
-    expect(await incluirSenioridade(grh(), 'trainee', { cliente: app })).toEqual({ ok: true, valor: { id: r.valor.id } });
+    expect(await incluirSenioridade(grh(), 'trainee', { cliente: app })).toEqual({ ok: true, valor: { id: r.valor.id, nome: 'Trainee', reativada: true } });
     expect((await migrator.query('SELECT ativa FROM senioridade WHERE id = $1', [r.valor.id])).rows[0].ativa).toBe(true);
   });
 
@@ -203,7 +203,9 @@ describe('regras que os mutantes pegam', () => {
     const { acaoCopiarFaixaParaCargo } = await import('./acoes-tabela-salarial');
     const id = await faixa();
     contexto = gfin();
+    const v = await versaoCargo();
     expect(await acaoCopiarFaixaParaCargo({ idCargo: cargoId, idFaixa: id, versaoFaixa: 1, versao: 1 })).toMatchObject({ ok: false, status: 403 });
+    expect(await versaoCargo()).toBe(v);
     expect(negacoes).toEqual([expect.objectContaining({ funcionalidade: 'cad.cargos' })]);
     contexto = grh();
     const antes = Number((await migrator.query('SELECT count(*) AS n FROM historico_operacao')).rows[0].n);

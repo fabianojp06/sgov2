@@ -49,7 +49,7 @@ const tela = (x: Partial<Parameters<typeof TabelaSalarial>[0]> = {}) =>
       incluirFaixa: ok,
       alterarFaixa: ok,
       inativarFaixa: ok,
-      incluirSenioridade: ok,
+      incluirSenioridade: async () => ({ ok: true as const, valor: { reativada: false, nome: 'x' } }),
       inativarSenioridade: ok,
       ...x,
     }),

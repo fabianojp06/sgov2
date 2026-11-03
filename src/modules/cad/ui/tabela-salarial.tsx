@@ -8,6 +8,7 @@ import type { FaixaTela, SenioridadeTela } from '../domain/cargo-tela';
 // Tabela salarial de mercado e senioridades (US-049 parte 3; UC03.19 §5). A exclusão é inativação.
 // Júnior, Pleno e Sênior são padrão e não se inativam (RN_TAB_01).
 type Resposta = { ok: true; valor?: unknown } | { ok: false; erros: readonly ErroCampo[] };
+type RespostaSenioridade = { ok: true; valor: { reativada: boolean; nome: string } } | { ok: false; erros: readonly ErroCampo[] };
 type Colunas = 'cargo' | 'senioridade' | 'minimo' | 'maximo' | 'situacao';
 type DadosFaixa = { cargoId: string; senioridadeId: string; minimo: string; maximo: string };
 
@@ -35,7 +36,7 @@ export function TabelaSalarial({
   incluirFaixa: (e: DadosFaixa) => Promise<Resposta>;
   alterarFaixa: (e: DadosFaixa & { idFaixa: string; versao: number }) => Promise<Resposta>;
   inativarFaixa: (e: { idFaixa: string; versao: number }) => Promise<Resposta>;
-  incluirSenioridade: (e: { nome: string }) => Promise<Resposta>;
+  incluirSenioridade: (e: { nome: string }) => Promise<RespostaSenioridade>;
   inativarSenioridade: (e: { idSenioridade: string }) => Promise<Resposta>;
 }) {
   const [editando, setEditando] = useState<{ id: string | null; versao: number; dados: DadosFaixa } | null>(null);
@@ -48,14 +49,14 @@ export function TabelaSalarial({
   const erroDe = (c: string) => erros.filter((e) => e.campo === c).map((e) => e.mensagem).join(' ');
   const gerais = erros.filter((e) => !['cargoId', 'senioridadeId', 'minimo', 'maximo', 'nome'].includes(e.campo)).map((e) => e.mensagem);
 
-  const executar = (acao: () => Promise<Resposta>, sucesso: string, fechar = true, depois?: () => void) =>
+  const executar = (acao: () => Promise<Resposta>, sucesso: string | ((r: Resposta) => string), fechar = true, depois?: () => void) =>
     iniciar(async () => {
       setAviso('');
       try {
         const r = await acao();
         if (r.ok) {
           setErros([]);
-          setAviso(sucesso);
+          setAviso(typeof sucesso === 'string' ? sucesso : sucesso(r));
           depois?.();
           if (fechar) setEditando(null);
         } else setErros(r.erros);
@@ -196,7 +197,15 @@ export function TabelaSalarial({
             onSubmit={(e) => {
               e.preventDefault();
               // O nome só some se der certo: com erro ("Já existe…"), fica para corrigir.
-              executar(() => incluirSenioridade({ nome: novaSenioridade }), `Senioridade ${novaSenioridade.trim()} incluída.`, false, () => setNovaSenioridade(''));
+              executar(
+                () => incluirSenioridade({ nome: novaSenioridade }),
+                (r) => {
+                  const v = (r as Extract<RespostaSenioridade, { ok: true }>).valor;
+                  return v?.reativada ? `Senioridade ${v.nome} reativada.` : `Senioridade ${novaSenioridade.trim()} incluída.`;
+                },
+                false,
+                () => setNovaSenioridade(''),
+              );
             }}
             noValidate
           >

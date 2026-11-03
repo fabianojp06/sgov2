@@ -171,7 +171,7 @@ export async function inativarFaixaSalarial(ctx: ContextoRequisicao, id: string,
 }
 
 /** RN_TAB_01: a GRH cadastra novos níveis (cad.tabela_salarial:incluir). */
-export async function incluirSenioridade(ctx: ContextoRequisicao, nome: string, deps: Deps = {}): Promise<Resultado<{ id: string }>> {
+export async function incluirSenioridade(ctx: ContextoRequisicao, nome: string, deps: Deps = {}): Promise<Resultado<{ id: string; nome: string; reativada: boolean }>> {
   exigir(ctx, FUNC, 'incluir');
   const n = nome.trim();
   if (n.length < 1 || n.length > 40 || /[\p{Cc}\p{Cf}]/u.test(n)) return falha([{ campo: 'nome', mensagem: 'Informe o nome da senioridade, com até 40 caracteres.' }]);
@@ -182,11 +182,11 @@ export async function incluirSenioridade(ctx: ContextoRequisicao, nome: string, 
     if (existe) {
       await tx.senioridade.update({ where: { id: existe.id }, data: { ativa: true } });
       await auditar(tx, { contexto: contextoDe(ctx), funcionalidade: FUNC, tipo: 'ALTERACAO', registroId: existe.id, descricao: `Senioridade ${existe.nome} reativada`, antes: { ativa: false }, depois: { ativa: true } });
-      return ok({ id: existe.id });
+      return ok({ id: existe.id, nome: existe.nome, reativada: true });
     }
     const s = await tx.senioridade.create({ data: { nome: n }, select: { id: true } });
     await auditar(tx, { contexto: contextoDe(ctx), funcionalidade: FUNC, tipo: 'INSERCAO', registroId: s.id, descricao: `Senioridade ${n} incluída`, depois: { nome: n } });
-    return ok({ id: s.id });
+    return ok({ id: s.id, nome: n, reativada: false });
   });
 }
 
@@ -195,6 +195,9 @@ export async function inativarSenioridade(ctx: ContextoRequisicao, id: string, d
   exigir(ctx, FUNC, 'excluir');
   if (!UUID.test(id)) return falha([{ campo: '_', mensagem: 'Senioridade inválida. Recarregue a tela.' }]);
   return (deps.cliente ?? prisma).$transaction(async (tx: TxCliente) => {
+    // FOR UPDATE: espera a inclusão de faixa que travou a senioridade, e a contagem abaixo já a vê
+    // (a mensagem amigável, em vez do erro do trigger).
+    await tx.$queryRaw`SELECT 1 FROM "senioridade" WHERE "id" = ${id}::uuid FOR UPDATE`;
     const s = await tx.senioridade.findUnique({ where: { id } });
     if (!s || !s.ativa) return falha([{ campo: '_', mensagem: 'Senioridade não encontrada ou já inativa. Recarregue a tela.' }]);
     if (s.padrao) return falha([{ campo: '_', mensagem: MSG_SENIORIDADE_PADRAO }]);
