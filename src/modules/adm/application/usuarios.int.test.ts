@@ -231,6 +231,8 @@ describe('alterarUsuario (UC02.13)', () => {
       if (!r.ok) throw new Error('esperava sucesso');
       // Depois que a estrutura muda, o Salvar mantém o CC gravado, mas não aceita trocar para outro fora dela.
       estrutura = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => inativar(inativar(n, '4.3.0'), '4.3.2')) });
+      // Sintético ativo sem nenhum analítico ativo embaixo, como valor novo: recusado (não basta existir).
+      expect(await cadastrarUsuario(ctx, gestor('quim', '4.3'), deps())).toEqual(recusa);
       const antes = await usuario(r.valor.id);
       expect(await alterarUsuario(ctx, r.valor.id, antes.versao, { ...gestor('caio', '4.3'), nome: 'Caio Lima' }, deps())).toEqual({ ok: true, valor: undefined });
       const depois = await usuario(r.valor.id);
