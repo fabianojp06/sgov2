@@ -394,6 +394,14 @@ describe('resetarSenha (UC02.13 A2, UC02.18)', () => {
     expect((await usuario(id)).senhaHash).toBe(antes.senhaHash);
     expect(email.enviados.filter((e) => e.modelo === 'usuario.senha_redefinida')).toEqual([]);
   });
+  it('usuário bloqueado: pede o desbloqueio antes, nada muda e nenhum e-mail', async () => {
+    const id = await cadastrar('jonas');
+    await migrator.usuario.update({ where: { id }, data: { bloqueado: true, tentativasFalhas: 5 } });
+    const antes = await usuario(id);
+    expect(await resetarSenha(ctx, id, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_USUARIO.RESET_BLOQUEADO }] });
+    expect(await usuario(id)).toMatchObject({ senhaHash: antes.senhaHash, acessoVersao: antes.acessoVersao, bloqueado: true });
+    expect(email.enviados.filter((e) => e.modelo === 'usuario.senha_redefinida')).toEqual([]);
+  });
 });
 
 describe('usuário inexistente', () => {
@@ -494,11 +502,14 @@ describe('atomicidade (§10.2, item 1)', () => {
 
   it('reset com o e-mail falhando e desbloqueio com a auditoria falhando: nada muda', async () => {
     const id = await cadastrar('leo');
-    await migrator.usuario.update({ where: { id }, data: { bloqueado: true, tentativasFalhas: 5 } });
-    const antes = await usuario(id);
     const desde = (await historico(id)).length;
+    // O reset vem antes do bloqueio: usuário bloqueado nem chega ao e-mail (RESET_BLOQUEADO).
+    const senhaAntes = (await usuario(id)).senhaHash;
     const quebrado = { ...deps(), enviarEmail: async () => Promise.reject(new Error('outbox indisponível')) };
     await expect(resetarSenha(ctx, id, quebrado)).rejects.toThrow('outbox indisponível');
+    expect((await usuario(id)).senhaHash).toBe(senhaAntes);
+    await migrator.usuario.update({ where: { id }, data: { bloqueado: true, tentativasFalhas: 5 } });
+    const antes = await usuario(id);
     falhas.auditar = true;
     await expect(desbloquearUsuario(ctx, id, deps())).rejects.toThrow('auditoria indisponível');
     const depois = await usuario(id);
