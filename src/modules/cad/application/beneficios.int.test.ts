@@ -8,7 +8,7 @@ import type { EntradaBeneficio } from '../domain/beneficios';
 import { congelarPremissasExercicio, garantirPremissasExercicio } from '../infrastructure/premissas';
 import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
-import { alterarBeneficioMestre, incluirBeneficioMestre, listarBeneficiosMestre } from './beneficios';
+import { alterarBeneficioMestre, incluirBeneficioMestre, listarAnosBeneficios, listarBeneficiosMestre } from './beneficios';
 
 // US-050 parte 1 (plano do P4, Task 10, Step 1), com Postgres real. Os testes compartilham o banco e
 // dependem da ordem (o congelamento de 2027 vem por último).
@@ -71,6 +71,11 @@ describe('Tabela Mestre de Benefícios', () => {
     ]);
     expect(itens.every((i) => i.provisorio && i.valor === null)).toBe(true);
     expect(itens.filter((i) => i.padraoPosicao).map((i) => i.codigo)).toEqual(['beneficio.saude_basico', 'beneficio.seguro_vida', 'beneficio.vr']);
+  });
+
+  it('exercícios para o seletor de ano: os que têm parâmetros; exige consultar', async () => {
+    expect(await listarAnosBeneficios(gfin(), { cliente: app })).toEqual([2027]);
+    await expect(listarAnosBeneficios(ctx([]), { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
   });
 
   it('alteração auditada, sai do provisório e incrementa a versão do ano (I6)', async () => {

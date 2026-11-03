@@ -68,6 +68,12 @@ export async function listarBeneficiosMestre(ctx: ContextoRequisicao, ano: numbe
   return lerBeneficiosMestre(deps.cliente ?? prisma, ano);
 }
 
+/** Exercícios com parâmetros, do mais recente ao mais antigo: os que têm Tabela Mestre (seletor de ano). */
+export async function listarAnosBeneficios(ctx: ContextoRequisicao, deps: Deps = {}): Promise<readonly number[]> {
+  exigir(ctx, FUNCIONALIDADE, 'consultar');
+  return (await (deps.cliente ?? prisma).parametrosExercicio.findMany({ select: { ano: true }, orderBy: { ano: 'desc' } })).map((p) => p.ano);
+}
+
 export async function incluirBeneficioMestre(ctx: ContextoRequisicao, ano: number, dados: EntradaBeneficio, deps: Deps = {}): Promise<Resultado<void>> {
   exigir(ctx, FUNCIONALIDADE, 'incluir');
   const cliente = deps.cliente ?? prisma;
