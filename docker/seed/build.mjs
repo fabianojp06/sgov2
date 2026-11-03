@@ -19,6 +19,9 @@ await build({
   format: 'esm',
   tsconfig: 'tsconfig.json',
   jsx: 'automatic',
+  // Como o worker: só arquivo e linha nas pilhas (--enable-source-maps), sem o código-fonte.
+  sourcemap: 'linked',
+  sourcesContent: false,
   external: ['@node-rs/argon2'],
   // Dependências CommonJS com require() de módulos do Node dentro de um bundle ESM.
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
