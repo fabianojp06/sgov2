@@ -245,30 +245,50 @@ describe('importação dos cargos do Rubi (R20)', () => {
 });
 
 describe('contexto de auditoria do lote (#266, #268)', () => {
+  // O trigger protege a transição do lote: o teste o desliga só para forjar o contexto gravado pelo app.
+  const forjar = async (cargaId: string, contexto: Record<string, unknown>) => {
+    await migrator.query('ALTER TABLE carga_estrutura DISABLE TRIGGER carga_estrutura_transicao');
+    try {
+      await migrator.query(`UPDATE carga_estrutura SET contexto_auditoria = contexto_auditoria || $2::jsonb WHERE id = $1`, [cargaId, JSON.stringify(contexto)]);
+    } finally {
+      await migrator.query('ALTER TABLE carga_estrutura ENABLE TRIGGER carga_estrutura_transicao');
+    }
+  };
+  const historicoDa = async (cargaId: string) =>
+    (await migrator.query(`SELECT unidade_id FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND (registro_id = 'C1' OR registro_id = $1::text) AND ocorrido_em >= (SELECT criado_em FROM carga_estrutura WHERE id = $1::uuid)`, [cargaId])).rows;
+
   const solicitar = async (extra: Partial<ContextoRequisicao>) => {
     const ctx = { ...grh(), ...extra };
     const r = await solicitarCargaCargos(ctx, await xlsx([linha('C1')]), { cliente: app, cifra });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
     await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
-    return await consultarCarga(grh(), r.valor.cargaId, { cliente: app });
+    return { id: r.valor.cargaId, carga: await consultarCarga(grh(), r.valor.cargaId, { cliente: app }) };
   };
 
-  it('cadastro global: com um TP no seletor, o Histórico da carga sai com unidade nula', async () => {
-    const carga = await solicitar({ unidadeId: '00000000-0000-4000-8000-000000000002' });
+  it('cadastro global: com um TP no seletor, a solicitação (app) e a carga (worker) saem com unidade nula', async () => {
+    const { id, carga } = await solicitar({ unidadeId: '00000000-0000-4000-8000-000000000002' });
     expect(carga?.situacao).toBe('CONCLUIDA');
-    const h = await migrator.query(`SELECT unidade_id FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND registro_id = 'C1'`);
-    expect(h.rows.length).toBeGreaterThan(0);
-    expect(h.rows.every((x) => x.unidade_id === null)).toBe(true);
+    const h = await historicoDa(id);
+    expect(h.length).toBeGreaterThanOrEqual(2);
+    expect(h.every((x) => x.unidade_id === null)).toBe(true);
+  });
+
+  it('lote com unidade gravada (anterior ao deploy ou forjado): o worker grava unidade nula', async () => {
+    const r = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    await forjar(r.valor.cargaId, { unidadeId: '00000000-0000-4000-8000-000000000003' });
+    await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+    expect((await consultarCarga(grh(), r.valor.cargaId, { cliente: app }))?.situacao).toBe('CONCLUIDA');
+    const h = (await migrator.query(`SELECT unidade_id FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND registro_id = 'C1'`)).rows;
+    expect(h.length).toBeGreaterThan(0);
+    expect(h.every((x) => x.unidade_id === null)).toBe(true);
   });
 
   it('sessaoUid vazio: o app recusa ao auditar; num lote forjado, o worker recusa, o lote FALHOU e nada é aplicado', async () => {
     await expect(solicitar({ sessaoUid: '' })).rejects.toMatchObject({ codigo: 'AUDITORIA_INVALIDA' });
     const r = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
-    // O trigger protege a entrada do lote: o teste o desliga só para forjar o contexto.
-    await migrator.query('ALTER TABLE carga_estrutura DISABLE TRIGGER USER');
-    await migrator.query(`UPDATE carga_estrutura SET contexto_auditoria = contexto_auditoria || '{"sessaoUid": ""}'::jsonb WHERE id = $1`, [r.valor.cargaId]);
-    await migrator.query('ALTER TABLE carga_estrutura ENABLE TRIGGER USER');
+    await forjar(r.valor.cargaId, { sessaoUid: '' });
     await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
     expect((await consultarCarga(grh(), r.valor.cargaId, { cliente: app }))?.situacao).toBe('FALHOU');
     expect(await cargo('C1')).toBeUndefined();
