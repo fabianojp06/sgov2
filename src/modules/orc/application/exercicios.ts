@@ -5,11 +5,11 @@ import { ErroPermissao, exigir, type ContextoRequisicao } from '@/shared/authz';
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import { anoPadrao, exercicioOrigemDaCopia, ROTULO_SITUACAO, transicionar, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
-import { RAIZES_CONTAS_PESSOAL } from '../domain/planilha';
 import { contextoAuditoria, ErroRecalculo, recalcularExercicio, travarExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
+import { contasVetadasEmPacote } from './contas-vetadas';
 
 // Exercícios do orçamento da Adm. Central (US-055; plano do P6, Task 3; spec §6.6).
 
@@ -78,13 +78,13 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
         // posições e pacotes saem do mesmo estado.
         await tx.$queryRaw`SELECT 1 FROM orc_exercicio WHERE id = ${origem.id}::uuid FOR SHARE`;
         const indice = await deps.estrutura.carregarIndiceEstrutura(tx);
-        const contasPessoal = new Set(RAIZES_CONTAS_PESSOAL.flatMap((r) => indice.contasAnaliticasSob(r)));
+        const contasVetadas = contasVetadasEmPacote(indice, await deps.custoPessoal.obterPremissasExercicio(tx, ano));
         const [posicoes, pacotes] = await Promise.all([
           tx.posicaoOrcada.findMany({ where: { exercicioId: origem.id } }),
           tx.pacoteBaseZero.findMany({ where: { exercicioId: origem.id } }),
         ]);
         const posicoesValidas = posicoes.filter((p) => indice.centroCustoAnalitico(p.cc));
-        const pacotesValidos = pacotes.filter((k) => indice.centroCustoAnalitico(k.cc) && indice.contaAnaliticaAtiva(k.conta) && !contasPessoal.has(k.conta));
+        const pacotesValidos = pacotes.filter((k) => indice.centroCustoAnalitico(k.cc) && indice.contaAnaliticaAtiva(k.conta) && !contasVetadas.has(k.conta));
         await tx.posicaoOrcada.createMany({
           data: posicoesValidas.map(({ cc, cargo, quantidade, salarioMensal, mesInicio, mesSaida, observacao }) => ({
             exercicioId: novo.id, cc, cargo, quantidade, salarioMensal, mesInicio, mesSaida, observacao, origem: 'COPIA',

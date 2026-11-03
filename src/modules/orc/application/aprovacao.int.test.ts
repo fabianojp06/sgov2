@@ -4,6 +4,7 @@ import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { aprovarExercicio, enviarParaAprovacao, listarTramites, rejeitarExercicio } from './aprovacao';
+import { conferirSnapshot } from '../infrastructure/snapshot';
 import { recalcular, recalcularExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { importarPlanilha } from './importacao';
@@ -218,6 +219,11 @@ describe('aprovarExercicio', () => {
     // Um UPDATE no exercício oficializado é recusado pelo banco.
     await expect(app.$executeRaw`UPDATE orc_exercicio SET versao = versao + 1 WHERE id = ${e.id}::uuid`).rejects.toThrow(/orc\.exercicio_oficializado/);
     expect(snap.sha256).toMatch(/^[0-9a-f]{64}$/);
+    // O sha256 confere com o conteúdo relido do banco (jsonb reordenado); alterado, não confere.
+    expect(conferirSnapshot(snap.conteudo, snap.sha256)).toBe(true);
+    expect(conferirSnapshot({ ...c, ano: c.ano + 1 }, snap.sha256)).toBe(false);
+    // Sem o salário de cada posição (D-P6-1, decisão do PO de 03/11).
+    expect(Object.keys(c.posicoes[0] as object).sort()).toEqual(['cargo', 'cc', 'id', 'mesInicio', 'mesSaida', 'quantidade']);
     expect(e.custo.congelados.has(e.ano)).toBe(true);
     expect((await listarTramites(DIREX(), e.id, e.deps())).map((t) => t.para)).toEqual(['Em Aprovação', 'Oficializado']);
     await expect(app.$executeRaw`UPDATE orc_snapshot SET sha256 = ${'0'.repeat(64)} WHERE exercicio_id = ${e.id}::uuid`).rejects.toThrow(/permission denied/);
