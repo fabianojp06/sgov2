@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, type FormEvent } from 'react';
+import { useFocoDialogo } from './foco-dialogo';
 import { MENSAGEM_REDE } from './validar-login';
 import { chamarAcao, type RespostaAcaoTela } from './enviar';
 
@@ -26,6 +27,7 @@ export function FormTrocaSenha({
   const [erros, setErros] = useState<Record<string, string>>({});
   const [confirmar, setConfirmar] = useState(confirmando);
   const [enviando, iniciar] = useTransition();
+  const { origem, nao } = useFocoDialogo(confirmar);
 
   function pedirConfirmacao(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -67,7 +69,7 @@ export function FormTrocaSenha({
       {campo('novaSenha', 'Nova senha', 'new-password')}
       {campo('repetirSenha', 'Repetir senha', 'new-password')}
       <p role="alert">{erros._}</p>
-      <button type="submit" disabled={enviando}>
+      <button type="submit" ref={origem} disabled={enviando}>
         Salvar
       </button>
       <button
@@ -80,12 +82,18 @@ export function FormTrocaSenha({
         Cancelar
       </button>
       {confirmar ? (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="troca-pergunta">
+        <div
+          role="alertdialog"
+          aria-labelledby="troca-pergunta"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setConfirmar(false);
+          }}
+        >
           <p id="troca-pergunta">{PERGUNTA_TROCA}</p>
           <button type="button" onClick={enviar}>
             Sim
           </button>
-          <button type="button" onClick={() => setConfirmar(false)}>
+          <button type="button" ref={nao} onClick={() => setConfirmar(false)}>
             Não
           </button>
         </div>

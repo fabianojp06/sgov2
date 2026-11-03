@@ -14,5 +14,7 @@ describe('BotaoSair (RN0028)', () => {
     expect(html).toContain('Deseja realmente sair?');
     expect(html).toContain('Sim');
     expect(html).toContain('Não');
+    expect(html).toContain('role="alertdialog" aria-labelledby="sair-pergunta"');
+    expect(html).not.toContain('aria-modal'); // o foco não fica preso: a caixa não promete isso
   });
 });
