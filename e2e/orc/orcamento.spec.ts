@@ -26,6 +26,8 @@ const centavos = (texto: string) => {
   if (!m) throw new Error(`valor fora do formato: ${texto}`);
   return (m[1] ? -1n : 1n) * BigInt(m[2]!.replaceAll('.', '') + m[3]);
 };
+// Total do resumo da importação, sem o R$ ("4.200,00").
+const centavosSemSimbolo = (texto: string) => centavos(`R$ ${texto.trim()}`);
 const emReais = (c: bigint) => {
   const abs = c < 0n ? -c : c;
   const inteira = (abs / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -66,6 +68,9 @@ async function incluirReceita(page: Page, tp: string, situacao: 'Confirmado' | '
 }
 
 test.describe.serial('orçamento da Adm. Central 2027', () => {
+  // Soma dos totais do resumo por CC da importação (cenário 2): ancora o orçado da visão (cenário 3).
+  let totalImportado = 0n;
+
   test('1. GFIN cria o exercício 2027 em branco e avança para Em Elaboração', async ({ page }) => {
     await entrarNaTelaPrincipal(page, USUARIOS.gfin.login);
     await expect(menu(page).getByRole('heading', { name: 'Administração Central' })).toBeVisible();
@@ -114,6 +119,7 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     await expect(linhaDe(resumo, CC_DAF).getByRole('cell')).toHaveText(['1', '0', valor]);
     await expect(conteudo(page).getByRole('alert')).toHaveCount(0);
     expect(await contarNoBanco()).toEqual({ posicoes: 2, pacotes: 1, importacoes: 1 });
+    for (const cc of [CC_DEP, CC_DAF]) totalImportado += centavosSemSimbolo(await linhaDe(resumo, cc).getByRole('cell').nth(2).innerText());
   });
 
   test('3. GFIN digita receitas confirmada e prevista; a visão mostra resultado e teto padrão (sem semáforo)', async ({ page }) => {
@@ -128,6 +134,9 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     await expect(page.getByRole('treegrid')).toHaveAttribute('aria-rowcount', String(TOTAL_CCS_MINUTA + 1));
     const indicadores = page.locator('section[aria-labelledby="indicadores"]');
     await expect(valorDo(indicadores, 'Empregados em dezembro')).toHaveText('4');
+    // Pacote base zero da planilha: 12 × R$ 350,00, mensal e sem IPCA (R4), cálculo puro do orc.
+    await expect(valorDo(indicadores, 'Base zero por prioridade')).toHaveText('Essencial R$ 0,00 · Importante R$ 4.200,00 · Desejável R$ 0,00');
+    await expect(valorDo(indicadores, 'Orçamento do ano')).toHaveText(emReais(totalImportado));
 
     const painel = page.locator('section[aria-labelledby="painel-teto"]');
     await expect(painel.getByRole('heading', { name: 'Teto e resultado' })).toBeVisible();
@@ -136,7 +145,7 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     await expect(valorDo(painel, 'Teto')).toHaveText('R$ 1.200.000,00 (padrão: rateio líquido confirmado)');
     // Resultado = rateio líquido confirmado − (pessoal + base zero); a prevista fica de fora.
     const orcado = centavos(await valorDo(painel, 'Despesas (orçado)').innerText());
-    expect(orcado).toBeGreaterThan(0n);
+    expect(orcado).toBe(totalImportado); // o que a importação gravou: pessoal pelo motor do C2 mais o pacote
     const resultado = 120_000_000n - orcado;
     await expect(valorDo(painel, 'Resultado do ano')).toHaveText(`${emReais(resultado)} ${resultado > 0n ? '(superávit)' : resultado < 0n ? '(déficit)' : '(equilíbrio)'}`);
     await expect(valorDo(painel, 'Saldo')).toHaveText(new RegExp(`^${escapar(emReais(resultado))}`));
@@ -146,10 +155,15 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     await expect(page.getByText('As faixas do semáforo ainda não estão disponíveis.')).toBeVisible();
   });
 
-  test('4. Gestor de Diretoria vê só a subárvore dele; outra diretoria e telas da Adm. Central inteira dão 404', async ({ page }) => {
+  // O escopo (C25) recorta a visão; as telas da Adm. Central inteira dão 404 aqui pelo catálogo (o
+  // GESTOR_DIRETORIA só tem orc.orcamento:consultar). A recusa por escopo (R15) com a permissão
+  // concedida está nos testes de integração de receitas, importação, teto e aprovação.
+  test('4. Gestor de Diretoria vê só a subárvore dele; outra diretoria dá 404 e as telas que ele não tem também', async ({ page }) => {
     await entrarNaTelaPrincipal(page, USUARIOS.gestor.login);
     await expect(menu(page).getByRole('link', { name: 'Orçamento da Adm. Central' })).toBeVisible();
-    await expect(menu(page).getByRole('link', { name: 'Importar planilha' })).toHaveCount(0);
+    for (const item of ['Importar planilha', 'Receitas – Rateio dos TPs', 'Envio e aprovação', 'Exercícios']) {
+      await expect(menu(page).getByRole('link', { name: item }), item).toHaveCount(0);
+    }
     await menu(page).getByRole('link', { name: 'Orçamento da Adm. Central' }).click();
     await expect(page.getByRole('heading', { name: 'Indicadores do escopo (4.1)' })).toBeVisible();
     const indicadores = page.locator('section[aria-labelledby="indicadores"]');
@@ -159,7 +173,7 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     const grade = page.getByRole('treegrid');
     await expect(grade).toHaveAttribute('aria-rowcount', String(ccsDaSubarvore('4.1').length + 1));
     await expect(grade.getByRole('link', { name: new RegExp(` ${escapar(CC_DEP)} `) })).toBeVisible();
-    await expect(grade.getByRole('link', { name: / 4\.3/ })).toHaveCount(0);
+    await expect(grade.locator('a[href*="cc=4.3"]')).toHaveCount(0);
 
     expect((await page.goto(`/orc/orcamento?ano=${ANO}&cc=${CC_DEP}`))?.status()).toBe(200);
     await expect(page.getByRole('heading', { name: new RegExp(`^Detalhe: .*${escapar(CC_DEP)}`) })).toBeVisible();
@@ -170,50 +184,52 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
   });
 
   test('5. GFIN envia; DIREX rejeita; GFIN reenvia; DIREX aprova e o exercício fica oficializado e fechado', async ({ browser }) => {
-    const gfin = await (await browser.newContext()).newPage();
-    const direx = await (await browser.newContext()).newPage();
-    await entrarNaTelaPrincipal(gfin, USUARIOS.gfin.login);
-    await entrarNaTelaPrincipal(direx, USUARIOS.direx.login);
+    const contextos = [await browser.newContext(), await browser.newContext()];
+    const [gfin, direx] = [await contextos[0]!.newPage(), await contextos[1]!.newPage()];
+    try {
+      await entrarNaTelaPrincipal(gfin, USUARIOS.gfin.login);
+      await entrarNaTelaPrincipal(direx, USUARIOS.direx.login);
 
-    const enviar = async () => {
+      const enviar = async () => {
+        await gfin.goto(`/orc/aprovacao?ano=${ANO}`);
+        await confirmar(gfin, 'Enviar para aprovação');
+        await expect(gfin.getByText('Orçamento enviado para aprovação.')).toBeVisible();
+        await expect(gfin.getByText('Situação: Em Aprovação')).toBeVisible();
+        await expect(gfin.getByRole('button', { name: 'Aprovar' })).toHaveCount(0); // a GFIN não aprova
+      };
+      await enviar();
+
+      await menu(direx).getByRole('link', { name: 'Envio e aprovação' }).click();
+      await expect(direx.getByRole('button', { name: 'Enviar para aprovação' })).toHaveCount(0);
+      await direx.getByLabel('Justificativa da rejeição').fill(JUSTIFICATIVA_REJEICAO);
+      await direx.getByRole('button', { name: 'Rejeitar' }).click();
+      await expect(direx.getByText('Orçamento rejeitado; voltou para Em Elaboração.')).toBeVisible();
+      await expect(direx.getByText('Situação: Em Elaboração')).toBeVisible();
+
+      await enviar();
+
+      await direx.goto(`/orc/aprovacao?ano=${ANO}`);
+      await confirmar(direx, 'Aprovar');
+      await expect(direx.getByText('Orçamento aprovado e oficializado.')).toBeVisible();
+      await expect(direx.getByText(/^Oficializado em \d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}$/)).toBeVisible();
+      await expect(conteudo(direx).getByRole('button')).toHaveCount(0);
+      // Histórico do ciclo, coluna "Para": avançar, enviar, rejeitar (com a justificativa), reenviar e oficializar.
+      const tramites = direx.getByRole('table', { name: 'Trâmites do orçamento' });
+      await expect(tramites.getByRole('rowheader')).toHaveText(['Em Elaboração', 'Em Aprovação', 'Em Elaboração', 'Em Aprovação', 'Oficializado']);
+      await expect(tramites.getByRole('row').nth(3)).toContainText(`${USUARIOS.direx.nome}${JUSTIFICATIVA_REJEICAO}`);
+
+      // Fechado: a visão fica somente leitura e a importação não é mais oferecida.
+      await gfin.goto(`/orc/orcamento?ano=${ANO}`);
+      await expect(gfin.getByText('Situação: Oficializado (somente leitura)')).toBeVisible();
+      await expect(gfin.getByRole('button', { name: 'Recalcular' })).toHaveCount(0);
+      await gfin.goto(`/orc/importacao?ano=${ANO}`);
+      await expect(gfin.getByText('Este exercício não pode ser alterado na situação Oficializado.')).toBeVisible();
+      await expect(gfin.getByLabel('Planilha (layout ADMC-ORC v1.0)')).toHaveCount(0);
       await gfin.goto(`/orc/aprovacao?ano=${ANO}`);
-      await confirmar(gfin, 'Enviar para aprovação');
-      await expect(gfin.getByText('Orçamento enviado para aprovação.')).toBeVisible();
-      await expect(gfin.getByText('Situação: Em Aprovação')).toBeVisible();
-      await expect(gfin.getByRole('button', { name: 'Aprovar' })).toHaveCount(0); // a GFIN não aprova
-    };
-    await enviar();
-
-    await menu(direx).getByRole('link', { name: 'Envio e aprovação' }).click();
-    await expect(direx.getByRole('button', { name: 'Enviar para aprovação' })).toHaveCount(0);
-    await direx.getByLabel('Justificativa da rejeição').fill(JUSTIFICATIVA_REJEICAO);
-    await direx.getByRole('button', { name: 'Rejeitar' }).click();
-    await expect(direx.getByText('Orçamento rejeitado; voltou para Em Elaboração.')).toBeVisible();
-    await expect(direx.getByText('Situação: Em Elaboração')).toBeVisible();
-
-    await enviar();
-
-    await direx.goto(`/orc/aprovacao?ano=${ANO}`);
-    await confirmar(direx, 'Aprovar');
-    await expect(direx.getByText('Orçamento aprovado e oficializado.')).toBeVisible();
-    await expect(direx.getByText(/^Oficializado em \d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}$/)).toBeVisible();
-    await expect(conteudo(direx).getByRole('button')).toHaveCount(0);
-    // Histórico do ciclo, coluna "Para": avançar, enviar, rejeitar (com a justificativa), reenviar e oficializar.
-    const tramites = direx.getByRole('table', { name: 'Trâmites do orçamento' });
-    await expect(tramites.getByRole('rowheader')).toHaveText(['Em Elaboração', 'Em Aprovação', 'Em Elaboração', 'Em Aprovação', 'Oficializado']);
-    await expect(tramites.getByRole('row').nth(3)).toContainText(`${USUARIOS.direx.nome}${JUSTIFICATIVA_REJEICAO}`);
-
-    // Fechado: a visão fica somente leitura e a importação não é mais oferecida.
-    await gfin.goto(`/orc/orcamento?ano=${ANO}`);
-    await expect(gfin.getByText('Situação: Oficializado (somente leitura)')).toBeVisible();
-    await expect(gfin.getByRole('button', { name: 'Recalcular' })).toHaveCount(0);
-    await gfin.goto(`/orc/importacao?ano=${ANO}`);
-    await expect(gfin.getByText('Este exercício não pode ser alterado na situação Oficializado.')).toBeVisible();
-    await expect(gfin.getByLabel('Planilha (layout ADMC-ORC v1.0)')).toHaveCount(0);
-    await gfin.goto(`/orc/aprovacao?ano=${ANO}`);
-    await expect(conteudo(gfin).getByRole('button')).toHaveCount(0);
-    await gfin.context().close();
-    await direx.context().close();
+      await expect(conteudo(gfin).getByRole('button')).toHaveCount(0);
+    } finally {
+      for (const c of contextos) await c.close();
+    }
   });
 });
 

@@ -11,6 +11,14 @@ import { PERFIL_SEM_PERMISSAO, SENHA, USUARIOS } from './apoio';
 // que o global-setup passa.
 const url = process.env.MIGRATE_DATABASE_URL;
 if (!url) throw new Error('MIGRATE_DATABASE_URL não definida');
+// Só o banco efêmero do teste: o global-setup força AMBIENTE=dev e CARGA_DADOS_REFERENCIA=1, e uma
+// execução manual com a URL do dev (55432/56432) ou de outro host gravaria lá (regra 3 do CLAUDE.md).
+{
+  const { hostname, port, pathname } = new URL(url);
+  if (!['127.0.0.1', 'localhost'].includes(hostname) || ['55432', '56432'].includes(port) || pathname !== '/sgo_teste') {
+    throw new Error('MIGRATE_DATABASE_URL não é o banco efêmero do teste');
+  }
+}
 if (process.env.CARGA_DADOS_REFERENCIA !== '1') throw new Error('CARGA_DADOS_REFERENCIA=1 ausente: o E2E do orc precisa do C1 real');
 
 const cliente = criarPrisma(url);
