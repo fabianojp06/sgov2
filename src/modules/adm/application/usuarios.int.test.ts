@@ -149,6 +149,20 @@ describe('cadastrarUsuario (UC02.12)', () => {
   });
 });
 
+describe('Histórico sem unidade', () => {
+  it('com um TP selecionado, cadastro, alteração e reset saem com unidade nula (não são por TP)', async () => {
+    const comTp = { ...ctx, unidadeId: unidade };
+    const r = await cadastrarUsuario(comTp, dados('tito'), deps());
+    if (!r.ok) throw new Error('esperava sucesso');
+    const antes = await usuario(r.valor.id);
+    expect((await alterarUsuario(comTp, r.valor.id, antes.versao, { ...dados('tito'), nome: 'Tito Reis' }, deps())).ok).toBe(true);
+    expect((await resetarSenha(comTp, r.valor.id, deps())).ok).toBe(true);
+    const h = await historico(r.valor.id);
+    expect(h.length).toBeGreaterThanOrEqual(3);
+    expect(h.map((x) => x.unidadeId)).toEqual(h.map(() => null));
+  });
+});
+
 describe('alterarUsuario (UC02.13)', () => {
   it('não muda o login (RN0066), grava e audita o perfil novo com antes/depois, e derruba as sessões (RN0040)', async () => {
     const id = await cadastrar('bia');

@@ -34,12 +34,13 @@ function resolver(deps: Partial<DepsAdm>): DepsAdm {
   };
 }
 
+// O cadastro de usuários não é por TP: o Histórico sai sem unidade, mesmo com um TP selecionado.
 const contextoAuditoria = (ctx: ContextoRequisicao): ContextoAuditoria => ({
   usuarioId: ctx.usuarioId,
   usuarioRotulo: ctx.usuarioRotulo,
   sessaoUid: ctx.sessaoUid,
   ip: ctx.ip,
-  unidadeId: ctx.unidadeId ?? null,
+  unidadeId: null,
 });
 
 // O que vai ao Histórico: os dados do formulário, nunca senha ou hash.
