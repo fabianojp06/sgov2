@@ -210,7 +210,7 @@
 | Épicos | EP00, EP04, EP05, EP09–EP16, EP18 | EP01–EP03, EP06–EP08, EP17, EP19–EP21 |
 
 - **Período de fundação:** até as US-001 e US-004 entrarem na `main`, só a frente A escreve no repositório. A frente B começa depois, com a worktree e um texto de abertura que a frente A prepara.
-- **Coordenação:** só pelo GitHub (quadro, issues, PRs). Ao encerrar uma sessão com trabalho aberto, deixar comentário de passagem na issue e atualizar este arquivo.
+- **Coordenação:** o registro oficial fica só no GitHub (quadro, issues, PRs); o aviso direto abaixo complementa, mas não substitui esse registro. Ao encerrar uma sessão com trabalho aberto, deixar comentário de passagem na issue e atualizar este arquivo.
 - **Aviso direto entre frentes** (pedido do PO, 03/11): quando uma frente depende da outra, ela avisa a outra direto. O PO não leva recado. Avisar quando:
   - um "de acordo" for publicado;
   - um contrato (C1 a C5) mudar;
@@ -218,7 +218,7 @@
   - uma frente ficar esperando uma entrega da outra.
 
   Canal:
-  - primeiro, mensagem entre sessões (`ListAgents` e `SendMessage`; a sessão da frente A se chama `frente-a`);
+  - primeiro, mensagem entre sessões (`ListAgents` e `SendMessage`). A sessão da frente A se chama `frente-a`; a frente B informa o nome da dela no primeiro aviso. Como cada frente usa uma conta própria (`CLAUDE_CONFIG_DIR`), a mensagem entre sessões pode não funcionar;
   - se a outra sessão não estiver alcançável, comentário na issue ou no PR (com autorização do PO) e uma linha para o PO dizendo o que a outra frente precisa saber.
 
   O aviso informa e não pede mudança no código da outra frente (regra 9).
