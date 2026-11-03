@@ -1,13 +1,12 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { seedAdm } from '@/modules/adm';
-import type { ContextoRequisicao } from '@/shared/authz';
+import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { Dinheiro, Percentual } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { alterarBeneficioMestre } from '../application/beneficios';
 import { criarProvedorSemaforo } from '../application/semaforo';
-import { ErroPermissao } from '@/shared/authz';
 import { tocarVersaoExercicio } from './parametro-sistema';
 import { calcularCustoPosicao, congelarPremissasExercicio, garantirPremissasExercicio, obterPremissasExercicio } from './premissas';
 import { seedCad } from './seed';
@@ -130,21 +129,27 @@ describe('C2 real: premissas do exercício', () => {
       },
       { timeout: 20_000 },
     );
+    oficializacao.catch(() => congelou());
     await congelado;
-    let terminou = false;
-    const escrita = app
-      .$transaction((tx) => tocarVersaoExercicio(tx, 2028), { timeout: 20_000 })
-      .then(
+    try {
+      const escrita = app.$transaction((tx) => tocarVersaoExercicio(tx, 2028), { timeout: 20_000 }).then(
         () => 'gravou',
         (e: { codigo?: string }) => e.codigo,
-      )
-      .finally(() => (terminou = true));
-    await new Promise((r) => setTimeout(r, 500));
-    // Espera a oficialização: ainda não terminou.
-    expect(terminou).toBe(false);
-    liberar();
-    await oficializacao;
-    expect(await escrita).toBe('cad.exercicio_congelado');
+      );
+      // A escrita está de fato esperando um lock (não só atrasada): pg_locks com um pedido não concedido.
+      const fim = Date.now() + 10_000;
+      let esperando = false;
+      while (!esperando && Date.now() < fim) {
+        esperando = (await migrator.query(`SELECT 1 FROM pg_locks WHERE NOT granted LIMIT 1`)).rowCount === 1;
+        if (!esperando) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(esperando).toBe(true);
+      liberar();
+      await oficializacao;
+      expect(await escrita).toBe('cad.exercicio_congelado');
+    } finally {
+      liberar();
+    }
     expect((await obterPremissasExercicio(app, 2028))!.congelado).toBe(true);
   });
 

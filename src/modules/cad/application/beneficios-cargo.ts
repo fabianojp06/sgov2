@@ -99,11 +99,13 @@ export async function alterarBeneficiosCargo(
       });
       if (erros.length > 0) return falha(erros);
 
+      // A linha do ano antes do cargo, na mesma ordem da Tabela Mestre (beneficios.ts → sobrescrita),
+      // para não haver deadlock entre as duas (#295). Ano congelado recusa aqui.
+      await tocarVersaoExercicio(tx, ano);
       const cargo = await tx.cargo.findUnique({ where: { id: cargoId }, select: { codigo: true } });
       const r = await tx.cargo.updateMany({ where: { id: cargoId, versao: versaoCargo }, data: { versao: { increment: 1 } } });
       // throw (não return): o rollback desfaz o que já subiu, inclusive a versão do ano (R10/I6).
       if (!cargo || r.count === 0) throw new ErroDominio('cad.concorrencia', MSG_CONCORRENCIA);
-      await tocarVersaoExercicio(tx, ano);
       const antes = await tx.beneficioCargo.findMany({ where: { cargoId, ano }, orderBy: { codigo: 'asc' } });
       for (const v of validos) {
         const dados = { ativo: v.ativo, valorManual: v.valorManual?.paraString() ?? null, origem: v.valorManual ? ('MANUAL' as const) : ('MESTRE' as const) };
