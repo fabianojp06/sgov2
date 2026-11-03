@@ -21,6 +21,11 @@ describe('definirAcaoPublica', () => {
     expect(executar).not.toHaveBeenCalled();
   });
 
+  it('mensagem padrão do Zod em português também na ação pública (#177)', async () => {
+    const acao = definirAcaoPublica({ nome: 'login', entrada }, vi.fn());
+    expect(await acao('lixo')).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Entrada inválida: esperava um objeto, recebeu um texto' }] });
+  });
+
   it('passa o IP do x-sgo-ip (definido pelo proxy) e devolve o resultado', async () => {
     cabecalhos.valor = new Headers({ 'x-sgo-ip': '203.0.113.9' });
     const acao = definirAcaoPublica({ nome: 'login', entrada }, async (e, ctx) => ok(`${e.login}@${ctx.ip}`));

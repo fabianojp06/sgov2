@@ -74,7 +74,7 @@ export const esquemaUsuario = z.object({
 });
 
 // Campo ausente ou de tipo errado também recebe mensagem em português (o padrão do Zod é inglês).
-const PORTUGUES = z.locales.pt().localeError;
+const PORTUGUES = z.locales.ptBR().localeError;
 
 export type EntradaUsuario = z.input<typeof esquemaUsuario>;
 export type UsuarioValidado = z.output<typeof esquemaUsuario> & { loginNormalizado: string };

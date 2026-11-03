@@ -94,6 +94,9 @@ describe('definirAcao', () => {
     const executar = vi.fn();
     const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, executar);
     expect(await acao({ nome: '' })).toEqual({ ok: false, erros: [{ campo: 'nome', mensagem: 'Informe o nome' }] });
+    // O { error } passado no tipo (forma usada nos schemas do orc e do adm) também ganha do locale.
+    const comErroNoTipo = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada: z.object({ ano: z.coerce.number({ error: 'Informe o ano' }) }) }, vi.fn());
+    expect(await comErroNoTipo({ ano: 'x' })).toEqual({ ok: false, erros: [{ campo: 'ano', mensagem: 'Informe o ano' }] });
     expect(await acao('lixo')).toEqual({ ok: false, erros: [expect.objectContaining({ campo: '_' })] });
     expect(executar).not.toHaveBeenCalled();
   });
@@ -104,6 +107,9 @@ describe('definirAcao', () => {
     expect(await acao('lixo')).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Entrada inválida: esperava um objeto, recebeu um texto' }] });
     expect(await acao({ nome: 7 })).toEqual({ ok: false, erros: [{ campo: 'nome', mensagem: 'Entrada inválida: esperava um texto, recebeu um número' }] });
     expect(await acao({ nome: '' })).toEqual({ ok: false, erros: [{ campo: 'nome', mensagem: 'Informe o nome' }] });
+    // O { error } passado no tipo (forma usada nos schemas do orc e do adm) também ganha do locale.
+    const comErroNoTipo = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada: z.object({ ano: z.coerce.number({ error: 'Informe o ano' }) }) }, vi.fn());
+    expect(await comErroNoTipo({ ano: 'x' })).toEqual({ ok: false, erros: [{ campo: 'ano', mensagem: 'Informe o ano' }] });
   });
 
   it('ErroDominio vira mensagem clara', async () => {
