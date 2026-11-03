@@ -15,6 +15,7 @@ export const MENSAGENS_USUARIO = {
   UNIDADE_INVALIDA: 'Termo de Parceria inexistente ou inativo',
   CC_OBRIGATORIO: 'Informe o centro de custo de escopo do Gestor de Diretoria',
   CC_INVALIDO: 'Centro de custo de escopo inválido (até 60 caracteres, sem caracteres de controle)',
+  CC_FORA_ESTRUTURA: 'Centro de custo de escopo inexistente, inativo ou sem centros de custo analíticos ativos',
   CC_SEM_PERFIL: 'O centro de custo de escopo só se aplica ao perfil Gestor de Diretoria',
   ULTIMO_ADMINISTRADOR: 'O sistema precisa de pelo menos um Administrador ativo',
   ALTERADO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
