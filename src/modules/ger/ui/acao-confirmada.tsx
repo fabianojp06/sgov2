@@ -9,7 +9,7 @@ import type { ErroCampo, Resultado } from '@/shared/kernel';
 // FormData. Pelo index.ts do ger, que é seguro para componente cliente.
 export type AcaoFormulario = (dados: FormData) => Promise<Resultado<unknown>>;
 
-/** O FormData que a ação recebe: um campo por chave de `campos`. */
+/** O FormData que a ação recebe: um campo por chave de `campos` (auxiliar; não sai pelo index.ts). */
 export function dadosDaAcao(campos: Readonly<Record<string, string>>): FormData {
   const dados = new FormData();
   for (const [nome, valor] of Object.entries(campos)) dados.set(nome, valor);
@@ -18,9 +18,24 @@ export function dadosDaAcao(campos: Readonly<Record<string, string>>): FormData 
 
 export const MENSAGEM_FALHA_ACAO = 'Não foi possível concluir a operação. Tente novamente.';
 
+/**
+ * Roda a ação depois do Sim: sucesso ou os erros do Resultado; redirect e notFound seguem para o
+ * Next (unstable_rethrow); outra exceção vira MENSAGEM_FALHA_ACAO (auxiliar; não sai pelo index.ts).
+ */
+export async function executarAcao(acao: AcaoFormulario, campos: Readonly<Record<string, string>>): Promise<{ sucesso: true } | { erros: readonly ErroCampo[] }> {
+  try {
+    const r = await acao(dadosDaAcao(campos));
+    return r.ok ? { sucesso: true } : { erros: r.erros };
+  } catch (erro) {
+    unstable_rethrow(erro);
+    return { erros: [{ campo: '', mensagem: MENSAGEM_FALHA_ACAO }] };
+  }
+}
+
 // Botão com caixa de confirmação Sim/Não. Ao abrir, o foco vai para o Não (a opção segura); ao
 // fechar, volta ao botão de origem; Esc fecha. Depois do Sim, mostra o sucesso ou os erros do
-// Resultado. A ação roda numa transição: o redirect dela segue pelo roteador do Next.
+// Resultado. A ação roda numa transição: o redirect dela segue pelo roteador do Next. A caixa não é
+// modal de propósito (UC02.13 A7/A8): sem aria-modal nem trava de foco; Esc fecha com o foco nela.
 export function AcaoConfirmada({
   rotulo,
   pergunta,
@@ -34,6 +49,7 @@ export function AcaoConfirmada({
   acao: AcaoFormulario;
   campos: Readonly<Record<string, string>>;
   mensagemSucesso?: string;
+  /** Só o estado inicial (testes e telas que já abrem perguntando); mudar a prop depois não reabre. */
   aberto?: boolean;
 }) {
   const [confirmando, setConfirmando] = useState(aberto);
@@ -45,14 +61,17 @@ export function AcaoConfirmada({
   const nao = useRef<HTMLButtonElement>(null);
   const abriu = useRef(false);
 
+  // O foco volta à origem só quando ela já está habilitada: o setState depois do await não entra na
+  // transição, e a caixa pode fechar com o botão ainda disabled (o focus() seria ignorado).
   useEffect(() => {
     if (confirmando) {
       abriu.current = true;
       nao.current?.focus();
-    } else if (abriu.current) {
+    } else if (abriu.current && !pendente) {
+      abriu.current = false;
       origem.current?.focus();
     }
-  }, [confirmando]);
+  }, [confirmando, pendente]);
 
   const abrir = () => {
     setErros([]);
@@ -62,14 +81,10 @@ export function AcaoConfirmada({
 
   const confirmar = () =>
     iniciarTransicao(async () => {
-      const dados = dadosDaAcao(campos);
       try {
-        const r = await acao(dados);
-        if (r.ok) setSucesso(true);
+        const r = await executarAcao(acao, campos);
+        if ('sucesso' in r) setSucesso(true);
         else setErros(r.erros);
-      } catch (erro) {
-        unstable_rethrow(erro); // redirect e notFound seguem para o Next
-        setErros([{ campo: '', mensagem: MENSAGEM_FALHA_ACAO }]);
       } finally {
         setConfirmando(false);
       }
