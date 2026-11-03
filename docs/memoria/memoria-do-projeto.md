@@ -245,19 +245,30 @@
   - contas de encargo `4.1.1.8.003/004` fora das raízes vetadas em pacote base zero (`RAIZES_CONTAS_PESSOAL`, [PROVISÓRIA] §6.6);
   - conferência do sha256 do snapshot pelo banco: o `jsonb` reordena as chaves. Sugestão: `conferirSnapshot` ou guardar o texto canônico.
 - [ ] Textos de tela do `orc` fora do `MENSAGENS_ORC` (avisos de aprovação, importação, lista de exercícios e receitas, rótulos do painel) entram na validação dos [PROVISÓRIOS] pelo PO.
-- [ ] Ressalva 4 da revisão de bloco do P5: o provedor de contexto roda até três vezes por página.
-  - Não foi aplicado o `cache` do React, porque o provedor é criado no `instrumentation.ts`, fora da camada `react-server`, onde o `cache` é só repasse.
-  - Memorizar no `obterContexto` dependeria do escopo do React nas Server Actions. Só aplicar depois de medir no app rodando, contando as chamadas por página.
-- [ ] Achados menores das revisões de 03/11, sem issue:
-  - não há `src/app/error.tsx` nem `global-error.tsx`: um erro de render do `TelaPrincipal` cai na página padrão do Next, em inglês;
-  - a negação auditada (`guarda.ts`) grava a unidade do contexto também para funcionalidade global;
-  - o `alertdialog` do `error.tsx` não tem gestão de foco nem Esc.
+- [x] Ressalvas da revisão de bloco do P5, todas corrigidas (issue #280):
+  - 1 e 5 no #266;
+  - 2 e 3 no #263;
+  - 4 no #293: o `obterContexto` passa pelo `cache` do React, uma chamada do provedor por render. Medido no E2E de menu e logoff: 9 chamadas sem o cache, 5 com ele. Fora de um render (ação, rota), o cache só repassa.
+- [x] Achados menores das revisões de 03/11:
+  - fronteiras de erro da raiz em pt-BR (#290, compartilhado);
+  - diálogos do `aut` com foco e Esc, sem `aria-modal` (#281);
+  - um `<main>` só na área logada (#291, com teste que lê os arquivos da frente A).
+- [ ] A negação auditada (`guarda.ts`) grava a unidade do contexto também para funcionalidade global.
 - [ ] **Para a frente B:**
+  - páginas do `cad` em `src/app/(sistema)/cad/` com `<main>` aninhado dentro do `main.sgo-conteudo` da casca (11 ocorrências; a frente A trocou as suas no #291);
+  - `trabalhador-email.ts` (`motivoDoErro`): com o `ErroAuditoria` (#282), o log mostra só o nome, sem o código;
   - `cad/application/parametros.ts`, `beneficios.ts` e `importar-estrutura.ts` gravam o TP do seletor no Histórico de cadastro global (o adm passou a gravar nulo no #266);
   - `processador-cargas.ts` aceita `sessaoUid` vazio (o `auditar` passou a recusar no #268);
   - `acoes-parametros.ts` usa `z.locales.pt()`; as ações e o adm usam `ptBR` (#269).
-- [ ] #172 e #177 (melhorias menores): parte feita no #268 e no #269; o resto continua aberto.
-- [ ] Criação de issue pelo agente foi negada pelo classificador em 03/11 (a autorização do PO cobria commit, PR e merge). As ressalvas ficaram registradas aqui e nos PRs.
+- [ ] Melhorias menores, em parte feitas em 03/11:
+  - #172: #268, #282 (`ErroAuditoria` fora do `ErroDominio`; `toJSON` recursivo) e #294 (`[omitido: alterado]`);
+  - #177: #269 (Zod em pt-BR);
+  - #165: #283 (shadow vazia; mensagens sem credencial) e #286 (proxy do prisma);
+  - #168: #285 (expoente e dígitos do Decimal; mensagem escapada; `igual()`);
+  - #182: #289 (testes de privilégios do `sgo_fila` e do índice do outbox).
+  - O resto continua aberto: origem padrão da auditoria, limite de tamanho, regex de credencial, tipos do C5, lint compartilhado.
+- [ ] "De acordo" da frente A no C3 (#223, `exportarXlsx` só pelo `ger/servidor`): o texto foi preparado, mas o comentário na issue foi negado pelo classificador em 03/11. Falta o PO publicar ou autorizar; ele destrava o #221 da frente B.
+- [ ] Criação de issue e comentário em issue pelo agente: o classificador nega sem autorização explícita do PO. A #280 foi aberta com a autorização dele.
 - [ ] D12: em 03/11, duas rodadas de E2E da frente A coincidiram com o `vitest` da frente B (o `flock` do #257 só vale para quem usa `npm run test:int`/`test:e2e`; rodar o vitest direto escapa do lock).
 
 **Com SMEs**
@@ -269,7 +280,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
-| 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão de bloco do P6 com 3 lentes e correções (#273, #275); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações |
+| 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão de bloco do P6 com 3 lentes e correções (#273, #275); à tarde, dívida técnica: issue #280 e ressalva 4 do P5 com medição (#293), fronteiras de erro da raiz (#290), diálogos e `<main>` único (#281, #291), auditoria (#282, #294), config e prisma (#283, #286), kernel (#285), testes das filas (#289); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações |
 | 26/10–02/11/2026 | A | P5 concluído na `main`: US-031 (#206), E2E de acesso (#235), US-038 em duas partes (#236, com o `adm/servidor.ts`, e #237); revisão de bloco do P5; verificação manual com o Mailpit; plano do P6 (#238) e Tasks 0 a 8 do P6 em branches locais; revisões de consumidor do C1, do C2 e do leitor; issues #228 a #234 para a frente B; merges aprovados pelo PO um a um |
 | 02/11/2026 | B | Noite: merges do PO (#240, #241, #242, #244, #245, #246 e #248); Task 8 (#248, telas de CC e trava da DIREX, revisão com security-review) e Task 9b (#249, parâmetros e SMN; a revisão achou brechas na auditoria da origem blindada, corrigidas com a conferência no pedido bruto); build: rodar `prisma generate` na cópia principal antes do `npm run build` |
 | 02/11/2026 | B | Tarde: merges do PO da pilha do P4 e do #222 (M5 pela recomendação, com uma 3.ª rodada de revisão só do commit da M5); #240 (ambiente único), #241/#242 (Node 24 no CI, o `pr.yml` separado por ser compartilhado), #244 (tela de importação do plano, duas rodadas de revisão) e #245 (consulta em árvore); D12: duas rodadas de teste coincidiram com a integração da frente A, depois disso toda rodada pesada espera o `vitest` da outra frente |
