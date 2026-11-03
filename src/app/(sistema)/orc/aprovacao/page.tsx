@@ -14,15 +14,15 @@ export default async function Aprovacao({ searchParams }: { searchParams: Promis
   const atual = exercicioDoAno(exercicios, ano);
   if (!atual) {
     return (
-      <main>
+      <div>
         <h1>Envio e aprovação</h1>
         <p>Nenhum exercício cadastrado.</p>
-      </main>
+      </div>
     );
   }
   const tramites = await listarTramites(ctx, atual.id).catch(naoEncontradoSeNegado(ctx));
   return (
-    <main>
+    <div>
       <h1>{`Envio e aprovação (${atual.ano})`}</h1>
       <SeletorExercicio exercicios={exercicios} anoAtual={atual.ano} rota="/orc/aprovacao" />
       <AcoesCiclo
@@ -35,6 +35,6 @@ export default async function Aprovacao({ searchParams }: { searchParams: Promis
         rejeitar={rejeitarAcao}
         aviso={typeof aviso === 'string' && Object.hasOwn(AVISOS, aviso) ? AVISOS[aviso] : undefined}
       />
-    </main>
+    </div>
   );
 }

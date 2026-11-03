@@ -41,11 +41,11 @@ export function ListaUsuarios({
     ...(podeAlterar ? { href: `/adm/usuarios/${u.id}` } : {}),
   }));
   return (
-    <main>
+    <div>
       <h1>Usuários</h1>
       {textoAviso && <p role="status">{textoAviso}</p>}
       {podeIncluir && <a href="/adm/usuarios/novo">Novo</a>}
       <GradeArvore idGrade="adm.usuarios" rotulo="Usuários" nos={nos} colunas={COLUNAS} textoVazio="Nenhum usuário cadastrado." />
-    </main>
+    </div>
   );
 }

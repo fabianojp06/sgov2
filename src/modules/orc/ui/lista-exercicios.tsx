@@ -30,7 +30,7 @@ export function ListaExercicios({
   aviso?: string | undefined;
 }) {
   return (
-    <main>
+    <div>
       <h1>Exercícios</h1>
       {aviso && <p role="status">{aviso}</p>}
       {podeIncluir && <a href="/orc/exercicios/novo">Novo exercício</a>}
@@ -66,6 +66,6 @@ export function ListaExercicios({
           </tbody>
         </table>
       )}
-    </main>
+    </div>
   );
 }

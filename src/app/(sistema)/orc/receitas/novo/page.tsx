@@ -11,13 +11,13 @@ export default async function NovaReceita({ searchParams }: { searchParams: Prom
   // Com CC de escopo, 404 (R15); fora de edição, o aviso no lugar do formulário.
   const { editavel } = await listarReceitas(ctx, atual.id).catch(naoEncontradoSeNegado(ctx));
   return (
-    <main>
+    <div>
       <h1>{`Nova receita (${atual.ano})`}</h1>
       {editavel ? (
         <FormReceita ano={atual.ano} exercicioId={atual.id} salvar={incluirReceitaAcao} />
       ) : (
         <p>{MENSAGENS_ORC.SITUACAO_NAO_EDITAVEL(atual.rotuloSituacao)}</p>
       )}
-    </main>
+    </div>
   );
 }

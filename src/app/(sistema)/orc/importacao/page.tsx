@@ -8,7 +8,7 @@ export default async function Importacao({ searchParams }: { searchParams: Promi
   const atual = exercicioDoAno(exercicios, ano);
   const editavel = atual !== null && (atual.situacao === 'RASCUNHO' || atual.situacao === 'EM_ELABORACAO');
   return (
-    <main>
+    <div>
       <h1>{atual ? `Importar planilha (${atual.ano})` : 'Importar planilha'}</h1>
       <SeletorExercicio exercicios={exercicios} anoAtual={atual?.ano ?? null} rota="/orc/importacao" />
       {!atual ? (
@@ -20,6 +20,6 @@ export default async function Importacao({ searchParams }: { searchParams: Promi
       ) : (
         <p>Você pode consultar esta tela, mas não importar.</p>
       )}
-    </main>
+    </div>
   );
 }

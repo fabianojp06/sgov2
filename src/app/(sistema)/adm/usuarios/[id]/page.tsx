@@ -9,9 +9,9 @@ export default async function AlterarUsuario({ params }: { params: Promise<{ id:
   const [usuario, opcoes] = await Promise.all([obterUsuario(ctx, id), listarOpcoesUsuario(ctx, id)]);
   if (!usuario) notFound();
   return (
-    <main>
+    <div>
       <h1>Alterar Usuário</h1>
       <FormUsuario usuario={usuario} opcoes={opcoes} salvar={alterar} resetarSenha={gerarNovaSenha} desbloquear={desbloquear} />
-    </main>
+    </div>
   );
 }

@@ -6,9 +6,9 @@ export default async function NovoUsuario() {
   const ctx = await exigirPagina('adm.usuarios', 'incluir');
   const opcoes = await listarOpcoesUsuario(ctx);
   return (
-    <main>
+    <div>
       <h1>Cadastrar Usuário</h1>
       <FormUsuario opcoes={opcoes} salvar={cadastrar} />
-    </main>
+    </div>
   );
 }
