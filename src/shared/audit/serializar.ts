@@ -11,7 +11,9 @@ import { ErroAuditoria } from './erros';
 //
 // Convenção: audite valores monetários como Dinheiro/Percentual. Um Decimal cru vem com a
 // escala de origem ("1234.5" do banco × "1234.50" do Dinheiro) e geraria delta falso.
-const CHAVE_SENSIVEL = /senha|password|passwd|hash|token|segredo|secret|totp|api_?key|credencia/i;
+export const CHAVE_SENSIVEL = /senha|password|passwd|hash|token|segredo|secret|totp|api_?key|credencia/i;
+export const OMITIDO = '[omitido]';
+export const OMITIDO_ALTERADO = '[omitido: alterado]';
 
 export function serializarParaAuditoria(v: unknown): unknown {
   return serializar(v, '$', new WeakSet());
@@ -54,7 +56,7 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>, saltos
     const saida: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [chave, valor] of Object.entries(v)) {
       if (valor === undefined) continue;
-      saida[chave] = CHAVE_SENSIVEL.test(chave) ? '[omitido]' : serializar(valor, `${caminho}.${chave}`, vistos);
+      saida[chave] = CHAVE_SENSIVEL.test(chave) ? OMITIDO : serializar(valor, `${caminho}.${chave}`, vistos);
     }
     return { ...saida };
   } finally {
@@ -65,4 +67,36 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>, saltos
 function seguirToJSON(json: unknown, caminho: string, vistos: WeakSet<object>, saltos: number): unknown {
   if (saltos >= MAXIMO_SALTOS_TOJSON) return recusar(caminho, 'toJSON recursivo');
   return serializar(json, caminho, vistos, saltos + 1);
+}
+
+// Credencial que mudou: os dois lados viram [omitido] e o delta não mostraria a troca. Compara os
+// originais (antes da serialização) e marca o depois com [omitido: alterado], sem gravar valor nenhum.
+// Percorre só objetos simples presentes nos dois lados, na mesma forma do serializado.
+export function marcarCredenciaisAlteradas(antesOriginal: unknown, depoisOriginal: unknown, depoisSerializado: unknown): unknown {
+  if (!simplesPlano(antesOriginal) || !simplesPlano(depoisOriginal) || !simplesPlano(depoisSerializado)) return depoisSerializado;
+  const saida: Record<string, unknown> = { ...depoisSerializado };
+  for (const chave of Object.keys(saida)) {
+    if (!Object.hasOwn(antesOriginal, chave)) continue;
+    if (CHAVE_SENSIVEL.test(chave)) {
+      if (saida[chave] === OMITIDO && !mesmoValor(antesOriginal[chave], depoisOriginal[chave])) saida[chave] = OMITIDO_ALTERADO;
+    } else {
+      saida[chave] = marcarCredenciaisAlteradas(antesOriginal[chave], depoisOriginal[chave], saida[chave]);
+    }
+  }
+  return saida;
+}
+
+function simplesPlano(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const p = Object.getPrototypeOf(v) as unknown;
+  return p === Object.prototype || p === null;
+}
+
+function mesmoValor(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
