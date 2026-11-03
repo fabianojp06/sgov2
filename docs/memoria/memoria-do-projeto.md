@@ -251,7 +251,7 @@
 - [ ] PO, antes de cadastrar segredos e da primeira tag: restringir o *environment* `homologacao` à `main`, que foi criado sozinho sem restrição, e criar o `producao` com o PO como revisor e só as tags `v*` (`deploy.md`, "Antes da primeira tag").
 - [ ] PO, na Tarefa 6: segredos `EASYPANEL_WEBHOOK` e `EASYPANEL_WEBHOOK_WORKER` nos dois *environments* e `GHCR_PROD_TOKEN` no `producao`. Depois, incluir o check `Imagem` nos obrigatórios da `main`.
 - [ ] Frente A: `statement_timeout`/`lock_timeout` nas conexões do worker (`src/shared/db`), sugestão da revisão do #198. Revisão de consumidor dos contratos C3 e C4.
-- [ ] PO: merge do #249; o #221 depois da #223.
+- [x] PO: merge do #249; o #221 depois da #223 (os dois na `main` em 03/11).
 - [ ] PO, no `worker` de hml e prod: `SYNC_DATABASE_URL` com o `sgo_sync`, e o `app` **sem** ela; `AMBIENTE` no `app`, no `worker` e no serviço de migração (`docs/operacao/ambientes.md`). As variáveis da seed no deploy ficaram na #195.
 - [ ] Frente A: ~~`adm/servidor.ts` (#213)~~ feito no #236; ~~usuário GFIN no `global-setup` do e2e (#218)~~ semeado no #265 (falta a frente B tirar o `fixme`); ~~`exibirNoMenu` no C6 (#211)~~ feito no #243; "de acordo" com o `exportarXlsx` só pelo `servidor.ts` (#223).
 - [ ] Frente B: filtrar o `meta` do Prisma no log dos lotes de cargos (Task 12a). O stub do argon2 já saiu com o `adm/servidor.ts` da frente A (#236), e a troca do `ambienteDoCad` está no #240. "Mostrar inativas" do plano de contas não é retido na sessão (pendência do #245). Pendências baixas registradas nos PRs: aria-invalid nos campos da DIREX com só o erro geral (#248); lista de campos blindados igual nas duas ações dos parâmetros (#249); sem jsdom, os formulários não têm teste de interação.
@@ -307,7 +307,7 @@
   - criar o serviço `migracao` (argumento `implantar`) em hml e prod na Tarefa 6. Até o webhook dele existir, o *redeploy* do `migracao` é manual antes do `app`, e o log é conferido à mão (`[IMPLANTAR_CONCLUIDO]` × `[ADMIN_INICIAL_*]`);
   - ~~decidir se os benefícios do cargo passam para o exercício novo~~ **decidido pelo PO em 03/11 (recomendação seguida):** o `criarParametrosDoAno` copia do ano-base o ativo/inativo, o valor manual e a origem (`MANUAL` continua `MANUAL`, para o GRH revisar), inclusive de cargo inativo, com um Histórico do exercício e a linha do ano-base presa durante a cópia (#302). Quando houver tela do Histórico, o `valorManual` de `cad.cargos` deve sair mascarado sem `cad.salarios:consultar` (R24);
   - ~~marcar como falso positivo, no GitGuardian, os incidentes 39444187 e 39442400 do #221~~ **feito pelo PO em 03/11**;
-  - fechar a #223 quando quiser (o #221 já está na `main`, e a frente A foi avisada na própria issue).
+  - ~~fechar a #223~~ **fechada pelo PO em 03/11**, depois do #221 na `main`.
 - [ ] **Para a frente A:**
   - trocar as cópias da `AcaoConfirmada` do `adm` e do `orc` pela do `ger` (corpo do #284);
   - na importação do `orc`, usar `lerPlanilhasSegura` com o `indiceAba` para a mensagem da R6 e `celulas: ['E1']` na aba `Instruções` (#279, #287);
@@ -320,7 +320,7 @@
 - [ ] Rolagem do plano de contas (`e2e/cad/rolagem-plano.spec.ts`) continua em `fixme`: a tela não tem `expandir=todos`, o plano oficial tem 174 contas e o spec do `cad` roda antes do do `orc` no mesmo banco. Recomendação para o PO: medir em hml pelo plano B do próprio spec (Chrome DevTools › Performance, 5 s rolando o plano de 5.000 linhas expandido; FPS médio ≥ 55 e nenhuma tarefa longa acima de 50 ms).
 - [ ] Pendências baixas registradas nos PRs de 03/11: dois CONSULTA de `cad.salarios` por abertura da tela do cargo (#274); a tela do cargo sem seletor de ano (#274); sem jsdom, o foco da `AcaoConfirmada` e o efeito do aria do Formulario não têm teste de interação (#278, #284); nenhum passo da imagem faz login com senha (#297).
 - [ ] US-119 (runbook, #141) depende das Tarefas 6 e 7 (deploy real e backup), bloqueadas pelo GAP-INF-001. US-122 (#145): falta a frente B repetir o teste dos hooks numa sessão nova (o hook não recarrega na sessão em que foi alterado).
-- [x] Comunicação entre as frentes (PO, 03/11): quando for necessário, cada frente fala direto com a outra, sem o PO de mensageiro. Usa `SendMessage` se a sessão da outra aparecer no `ListAgents`; senão, comenta na issue ou no PR do assunto (spec §12.6). Fechar ou criar issue, mudar label e decisões do PO continuam com o PO.
+- [x] Comunicação entre as frentes (PO, 03/11): quando for necessário, cada frente fala direto com a outra, sem o PO de mensageiro. Usa `SendMessage` se a sessão da outra aparecer no `ListAgents`; senão, comenta na issue ou no PR do assunto. Para esses comentários de coordenação, não é mais preciso pedir autorização ao PO, como dizia a regra do canal entre as frentes acima. Fechar ou criar issue, mudar label e decisões do PO continuam com o PO.
 - [x] D12 (nota): nas primeiras rodadas de 03/11, a frente B rodou integração com `npx vitest` direto, fora do `flock`; depois passou a usar `npm run test:int`, que respeita o lock.
 
 **Com SMEs**
