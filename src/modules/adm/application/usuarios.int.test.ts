@@ -150,15 +150,17 @@ describe('cadastrarUsuario (UC02.12)', () => {
 });
 
 describe('Histórico sem unidade', () => {
-  it('com um TP selecionado, cadastro, alteração e reset saem com unidade nula (não são por TP)', async () => {
+  it('com um TP selecionado, cadastro, alteração, reset e desbloqueio saem com unidade nula (não são por TP)', async () => {
     const comTp = { ...ctx, unidadeId: unidade };
     const r = await cadastrarUsuario(comTp, dados('tito'), deps());
     if (!r.ok) throw new Error('esperava sucesso');
     const antes = await usuario(r.valor.id);
     expect((await alterarUsuario(comTp, r.valor.id, antes.versao, { ...dados('tito'), nome: 'Tito Reis' }, deps())).ok).toBe(true);
     expect((await resetarSenha(comTp, r.valor.id, deps())).ok).toBe(true);
+    await migrator.usuario.update({ where: { id: r.valor.id }, data: { bloqueado: true, tentativasFalhas: 5 } });
+    expect((await desbloquearUsuario(comTp, r.valor.id, deps())).ok).toBe(true);
     const h = await historico(r.valor.id);
-    expect(h.length).toBeGreaterThanOrEqual(3);
+    expect(h.length).toBeGreaterThanOrEqual(4);
     expect(h.map((x) => x.unidadeId)).toEqual(h.map(() => null));
   });
 });

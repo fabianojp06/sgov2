@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { MENSAGEM_ERRO_PAGINA, sairComErro } from './aut/sair-erro';
 
-// Falha numa página da área logada (a do layout, E1 e E2 do UC01.03, fica no próprio layout).
+// Falha numa página da área logada (o carregamento do layout, E1 e E2 do UC01.03, é tratado nele).
 // Tentar novamente usa o retry do Next, que pede a página de novo ao servidor (o reset só limparia o
 // estado no cliente). Sair pede confirmação (RN0028) e encerra a sessão no servidor, como no E1.3.
 export default function Erro({ retry }: { error: Error; reset: () => void; retry: () => void }) {

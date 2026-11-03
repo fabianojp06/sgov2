@@ -1,8 +1,8 @@
 // Apoio do error.tsx da área logada. Ele é componente cliente e não importa @/modules/* (o index do
-// aut carrega código de servidor), então repete aqui a saída do UC01.04; os testes do aut conferem que
-// os dois lados batem. A falha do catálogo e das permissões (UC01.03 E1 e E2) é tratada no próprio
-// layout, com o ErroCarregamento: o error.tsx do segmento só pega o erro de uma página, e por isso
-// tem texto próprio [PROVISÓRIO], sem falar em módulos.
+// aut carrega código de servidor), então repete aqui a saída do UC01.04 (o teste do aut confere a
+// sequência). A falha ao carregar o catálogo e as permissões (UC01.03 E1 e E2) é tratada no próprio
+// layout, com o ErroCarregamento; o error.tsx do segmento não envolve esse layout, só as páginas, e
+// por isso tem texto próprio [PROVISÓRIO], sem falar em módulos.
 export const MENSAGEM_ERRO_PAGINA = 'Não foi possível exibir esta página. Tente novamente ou contate o Administrador.';
 
 const PREFIXO = 'sgo:';
