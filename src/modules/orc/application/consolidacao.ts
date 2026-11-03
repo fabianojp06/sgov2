@@ -210,7 +210,8 @@ export async function obterVisaoExercicio(
     };
   }
 
-  // Indicadores do escopo (§6.6).
+  // Indicadores do escopo (§6.6). "Empregados em dezembro" = soma das quantidades das posições ativas em
+  // dezembro (mês de saída 12) [PROVISÓRIA, D-P6-7], até a validação do PO.
   const filtroCc = escopo.tipo === 'TOTAL' ? {} : { cc: { in: [...escopo.ccs] } };
   const [pacotes, dezembro] = await Promise.all([
     c.pacoteBaseZero.count({ where: { exercicioId: ex.id, ...filtroCc } }),

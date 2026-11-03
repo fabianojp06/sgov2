@@ -34,7 +34,7 @@ describe('ListaReceitas', () => {
     expect(h).toContain('12.006,00');
     expect(h).toContain('Total por mês');
     expect(h).toContain('<abbr title="Janeiro">Jan</abbr>');
-    expect(h).toMatch(/<div role="region" aria-labelledby="receitas-confirmadas" tabindex="0">/i);
+    expect(h).toMatch(/<div role="region" aria-labelledby="receitas-confirmadas" tabindex="0" style="overflow-x:auto">/i);
     // Rodapé com o total anual, o ISS e o líquido: 12 × 1.000,50 = 12.006,00.
     expect(h.match(/<tfoot>.*?<\/tfoot>/s)?.[0]).toContain('12.006,00');
     expect(h).toContain('Receita prevista não entra no saldo nem no teto.');

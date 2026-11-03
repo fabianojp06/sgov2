@@ -36,7 +36,7 @@ describe('PainelTeto', () => {
   it('sem receita confirmada nem teto: o texto de sem teto; sem semáforo: traço', () => {
     const h = html(painel('90000', null, null, []));
     expect(h).toContain('Sem teto: não há receita confirmada nem teto manual.');
-    expect(h).toContain('<dd>—</dd>');
+    expect(h).toContain('<dd>Indisponível</dd>');
   });
 });
 

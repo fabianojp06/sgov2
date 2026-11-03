@@ -36,39 +36,39 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
           {pendente ? 'Importando…' : 'Importar'}
         </button>
       </form>
-      <div role="status">
-        {estado?.ok && (
-          <>
-            <p>{estado.valor.mensagem}</p>
-            <table>
-              <caption>Resumo por centro de custo</caption>
-              <thead>
-                <tr>
-                  <th scope="col">CC</th>
-                  <th scope="col">Posições</th>
-                  <th scope="col">Pacotes</th>
-                  <th scope="col">Total calculado (R$)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {estado.valor.porCc.map((c) => (
-                  <tr key={c.cc}>
-                    <th scope="row">{c.cc}</th>
-                    <td>{c.posicoes}</td>
-                    <td>{c.pacotes}</td>
-                    <td>{c.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
+      {/* A região viva fica sempre montada e só com a frase; o resumo vem fora dela. */}
+      <div role="status">{estado?.ok && <p>{estado.valor.mensagem}</p>}</div>
+      {estado?.ok && (
+        <table>
+          <caption>Resumo por centro de custo</caption>
+          <thead>
+            <tr>
+              <th scope="col">CC</th>
+              <th scope="col">Posições</th>
+              <th scope="col">Pacotes</th>
+              <th scope="col">Total calculado (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {estado.valor.porCc.map((c) => (
+              <tr key={c.cc}>
+                <th scope="row">{c.cc}</th>
+                <td>{c.posicoes}</td>
+                <td>{c.pacotes}</td>
+                <td>{c.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {erros && (
-        <div role="alert">
-          {erros.gerais.map((m, i) => (
-            <p key={i}>{m}</p>
-          ))}
+        <>
+          {/* Só a frase vai à região viva; a tabela (até 500 linhas) fica fora, para o leitor de tela não ler tudo. */}
+          <div role="alert">
+            {erros.gerais.map((m, i) => (
+              <p key={i}>{m}</p>
+            ))}
+          </div>
           {erros.porLinha.length > 0 && (
             <table>
               <caption>{`Erros por linha (${erros.porLinha.length})`}</caption>
@@ -92,7 +92,7 @@ export function FormImportacao({ exercicioId, importar }: { exercicioId: string;
               </tbody>
             </table>
           )}
-        </div>
+        </>
       )}
     </>
   );
