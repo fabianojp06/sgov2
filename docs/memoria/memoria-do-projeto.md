@@ -211,6 +211,17 @@
 
 - **Período de fundação:** até as US-001 e US-004 entrarem na `main`, só a frente A escreve no repositório. A frente B começa depois, com a worktree e um texto de abertura que a frente A prepara.
 - **Coordenação:** só pelo GitHub (quadro, issues, PRs). Ao encerrar uma sessão com trabalho aberto, deixar comentário de passagem na issue e atualizar este arquivo.
+- **Aviso direto entre frentes** (pedido do PO, 03/11): quando uma frente depende da outra, ela avisa a outra direto. O PO não leva recado. Avisar quando:
+  - um "de acordo" for publicado;
+  - um contrato (C1 a C5) mudar;
+  - um merge afetar a outra frente (schema ou compartilhados);
+  - uma frente ficar esperando uma entrega da outra.
+
+  Canal:
+  - primeiro, mensagem entre sessões (`ListAgents` e `SendMessage`; a sessão da frente A se chama `frente-a`);
+  - se a outra sessão não estiver alcançável, comentário na issue ou no PR (com autorização do PO) e uma linha para o PO dizendo o que a outra frente precisa saber.
+
+  O aviso informa e não pede mudança no código da outra frente (regra 9).
 - **Guia de comandos:** `docs/backlog/desenvolvimento-em-duas-frentes.md`.
 
 ## 7. Pendências
