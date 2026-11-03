@@ -87,6 +87,19 @@ achados=$(docker run --rm --name "$PREFIXO-find" --user root --network none "${L
    done; true')
 [[ -z "$achados" ]] || falhar "arquivos proibidos na imagem: $achados"
 
+echo "1b. O app tem o binário nativo do Argon2 (glibc) e não leva o Playwright (#190)"
+# A base é bookworm (glibc): o pacote opcional é o @node-rs/argon2-linux-x64-gnu. O standalone do
+# Next precisa tê-lo rastreado; sem ele, o login de hml e prod quebra só na primeira senha.
+# Como o usuário node (o app desce para o uid 1000): uma permissão errada no .node também reprova.
+# O stderr fica fora da captura (vai para o log); o || true deixa a causa chegar ao falhar (set -e).
+argon=$(docker run --rm --name "$PREFIXO-argon2" --user node --network none "${LIMITES[@]}" --workdir /app --entrypoint node "$IMAGEM" -e \
+  "require('@node-rs/argon2').hash('x', { algorithm: 2 }).then((h) => console.log(h.split('\$')[1])).catch((e) => console.log('falhou: ' + e.message))" || true)
+[[ "$argon" == argon2id ]] || falhar "o Argon2 não roda na imagem: ${argon:-sem saída (veja o erro do node acima)}"
+# O Next declara o @playwright/test como peer opcional (nota do #189): nada dele em /app, em nenhum nível.
+playwright=$(docker run --rm --name "$PREFIXO-playwright" --network none "${LIMITES[@]}" --entrypoint sh "$IMAGEM" -c \
+  'find /app -xdev -type d \( -name playwright -o -name playwright-core -o -name @playwright \) -prune -print; true')
+[[ -z "$playwright" ]] || falhar "o Playwright está na imagem: $playwright"
+
 echo "2. Banco descartável numa rede sem internet"
 docker network create --internal "$REDE" > /dev/null
 docker run -d --name "$PG" --network "$REDE" "${LIMITES[@]}" -e POSTGRES_HOST_AUTH_METHOD=trust "$PG_IMAGEM" > /dev/null
@@ -109,6 +122,34 @@ esperadas=$(find "$RAIZ/prisma/migrations" -mindepth 1 -maxdepth 1 -type d | wc 
 aplicadas=$(psql_pg -d sgo_teste -c "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL")
 [[ "$esperadas" -gt 0 && "$aplicadas" == "$esperadas" ]] \
   || falhar "migrations aplicadas: $aplicadas; esperadas (pastas em prisma/migrations): $esperadas"
+
+echo "3b. semear (#195): sem administrador e sem as variáveis, falha; com elas, cria; de novo, não muda"
+semear() {
+  docker run --rm --name "$PREFIXO-semear-$RANDOM" --network "$REDE" "${LIMITES[@]}" \
+    -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e AMBIENTE=producao "$@" "$IMAGEM" semear 2>&1
+}
+if saida=$(semear); then falhar "a seed passou sem administrador e sem as ADMIN_INICIAL_*"; fi
+grep -q 'Administrador inicial: defina' <<< "$saida" || falhar "a seed falhou, mas não pela falta do administrador: $(tail -5 <<< "$saida")"
+# Senha só deste teste, montada aqui (um literal "SENHA=valor" parece credencial para o GitGuardian).
+senha_teste=$(printf 'Senha%sImagem2026x' Da)
+saida=$(semear -e ADMIN_INICIAL_LOGIN=admin.imagem -e ADMIN_INICIAL_EMAIL=admin.imagem@example.org -e "ADMIN_INICIAL_SENHA=$senha_teste") \
+  || falhar "a seed com as ADMIN_INICIAL_* falhou: $(tail -5 <<< "$saida")"
+! grep -qF "$senha_teste" <<< "$saida" || falhar "a senha do administrador inicial apareceu no log da seed"
+[[ "$(psql_pg -d sgo_teste -c "SELECT count(*) FROM usuario WHERE login = 'admin.imagem'")" == 1 ]] || falhar "a seed não criou o administrador inicial"
+saida=$(semear) || falhar "a segunda seed, com o administrador já ativo, falhou: $(tail -5 <<< "$saida")"
+[[ "$(psql_pg -d sgo_teste -c "SELECT count(*) FROM usuario")" == 1 ]] || falhar "a segunda seed mudou os usuários"
+! grep -q '\[ADMIN_INICIAL_' <<< "$saida" || falhar "a segunda seed avisou sem motivo: $(grep '\[ADMIN_INICIAL_' <<< "$saida")"
+# R15: dados de referência em produção são recusados.
+if saida=$(semear -e CARGA_DADOS_REFERENCIA=1); then falhar "a seed de produção aceitou CARGA_DADOS_REFERENCIA=1"; fi
+grep -q 'CARGA_DADOS_REFERENCIA não pode ser usada em produção' <<< "$saida" || falhar "a seed de produção falhou, mas não pela R15: $(tail -5 <<< "$saida")"
+# O serviço migracao: implantar migra, semeia, fica saudável e parado (o Swarm não o reinicia em laço).
+docker run -d --name "$PREFIXO-implantar" --network "$REDE" "${LIMITES[@]}" \
+  -e MIGRATE_DATABASE_URL="$URL_MIGRATOR/sgo_teste" -e AMBIENTE=producao "$IMAGEM" implantar > /dev/null
+estado=$(esperar_saude "$PREFIXO-implantar")
+[[ "$estado" == healthy ]] || falhar "o implantar não ficou saudável ($estado): $(docker logs "$PREFIXO-implantar" 2>&1 | tail -5)"
+grep -q '\[IMPLANTAR_CONCLUIDO\]' <<< "$(docker logs "$PREFIXO-implantar" 2>&1)" || falhar "o implantar ficou saudável sem concluir"
+[[ "$(docker inspect -f '{{.State.Running}}' "$PREFIXO-implantar")" == true ]] || falhar "o implantar não ficou parado depois de concluir"
+docker rm -f "$PREFIXO-implantar" > /dev/null
 
 echo "4. migrar com migration quebrada → falha pela migration (P3018), não por outro motivo"
 if saida=$(docker run --rm --name "$PREFIXO-quebrada" --network "$REDE" "${LIMITES[@]}" -v "$MIGRATION_QUEBRADA" \

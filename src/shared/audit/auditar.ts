@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { Prisma } from '@/generated/prisma/client';
 import type { TxCliente } from '@/shared/db';
-import { ErroDominio } from '@/shared/kernel';
+import { ErroAuditoria } from './erros';
 import { calcularDelta } from './delta';
 import { descrever } from './descricao';
-import { serializarParaAuditoria } from './serializar';
+import { marcarCredenciaisAlteradas, serializarParaAuditoria } from './serializar';
 import { ORIGENS_OPERACAO, TIPOS_OPERACAO, type EventoAuditoria, type TipoOperacao } from './tipos';
 
 const textoObrigatorio = (mensagem: string) => z.string().trim().min(1, mensagem);
@@ -58,17 +58,17 @@ export async function auditar(tx: TxCliente, evento: EventoAuditoria): Promise<v
   // O cliente raiz do Prisma também satisfaz TxCliente. O cliente de $transaction não expõe
   // $connect (itxClientDenyList do Prisma 7): é por aí que se distingue um do outro.
   if (typeof (tx as { $connect?: unknown }).$connect === 'function') {
-    throw new ErroDominio('AUDITORIA_FORA_DA_TRANSACAO', 'auditar precisa da transação da operação (tx de $transaction)');
+    throw new ErroAuditoria('AUDITORIA_FORA_DA_TRANSACAO', 'auditar precisa da transação da operação (tx de $transaction)');
   }
   const validado = esquema.safeParse(evento);
   if (!validado.success) {
-    throw new ErroDominio('AUDITORIA_INVALIDA', 'Evento de auditoria inválido', {
+    throw new ErroAuditoria('AUDITORIA_INVALIDA', 'Evento de auditoria inválido', {
       problemas: validado.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
     });
   }
   const { contexto, funcionalidade, tipo, registroId, origem } = validado.data;
   const antes = serializarParaAuditoria(evento.antes);
-  const depois = serializarParaAuditoria(evento.depois);
+  const depois = marcarCredenciaisAlteradas(evento.antes, evento.depois, serializarParaAuditoria(evento.depois));
   const temDados = antes !== undefined || depois !== undefined;
 
   await tx.historicoOperacao.create({

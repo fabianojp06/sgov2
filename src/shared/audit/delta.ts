@@ -17,7 +17,7 @@ function comoRegistro(v: unknown): Record<string, unknown> {
   return { valor: v };
 }
 
-function iguais(x: unknown, y: unknown): boolean {
+export function iguais(x: unknown, y: unknown): boolean {
   if (Object.is(x, y)) return true;
   if (typeof x !== 'object' || typeof y !== 'object' || x === null || y === null) return false;
   if (Array.isArray(x) !== Array.isArray(y)) return false;

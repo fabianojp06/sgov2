@@ -10,8 +10,9 @@ export const MENSAGENS_CARREGAMENTO = {
 // Falha ao montar a tela principal (UC01.03 E1/E2): tentar de novo ou sair (E1.3/E2.3).
 export function ErroCarregamento({ tipo }: { tipo: keyof typeof MENSAGENS_CARREGAMENTO }) {
   return (
-    <main role="alert">
-      <p>{MENSAGENS_CARREGAMENTO[tipo]}</p>
+    // O role="alert" fica na mensagem: no próprio <main>, ele trocaria o papel de região principal.
+    <main>
+      <p role="alert">{MENSAGENS_CARREGAMENTO[tipo]}</p>
       <button type="button" onClick={() => window.location.reload()}>
         Tentar novamente
       </button>

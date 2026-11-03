@@ -17,15 +17,15 @@ export default async function Receitas({ searchParams }: { searchParams: Promise
   const atual = exercicioDoAno(exercicios, ano);
   if (!atual) {
     return (
-      <main>
+      <div>
         <h1>Receitas – Rateio dos TPs</h1>
         <p>Nenhum exercício cadastrado.</p>
-      </main>
+      </div>
     );
   }
   const dados = await listarReceitas(ctx, atual.id).catch(naoEncontradoSeNegado(ctx));
   return (
-    <main>
+    <div>
       <h1>{`Receitas – Rateio dos TPs (${atual.ano})`}</h1>
       <SeletorExercicio exercicios={exercicios} anoAtual={atual.ano} rota="/orc/receitas" />
       <ListaReceitas
@@ -39,6 +39,6 @@ export default async function Receitas({ searchParams }: { searchParams: Promise
         excluir={excluirReceitaAcao}
         aviso={textoAvisoReceita(typeof aviso === 'string' ? aviso : undefined)}
       />
-    </main>
+    </div>
   );
 }

@@ -21,17 +21,17 @@ export default async function Orcamento({ searchParams }: { searchParams: Promis
   ]);
   if (!visao) {
     return (
-      <main>
+      <div>
         <h1>Orçamento da Adm. Central</h1>
         <p>{MENSAGENS_ORC.SEM_EXERCICIO}</p>
         {ctx.permissoes.has('orc.exercicios:consultar') && <a href="/orc/exercicios">Exercícios</a>}
-      </main>
+      </div>
     );
   }
   const podeAlterar = ctx.permissoes.has('orc.orcamento:alterar') && visao.escopo.tipo === 'TOTAL' && visao.exercicio.editavel;
   const AVISOS: Readonly<Record<string, string>> = { recalculado: MENSAGENS_ORC.RECALCULADO, teto: MENSAGENS_ORC.TETO_DEFINIDO };
   return (
-    <main>
+    <div>
       <h1>{`Orçamento da Adm. Central ${visao.exercicio.ano}`}</h1>
       <SeletorExercicio exercicios={exercicios} anoAtual={visao.exercicio.ano} rota="/orc/orcamento" />
       <VisaoCc
@@ -42,6 +42,6 @@ export default async function Orcamento({ searchParams }: { searchParams: Promis
         definirTeto={definirTetoAcao}
         aviso={typeof aviso === 'string' && Object.hasOwn(AVISOS, aviso) ? AVISOS[aviso] : undefined}
       />
-    </main>
+    </div>
   );
 }

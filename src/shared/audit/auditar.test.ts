@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { $Enums } from '@/generated/prisma/client';
 import type { TxCliente } from '@/shared/db';
+import { ErroDominio } from '@/shared/kernel';
 import { auditar } from './auditar';
+import { ErroAuditoria } from './erros';
 import { ORIGENS_OPERACAO, TIPOS_OPERACAO, type EventoAuditoria } from './tipos';
 
 // Transação falsa: só registra o que seria gravado.
@@ -52,6 +54,32 @@ describe('auditar: validação do evento (revisão 12.12)', () => {
     await auditar(tx, { ...base, contexto });
     await auditar(tx, { ...base, contexto: { ...contexto, ip: '10.0.0.1' } });
     expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('evento inválido lança ErroAuditoria, e não ErroDominio (não é texto de tela)', async () => {
+    const { tx } = txFalsa();
+    const erro = await auditar(tx, { ...base, descricao: ' ' }).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(ErroAuditoria);
+    expect(erro).not.toBeInstanceOf(ErroDominio);
+  });
+
+  it('credencial que mudou: depois com [omitido: alterado] e no delta, sem valor nenhum gravado (#172)', async () => {
+    const { tx, create } = txFalsa();
+    await auditar(tx, {
+      ...base,
+      tipo: 'ALTERACAO',
+      registroId: '1',
+      antes: { nome: 'Ana', senhaHash: 'hash-velho-1', perfil: { tokenApi: 'tk-1', ativo: true } },
+      depois: { nome: 'Ana', senhaHash: 'hash-novo-2', perfil: { tokenApi: 'tk-1', ativo: false } },
+    });
+    const dados = (create.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    expect(dados.antes).toEqual({ nome: 'Ana', senhaHash: '[omitido]', perfil: { tokenApi: '[omitido]', ativo: true } });
+    expect(dados.depois).toEqual({ nome: 'Ana', senhaHash: '[omitido: alterado]', perfil: { tokenApi: '[omitido]', ativo: false } });
+    expect(dados.delta).toEqual({
+      senhaHash: { de: '[omitido]', para: '[omitido: alterado]' },
+      perfil: { de: { tokenApi: '[omitido]', ativo: true }, para: { tokenApi: '[omitido]', ativo: false } },
+    });
+    expect(JSON.stringify(dados)).not.toMatch(/hash-velho|hash-novo|tk-1/);
   });
 
   it('recusa ser chamada fora de uma transação (cliente raiz do Prisma)', async () => {

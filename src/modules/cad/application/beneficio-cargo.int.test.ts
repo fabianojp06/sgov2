@@ -63,7 +63,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await migrator.query('DELETE FROM beneficio_cargo');
+  // Ano congelado não aceita escrita (trigger): fica como está, e os testes usam anos abertos.
+  await migrator.query('DELETE FROM beneficio_cargo WHERE ano NOT IN (SELECT ano FROM parametros_exercicio WHERE congelado_em IS NOT NULL)');
 });
 
 describe('benefícios do cargo (RN_CAR_07)', () => {
@@ -144,6 +145,70 @@ describe('sobrescrita pela Tabela Mestre (RN_CAR_06, C8)', () => {
     }
     for (const c of ['C1', 'C2', 'C3']) expect(await linha(c)).toEqual({ origem: 'MANUAL', valor: '45.00' });
     expect((await vr()).versao).toBe(antes.versao);
+  });
+
+  it('exercício novo (decisão do PO): os benefícios do cargo vêm do ano-base, com o ativo, o valor manual e a origem; um Histórico do exercício', async () => {
+    await manual('C1', 2028, '41,50');
+    await alterarBeneficiosCargo(grh(), cargos.C2!, 2028, await versao('C2'), [{ codigo: 'beneficio.vr', ativo: false, valorManual: null }], { cliente: app });
+    const versaoC1 = await versao('C1');
+    await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2029));
+    expect(await linha('C1', 2029)).toEqual({ origem: 'MANUAL', valor: '41.50' });
+    expect((await migrator.query(`SELECT ativo, origem::text AS origem FROM beneficio_cargo WHERE cargo_id = $1 AND ano = 2029 AND codigo = 'beneficio.vr'`, [cargos.C2])).rows[0]).toEqual({ ativo: false, origem: 'MESTRE' });
+    // O C3 não tinha linha em 2028: continua sem, e usa os padrões da posição.
+    expect((await migrator.query('SELECT count(*)::int AS n FROM beneficio_cargo WHERE cargo_id = $1 AND ano = 2029', [cargos.C3])).rows[0].n).toBe(0);
+    const h = await migrator.query(`SELECT registro_id, tipo_operacao::text AS tipo, origem::text AS origem, depois FROM historico_operacao WHERE descricao = 'Benefícios de 2 cargo(s) copiados de 2028 para 2029'`);
+    expect(h.rows).toHaveLength(1);
+    expect(h.rows[0]).toMatchObject({ registro_id: '2029', tipo: 'INSERCAO', origem: 'SISTEMA' });
+    expect(h.rows[0].depois).toEqual({
+      C1: [{ codigo: 'beneficio.vr', ativo: true, valorManual: '41.50', origem: 'MANUAL' }],
+      C2: [{ codigo: 'beneficio.vr', ativo: false, valorManual: null, origem: 'MESTRE' }],
+    });
+    // A cópia não mexe na versão do cargo nem no ano-base; o ano que já existe não é copiado de novo.
+    expect(await versao('C1')).toBe(versaoC1);
+    expect(await linha('C1', 2028)).toEqual({ origem: 'MANUAL', valor: '41.50' });
+    await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2029));
+    expect((await migrator.query(`SELECT count(*)::int AS n FROM historico_operacao WHERE descricao LIKE 'Benefícios de % copiados de 2028 para 2029'`)).rows[0].n).toBe(1);
+    // Ano-base congelado (oficializado) também serve de base.
+    await app.$transaction((tx) => congelarPremissasExercicio(tx, SISTEMA, 2029));
+    await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2030));
+    expect(await linha('C1', 2030)).toEqual({ origem: 'MANUAL', valor: '41.50' });
+  });
+
+  it('a criação do ano novo prende a linha do ano-base: a alteração concorrente nele espera a cópia', async () => {
+    await manual('C1', 2030, '41,50');
+    let liberar!: () => void;
+    const segurando = new Promise<void>((r) => (liberar = r));
+    let criou!: () => void;
+    const criado = new Promise<void>((r) => (criou = r));
+    const criacao = app.$transaction(
+      async (tx) => {
+        await garantirPremissasExercicio(tx, SISTEMA, 2032);
+        criou();
+        await segurando;
+      },
+      { timeout: 20_000 },
+    );
+    criacao.catch(() => criou());
+    await criado;
+    try {
+      // O ano-base de 2032 é o 2030 (o último anterior).
+      const escrita = alterarBeneficiosCargo(grh(), cargos.C1!, 2030, await versao('C1'), [{ codigo: 'beneficio.vr', ativo: true, valorManual: '60' }], { cliente: app });
+      const fim = Date.now() + 10_000;
+      let esperando = false;
+      while (!esperando && Date.now() < fim) {
+        esperando = (await migrator.query(`SELECT 1 FROM pg_locks WHERE NOT granted LIMIT 1`)).rowCount === 1;
+        if (!esperando) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(esperando).toBe(true);
+      liberar();
+      await criacao;
+      expect((await escrita).ok).toBe(true);
+      // 2032 nasceu com o valor de antes da alteração (41,50), não com uma mistura.
+      expect(await linha('C1', 2032)).toEqual({ origem: 'MANUAL', valor: '41.50' });
+      expect(await linha('C1', 2030)).toEqual({ origem: 'MANUAL', valor: '60.00' });
+    } finally {
+      liberar();
+    }
   });
 
   it('congelado: com 2027 congelado, a alteração do cargo e a da Tabela Mestre são recusadas e nada muda (por último)', async () => {

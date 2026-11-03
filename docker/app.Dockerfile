@@ -34,6 +34,8 @@ RUN npm run build
 # Worker num arquivo só, com as dependências dentro: a imagem final não tem node_modules
 # além do que o Next.js standalone rastreia.
 RUN node worker/build.mjs /opt/worker/index.mjs
+# A seed (prisma/seed.ts) num bundle, sem o tsx (#195).
+RUN node docker/seed/build.mjs /opt/seed/seed.mjs
 
 # Migrador autossuficiente: só prisma e zod, com lockfile próprio, sem as devDependencies do
 # projeto. Contorna a issue #165 (o postinstall quebra um npm ci --omit=dev).
@@ -55,6 +57,7 @@ WORKDIR /app
 COPY --from=build /src/.next/standalone ./
 COPY --from=build /src/.next/static ./.next/static
 COPY --from=build /opt/worker /app/worker
+COPY --from=build /opt/seed /app/seed
 COPY --from=migrador /opt/migrador /opt/migrador
 COPY docker/entrypoint.sh docker/saude.sh /app/docker/
 # Sem USER node: o tini e o entrypoint rodam como root, e o servidor desce para o node com

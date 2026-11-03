@@ -50,6 +50,39 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 **Console do Easypanel:** como a imagem não tem `USER node`, o console e o `docker exec` entram como root. É assim que o `resolver` funciona. Use o console só para os procedimentos deste documento.
 
+## Seed e administrador inicial (#195)
+
+A imagem traz a seed (`prisma/seed.ts` em bundle, `/app/seed/seed.mjs`): configuração de acesso, perfis, catálogo, administrador inicial e os dados de referência do `cad`. Ela roda **só** num serviço próprio, nunca no `app` nem no `worker`.
+
+- **Serviço `migracao`** (um por ambiente): a mesma imagem, com `implantar` no campo de argumentos. Ele migra, semeia e fica **parado e saudável** (`[IMPLANTAR_CONCLUIDO]` no log), para o Swarm do Easypanel não reiniciá-lo em laço. Uma falha na migração ou na seed encerra o contêiner com erro.
+  - Variáveis: `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `AMBIENTE` (`hml` ou `producao`).
+  - Em hml, também `CARGA_DADOS_REFERENCIA=1`: plano de contas oficial, minuta de CC provisória e cargos sintéticos. Em prod, **sem** ela: a seed recusa (R15).
+  - No `app` de hml, `CC_CARGA_PROVISORIA=1`; no de prod, **sem** ela.
+- **Até a Tarefa 6 (sem webhook do `migracao`):** o deploy **não** semeia sozinho. A cada release com seed nova (catálogo, perfis, dados de referência), o PO faz o *redeploy* do serviço `migracao` no Easypanel **antes** do `app`.
+- **Ordem:** `migracao` → `app` → `worker`. Os webhooks são assíncronos e o `app` também migra: a ordem **não é garantida**. As duas migrações juntas são seguras (o Prisma usa trava consultiva). Mas um `app` novo pode subir antes da seed; até ela terminar, o primeiro acesso e as funcionalidades novas do catálogo ficam indisponíveis.
+- **Rollback:** voltar uma versão **não** chama o `migracao` (a seed antiga contra o schema novo não é testada). A seed da versão nova continua valendo.
+
+### Primeiro deploy e administrador inicial
+
+1. Acrescente ao serviço `migracao` as `ADMIN_INICIAL_LOGIN`, `ADMIN_INICIAL_EMAIL` e `ADMIN_INICIAL_SENHA` (16 ou mais caracteres) e faça o *redeploy* dele.
+2. A senha inicial **expira em 7 dias** e exige troca no primeiro acesso. Um administrador com a senha expirada continua ativo, e o break-glass não dispara.
+3. Depois do primeiro acesso, **tire as três variáveis do Easypanel e faça o *redeploy* do `migracao`**. Enquanto ele não reinicia, o PID 1 do contêiner parado ainda as tem.
+
+### O que a seed faz e os alertas
+
+- Banco **sem nenhum usuário** e sem as `ADMIN_INICIAL_*`: falha de propósito (`Administrador inicial: defina ...`), e o serviço sai com erro.
+- Com usuários e sem as variáveis: só avisa, sem derrubar o deploy. `[ADMIN_INICIAL_AUSENTE]`: não há administrador ativo. `[ADMIN_INICIAL_CONFLITO]`: o login das variáveis já existe sem ser administrador ativo.
+- **Ainda não há alerta automático** (entra com a conferência do deploy, na Tarefa 6). A cada *redeploy* do `migracao`, o PO confere o log: `[IMPLANTAR_CONCLUIDO]` é o normal; `[ADMIN_INICIAL_AUSENTE]` ou `[ADMIN_INICIAL_CONFLITO]` pede ação.
+- **Só a seed** (sem migrar): `semear` no lugar de `implantar`. Ela sai ao terminar, então serve para o console, não como argumento do serviço.
+
+### Break-glass: nenhum administrador ativo
+
+1. No serviço `migracao`, defina as três `ADMIN_INICIAL_*` com um **login novo** (o login de um usuário que já existe dá `[ADMIN_INICIAL_CONFLITO]`).
+2. Faça o *redeploy* do `migracao`. A seed cria o administrador só quando não há nenhum ativo, numa trava do banco: duas execuções juntas criam um só.
+3. Entre com o login novo, troque a senha (ela expira em 7 dias) e reative ou corrija os administradores.
+4. Tire as três variáveis e faça o *redeploy* do `migracao` de novo.
+5. O Histórico registra a criação pelo sistema.
+
 ## Credenciais (só nos *environments* do GitHub e no Easypanel)
 
 | Onde | Nome | Para quê |
@@ -90,7 +123,7 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 ## A imagem
 
-- `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
+- `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`), a seed (bundle em `/app/seed/seed.mjs`, `docker/seed/build.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
 - `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
 - Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`), `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `URL_PUBLICA` (o endereço público com `https`, que o app exige em produção desde a US-026; ver `CONFIAR_PROXY` no `.env.example`).
 - **Serviço `worker`:** a mesma imagem, com `worker` no campo de **argumentos** (o CMD) do Easypanel, sem trocar o *entrypoint*. O *healthcheck* e o `tini` dependem do *entrypoint* da imagem. Variáveis: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), `AMBIENTE` (`hml` ou `producao`) e `URL_PUBLICA` (a **mesma** do app), além das de e-mail abaixo. Sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.

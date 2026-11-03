@@ -170,7 +170,9 @@ export async function aprovarExercicio(ctx: ContextoRequisicao, bruto: unknown, 
       premissas: congeladas,
       painel,
       totaisPorCc: await totaisPorCc(tx, linhas, deps),
-      posicoes: posicoes.map((p) => ({ id: p.id, cc: p.cc, cargo: p.cargo, quantidade: p.quantidade, salarioMensal: dinheiro(p.salarioMensal), mesInicio: p.mesInicio, mesSaida: p.mesSaida })),
+      // Sem o salário de cada posição (decisão do PO de 03/11, D-P6-1): o snapshot é imutável e não
+      // daria para cifrar depois; o custo fica nas linhas calculadas e nas premissas congeladas.
+      posicoes: posicoes.map((p) => ({ id: p.id, cc: p.cc, cargo: p.cargo, quantidade: p.quantidade, mesInicio: p.mesInicio, mesSaida: p.mesSaida })),
       pacotes: pacotes.map((k) => ({ id: k.id, cc: k.cc, conta: k.conta, justificativa: k.justificativa, prioridade: k.prioridade, quantidade: k.quantidade, valorUnitario: dinheiro(k.valorUnitario), corrigirIpca: k.corrigirIpca, distribuicao: k.distribuicao, mesOcorrencia: k.mesOcorrencia })),
       receitas: receitas.map((r) => ({ tp: r.tp, situacao: r.situacao, origem: r.origem, meses: r.meses.map(dinheiro), total: dinheiro(r.total) })),
       linhas: linhas.map((l) => ({ cc: l.cc, conta: l.conta, origem: l.origem, componente: l.componente, meses: l.meses.map(dinheiro), total: dinheiro(l.total) })),

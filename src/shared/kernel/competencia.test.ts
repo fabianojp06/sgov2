@@ -4,6 +4,11 @@ import { Competencia } from './competencia';
 import { ErroDominio } from './erros';
 
 describe('Competencia (RN0302)', () => {
+  it('igual() compara ano e mês, não a referência', () => {
+    expect(Competencia.de(2027, 3).igual(Competencia.parse('Mar/27'))).toBe(true);
+    expect(Competencia.de(2027, 3).igual(Competencia.de(2027, 4))).toBe(false);
+  });
+
   it('RN0302', () => {
     expect(Competencia.parse('Jun/22').formatar()).toBe('Jun/22');
     expect(Competencia.de(2026, 12).proxima().formatar()).toBe('Jan/27');

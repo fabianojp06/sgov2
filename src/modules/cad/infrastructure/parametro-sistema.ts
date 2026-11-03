@@ -2,6 +2,7 @@ import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
 import { Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
 import { COMPONENTES_FIXOS } from '../domain/custo-pessoal';
+import { copiarBeneficiosCargoDoAno } from './beneficios-cargo';
 import { criarTabelaMestreDoAno } from './beneficios-mestre';
 import { ENCARGOS, COMPONENTES_COM_CONTA, type ParametrosExercicio } from '../domain/parametros';
 
@@ -93,14 +94,18 @@ const PADRAO = {
 };
 
 /**
- * US-055: cria os parâmetros do ano copiando o último ano anterior (sem o congelamento) ou, sem
- * nenhum, os padrões provisórios. Idempotente: o ano que já existe fica como está. Auditado.
+ * US-055: cria os parâmetros do ano copiando o último ano anterior (sem o congelamento), com a
+ * Tabela Mestre e os benefícios dos cargos, ou, sem nenhum, os padrões provisórios. Idempotente: o ano que já existe fica como está. Auditado.
  */
 export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAuditoria, ano: number): Promise<boolean> {
   if (!Number.isInteger(ano) || ano < 2000 || ano > 2099) throw new ErroDominio('cad.ano_invalido', 'O exercício deve ser de 2000 a 2099.');
   // Trava por ano: duas chamadas concorrentes (duplo clique, frente A e seed) não colidem (C2: idempotente).
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('cad-exercicio'), ${ano}::int)`;
   if (await tx.parametrosExercicio.findUnique({ where: { ano }, select: { ano: true } })) return false;
+  // A linha do ano-base fica presa (FOR SHARE) até o fim: parâmetros, Tabela Mestre e benefícios dos
+  // cargos saem do mesmo instante. Toda escrita no ano-base começa pelo UPDATE dessa linha
+  // (tocarVersaoExercicio) e espera; a ordem é a trava do ano novo e depois a linha do ano-base.
+  await tx.$queryRaw`SELECT "ano" FROM "parametros_exercicio" WHERE "ano" < ${ano} ORDER BY "ano" DESC LIMIT 1 FOR SHARE`;
   const base = await tx.parametrosExercicio.findFirst({ where: { ano: { lt: ano } }, orderBy: { ano: 'desc' }, include: { encargos: true, contas: true } });
   if (base) {
     await tx.parametrosExercicio.create({
@@ -122,6 +127,7 @@ export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAudi
     });
     await tx.contaComponenteExercicio.createMany({ data: base.contas.map((c) => ({ ano, componente: c.componente, conta: c.conta, provisorio: c.provisorio })) });
     await criarTabelaMestreDoAno(tx, ano, base.ano);
+    await copiarBeneficiosCargoDoAno(tx, contexto, ano, base.ano);
   } else {
     await tx.parametrosExercicio.create({
       data: {

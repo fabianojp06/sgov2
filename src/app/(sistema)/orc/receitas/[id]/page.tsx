@@ -10,13 +10,13 @@ export default async function AlterarReceita({ params }: { params: Promise<{ id:
   const exercicio = receita && exercicios.find((e) => e.id === receita.exercicioId);
   if (!receita || !exercicio) notFound();
   return (
-    <main>
+    <div>
       <h1>{`Alterar receita do TP ${receita.tp} (${exercicio.ano})`}</h1>
       {exercicio.situacao === 'RASCUNHO' || exercicio.situacao === 'EM_ELABORACAO' ? (
         <FormReceita ano={exercicio.ano} receita={receita} salvar={alterarReceitaAcao} />
       ) : (
         <p>{MENSAGENS_ORC.SITUACAO_NAO_EDITAVEL(exercicio.rotuloSituacao)}</p>
       )}
-    </main>
+    </div>
   );
 }

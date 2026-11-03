@@ -5,11 +5,11 @@ import { ErroPermissao, exigir, type ContextoRequisicao } from '@/shared/authz';
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import { anoPadrao, exercicioOrigemDaCopia, ROTULO_SITUACAO, transicionar, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
-import { RAIZES_CONTAS_PESSOAL } from '../domain/planilha';
 import { contextoAuditoria, ErroRecalculo, recalcularExercicio, travarExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
+import { contasVetadasEmPacote } from './contas-vetadas';
 
 // Exercícios do orçamento da Adm. Central (US-055; plano do P6, Task 3; spec §6.6).
 
@@ -69,7 +69,7 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
       if (forma === 'COPIA' && anoOrigem === null) return falha([{ campo: 'forma', mensagem: MENSAGENS_ORC.SEM_EXERCICIO_ANTERIOR }]);
 
       const novo = await tx.orcamentoExercicio.create({ data: { ano } });
-      await deps.custoPessoal.garantirPremissasExercicio(tx, contextoAuditoria(ctx), ano);
+      const premissasNovas = await deps.custoPessoal.garantirPremissasExercicio(tx, contextoAuditoria(ctx), ano);
       const copiadas = { posicoes: 0, pacotes: 0 };
       const puladas = { posicoes: 0, pacotes: 0 };
       if (anoOrigem !== null) {
@@ -78,13 +78,13 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
         // posições e pacotes saem do mesmo estado.
         await tx.$queryRaw`SELECT 1 FROM orc_exercicio WHERE id = ${origem.id}::uuid FOR SHARE`;
         const indice = await deps.estrutura.carregarIndiceEstrutura(tx);
-        const contasPessoal = new Set(RAIZES_CONTAS_PESSOAL.flatMap((r) => indice.contasAnaliticasSob(r)));
+        const contasVetadas = contasVetadasEmPacote(indice, premissasNovas);
         const [posicoes, pacotes] = await Promise.all([
           tx.posicaoOrcada.findMany({ where: { exercicioId: origem.id } }),
           tx.pacoteBaseZero.findMany({ where: { exercicioId: origem.id } }),
         ]);
         const posicoesValidas = posicoes.filter((p) => indice.centroCustoAnalitico(p.cc));
-        const pacotesValidos = pacotes.filter((k) => indice.centroCustoAnalitico(k.cc) && indice.contaAnaliticaAtiva(k.conta) && !contasPessoal.has(k.conta));
+        const pacotesValidos = pacotes.filter((k) => indice.centroCustoAnalitico(k.cc) && indice.contaAnaliticaAtiva(k.conta) && !contasVetadas.has(k.conta));
         await tx.posicaoOrcada.createMany({
           data: posicoesValidas.map(({ cc, cargo, quantidade, salarioMensal, mesInicio, mesSaida, observacao }) => ({
             exercicioId: novo.id, cc, cargo, quantidade, salarioMensal, mesInicio, mesSaida, observacao, origem: 'COPIA',
@@ -109,7 +109,7 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
         descricao:
           anoOrigem === null
             ? `Exercício ${ano} criado em branco`
-            : `Exercício ${ano} criado copiando ${anoOrigem}: ${copiadas.posicoes} posições e ${copiadas.pacotes} pacotes; puladas ${puladas.posicoes} posições e ${puladas.pacotes} pacotes (CC ou conta inativos)`,
+            : `Exercício ${ano} criado copiando ${anoOrigem}: ${copiadas.posicoes} posições e ${copiadas.pacotes} pacotes; puladas ${puladas.posicoes} posições e ${puladas.pacotes} pacotes (CC ou conta inativos, ou conta de pessoal em pacote)`,
         depois: { ano, forma, anoOrigem, copiadas, puladas },
       });
       return ok({ id: novo.id, copiadas, puladas });

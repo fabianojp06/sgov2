@@ -17,8 +17,16 @@ function instancia(): PrismaClient {
   return global_.__sgoPrisma;
 }
 
+// Só o acesso a um membro do cliente instancia. "then" (await prisma, Promise.resolve(prisma)) não:
+// antes, instanciava fora de hora ou falhava sem DATABASE_URL. O "in" consulta o cliente real. (O
+// util.inspect do Node já formata o alvo do Proxy sem passar pelas armadilhas.) Só get e has são
+// delegados: Object.keys(prisma) continua vazio.
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  has(_alvo, prop) {
+    return prop === 'then' ? false : Reflect.has(instancia(), prop);
+  },
   get(_alvo, prop) {
+    if (prop === 'then') return undefined;
     const cliente = instancia();
     const valor = Reflect.get(cliente, prop, cliente) as unknown;
     return typeof valor === 'function' ? (valor as (...a: unknown[]) => unknown).bind(cliente) : valor;

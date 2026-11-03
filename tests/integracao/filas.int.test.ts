@@ -3,6 +3,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox, registrarNoOutbox, type Fila } from '@/shared/filas';
+import { MAX_TENTATIVAS_OUTBOX } from '@/shared/filas/outbox';
 import { iniciarBancoTeste } from './banco';
 
 // Filas com pg-boss e outbox transacional (US-010), sobre PostgreSQL real.
@@ -82,6 +83,65 @@ describe('fila', () => {
   });
 });
 
+
+describe('#182: privilégios do sgo_fila e índice do outbox', () => {
+  it('sgo_fila não tem privilégio em nada do schema public (tabela, coluna, view, sequence, função) nem cria nele', async () => {
+    // has_table_privilege(nome) falhava ao resolver nomes do catálogo: o oid do pg_class evita isso.
+    const { rows } = await migrator.query<{ objeto: string }>(
+      `SELECT c.relname AS objeto FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+          AND (has_table_privilege('sgo_fila', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+               OR has_any_column_privilege('sgo_fila', c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))
+       UNION ALL
+       SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        -- CASE: sem ele, o planejador pode chamar has_sequence_privilege em relação que não é sequence.
+        WHERE n.nspname = 'public' AND CASE WHEN c.relkind = 'S' THEN has_sequence_privilege('sgo_fila', c.oid, 'USAGE,SELECT,UPDATE') ELSE false END
+       UNION ALL
+       SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND has_function_privilege('sgo_fila', p.oid, 'EXECUTE')
+          -- As funções de extensão (pgvector) são de todos por natureza; o que se confere são as do sistema.
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')`,
+    );
+    expect(rows).toEqual([]);
+    const { rows: tabelas } = await migrator.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')`,
+    );
+    expect(tabelas[0]!.n).toBeGreaterThan(10); // a consulta de cima viu as tabelas de verdade
+    const { rows: schema } = await migrator.query<{ cria: boolean }>(`SELECT has_schema_privilege('sgo_fila', 'public', 'CREATE') AS cria`);
+    expect(schema[0]!.cria).toBe(false);
+  });
+
+  it('a leitura de pendentes do publicarOutbox usa o índice parcial outbox_mensagem_pendentes_idx, sem ordenar à parte', async () => {
+    // O catálogo prova a forma do índice (coluna e predicado); o EXPLAIN prova que ele serve à consulta.
+    const { rows: indice } = await migrator.query<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'outbox_mensagem_pendentes_idx'`,
+    );
+    expect(indice[0]?.indexdef).toMatch(/\(criado_em\) WHERE \(publicado_em IS NULL\)$/);
+    // Cliente próprio: a transação com o seqscan desligado não encosta no migrator dos outros testes.
+    const c = new pg.Client({ connectionString: banco.urlMigrator });
+    await c.connect();
+    try {
+      await c.query('BEGIN');
+      // Com poucas linhas o planejador prefere varrer a tabela ou o bitmap com Sort: sem os dois, o plano
+      // mostra se o índice serve à leitura já ordenada por criado_em.
+      await c.query('SET LOCAL enable_seqscan = off');
+      await c.query('SET LOCAL enable_bitmapscan = off');
+      // A mesma consulta do publicarOutbox, com o limite de tentativas como parâmetro, como lá.
+      const { rows } = await c.query<{ 'QUERY PLAN': string }>(
+        `EXPLAIN SELECT id, tipo, dados FROM outbox_mensagem
+          WHERE publicado_em IS NULL AND tentativas < $1 AND NOT (id::text = ANY($2::text[]))
+          ORDER BY criado_em LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        [MAX_TENTATIVAS_OUTBOX, []],
+      );
+      const plano = rows.map((r) => r['QUERY PLAN']).join('\n');
+      expect(plano).toMatch(/using outbox_mensagem_pendentes_idx on outbox_mensagem\b/);
+      expect(plano).not.toMatch(/\bSort\b/);
+    } finally {
+      await c.query('ROLLBACK').catch(() => {});
+      await c.end();
+    }
+  });
+});
 
 describe('C4: dado sensível', () => {
   it('apagarJob remove o job (e seus dados) depois do envio', async () => {
