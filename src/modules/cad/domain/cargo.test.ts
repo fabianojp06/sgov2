@@ -93,6 +93,11 @@ describe('validarCargosRubi (R20, layout CAD-CARGOS v1.0)', () => {
     ]);
   });
 
+  it('salário em formato brasileiro com milhar ("7.500,00") e com vírgula ("7500,5")', () => {
+    const r = validarCargosRubi([linha(2, { 'Salário Real': '7.500,00' }), linha(3, { 'Salário Real': '7500,5' })], semMarca);
+    expect(r.ok ? r.cargos.map((c) => c.salarioReal?.paraString()) : r.erros).toEqual(['7500.00', '7500.50']);
+  });
+
   it('I9: salário inválido cita só a linha e a coluna, nunca o valor', () => {
     for (const valor of ['75OO', '-1', '0', '99999999.00', '7500.001']) {
       const r = validarCargosRubi([linha(2, { 'Salário Real': valor })], semMarca);

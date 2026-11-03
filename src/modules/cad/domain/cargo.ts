@@ -67,8 +67,10 @@ export type MercadoCargoValidado = {
 };
 
 const TEXTO_DINHEIRO = /^\d{1,13}(\.\d{1,2})?$/;
+// "7500,00", "7500.00" e o formato brasileiro com milhar ("7.500,00").
 const normalizar = (s: string) => {
   const t = s.trim();
+  if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(t)) return t.replace(/\./g, '').replace(',', '.');
   return t.includes(',') && !t.includes('.') ? t.replace(',', '.') : t;
 };
 
@@ -117,8 +119,8 @@ export const COLUNAS_CARGOS = [
   'Salário Real',
 ] as const;
 
-/** Colunas que o leitor deve manter como texto (código e salário: sem conversão de número). */
-export const COLUNAS_TEXTO_CARGOS = ['Código do Cargo', 'Tabela Salarial (código)', 'Faixa (código)', 'Nível (código)', 'Salário Real'] as const;
+/** Colunas que o leitor deve manter como texto (os códigos: "007" não vira 7). O salário pode vir como número. */
+export const COLUNAS_TEXTO_CARGOS = ['Código do Cargo', 'Tabela Salarial (código)', 'Faixa (código)', 'Nível (código)'] as const;
 
 export type LinhaCargoValidada = {
   linha: number;

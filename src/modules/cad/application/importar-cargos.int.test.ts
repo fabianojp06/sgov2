@@ -119,6 +119,54 @@ describe('importação dos cargos do Rubi (R20)', () => {
     expect(await cargo('C2')).toMatchObject({ ativo: false });
   });
 
+  it('salário numérico na planilha (o normal do Excel) também entra', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Cargos');
+    ws.addRow([...COLUNAS_CARGOS]);
+    ws.addRow(COLUNAS_CARGOS.map((c) => (c === 'Salário Real' ? 7500.5 : (linha('C7')[c] ?? null))));
+    const r = await solicitarCargaCargos(grh(), { nome: 'n.xlsx', conteudo: new Uint8Array(await wb.xlsx.writeBuffer()) }, { cliente: app, cifra });
+    expect(r.ok).toBe(true);
+  });
+
+  it('cargo inativo que volta no arquivo é reativado; a inativação sobe a versão e vai ao Histórico', async () => {
+    await carregar([linha('C1'), linha('C2')]);
+    await carregar([linha('C1')]);
+    expect(await cargo('C2')).toMatchObject({ ativo: false, versao: 2 });
+    const h = await migrator.query(`SELECT descricao FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND registro_id = 'C2' ORDER BY id`);
+    expect(h.rows.map((r) => r.descricao)).toContain('Cargo C2 inativado pela carga (fora do arquivo)');
+    const id = await carregar([linha('C1'), linha('C2')]);
+    expect(await consultarCarga(grh(), id, { cliente: app })).toMatchObject({ alteradas: 1, inalteradas: 1 });
+    expect(await cargo('C2')).toMatchObject({ ativo: true, versao: 3 });
+  });
+
+  // O staging é gravado só pelo sgo_app; o worker recusa o que não é a saída canônica do domínio
+  // (salário fora do envelope, texto fora do padrão), não um texto válido trocado.
+  it('staging adulterado (salário em claro, nome fora do padrão): o lote FALHOU e o cargo fica intacto', async () => {
+    await carregar([linha('C1')]);
+    const antes = await cargo('C1');
+    for (const adulterar of [`jsonb_set(dados, '{salarioRealCifrado}', '"7500.00"')`, `jsonb_set(dados, '{nomeOficial}', '"  Cargo C1  "')`]) {
+      const r = await solicitarCargaCargos(grh(), await xlsx([linha('C1', { 'Salário Real': '9999.00' })]), { cliente: app, cifra });
+      if (!r.ok) throw new Error('recusada');
+      await migrator.query(`UPDATE carga_estrutura_linha SET dados = ${adulterar} WHERE carga_id = $1`, [r.valor.cargaId]);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+      expect(await consultarCarga(grh(), r.valor.cargaId, { cliente: app })).toMatchObject({ situacao: 'FALHOU', erros: [{ mensagem: 'Linha adulterada no staging.' }] });
+      expect(await cargo('C1')).toEqual(antes);
+    }
+  });
+
+  it('envelope de uma chave que saiu do keyring: a recarga cifra de novo com a atual, sem erro', async () => {
+    const k0 = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: Buffer.alloc(32, 7).toString('base64'), CHAVE_CIFRA_SALARIOS_ID: 'k0' });
+    const r0 = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra: k0 });
+    if (!r0.ok) throw new Error('recusada');
+    await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+    expect((await cargo('C1')).salario_real_cifrado).toMatch(/^v1:k0:/);
+    await carregar([linha('C1')]);
+    const depois = (await cargo('C1')).salario_real_cifrado;
+    expect(depois).toMatch(new RegExp(`^v1:${ID_CHAVE_TESTE}:`));
+    expect(cifra.decifrar(depois, { codigoCargo: 'C1', campo: 'salario_real' }).paraString()).toBe('7500.00');
+  });
+
   it('salário que muda: envelope novo; o Histórico tem o envelope, nunca o valor', async () => {
     await carregar([linha('C1')]);
     const antes = (await cargo('C1')).salario_real_cifrado;

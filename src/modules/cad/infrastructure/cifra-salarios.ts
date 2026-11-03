@@ -23,6 +23,8 @@ const TAMANHO_IV = 12;
 const TAMANHO_TAG = 16;
 const FORMATO_ID = /^[A-Za-z0-9_-]{1,20}$/;
 const MSG_INVALIDO = 'Não foi possível decifrar um salário do cargo.';
+// O texto vai completado com zeros até um tamanho fixo: a cifra não revela quantos dígitos tem o salário.
+const TAMANHO_TEXTO = 16;
 
 const b64url = (b: Buffer) => b.toString('base64url');
 const aad = (codigoCargo: string, campo: CampoCifrado, idChave: string) => Buffer.from(`cad.cargo:${codigoCargo}:${campo}:${idChave}`, 'utf8');
@@ -44,16 +46,22 @@ function lerConfiguracao(fonte: Readonly<Record<string, string | undefined>>): C
   if (!FORMATO_ID.test(id)) throw new Error('[CIFRA_SALARIOS_INVALIDA] CHAVE_CIFRA_SALARIOS_ID deve ter até 20 letras, números, hífen ou sublinhado.');
   const chave = chaveDe(base64, 'CHAVE_CIFRA_SALARIOS');
   const teste = Buffer.from(CHAVE_TESTE_CIFRA, 'base64');
-  if (lerAmbiente(fonte) === 'producao' && timingSafeEqual(chave, teste)) {
-    throw new Error('[CIFRA_SALARIOS_CHAVE_DE_TESTE] A chave de teste da cifra não vale em produção: cadastre CHAVE_CIFRA_SALARIOS.');
-  }
+  const producao = lerAmbiente(fonte) === 'producao';
+  const recusarTeste = (b: Buffer) => {
+    if (producao && timingSafeEqual(b, teste)) {
+      throw new Error('[CIFRA_SALARIOS_CHAVE_DE_TESTE] A chave de teste da cifra não vale em produção, nem como anterior: cadastre a chave real.');
+    }
+  };
+  recusarTeste(chave);
   const chaves = new Map<string, Buffer>([[id, chave]]);
   for (const item of (fonte.CHAVE_CIFRA_SALARIOS_ANTERIORES ?? '').split(';').map((x) => x.trim()).filter(Boolean)) {
     const [idAnterior, b64, ...resto] = item.split(':');
     if (!idAnterior || !b64 || resto.length > 0 || !FORMATO_ID.test(idAnterior) || chaves.has(idAnterior)) {
       throw new Error('[CIFRA_SALARIOS_INVALIDA] CHAVE_CIFRA_SALARIOS_ANTERIORES deve ser id:base64;id:base64, com ids distintos.');
     }
-    chaves.set(idAnterior, chaveDe(b64, 'CHAVE_CIFRA_SALARIOS_ANTERIORES'));
+    const anterior = chaveDe(b64, 'CHAVE_CIFRA_SALARIOS_ANTERIORES');
+    recusarTeste(anterior);
+    chaves.set(idAnterior, anterior);
   }
   return { atual: { id, chave }, chaves };
 }
@@ -77,7 +85,7 @@ export function criarCifraSalarios(fonte: Readonly<Record<string, string | undef
       const iv = randomBytes(TAMANHO_IV);
       const c = createCipheriv('aes-256-gcm', atual.chave, iv, { authTagLength: TAMANHO_TAG });
       c.setAAD(aad(codigoCargo, campo, atual.id));
-      const cifra = Buffer.concat([c.update(valor.paraString(), 'utf8'), c.final()]);
+      const cifra = Buffer.concat([c.update(valor.paraString().padStart(TAMANHO_TEXTO, '0'), 'utf8'), c.final()]);
       return [VERSAO, atual.id, b64url(iv), b64url(c.getAuthTag()), b64url(cifra)].join(':');
     },
     decifrar(envelope, { codigoCargo, campo }) {

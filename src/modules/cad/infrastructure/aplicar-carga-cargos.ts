@@ -1,5 +1,7 @@
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
+import type { AdicionalTrabalhista, FonteAtiva as FonteAtivaBanco, GrauInsalubridade as GrauBanco } from '@/generated/prisma/enums';
+import type { FonteAtiva, GrauInsalubridade, MercadoCargoValidado } from '../domain/cargo';
 import type { LinhaCargoValidada } from '../domain/cargo';
 import type { ResultadoCarga } from './aplicar-carga';
 
@@ -7,6 +9,15 @@ import type { ResultadoCarga } from './aplicar-carga';
 // controle, como o sgo_sync tem por coluna (m2). O casamento é pelo código; o cargo que saiu do
 // arquivo fica inativo; os campos manuais nunca são tocados. O salário real chega cifrado pelo app
 // (R7): o worker só copia o envelope, e o Histórico leva o envelope, nunca o valor.
+
+// Os enums do banco e os do domínio têm de ser os mesmos: uma mudança de um lado sem o outro não compila.
+type Igual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const _enunsIguais: [Igual<FonteAtivaBanco, FonteAtiva>, Igual<GrauBanco, GrauInsalubridade>, Igual<AdicionalTrabalhista, NonNullable<MercadoCargoValidado['adicional']>['tipo']>] = [
+  true,
+  true,
+  true,
+];
+void _enunsIguais;
 
 /** Linha do staging dos cargos: a saída do domínio com o salário já cifrado. */
 export type LinhaCargoStaging = Omit<LinhaCargoValidada, 'salarioReal'> & { salarioRealCifrado: string | null };
@@ -50,8 +61,23 @@ export async function aplicarCargaCargos(
   carga: { id: string },
   linhas: readonly LinhaCargoStaging[],
 ): Promise<ResultadoCarga> {
-  const banco = await tx.cargo.findMany({ select: { id: true, codigo: true, ativo: true, versao: true, ...Object.fromEntries(CAMPOS_RUBI.map((k) => [k, true])) } });
-  const porCodigo = new Map(banco.map((c) => [c.codigo, c as unknown as CargoRubi & { id: string; codigo: string; ativo: boolean; versao: number }]));
+  const banco = await tx.cargo.findMany({
+    select: {
+      id: true,
+      codigo: true,
+      ativo: true,
+      nomeOficial: true,
+      nomeMercado: true,
+      tabelaSalarialCodigo: true,
+      tabelaSalarialDescricao: true,
+      faixaCodigo: true,
+      faixaDescricao: true,
+      nivelCodigo: true,
+      nivelDescricao: true,
+      salarioRealCifrado: true,
+    },
+  });
+  const porCodigo = new Map(banco.map((c) => [c.codigo, c]));
   const noArquivo = new Set(linhas.map((l) => l.codigo));
   const origem = contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO';
   const funcionalidade = 'cad.cargos';
@@ -75,7 +101,8 @@ export async function aplicarCargaCargos(
       continue;
     }
     alteradas++;
-    await tx.cargo.update({ where: { id: antes.id }, data: { ...depois, ativo: true, versao: antes.versao + 1, cargaId: carga.id } });
+    // A versão sobe no banco (increment), não a partir da leitura: uma gravação manual no meio não se perde.
+    await tx.cargo.update({ where: { id: antes.id }, data: { ...depois, ativo: true, versao: { increment: 1 }, cargaId: carga.id } });
     await auditar(tx, {
       contexto,
       origem,
@@ -91,7 +118,7 @@ export async function aplicarCargaCargos(
   for (const antes of porCodigo.values()) {
     if (noArquivo.has(antes.codigo) || !antes.ativo) continue;
     inativadas++;
-    await tx.cargo.update({ where: { id: antes.id }, data: { ativo: false, versao: antes.versao + 1, cargaId: carga.id } });
+    await tx.cargo.update({ where: { id: antes.id }, data: { ativo: false, versao: { increment: 1 }, cargaId: carga.id } });
     await auditar(tx, {
       contexto,
       origem,

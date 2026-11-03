@@ -22,6 +22,12 @@ describe('cifra dos salários', () => {
     expect(cifra.idChaveAtual()).toBe(ID_CHAVE_TESTE);
   });
 
+  it('o tamanho da cifra não revela quantos dígitos tem o salário', () => {
+    const tamanho = (v: string) => cifra.cifrar(Dinheiro.de(v), ctx).split(':')[4]!.length;
+    expect(tamanho('7500.00')).toBe(tamanho('1234567.89'));
+    expect(cifra.decifrar(cifra.cifrar(Dinheiro.de('0.01'), ctx), ctx).paraString()).toBe('0.01');
+  });
+
   it('1.000 cifras do mesmo valor → 1.000 IVs distintos', () => {
     const ivs = new Set(Array.from({ length: 1000 }, () => cifra.cifrar(valor, ctx).split(':')[2]));
     expect(ivs.size).toBe(1000);
@@ -82,6 +88,16 @@ describe('cifra dos salários', () => {
 
   it('produção: a chave de teste é recusada; outra chave vale', () => {
     expect(() => criarCifraSalarios(fonte({ AMBIENTE: 'producao', NODE_ENV: 'production' }))).toThrow(/CIFRA_SALARIOS_CHAVE_DE_TESTE/);
+    // Nem como chave anterior.
+    expect(() =>
+      criarCifraSalarios({
+        CHAVE_CIFRA_SALARIOS: randomBytes(32).toString('base64'),
+        CHAVE_CIFRA_SALARIOS_ID: 'prod2',
+        CHAVE_CIFRA_SALARIOS_ANTERIORES: `${ID_CHAVE_TESTE}:${CHAVE_TESTE_CIFRA}`,
+        AMBIENTE: 'producao',
+        NODE_ENV: 'production',
+      }),
+    ).toThrow(/CIFRA_SALARIOS_CHAVE_DE_TESTE/);
     const real = randomBytes(32).toString('base64');
     expect(criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: real, CHAVE_CIFRA_SALARIOS_ID: 'prod1', AMBIENTE: 'producao', NODE_ENV: 'production' }).idChaveAtual()).toBe('prod1');
   });

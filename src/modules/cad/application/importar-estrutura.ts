@@ -265,11 +265,13 @@ export async function solicitarCargaCargos(
     if (c.salarioReal === null) return paraStaging(c, null);
     const contexto = { codigoCargo: c.codigo, campo: 'salario_real' as const };
     const atual = atuais.get(c.codigo) ?? null;
-    if (atual !== null) {
+    // Reaproveita só envelope da chave atual: o de chave anterior é cifrado de novo (adianta a rotação).
+    if (atual !== null && atual.startsWith(`v1:${cifra.idChaveAtual()}:`)) {
       try {
         if (cifra.decifrar(atual, contexto).comparar(c.salarioReal) === 0) return paraStaging(c, atual);
       } catch {
-        // Envelope de uma chave que já saiu do keyring: cifra de novo com a atual.
+        // I9: só o código do cargo; cifra de novo com a atual.
+        console.warn('[CIFRA_SALARIOS_ENVELOPE_INVALIDO]', { codigoCargo: c.codigo });
       }
     }
     return paraStaging(c, cifra.cifrar(c.salarioReal, contexto));
