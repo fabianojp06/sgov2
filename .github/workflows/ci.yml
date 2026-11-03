@@ -7,7 +7,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Na main, cada commit mantém o próprio CI (dois merges seguidos não se cancelam).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -61,10 +62,12 @@ jobs:
   e2e:
     # E2E de acesso e do orc (#228): depois do build, sozinho no runner (D12), banco do Testcontainers
     # sem o Ryuk e o next start do global-setup em 127.0.0.1:3190. No CI o Chromium é instalado no
-    # runner (E2E_NAVEGADOR_LOCAL=1): o contêiner do navegador (3191) é só para a VPS.
+    # runner (E2E_NAVEGADOR_LOCAL=1): o contêiner do navegador (3191) é só para a VPS. O --with-deps
+    # usa apt: este job não serve para um runner na VPS (decisão do PO: sem apt no host). No CI não
+    # há .env.local: o next start recebe só as variáveis do global-setup (o que faltar quebra aqui).
     name: E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,12 +78,13 @@ jobs:
           cache: npm
       - run: npm ci
       # A versão do Chromium é a do @playwright/test do package-lock.
-      - run: npx playwright install --with-deps chromium
+      - run: npx --no-install playwright install --with-deps chromium
       - run: npm run build
       - run: npm run test:e2e
         env:
           E2E_NAVEGADOR_LOCAL: '1'
-      - if: failure()
+      # Também no prazo estourado (cancelado), o caso do travamento.
+      - if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-traces
