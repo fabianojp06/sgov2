@@ -158,7 +158,14 @@
 - **Para a frente B (#218):** o usuário `gfinPlano` já está semeado. O `e2e/cad/rolagem-plano.spec.ts` segue em `fixme`, porque a carga de 5.000 linhas depende do worker, que o E2E não sobe. A frente B decide se o plano entra pelo migrator ou subindo o worker.
 - **Pendentes do P6:**
   - **Semáforo do teto:** entra por injeção até a Task 9a do P4 (#234). Por isso a #81 continua aberta.
-  - **Revisão de bloco do P6:** ainda não feita (§12.12; `/code-review ultra` opcional do PO no P6).
+- **Revisão de bloco do P6 (03/11):** três lentes independentes (plano/spec, segurança, testes/acessibilidade), todas "aprovado com ressalvas", sem bloqueante. Correções no #273 e no #275:
+  - limites de texto contam caracteres como o `char_length` do banco;
+  - com escopo, a importação recusa premissas desatualizadas e esconde o erro de CC de fora;
+  - o Histórico da importação registra a versão das premissas;
+  - testes que faltavam;
+  - regiões vivas da importação; semáforo "Indisponível";
+  - D-P6-7 marcada [PROVISÓRIA].
+  - `/code-review ultra` do P6 continua opcional, a critério do PO.
 - **CC de escopo pelo C1 (#264):** o cadastro de usuário recusa CC de escopo novo sem CC analítico ativo na subárvore ("CC de escopo sem centro de custo analítico ativo." [PROVISÓRIA]). O CC já gravado é mantido pelo Salvar, decisão nova para o PO validar.
 
 **Repositório (documentação)**
@@ -233,7 +240,11 @@
 **Frente A (03/11)**
 - [ ] PO: validar as decisões D-P6-1 a D-P6-7, a manutenção do CC de escopo já gravado (#264) e os textos [PROVISÓRIOS] da US-038 e das ressalvas do P5 (#263, #264, #266).
 - [ ] PO: marcar como falso positivo, no painel do GitGuardian, os incidentes 39442399 e 39442400 (#237).
-- [ ] Revisão de bloco do P6.
+- [ ] PO, decisões da revisão de bloco do P6 (#273):
+  - salário de cada posição em claro no snapshot imutável, sem como cifrar depois da oficialização. Recomendação: tirar o `salarioMensal` do snapshot antes da primeira oficialização em produção (D-P6-1);
+  - contas de encargo `4.1.1.8.003/004` fora das raízes vetadas em pacote base zero (`RAIZES_CONTAS_PESSOAL`, [PROVISÓRIA] §6.6);
+  - conferência do sha256 do snapshot pelo banco: o `jsonb` reordena as chaves. Sugestão: `conferirSnapshot` ou guardar o texto canônico.
+- [ ] Textos de tela do `orc` fora do `MENSAGENS_ORC` (avisos de aprovação, importação, lista de exercícios e receitas, rótulos do painel) entram na validação dos [PROVISÓRIOS] pelo PO.
 - [ ] Ressalva 4 da revisão de bloco do P5: o provedor de contexto roda até três vezes por página.
   - Não foi aplicado o `cache` do React, porque o provedor é criado no `instrumentation.ts`, fora da camada `react-server`, onde o `cache` é só repasse.
   - Memorizar no `obterContexto` dependeria do escopo do React nas Server Actions. Só aplicar depois de medir no app rodando, contando as chamadas por página.
@@ -258,7 +269,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
-| 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações |
+| 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão de bloco do P6 com 3 lentes e correções (#273, #275); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações |
 | 26/10–02/11/2026 | A | P5 concluído na `main`: US-031 (#206), E2E de acesso (#235), US-038 em duas partes (#236, com o `adm/servidor.ts`, e #237); revisão de bloco do P5; verificação manual com o Mailpit; plano do P6 (#238) e Tasks 0 a 8 do P6 em branches locais; revisões de consumidor do C1, do C2 e do leitor; issues #228 a #234 para a frente B; merges aprovados pelo PO um a um |
 | 02/11/2026 | B | Noite: merges do PO (#240, #241, #242, #244, #245, #246 e #248); Task 8 (#248, telas de CC e trava da DIREX, revisão com security-review) e Task 9b (#249, parâmetros e SMN; a revisão achou brechas na auditoria da origem blindada, corrigidas com a conferência no pedido bruto); build: rodar `prisma generate` na cópia principal antes do `npm run build` |
 | 02/11/2026 | B | Tarde: merges do PO da pilha do P4 e do #222 (M5 pela recomendação, com uma 3.ª rodada de revisão só do commit da M5); #240 (ambiente único), #241/#242 (Node 24 no CI, o `pr.yml` separado por ser compartilhado), #244 (tela de importação do plano, duas rodadas de revisão) e #245 (consulta em árvore); D12: duas rodadas de teste coincidiram com a integração da frente A, depois disso toda rodada pesada espera o `vitest` da outra frente |
