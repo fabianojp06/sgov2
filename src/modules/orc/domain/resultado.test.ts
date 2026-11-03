@@ -49,6 +49,7 @@ describe('validarTeto', () => {
     expect(validarTeto(acima, null, receita)).toEqual(erro);
     expect(validarTeto(acima, '  14 caractere ', receita)).toEqual(erro);
     expect(validarTeto(acima, 'Quinze letras!!', receita)).toEqual({ ok: true, valor: { valor: acima, justificativa: 'Quinze letras!!' } });
+    expect(validarTeto(acima, '🚀'.repeat(8), receita)).toEqual(erro); // 8 caracteres, 16 unidades UTF-16
   });
 
   it('até a receita (inclusive igual): sem justificativa, e a informada é guardada; null limpa o teto manual', () => {

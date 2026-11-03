@@ -2,6 +2,7 @@ import Decimal from 'decimal.js';
 import { Dinheiro, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { MENSAGENS_ORC as M } from './mensagens';
 import type { DadosPacote, Prioridade } from './pacote';
+import { contarCaracteres } from './texto';
 
 // Validação da planilha-modelo (US-121; plano do P6, Task 4a). Função pura: as linhas chegam do
 // leitor seguro do ger, e a estrutura financeira (C1) e o escopo (C25) chegam por parâmetro.
@@ -111,7 +112,7 @@ function lerTexto(e: Erros, celulas: LinhaPlanilha['celulas'], coluna: string, r
   const v = texto(celulas[coluna]);
   if (v === '' && regra.obrigatorio) return void erro(e, coluna, regra.obrigatorio);
   if (FORMULA.test(v)) return void erro(e, coluna, M.TEXTO_FORMULA);
-  if (v.length > regra.maximo) return void erro(e, coluna, `${regra.rotulo} com mais de ${formatarInteiro(regra.maximo)} caracteres.`);
+  if (contarCaracteres(v) > regra.maximo) return void erro(e, coluna, `${regra.rotulo} com mais de ${formatarInteiro(regra.maximo)} caracteres.`);
   return v;
 }
 
@@ -191,7 +192,7 @@ function validarPacote(l: LinhaPlanilha, estrutura: ConsultaEstrutura, limites: 
   const conta = texto(c['Conta analítica']);
   if (!estrutura.contaPermitida(conta)) erro(e, 'Conta analítica', M.CONTA_NAO_PERMITIDA);
   let justificativa = lerTexto(e, c, JUSTIFICATIVA, { obrigatorio: M.JUSTIFICATIVA_CURTA, maximo: 1000, rotulo: 'Justificativa' });
-  if (justificativa !== undefined && justificativa.length < 10) justificativa = void erro(e, JUSTIFICATIVA, M.JUSTIFICATIVA_CURTA);
+  if (justificativa !== undefined && contarCaracteres(justificativa) < 10) justificativa = void erro(e, JUSTIFICATIVA, M.JUSTIFICATIVA_CURTA);
   const prioridade = escolher(PRIORIDADES, c['Prioridade']);
   if (!prioridade) erro(e, 'Prioridade', M.PRIORIDADE);
   const quantidade = lerQuantidade(e, c, limites);

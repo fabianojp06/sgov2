@@ -14,6 +14,7 @@ import { contextoAuditoria, travarExercicio, type ExercicioTravado } from './cal
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
+import { contarCaracteres } from '../domain/texto';
 
 // Envio, aprovação, rejeição e oficialização (US-061; C36; plano do P6, Task 8; R10). A GFIN
 // envia (orc.aprovacao:executar); a DIREX aprova ou rejeita (orc.aprovacao:aprovar). Uma etapa só
@@ -211,7 +212,7 @@ export async function rejeitarExercicio(ctx: ContextoRequisicao, bruto: unknown,
   const entrada = await abrir(ctx, 'aprovar', bruto, entradaRejeicao, deps);
   if (!entrada) return falha([{ campo: '_', mensagem: MENSAGEM_ENTRADA }]);
   const justificativa = (entrada.justificativa ?? '').trim();
-  if (justificativa.length < 15) return falha([{ campo: 'justificativa', mensagem: MENSAGENS_ORC.REJEICAO_CURTA }]);
+  if (contarCaracteres(justificativa) < 15) return falha([{ campo: 'justificativa', mensagem: MENSAGENS_ORC.REJEICAO_CURTA }]);
   return executar(deps, async (tx) => {
     const e = await travarExercicio(tx, entrada.id);
     if (e.versao !== entrada.versao) versaoVelha();
