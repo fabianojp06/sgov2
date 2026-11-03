@@ -66,7 +66,7 @@ describe('custo do cargo (US-051 parte 2)', () => {
     expect(r.valor.base!.paraString()).toBe('6500.00');
     expect(r.valor.encargo!.total.paraString()).toBe('3315.00');
     const t = paraTelaCusto(r);
-    expect(t).toMatchObject({ mascarado: false, base: '6500.00', encargoTotal: '3315.00', percentualTotal: expect.stringContaining('51') });
+    expect(t).toMatchObject({ mascarado: false, base: '6500.00', encargoTotal: '3315.00', percentualTotal: '51,00%' });
     if (!('componentes' in t)) throw new Error('sem componentes');
     expect(t.componentes.map((c) => c.valor)).toEqual(expect.arrayContaining(['2470.00', '520.00', '65.00', '247.00', '13.00']));
     // A soma das linhas do mês 1 é o total do mês (sem drift).
@@ -81,8 +81,27 @@ describe('custo do cargo (US-051 parte 2)', () => {
     expect(r.valor.encargo!.total.paraString()).toBe('2550.00');
     const x = await calcularCustoCargo(grh(), cargos.X1!, 2027, { cliente: app, cifra });
     expect(x.ok).toBe(false);
-    expect(paraTelaCusto(x)).toMatchObject({ mascarado: false, erro: expect.any(String) });
+    // I9: a mensagem da cifra, sem nenhum valor.
+    expect(paraTelaCusto(x)).toEqual({ mascarado: false, erro: 'Não foi possível decifrar um salário do cargo.' });
     expect(await consultas('X1')).toBe(0);
+  });
+
+  it('benefícios do cargo (Task 13): o padrão desativado sai, o ativado no cargo entra com o valor manual; o padrão sem valor vira aviso', async () => {
+    const e1 = (await migrator.query(`INSERT INTO cargo (codigo, nome_oficial, mercado_minimo, fonte_ativa) VALUES ('E1', 'E1', 5000, 'MINIMO') RETURNING id`)).rows[0].id;
+    await migrator.query(`UPDATE beneficio_mestre SET valor = 600 WHERE ano = 2027 AND codigo = 'beneficio.saude_basico'`);
+    await migrator.query(
+      `INSERT INTO beneficio_cargo (cargo_id, ano, codigo, ativo, valor_manual, origem) VALUES ($1, 2027, 'beneficio.vr', false, NULL, 'MESTRE'), ($1, 2027, 'beneficio.odonto', true, 80, 'MANUAL')`,
+      [e1],
+    );
+    const r = await calcularCustoCargo(grh(), e1, 2027, { cliente: app, cifra });
+    const t = paraTelaCusto(r);
+    if (!('linhasMes1' in t)) throw new Error(JSON.stringify(t));
+    const beneficios = t.linhasMes1.filter((l) => l.componente.startsWith('beneficio.')).map((l) => [l.nome, l.valor]);
+    expect(beneficios).toEqual(expect.arrayContaining([['Seguro saúde (básico)', '600.00'], ['Plano odontológico', '80.00']]));
+    expect(beneficios).toHaveLength(2);
+    expect(t.avisos).toEqual(['O benefício Seguro de vida é padrão da posição, mas está sem valor na Tabela Mestre de 2027.']);
+    // O encargo do cargo não muda com os benefícios (UC03.19 §6.1).
+    expect(t.encargoTotal).toBe('2550.00');
   });
 
   it('sem Fonte Ativa → mensagem; ano sem parâmetros → mensagem', async () => {
@@ -93,7 +112,7 @@ describe('custo do cargo (US-051 parte 2)', () => {
   it('ORCAMENTISTA (sem cad.salarios): série e encargo nulos, sem Histórico; sem cad.cargos, recusa', async () => {
     const antes = await consultas('P1');
     const r = await calcularCustoCargo(orcamentista(), cargos.P1!, 2027, { cliente: app, cifra });
-    expect(r).toEqual({ ok: true, valor: { serie: null, encargo: null, base: null, encargos: [], mascarado: true } });
+    expect(r).toEqual({ ok: true, valor: { serie: null, encargo: null, base: null, encargos: [], nomes: new Map(), avisos: [], mascarado: true } });
     expect(paraTelaCusto(r)).toEqual({ mascarado: true });
     expect(await consultas('P1')).toBe(antes);
     await expect(calcularCustoCargo(ctx(['cad.salarios', 'consultar']), cargos.P1!, 2027, { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);

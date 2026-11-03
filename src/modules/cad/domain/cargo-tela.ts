@@ -91,5 +91,6 @@ export type CustoCargoTela =
       componentes: readonly { nome: string; percentual: string; valor: string }[];
       totalMes1: string;
       totalAno: string;
-      linhasMes1: readonly { componente: string; valor: string }[];
+      linhasMes1: readonly { componente: string; nome: string | null; valor: string }[];
+      avisos: readonly string[];
     };

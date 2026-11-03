@@ -18,10 +18,12 @@ const completo: CustoCargoTela = {
   totalMes1: '9999.99',
   totalAno: '119999.88',
   linhasMes1: [
-    { componente: 'salario', valor: '5000.00' },
-    { componente: 'adicional', valor: '1500.00' },
-    { componente: 'beneficio.vr', valor: '800.00' },
+    { componente: 'salario', nome: null, valor: '5000.00' },
+    { componente: 'adicional', nome: null, valor: '1500.00' },
+    { componente: 'encargo.inss', nome: 'INSS', valor: '2950.12' },
+    { componente: 'beneficio.vr', nome: 'Vale-refeição', valor: '800.00' },
   ],
+  avisos: ['O benefício Seguro de vida é padrão da posição, mas está sem valor na Tabela Mestre de 2027.'],
 };
 
 describe('BlocoEncargo', () => {
@@ -34,8 +36,13 @@ describe('BlocoEncargo', () => {
     expect(h).toMatch(/FGTS.*8,00%.*520,00/s);
     expect(h).toMatch(/Salário.*5\.000,00/s);
     expect(h).toMatch(/Adicional.*1\.500,00/s);
-    expect(h).toContain('Benefício: vr');
+    expect(h).toMatch(/Encargo: INSS.*2\.950,12/s);
+    expect(h).toMatch(/Benefício: Vale-refeição.*800,00/s);
     expect(h).toContain('119.999,88');
+    // Os dois encargos com rótulos distintos: o do cargo (UC03.19 §6.1) e o da série (C33).
+    expect(h).toContain('Encargo social do cargo');
+    expect(h).toContain('com férias e 13º provisionados');
+    expect(h).toContain('Seguro de vida é padrão da posição, mas está sem valor');
   });
 
   it('ORCAMENTISTA: só o aviso, sem nenhum valor (R24)', () => {

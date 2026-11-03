@@ -11,6 +11,9 @@ const ROTULO_COMPONENTE: Readonly<Record<string, string>> = {
   decimo_terceiro: '13º salário',
 };
 
+const rotulo = (l: { componente: string; nome: string | null }) =>
+  ROTULO_COMPONENTE[l.componente] ?? (l.nome ? `${l.componente.startsWith('beneficio.') ? 'Benefício' : 'Encargo'}: ${l.nome}` : l.componente);
+
 export function BlocoEncargo({ custo, ano }: { custo: CustoCargoTela; ano: number }) {
   if (custo.mascarado) return <p>O custo do cargo fica mascarado: você não tem a permissão de ver salários.</p>;
   if (custo.erro !== undefined) return <p role="status">{custo.erro}</p>;
@@ -18,7 +21,7 @@ export function BlocoEncargo({ custo, ano }: { custo: CustoCargoTela; ano: numbe
     <section aria-labelledby="titulo-custo">
       <h2 id="titulo-custo">Custo de 1 pessoa em {ano}</h2>
       <p>
-        Encargo social: <strong>{reais(custo.encargoTotal)}</strong> ({custo.percentualTotal}) sobre a base de {reais(custo.base)} (Fonte Ativa + adicional).
+        Encargo social do cargo: <strong>{reais(custo.encargoTotal)}</strong> ({custo.percentualTotal}) sobre a base de {reais(custo.base)} (Fonte Ativa + adicional).
       </p>
       <table>
         <caption>Encargo social por componente</caption>
@@ -40,11 +43,11 @@ export function BlocoEncargo({ custo, ano }: { custo: CustoCargoTela; ano: numbe
         </tbody>
       </table>
       <table>
-        <caption>Custo de janeiro por componente</caption>
+        <caption>Custo de janeiro por componente, com férias e 13º provisionados (o encargo incide também sobre eles)</caption>
         <tbody>
           {custo.linhasMes1.map((l) => (
             <tr key={l.componente}>
-              <th scope="row">{ROTULO_COMPONENTE[l.componente] ?? l.componente.replace(/^encargo\./, 'Encargo: ').replace(/^beneficio\./, 'Benefício: ')}</th>
+              <th scope="row">{rotulo(l)}</th>
               <td>{reais(l.valor)}</td>
             </tr>
           ))}
@@ -53,6 +56,13 @@ export function BlocoEncargo({ custo, ano }: { custo: CustoCargoTela; ano: numbe
       <p>
         Custo em janeiro: {reais(custo.totalMes1)}. Custo no ano: {reais(custo.totalAno)}.
       </p>
+      {custo.avisos.length > 0 && (
+        <ul aria-label="Avisos das premissas">
+          {custo.avisos.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

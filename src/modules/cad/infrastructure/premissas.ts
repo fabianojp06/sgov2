@@ -21,15 +21,16 @@ import { criarParametrosDoAno, lerParametrosExercicio } from './parametro-sistem
  */
 export const calcularCustoPosicao = motor;
 
+/** Escolha de benefícios de um cargo (Task 13): ativo e valor manual por código; sem a escolha, os "padrão da posição". */
+export type EscolhaBeneficios = ReadonlyMap<string, { ativo: boolean; valorManual: Dinheiro | null }>;
+
 /**
  * Premissas completas do ano, ou null se o ano ainda não tem parâmetros. Os benefícios da posição
  * sem cargo (C34) são os itens ativos da Tabela Mestre marcados como padrão e com valor; o diário vira
  * mensal pelos dias úteis. Item padrão sem valor e conta que não é mais analítica ativa (recarga do
- * plano) geram aviso; a conta inválida vai vazia, e o cálculo recusa o componente.
+ * plano) geram aviso; a conta inválida vai vazia, e o cálculo recusa o componente. Com a `escolha` de
+ * um cargo, valem os ativos dele e o valor manual no lugar do da Tabela Mestre.
  */
-/** Escolha de benefícios de um cargo (Task 13): ativo e valor manual por código; sem a escolha, os "padrão da posição". */
-export type EscolhaBeneficios = ReadonlyMap<string, { ativo: boolean; valorManual: Dinheiro | null }>;
-
 export async function obterPremissasExercicio(tx: TxCliente, ano: number, escolha?: EscolhaBeneficios): Promise<PremissasExercicio | null> {
   if (!Number.isInteger(ano)) return null;
   const p = await lerParametrosExercicio(tx, ano);
@@ -47,13 +48,14 @@ export async function obterPremissasExercicio(tx: TxCliente, ano: number, escolh
     if (!item.ativo || !(doCargo ? doCargo.ativo : item.padraoPosicao)) continue;
     // O valor manual do cargo (RN_CAR_07) no lugar do da Tabela Mestre.
     const b = doCargo?.valorManual ? { ...item, valor: doCargo.valorManual } : item;
+    const motivo = doCargo ? 'está ativo no cargo' : 'é padrão da posição';
     if (b.forma === 'PERCENTUAL_SALARIO') {
-      if (b.percentual === null) avisos.push(`O benefício ${b.nome} é padrão da posição, mas está sem percentual na Tabela Mestre de ${ano}.`);
+      if (b.percentual === null) avisos.push(`O benefício ${b.nome} ${motivo}, mas está sem percentual na Tabela Mestre de ${ano}.`);
       else beneficios.push({ componente: b.codigo, nome: b.nome, forma: 'PERCENTUAL_SALARIO', percentual: b.percentual, conta: conta(b.conta, b.nome) });
       continue;
     }
     const mensal = valorMensalPorPessoa(b, p.diasUteisMes);
-    if (mensal === null) avisos.push(`O benefício ${b.nome} é padrão da posição, mas está sem valor na Tabela Mestre de ${ano}.`);
+    if (mensal === null) avisos.push(`O benefício ${b.nome} ${motivo}, mas está sem valor na Tabela Mestre de ${ano}.`);
     else beneficios.push({ componente: b.codigo, nome: b.nome, forma: 'VALOR_MENSAL', valorMensal: mensal, conta: conta(b.conta, b.nome) });
   }
   return {
