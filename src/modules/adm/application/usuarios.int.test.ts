@@ -398,8 +398,10 @@ describe('resetarSenha (UC02.13 A2, UC02.18)', () => {
     const id = await cadastrar('jonas');
     await migrator.usuario.update({ where: { id }, data: { bloqueado: true, tentativasFalhas: 5 } });
     const antes = await usuario(id);
+    const desde = (await historico(id)).length;
     expect(await resetarSenha(ctx, id, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_USUARIO.RESET_BLOQUEADO }] });
-    expect(await usuario(id)).toMatchObject({ senhaHash: antes.senhaHash, acessoVersao: antes.acessoVersao, bloqueado: true });
+    expect(await usuario(id)).toMatchObject({ senhaHash: antes.senhaHash, acessoVersao: antes.acessoVersao, versao: antes.versao, bloqueado: true });
+    expect(await historico(id)).toHaveLength(desde);
     expect(email.enviados.filter((e) => e.modelo === 'usuario.senha_redefinida')).toEqual([]);
   });
 });
@@ -504,10 +506,15 @@ describe('atomicidade (§10.2, item 1)', () => {
     const id = await cadastrar('leo');
     const desde = (await historico(id)).length;
     // O reset vem antes do bloqueio: usuário bloqueado nem chega ao e-mail (RESET_BLOQUEADO).
-    const senhaAntes = (await usuario(id)).senhaHash;
+    const antesReset = await usuario(id);
     const quebrado = { ...deps(), enviarEmail: async () => Promise.reject(new Error('outbox indisponível')) };
     await expect(resetarSenha(ctx, id, quebrado)).rejects.toThrow('outbox indisponível');
-    expect((await usuario(id)).senhaHash).toBe(senhaAntes);
+    expect(await usuario(id)).toMatchObject({
+      senhaHash: antesReset.senhaHash,
+      acessoVersao: antesReset.acessoVersao,
+      senhaExpiraEm: antesReset.senhaExpiraEm,
+      trocaSenhaObrigatoria: antesReset.trocaSenhaObrigatoria,
+    });
     await migrator.usuario.update({ where: { id }, data: { bloqueado: true, tentativasFalhas: 5 } });
     const antes = await usuario(id);
     falhas.auditar = true;
@@ -522,6 +529,47 @@ describe('atomicidade (§10.2, item 1)', () => {
       tentativasFalhas: 5,
     });
     expect(await historico(id)).toHaveLength(desde);
+  });
+});
+
+describe('reset com bloqueio entre a leitura e a gravação', () => {
+  it('o bloqueio por tentativas não muda a versão, mas o reset não passa por ele', async () => {
+    const id = await cadastrar('otto');
+    const antes = await usuario(id);
+    const ligar = <T extends object>(alvo: T, p: string | symbol) => {
+      const v = Reflect.get(alvo, p) as unknown;
+      return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(alvo) : v;
+    };
+    // Logo depois da leitura do reset, um login errado bloqueia o usuário (sem mexer na versão).
+    const corrida = new Proxy(app, {
+      get(alvo, prop) {
+        if (prop !== '$transaction') return ligar(alvo, prop);
+        return (fn: (tx: unknown) => Promise<unknown>) =>
+          alvo.$transaction((tx) =>
+            fn(
+              new Proxy(tx, {
+                get(t, q) {
+                  if (q !== 'usuario') return ligar(t, q);
+                  return new Proxy(t.usuario, {
+                    get: (u, m) =>
+                      m === 'findUnique'
+                        ? async (args: unknown) => {
+                            const lido = await u.findUnique(args as Parameters<typeof u.findUnique>[0]);
+                            await migrator.usuario.update({ where: { id }, data: { bloqueado: true, tentativasFalhas: 5 } });
+                            return lido;
+                          }
+                        : ligar(u, m),
+                  });
+                },
+              }),
+            ),
+          );
+      },
+    });
+    const r = await resetarSenha(ctx, id, { ...deps(), cliente: corrida });
+    expect(r.ok).toBe(false);
+    expect(await usuario(id)).toMatchObject({ senhaHash: antes.senhaHash, bloqueado: true });
+    expect(email.enviados.filter((e) => e.modelo === 'usuario.senha_redefinida')).toEqual([]);
   });
 });
 
