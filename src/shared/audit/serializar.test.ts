@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js';
 import { describe, expect, it } from 'vitest';
 import { Competencia, Dinheiro, Percentual } from '@/shared/kernel';
-import { serializarParaAuditoria } from './serializar';
+import { marcarCredenciaisAlteradas, serializarParaAuditoria } from './serializar';
 
 describe('serializarParaAuditoria (Review Focus 5)', () => {
   it('serializa Decimal, Date e BigInt', () => {
@@ -133,5 +133,41 @@ describe('serializarParaAuditoria: Decimal do Prisma e objetos compartilhados', 
   it('o mesmo objeto em dois lugares não é ciclo', () => {
     const x = { v: 1 };
     expect(serializarParaAuditoria({ p: x, q: x })).toEqual({ p: { v: 1 }, q: { v: 1 } });
+  });
+});
+
+describe('marcarCredenciaisAlteradas (#172)', () => {
+  const marcar = (antes: unknown, depois: unknown) => marcarCredenciaisAlteradas(antes, depois, serializarParaAuditoria(depois));
+
+  it('troca aninhada e em lista (pelo índice) sai [omitido: alterado]; igual fica [omitido]', () => {
+    expect(marcar({ p: { token: 'a' }, l: [{ senha: 'x' }, { senha: 'y' }] }, { p: { token: 'b' }, l: [{ senha: 'x' }, { senha: 'z' }] })).toEqual({
+      p: { token: '[omitido: alterado]' },
+      l: [{ senha: '[omitido]' }, { senha: '[omitido: alterado]' }],
+    });
+  });
+
+  it('compara a forma serializada: toJSON igual, ordem de chaves e BigInt iguais não marcam', () => {
+    const comToJSON = (bruto: string) => ({ token: bruto, toJSON: () => ({ token: 'mesmo' }) });
+    expect(marcar({ x: comToJSON('q1') }, { x: comToJSON('q2') })).toEqual({ x: { token: '[omitido]' } });
+    expect(marcar({ segredo: { u: 1, k: 2 } }, { segredo: { k: 2, u: 1 } })).toEqual({ segredo: '[omitido]' });
+    expect(marcar({ token: { v: 1n } }, { token: { v: 1n } })).toEqual({ token: '[omitido]' });
+    expect(marcar({ token: new Decimal('1.5') }, { token: new Decimal('1.5') })).toEqual({ token: '[omitido]' });
+  });
+
+  it('valor que o serializar recusa (Map num campo sensível): não marca e não lança', () => {
+    expect(marcar({ token: new Map([['a', 1]]) }, { token: new Map([['a', 2]]) })).toEqual({ token: '[omitido]' });
+  });
+
+  it('um lado ausente (inserção, exclusão) ou chave só de um lado: nada marcado', () => {
+    expect(marcarCredenciaisAlteradas(undefined, { senha: 'x' }, { senha: '[omitido]' })).toEqual({ senha: '[omitido]' });
+    expect(marcar({ nome: 'a' }, { nome: 'a', senha: 'x' })).toEqual({ nome: 'a', senha: '[omitido]' });
+  });
+
+  it('chave __proto__ própria é lida como propriedade, não como protótipo', () => {
+    const antes = JSON.parse('{"__proto__": {"token": "a"}}') as unknown;
+    const depois = JSON.parse('{"__proto__": {"token": "b"}}') as unknown;
+    const r = marcar(antes, depois) as Record<string, unknown>;
+    expect(Object.getOwnPropertyDescriptor(r, '__proto__')?.value).toEqual({ token: '[omitido: alterado]' });
+    expect(({} as Record<string, unknown>).token).toBeUndefined();
   });
 });

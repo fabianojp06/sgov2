@@ -4,7 +4,7 @@ import type { TxCliente } from '@/shared/db';
 import { ErroAuditoria } from './erros';
 import { calcularDelta } from './delta';
 import { descrever } from './descricao';
-import { serializarParaAuditoria } from './serializar';
+import { marcarCredenciaisAlteradas, serializarParaAuditoria } from './serializar';
 import { ORIGENS_OPERACAO, TIPOS_OPERACAO, type EventoAuditoria, type TipoOperacao } from './tipos';
 
 const textoObrigatorio = (mensagem: string) => z.string().trim().min(1, mensagem);
@@ -68,7 +68,7 @@ export async function auditar(tx: TxCliente, evento: EventoAuditoria): Promise<v
   }
   const { contexto, funcionalidade, tipo, registroId, origem } = validado.data;
   const antes = serializarParaAuditoria(evento.antes);
-  const depois = serializarParaAuditoria(evento.depois);
+  const depois = marcarCredenciaisAlteradas(evento.antes, evento.depois, serializarParaAuditoria(evento.depois));
   const temDados = antes !== undefined || depois !== undefined;
 
   await tx.historicoOperacao.create({
