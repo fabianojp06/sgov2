@@ -268,8 +268,43 @@ model Cargo {
   versao                   Int                   @default(1)
   cargaId                  String?               @map("carga_id") @db.Uuid
   carga                    CargaEstrutura?       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  faixas                   FaixaSalarial[]
   criadoEm                 DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm             DateTime              @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
 
   @@map("cargo")
+}
+
+// Senioridades da tabela salarial (US-049 parte 3; UC03.19 RN_TAB_01): Júnior, Pleno e Sênior são
+// padrão e protegidas; a GRH cadastra outras, que só se inativam sem faixa ativa (E4).
+model Senioridade {
+  id       String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome     String          @unique
+  padrao   Boolean         @default(false)
+  ativa    Boolean         @default(true)
+  ordem    Int             @default(100)
+  criadoEm DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  faixas   FaixaSalarial[]
+
+  @@map("senioridade")
+}
+
+// Tabela salarial de mercado (US-049 parte 3; UC03.19 §5, REQ_TAB_001): referência de pesquisa externa
+// por cargo do SGO e senioridade, sem vínculo com a tabela/faixa/nível do Rubi. O par cargo +
+// senioridade não é único (RN_TAB_03). Mínimo < máximo (RN_TAB_02, CHECK).
+model FaixaSalarial {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cargoId       String      @map("cargo_id") @db.Uuid
+  cargo         Cargo       @relation(fields: [cargoId], references: [id], onDelete: Restrict)
+  senioridadeId String      @map("senioridade_id") @db.Uuid
+  senioridade   Senioridade @relation(fields: [senioridadeId], references: [id], onDelete: Restrict)
+  minimo        Decimal     @db.Decimal(15, 2)
+  maximo        Decimal     @db.Decimal(15, 2)
+  ativa         Boolean     @default(true)
+  versao        Int         @default(1)
+  criadoEm      DateTime    @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm  DateTime    @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([cargoId])
+  @@map("faixa_salarial")
 }

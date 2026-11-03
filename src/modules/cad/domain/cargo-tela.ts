@@ -49,3 +49,17 @@ export function codigoDescricao(codigo: string | null, descricao: string | null)
   if (!codigo && !descricao) return null;
   return [codigo, descricao].filter(Boolean).join(' — ');
 }
+
+/** Faixa da tabela salarial de mercado (US-049 parte 3), em texto para a tela. */
+export type FaixaTela = {
+  id: string;
+  cargoId: string;
+  cargo: string;
+  senioridadeId: string;
+  senioridade: string;
+  minimo: string;
+  maximo: string;
+  ativa: boolean;
+  versao: number;
+};
+export type SenioridadeTela = { id: string; nome: string; padrao: boolean; ativa: boolean };

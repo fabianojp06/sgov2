@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Dinheiro } from '@/shared/kernel';
 import { FONTES_ATIVAS, GRAUS_INSALUBRIDADE, type FonteAtiva, type GrauInsalubridade } from '../domain/cargo';
-import { ROTULO_DESVIO, ROTULO_FONTE, type CargoTela } from '../domain/cargo-tela';
+import { ROTULO_DESVIO, ROTULO_FONTE, type CargoTela, type FaixaTela } from '../domain/cargo-tela';
 import { depoisDeSalvar, type EstadoSalvar, type RespostaSalvar } from './form-parametros-logica';
 
 // Cargo (US-049 parte 2; plano do P4, Task 12b). Os campos do Rubi ficam desabilitados (só a carga
@@ -64,7 +64,21 @@ export const camposIniciais = (c: CargoTela): Campos => ({
   salarioDefinido: c.salarios.definido ?? '',
 });
 
-export function FormCargo({ cargo, podeAlterar, alterar }: { cargo: CargoTela; podeAlterar: boolean; alterar: (e: EnvioCargo) => Promise<RespostaSalvar> }) {
+export function FormCargo({
+  cargo,
+  podeAlterar,
+  alterar,
+  faixas = [],
+  copiarFaixa,
+}: {
+  cargo: CargoTela;
+  podeAlterar: boolean;
+  alterar: (e: EnvioCargo) => Promise<RespostaSalvar>;
+  /** Faixas ativas da tabela salarial deste cargo (REQ_TAB_003), para quem tem cad.tabela_salarial. */
+  faixas?: readonly FaixaTela[];
+  copiarFaixa?: (e: { idCargo: string; idFaixa: string; versao: number }) => Promise<RespostaSalvar>;
+}) {
+  const [origem, setOrigem] = useState(cargo.origemMercado);
   const [f, setF] = useState<Campos>(() => camposIniciais(cargo));
   const [estado, setEstado] = useState<EstadoSalvar>({ versao: cargo.versao, erros: [], salvo: false });
   const [salvando, iniciar] = useTransition();
@@ -124,7 +138,7 @@ export function FormCargo({ cargo, podeAlterar, alterar }: { cargo: CargoTela; p
             <Campo id="salarioDefinido" rotulo="Salário definido (R$)" erro={erroDe('salarioDefinido')} valor={f.salarioDefinido} mudar={(v) => setF({ ...f, salarioDefinido: v })} />
           </>
         )}
-        {cargo.origemMercado && <p>Origem do mercado: {cargo.origemMercado}</p>}
+        {origem && <p>Origem do mercado: {origem}</p>}
         <div>
           <label htmlFor="cargo-fonteAtiva">Fonte ativa</label>{' '}
           <select
@@ -179,6 +193,39 @@ export function FormCargo({ cargo, podeAlterar, alterar }: { cargo: CargoTela; p
           </div>
         )}
       </fieldset>
+      {!bloqueado && !cargo.mascarado && copiarFaixa && faixas.length > 0 && (
+        <section aria-labelledby="titulo-tabela-salarial">
+          <h2 id="titulo-tabela-salarial">Tabela salarial deste cargo</h2>
+          <ul>
+            {faixas.map((fx) => (
+              <li key={fx.id}>
+                {`${fx.senioridade}: ${emReais(fx.minimo)} a ${emReais(fx.maximo)}`}{' '}
+                <button
+                  type="button"
+                  disabled={salvando}
+                  onClick={() =>
+                    iniciar(async () => {
+                      try {
+                        const r = await copiarFaixa({ idCargo: cargo.id, idFaixa: fx.id, versao: estado.versao });
+                        setEstado((a) => depoisDeSalvar(a, r));
+                        if (r.ok) {
+                          // RN_TAB_04: a faixa sobrescreve o mínimo e o máximo; seguem editáveis.
+                          setF((a) => ({ ...a, mercadoMinimo: fx.minimo, mercadoMaximo: fx.maximo }));
+                          setOrigem(`Preenchido via Tabela Salarial — ${cargo.nomeOficial}/${fx.senioridade}`);
+                        }
+                      } catch {
+                        setEstado((a) => ({ ...a, erros: [{ campo: '_', mensagem: 'Não foi possível usar a faixa. Confira a conexão e tente de novo.' }] }));
+                      }
+                    })
+                  }
+                >
+                  Usar a faixa {fx.senioridade}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {!bloqueado && (
         <button type="submit" disabled={salvando}>
           Salvar
