@@ -11,16 +11,23 @@ const NUMERO = /^-?\d+(\.\d+)?$/;
 // evita que uma entrada de milhões de dígitos trave o servidor (divisão quadrática) ou vá
 // inteira para o erro e para o log.
 const TAMANHO_MAXIMO = 40;
+// Decimal já construído: expoente até 10^40 e até 12 palavras de 7 dígitos (84 dígitos), folga
+// sobre a precisão de 40 do clone D.
+const EXPOENTE_MAXIMO = 40;
+const PALAVRAS_MAXIMAS = 12;
 
 // Converte a entrada aceita pelo núcleo (texto decimal ou Decimal) sem passar por number.
 // Decimal passa pela mesma validação do texto (toFixed sem expoente): barra NaN, Infinity e
 // objetos que só fingem ser Decimal.
 export function paraDec(v: string | Decimal, tipo: string): Dec {
   if (Decimal.isDecimal(v)) {
-    // Expoente fora da faixa (1e5000000) montaria um texto de milhões de dígitos no toFixed antes da
-    // validação: recusa pelo expoente, que é barato. Nenhum valor do núcleo passa de 10^40.
-    const expoente = (v as { e?: unknown }).e;
-    if (typeof expoente !== 'number' || Math.abs(expoente) > TAMANHO_MAXIMO) {
+    // O toFixed de um Decimal com expoente ou dígitos demais (1e5000000, 0,111… com milhões de casas)
+    // montaria um texto enorme antes da validação: os dois são conferidos antes, que é barato. Acima
+    // de 10^40 nenhum valor do núcleo cabe; abaixo de 10^-40 o valor é resíduo de conta e vale zero
+    // (Dinheiro e Percentual arredondam para 2 ou 4 casas).
+    const { e: expoente, d: digitos } = v as { e?: unknown; d?: unknown };
+    if (typeof expoente === 'number' && expoente < -EXPOENTE_MAXIMO) return new D(0);
+    if (typeof expoente !== 'number' || expoente > EXPOENTE_MAXIMO || (Array.isArray(digitos) && digitos.length > PALAVRAS_MAXIMAS)) {
       throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}`);
     }
     const texto = typeof v.toFixed === 'function' ? v.toFixed() : '';

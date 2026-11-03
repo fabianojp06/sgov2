@@ -77,11 +77,15 @@ describe('Dinheiro: entradas inválidas e invariantes (revisão 12.12)', () => {
     expect(Dinheiro.de('10').igual(Dinheiro.de('10.01'))).toBe(false);
   });
 
-  it('Decimal com expoente enorme é recusado sem montar o texto (#168)', () => {
-    const inicio = performance.now();
-    expect(() => Dinheiro.de(new Decimal('1e5000000'))).toThrow(expect.objectContaining({ codigo: 'VALOR_INVALIDO' }));
-    expect(() => Dinheiro.de(new Decimal('1e-5000000'))).toThrow(expect.objectContaining({ codigo: 'VALOR_INVALIDO' }));
-    expect(performance.now() - inicio).toBeLessThan(500);
+  it('Decimal com expoente ou dígitos demais é recusado sem montar o texto; resíduo minúsculo vale zero (#168)', () => {
+    const invalido = expect.objectContaining({ codigo: 'VALOR_INVALIDO' });
+    expect(() => Dinheiro.de(new Decimal('1e5000000'))).toThrow(invalido);
+    expect(() => Dinheiro.de(new Decimal('1e41'))).toThrow(invalido);
+    expect(() => Dinheiro.de(new Decimal('1e40'))).toThrow(expect.objectContaining({ codigo: 'VALOR_FORA_DO_LIMITE' }));
+    expect(() => Dinheiro.de(new Decimal(`0.${'1'.repeat(100_000)}`))).toThrow(invalido);
+    expect(Dinheiro.de(new Decimal('1e-5000000')).paraString()).toBe('0.00');
+    expect(Dinheiro.de(new Decimal('-1e-44')).paraString()).toBe('0.00');
+    expect(Dinheiro.de('10').multiplicar(new Decimal('1e-44')).paraString()).toBe('0.00');
     expect(Dinheiro.de(new Decimal('1234.5')).paraString()).toBe('1234.50');
   });
 
