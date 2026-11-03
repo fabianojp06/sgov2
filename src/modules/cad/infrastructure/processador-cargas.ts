@@ -121,17 +121,36 @@ type Lote = {
 const META_PERMITIDO = new Set(['modelName', 'target', 'constraint', 'field_name', 'column_name', 'table', 'code']);
 
 export function textoSemValores(mensagem: string): string {
-  return mensagem
+  const sem = mensagem
     .replace(/\s*(Failing row contains|DETAIL:|Detalhe:|A linha que falhou contém).*$/is, '')
-    .replace(/=\([^)]*\)/g, '=(…)')
-    .slice(0, 300);
+    // Do primeiro "=(" ao fim: um valor com ")" dentro não escapa.
+    .replace(/=\(.*$/s, '=(…)');
+  // Depois do primeiro ": " vêm os valores entre aspas do pg (P2007: 'syntax for type uuid: "abc"',
+  // P2020: 'value "999" is out of range'); antes, os nomes de relação e restrição.
+  const i = sem.indexOf(': ');
+  return (i < 0 ? sem : sem.slice(0, i + 2) + sem.slice(i + 2).replace(/"[^"]*"/g, '"…"')).slice(0, 300);
+}
+
+// Da causa do driver (adapter pg), só a estrutura: o tipo, a restrição, a tabela e o código do pg.
+function causaDoDriver(meta: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const causa = (meta?.driverAdapterError as { cause?: Record<string, unknown> } | undefined)?.cause;
+  if (!causa) return undefined;
+  const texto = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  const r = causa.constraint as { fields?: unknown; index?: unknown } | undefined;
+  const fields = Array.isArray(r?.fields) ? r.fields.filter((f): f is string => typeof f === 'string') : undefined;
+  const out = { kind: texto(causa.kind), originalCode: texto(causa.originalCode), table: texto(causa.table), constraint: texto(r?.index) ?? fields };
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined));
 }
 
 export function diagnostico(e: unknown): Record<string, unknown> {
   if (!(e instanceof Error)) return { erro: 'desconhecido' };
   const d: Record<string, unknown> = { erro: e.name };
   if (e instanceof Prisma.PrismaClientKnownRequestError) {
-    const meta = Object.fromEntries(Object.entries(e.meta ?? {}).filter(([k, v]) => META_PERMITIDO.has(k) && (typeof v === 'string' || Array.isArray(v))));
+    const meta: Record<string, unknown> = Object.fromEntries(
+      Object.entries(e.meta ?? {}).filter(([k, v]) => META_PERMITIDO.has(k) && (typeof v === 'string' || (Array.isArray(v) && v.every((x) => typeof x === 'string')))),
+    );
+    const causa = causaDoDriver(e.meta);
+    if (causa && Object.keys(causa).length > 0) meta.causa = causa;
     Object.assign(d, { code: e.code, meta });
   }
   if (e instanceof Prisma.PrismaClientKnownRequestError || e instanceof Prisma.PrismaClientUnknownRequestError) {
