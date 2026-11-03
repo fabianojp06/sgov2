@@ -1,6 +1,6 @@
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
-import { ErroDominio } from '@/shared/kernel';
+import { ErroDominio, type Dinheiro } from '@/shared/kernel';
 import { valorMensalPorPessoa } from '../domain/beneficios';
 import type { BeneficioPremissa, PremissasExercicio } from '../domain/custo-pessoal';
 import { calcularCustoPosicao as motor } from '../domain/motor-custo-pessoal';
@@ -27,7 +27,10 @@ export const calcularCustoPosicao = motor;
  * mensal pelos dias úteis. Item padrão sem valor e conta que não é mais analítica ativa (recarga do
  * plano) geram aviso; a conta inválida vai vazia, e o cálculo recusa o componente.
  */
-export async function obterPremissasExercicio(tx: TxCliente, ano: number): Promise<PremissasExercicio | null> {
+/** Escolha de benefícios de um cargo (Task 13): ativo e valor manual por código; sem a escolha, os "padrão da posição". */
+export type EscolhaBeneficios = ReadonlyMap<string, { ativo: boolean; valorManual: Dinheiro | null }>;
+
+export async function obterPremissasExercicio(tx: TxCliente, ano: number, escolha?: EscolhaBeneficios): Promise<PremissasExercicio | null> {
   if (!Number.isInteger(ano)) return null;
   const p = await lerParametrosExercicio(tx, ano);
   if (!p) return null;
@@ -39,8 +42,11 @@ export async function obterPremissasExercicio(tx: TxCliente, ano: number): Promi
     return '';
   };
   const beneficios: BeneficioPremissa[] = [];
-  for (const b of await lerBeneficiosMestre(tx, ano)) {
-    if (!b.ativo || !b.padraoPosicao) continue;
+  for (const item of await lerBeneficiosMestre(tx, ano)) {
+    const doCargo = escolha?.get(item.codigo);
+    if (!item.ativo || !(doCargo ? doCargo.ativo : item.padraoPosicao)) continue;
+    // O valor manual do cargo (RN_CAR_07) no lugar do da Tabela Mestre.
+    const b = doCargo?.valorManual ? { ...item, valor: doCargo.valorManual } : item;
     if (b.forma === 'PERCENTUAL_SALARIO') {
       if (b.percentual === null) avisos.push(`O benefício ${b.nome} é padrão da posição, mas está sem percentual na Tabela Mestre de ${ano}.`);
       else beneficios.push({ componente: b.codigo, nome: b.nome, forma: 'PERCENTUAL_SALARIO', percentual: b.percentual, conta: conta(b.conta, b.nome) });

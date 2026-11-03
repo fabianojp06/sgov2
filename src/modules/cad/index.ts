@@ -49,3 +49,5 @@ export { TabelaSalarial } from './ui/tabela-salarial';
 // Benefícios do cargo (US-050 parte 2): ação e leitura.
 export { acaoAlterarBeneficiosCargo } from './application/acoes-beneficios-cargo';
 export { listarBeneficiosCargo } from './application/beneficios-cargo';
+export { calcularCustoCargo, paraTelaCusto } from './application/custo-cargo';
+export { BlocoEncargo } from './ui/bloco-encargo';
