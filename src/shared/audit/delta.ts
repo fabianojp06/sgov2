@@ -3,11 +3,12 @@
 export function calcularDelta(antes: unknown, depois: unknown): Record<string, { de: unknown; para: unknown }> {
   const a = comoRegistro(antes);
   const d = comoRegistro(depois);
-  const delta: Record<string, { de: unknown; para: unknown }> = {};
+  // Sem protótipo: a chave "__proto__" vira campo do delta, como no serializar (com {} ela sumiria).
+  const delta = Object.create(null) as Record<string, { de: unknown; para: unknown }>;
   for (const chave of new Set([...Object.keys(a), ...Object.keys(d)])) {
     if (!iguais(a[chave], d[chave])) delta[chave] = { de: a[chave], para: d[chave] };
   }
-  return delta;
+  return { ...delta };
 }
 
 function comoRegistro(v: unknown): Record<string, unknown> {

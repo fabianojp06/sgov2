@@ -29,12 +29,21 @@ describe('auditar: validação do evento (revisão 12.12)', () => {
     ['descricao vazia', { descricao: '  ' }],
     ['usuarioId que não é UUID', { contexto: { ...base.contexto, usuarioId: 'admin' } }],
     ['unidadeId que não é UUID', { contexto: { ...base.contexto, unidadeId: '' } }],
+    ['sessaoUid vazio', { contexto: { ...base.contexto, sessaoUid: '' } }],
     ['ip que não é IP', { contexto: { ...base.contexto, ip: 'unknown' } }],
     ['ip com vários saltos', { contexto: { ...base.contexto, ip: '1.2.3.4, 5.6.7.8' } }],
   ])('recusa %s', async (_caso, parcial) => {
     const { tx, create } = txFalsa();
     await expect(auditar(tx, { ...base, ...parcial } as EventoAuditoria)).rejects.toThrow(invalido);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('sessaoUid vazio: o motivo da recusa é a sessão', async () => {
+    const { tx } = txFalsa();
+    await expect(auditar(tx, { ...base, contexto: { ...base.contexto, sessaoUid: '' } })).rejects.toMatchObject({
+      codigo: 'AUDITORIA_INVALIDA',
+      detalhes: { problemas: ['contexto.sessaoUid: sessão vazia'] },
+    });
   });
 
   it('aceita UUID, IPv4 e IPv6', async () => {
