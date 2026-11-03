@@ -49,7 +49,8 @@ export type OpcoesLeitura = {
 export type PlanilhaLida = { nomeArquivo: string; linhas: readonly LinhaPlanilha[]; errosCelula: readonly ErroLinha[] };
 
 const MSG_INVALIDA = 'Planilha inválida ou grande demais.';
-const MSG_OCUPADO = 'Outra planilha está sendo lida. Tente de novo em instantes.';
+/** Texto exato da recusa pelo semáforo (uma leitura por processo), parte do contrato (#231). */
+export const MSG_LEITOR_OCUPADO = 'Outra planilha está sendo lida. Tente de novo em instantes.';
 const erroArquivo = (mensagem: string) => falha([{ campo: 'arquivo', mensagem }]);
 
 /** Nome sem caminho nem caractere de controle, com até 120 caracteres. */
@@ -207,26 +208,64 @@ export async function lerPlanilhaSegura(
   arquivo: { nome: string; conteudo: Uint8Array },
   opcoes: OpcoesLeitura,
 ): Promise<Resultado<PlanilhaLida>> {
-  if (ocupado) return erroArquivo(MSG_OCUPADO);
+  if (ocupado) return erroArquivo(MSG_LEITOR_OCUPADO);
   ocupado = true;
   try {
-    return await ler(arquivo, opcoes, { ...LIMITES_PADRAO, ...opcoes.limites });
+    const limites = { ...LIMITES_PADRAO, ...opcoes.limites };
+    const aberto = abrir(arquivo, limites);
+    return 'erro' in aberto ? aberto.erro : await ler(aberto, opcoes, limites);
   } finally {
     ocupado = false;
   }
 }
 
-async function ler(arquivo: { nome: string; conteudo: Uint8Array }, opcoes: OpcoesLeitura, limites: LimitesPlanilha) {
+/**
+ * Lê várias abas do mesmo .xlsx numa chamada (#231): o semáforo fica preso do começo ao fim (uma
+ * leitura concorrente não entra entre uma aba e outra) e o zip é aberto uma vez só. Cada aba tem
+ * as próprias colunas, limites de linhas e colunas e prazo; os limites do zip vêm de `limites`.
+ * Erro de arquivo em qualquer aba reprova tudo; o resultado vem na ordem pedida.
+ */
+export async function lerPlanilhasSegura(
+  arquivo: { nome: string; conteudo: Uint8Array },
+  abas: readonly OpcoesLeitura[],
+  limites?: Partial<LimitesPlanilha>,
+): Promise<Resultado<readonly PlanilhaLida[]>> {
+  if (ocupado) return erroArquivo(MSG_LEITOR_OCUPADO);
+  ocupado = true;
+  try {
+    const doZip = { ...LIMITES_PADRAO, ...limites };
+    const aberto = abrir(arquivo, doZip);
+    if ('erro' in aberto) return aberto.erro;
+    const lidas: PlanilhaLida[] = [];
+    for (const opcoes of abas) {
+      const r = await ler(aberto, opcoes, { ...doZip, ...opcoes.limites });
+      if (!r.ok) return r;
+      lidas.push(r.valor);
+    }
+    return ok(lidas);
+  } finally {
+    ocupado = false;
+  }
+}
+
+type Aberto = { nomeArquivo: string; entradas: ReadonlyMap<string, Uint8Array>; abas: readonly { nome: string; arquivo: string }[] };
+
+// Zip e workbook, conferidos uma vez por arquivo.
+function abrir(arquivo: { nome: string; conteudo: Uint8Array }, limites: LimitesPlanilha): Aberto | { erro: Resultado<never> } {
   const nomeArquivo = sanearNomeArquivo(arquivo.nome);
   let entradas: Map<string, Uint8Array>;
   try {
     entradas = lerZipSeguro(arquivo.conteudo, limites);
   } catch (e) {
-    if (e instanceof ZipInvalido) return recusar(e.motivo);
+    if (e instanceof ZipInvalido) return { erro: recusar(e.motivo) };
     throw e;
   }
   const abas = abasDoWorkbook(entradas);
-  if (abas === null || abas.length === 0) return recusar('sem workbook ou sem abas');
+  if (abas === null || abas.length === 0) return { erro: recusar('sem workbook ou sem abas') };
+  return { nomeArquivo, entradas, abas };
+}
+
+async function ler({ nomeArquivo, entradas, abas }: Aberto, opcoes: OpcoesLeitura, limites: LimitesPlanilha): Promise<Resultado<PlanilhaLida>> {
   const abaPedida = opcoes.aba === undefined ? undefined : normalizarNomeColuna(opcoes.aba);
   const aba = abaPedida === undefined ? abas[0] : abas.find((a) => normalizarNomeColuna(a.nome) === abaPedida);
   if (!aba) return erroArquivo(`A aba "${opcoes.aba}" não foi encontrada.`);
