@@ -87,7 +87,7 @@ async function resolverVinculos(
   // C25 pelo C1: o CC de escopo novo precisa ter CCs analíticos ativos na subárvore (o mesmo critério da
   // visão do orc, R16); escopo vazio não vê nada. Como os vínculos inativos, o que já estava gravado é
   // mantido pelo Salvar, mesmo que a estrutura tenha mudado depois.
-  if (u.ccEscopo) {
+  if (u.ccEscopo && u.ccEscopo !== atuais.ccEscopo) {
     const indice = await estrutura.carregarIndiceEstrutura(tx);
     if (indice.centrosCustoAnaliticosSob(u.ccEscopo).length === 0) {
       return falha([{ campo: 'ccEscopo', mensagem: MENSAGENS_USUARIO.CC_FORA_ESTRUTURA }]);

@@ -232,7 +232,7 @@ describe('alterarUsuario (UC02.13)', () => {
       // Depois que a estrutura muda, o Salvar mantém o CC gravado, mas não aceita trocar para outro fora dela.
       estrutura = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => inativar(inativar(n, '4.3.0'), '4.3.2')) });
       const antes = await usuario(r.valor.id);
-      expect((await alterarUsuario(ctx, r.valor.id, antes.versao, { ...gestor('caio', '4.3'), nome: 'Caio Lima' }, deps())).ok).toBe(true);
+      expect(await alterarUsuario(ctx, r.valor.id, antes.versao, { ...gestor('caio', '4.3'), nome: 'Caio Lima' }, deps())).toEqual({ ok: true, valor: undefined });
       const depois = await usuario(r.valor.id);
       expect(await alterarUsuario(ctx, r.valor.id, depois.versao, gestor('caio', '4.3.2'), deps())).toEqual(recusa);
       expect(await usuario(r.valor.id)).toMatchObject({ nome: 'Caio Lima', ccEscopo: '4.3' });
