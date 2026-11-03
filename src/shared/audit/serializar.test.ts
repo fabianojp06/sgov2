@@ -56,6 +56,17 @@ describe('serializarParaAuditoria: sem perda silenciosa e sem dado sensível (re
     expect(() => serializarParaAuditoria(v)).toThrow(naoSerializavel);
   });
 
+  it('toJSON que devolve outra instância da mesma classe: recusa com o caminho, sem estourar a pilha', () => {
+    class Volta {
+      toJSON() {
+        return new Volta();
+      }
+    }
+    expect(() => serializarParaAuditoria({ x: new Volta() })).toThrow(
+      expect.objectContaining({ codigo: 'AUDITORIA_NAO_SERIALIZAVEL', message: 'Valor não serializável para auditoria em $.x: toJSON recursivo' }),
+    );
+  });
+
   it('usa toJSON quando o objeto oferece', () => {
     expect(serializarParaAuditoria({ x: { toJSON: () => ({ a: 1 }) } })).toEqual({ x: { a: 1 } });
   });

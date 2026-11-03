@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
-import { Competencia, Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
+import { Competencia, Dinheiro, Percentual } from '@/shared/kernel';
+import { ErroAuditoria } from './erros';
 
 // Converte o valor para algo que JSON.stringify grava sem erro e sem perder precisão
 // (Review Focus 5): Decimal e os tipos do kernel viram texto exato, Date vira ISO 8601,
@@ -17,7 +18,7 @@ export function serializarParaAuditoria(v: unknown): unknown {
 }
 
 function recusar(caminho: string, motivo: string): never {
-  throw new ErroDominio('AUDITORIA_NAO_SERIALIZAVEL', `Valor não serializável para auditoria em ${caminho}: ${motivo}`, {
+  throw new ErroAuditoria('AUDITORIA_NAO_SERIALIZAVEL', `Valor não serializável para auditoria em ${caminho}: ${motivo}`, {
     caminho,
   });
 }
@@ -37,7 +38,12 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>): unkno
   const simples = Array.isArray(v) || prototipo === Object.prototype || prototipo === null;
   if (!simples) {
     const toJSON = (v as { toJSON?: unknown }).toJSON;
-    if (typeof toJSON === 'function') return serializar(toJSON.call(v), caminho, vistos);
+    if (typeof toJSON === 'function') {
+      const json: unknown = toJSON.call(v);
+      // Um toJSON que devolve outra instância da mesma classe giraria sem fim (RangeError sem contexto).
+      if (typeof json === 'object' && json !== null && Object.getPrototypeOf(json) === prototipo) return recusar(caminho, 'toJSON recursivo');
+      return serializar(json, caminho, vistos);
+    }
     return recusar(caminho, `objeto ${(v as object).constructor?.name ?? 'sem tipo'}`);
   }
   vistos.add(v);

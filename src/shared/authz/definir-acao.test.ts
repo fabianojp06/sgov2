@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { EventoAuditoria } from '@/shared/audit';
+import { ErroAuditoria, type EventoAuditoria } from '@/shared/audit';
 import { ErroDominio, ok } from '@/shared/kernel';
 import { configurarAuditorNegacao, configurarProvedorContexto } from './configuracao';
 import { definirAcao } from './definir-acao';
@@ -118,6 +118,16 @@ describe('definirAcao', () => {
       throw new ErroDominio('X', 'Mensagem clara');
     });
     expect(await acao({ nome: 'a' })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Mensagem clara' }] });
+  });
+
+  it('erro de programação da auditoria (ErroAuditoria) é inesperado: mensagem genérica, não o texto técnico', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    contexto = comPermissao('usuarios:incluir');
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, async () => {
+      throw new ErroAuditoria('AUDITORIA_INVALIDA', 'Evento de auditoria inválido');
+    });
+    expect(await acao({ nome: 'a' })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
+    expect(log).toHaveBeenCalled();
   });
 
   it('erro qualquer vira mensagem genérica e vai para o log', async () => {
