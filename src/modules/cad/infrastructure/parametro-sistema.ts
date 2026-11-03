@@ -102,6 +102,10 @@ export async function criarParametrosDoAno(tx: TxCliente, contexto: ContextoAudi
   // Trava por ano: duas chamadas concorrentes (duplo clique, frente A e seed) não colidem (C2: idempotente).
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('cad-exercicio'), ${ano}::int)`;
   if (await tx.parametrosExercicio.findUnique({ where: { ano }, select: { ano: true } })) return false;
+  // A linha do ano-base fica presa (FOR SHARE) até o fim: parâmetros, Tabela Mestre e benefícios dos
+  // cargos saem do mesmo instante. Toda escrita no ano-base começa pelo UPDATE dessa linha
+  // (tocarVersaoExercicio) e espera; a ordem é a trava do ano novo e depois a linha do ano-base.
+  await tx.$queryRaw`SELECT "ano" FROM "parametros_exercicio" WHERE "ano" < ${ano} ORDER BY "ano" DESC LIMIT 1 FOR SHARE`;
   const base = await tx.parametrosExercicio.findFirst({ where: { ano: { lt: ano } }, orderBy: { ano: 'desc' }, include: { encargos: true, contas: true } });
   if (base) {
     await tx.parametrosExercicio.create({

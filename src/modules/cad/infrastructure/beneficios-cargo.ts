@@ -31,8 +31,11 @@ export async function sobrescreverManuaisDoItem(tx: TxCliente, contexto: Context
 
 /**
  * Exercício novo a partir de um ano-base (decisão do PO, 03/11): os benefícios de cada cargo vêm
- * junto, com o ativo, o valor manual e a origem (MANUAL continua MANUAL, para o GRH revisar). Só os
- * itens que existem na Tabela Mestre do ano novo. Um Histórico por cargo copiado. Devolve quantos.
+ * junto, com o ativo, o valor manual e a origem (MANUAL continua MANUAL, para o GRH revisar).
+ * Cargo inativo também, para a configuração voltar se ele for reativado. O filtro pelos itens da
+ * Tabela Mestre do ano novo é defesa (hoje ela é cópia integral da base, e a FK garante o resto).
+ * Um Histórico só para o exercício, com os itens por cargo (centenas de cargos não alongam a
+ * transação do orc). Chamado com a linha do ano-base presa (criarParametrosDoAno). Devolve quantos cargos.
  */
 export async function copiarBeneficiosCargoDoAno(tx: TxCliente, contexto: ContextoAuditoria, ano: number, anoBase: number): Promise<number> {
   const codigos = new Set((await tx.beneficioMestre.findMany({ where: { ano }, select: { codigo: true } })).map((m) => m.codigo));
@@ -42,22 +45,21 @@ export async function copiarBeneficiosCargoDoAno(tx: TxCliente, contexto: Contex
     orderBy: [{ cargoId: 'asc' }, { codigo: 'asc' }],
   })).filter((b) => codigos.has(b.codigo));
   if (base.length === 0) return 0;
+  // Sem skipDuplicates: o ano é novo (trava e conferência do criarParametrosDoAno); duplicata é erro.
   await tx.beneficioCargo.createMany({
     data: base.map((b) => ({ cargoId: b.cargoId, ano, codigo: b.codigo, ativo: b.ativo, valorManual: b.valorManual, origem: b.origem })),
-    skipDuplicates: true,
   });
-  const porCargo = new Map<string, typeof base>();
-  for (const b of base) porCargo.set(b.cargo.codigo, [...(porCargo.get(b.cargo.codigo) ?? []), b]);
-  for (const [codigoCargo, itens] of porCargo) {
-    await auditar(tx, {
-      contexto,
-      origem: contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO',
-      funcionalidade: 'cad.cargos',
-      tipo: 'INSERCAO',
-      registroId: codigoCargo,
-      descricao: `Benefícios de ${ano} do cargo ${codigoCargo} copiados de ${anoBase}`,
-      depois: itens.map((b) => ({ codigo: b.codigo, ativo: b.ativo, valorManual: b.valorManual?.toFixed(2) ?? null, origem: b.origem })),
-    });
-  }
-  return porCargo.size;
+  const porCargo: Record<string, { codigo: string; ativo: boolean; valorManual: string | null; origem: string }[]> = {};
+  for (const b of base) (porCargo[b.cargo.codigo] ??= []).push({ codigo: b.codigo, ativo: b.ativo, valorManual: b.valorManual?.toFixed(2) ?? null, origem: b.origem });
+  const cargos = Object.keys(porCargo).length;
+  await auditar(tx, {
+    contexto,
+    origem: contexto.usuarioId === null ? 'SISTEMA' : 'USUARIO',
+    funcionalidade: 'cad.cargos',
+    tipo: 'INSERCAO',
+    registroId: String(ano),
+    descricao: `Benefícios de ${cargos} cargo(s) copiados de ${anoBase} para ${ano}`,
+    depois: porCargo,
+  });
+  return cargos;
 }

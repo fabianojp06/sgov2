@@ -294,7 +294,7 @@
 - [ ] PO:
   - incluir o check **E2E** nos obrigatórios da `main` depois de algumas rodadas verdes (#292);
   - criar o serviço `migracao` (argumento `implantar`) em hml e prod na Tarefa 6. Até o webhook dele existir, o *redeploy* do `migracao` é manual antes do `app`, e o log é conferido à mão (`[IMPLANTAR_CONCLUIDO]` × `[ADMIN_INICIAL_*]`);
-  - ~~decidir se os benefícios do cargo passam para o exercício novo~~ **decidido pelo PO em 03/11 (recomendação seguida):** o `criarParametrosDoAno` copia do ano-base o ativo/inativo, o valor manual e a origem (`MANUAL` continua `MANUAL`, para o GRH revisar), com um Histórico por cargo;
+  - ~~decidir se os benefícios do cargo passam para o exercício novo~~ **decidido pelo PO em 03/11 (recomendação seguida):** o `criarParametrosDoAno` copia do ano-base o ativo/inativo, o valor manual e a origem (`MANUAL` continua `MANUAL`, para o GRH revisar), inclusive de cargo inativo, com um Histórico do exercício e a linha do ano-base presa durante a cópia (#302). Quando houver tela do Histórico, o `valorManual` de `cad.cargos` deve sair mascarado sem `cad.salarios:consultar` (R24);
   - marcar como falso positivo, no GitGuardian, os incidentes 39444187 e 39442400 do #221 (testes do `adm` já na `main`, vistos pelo commit de merge).
 - [ ] **Para a frente A:**
   - trocar as cópias da `AcaoConfirmada` do `adm` e do `orc` pela do `ger` (corpo do #284);
