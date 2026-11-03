@@ -36,6 +36,16 @@ export const MENSAGENS_ORC = {
   SITUACAO_RECEITA: 'Situação obrigatória: Confirmado ou Previsto.',
   TP_REPETIDO: (linhas: readonly number[]) => `TP / versão repetido nas linhas ${linhas.slice(0, -1).join(', ')} e ${linhas.at(-1)}.`,
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
+  // Importação (Task 4b)
+  PLANILHA_COM_ERROS: 'A planilha tem erros. Nada foi importado.',
+  PLANILHA_VAZIA: 'A planilha não tem lançamentos.',
+  FORA_DO_LAYOUT: (aba: string, colunas: readonly string[]) =>
+    `Planilha fora do layout ADMC-ORC v1.0: a aba ${aba} precisa do cabeçalho, até a linha 4, com as colunas ${colunas.join(', ')}.`,
+  MAIS_ERROS: (n: number) => `E mais ${n} erro(s) não listados. Corrija os acima e importe de novo.`,
+  TP_DATA: 'O Excel converteu o TP / versão em data: formate a célula como texto e digite de novo.',
+  ARQUIVO_GRANDE: 'Arquivo maior que 1 MB.',
+  IMPORTADA: (posicoes: number, pacotes: number, ccs: number, receitas: number) =>
+    `Planilha importada: ${posicoes} posições e ${pacotes} pacotes em ${ccs} CCs, ${receitas} receitas.`,
   // Receitas (Task 5)
   RECEITA_DUPLICADA: (tp: string) => `Já existe receita do TP ${tp} neste exercício.`,
   RECEITA_INEXISTENTE: 'Receita não encontrada.',

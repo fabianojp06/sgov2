@@ -222,7 +222,9 @@ function validarPacote(l: LinhaPlanilha, estrutura: ConsultaEstrutura, limites: 
 export function validarReceita(celulas: LinhaPlanilha['celulas']): Resultado<Omit<ReceitaValidada, 'linha'>> {
   const lista: ErroPlanilha[] = [];
   const e: Erros = { linha: 0, aba: 'Receitas', lista };
-  const tp = lerTexto(e, celulas, 'TP / versão', { obrigatorio: M.TP_OBRIGATORIO, maximo: 60, rotulo: 'TP / versão' });
+  let tp = lerTexto(e, celulas, 'TP / versão', { obrigatorio: M.TP_OBRIGATORIO, maximo: 60, rotulo: 'TP / versão' });
+  // "01/2026" numa célula sem formato de texto vira data, e o leitor entrega "2026-01-01".
+  if (tp !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(tp)) tp = void erro(e, 'TP / versão', M.TP_DATA);
   const descricao = lerTexto(e, celulas, 'Descrição', { maximo: 200, rotulo: 'Descrição' });
   const situacao = escolher(SITUACOES, celulas['Situação']);
   if (!situacao) erro(e, 'Situação', M.SITUACAO_RECEITA);
