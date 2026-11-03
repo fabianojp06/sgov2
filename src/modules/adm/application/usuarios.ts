@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Prisma, type PrismaClient } from '@/generated/prisma/client';
+import { carregarIndiceEstrutura } from '@/modules/cad/servidor';
 import { enviarEmail } from '@/modules/ger';
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
@@ -14,12 +15,23 @@ import { obterConfiguracaoAcesso } from './configuracao';
 // Casos de uso de usuário (UC02.11 a UC02.14, UC02.18; US-038). Cada um chama exigir primeiro e
 // roda numa transação só, com o Histórico e o e-mail (contrato C4) no mesmo tx: se a auditoria ou
 // o registro do e-mail falhar, nada é gravado. O Argon2 da senha temporária roda antes, fora dela.
-export type DepsAdm = { cliente: PrismaClient; agora: () => Date; enviarEmail: typeof enviarEmail };
+// estrutura: o C1 do cad, para conferir o CC de escopo (C25); os testes injetam o falso.
+export type DepsAdm = {
+  cliente: PrismaClient;
+  agora: () => Date;
+  enviarEmail: typeof enviarEmail;
+  estrutura: { carregarIndiceEstrutura: typeof carregarIndiceEstrutura };
+};
 
 const FUNCIONALIDADE = 'adm.usuarios';
 
 function resolver(deps: Partial<DepsAdm>): DepsAdm {
-  return { cliente: deps.cliente ?? prisma, agora: deps.agora ?? (() => new Date()), enviarEmail: deps.enviarEmail ?? enviarEmail };
+  return {
+    cliente: deps.cliente ?? prisma,
+    agora: deps.agora ?? (() => new Date()),
+    enviarEmail: deps.enviarEmail ?? enviarEmail,
+    estrutura: deps.estrutura ?? { carregarIndiceEstrutura },
+  };
 }
 
 const contextoAuditoria = (ctx: ContextoRequisicao): ContextoAuditoria => ({
@@ -62,7 +74,8 @@ const inexistente = () => new ErroDominio('adm.usuario_inexistente', MENSAGENS_U
 async function resolverVinculos(
   tx: TxCliente,
   u: UsuarioValidado,
-  atuais: { perfis: readonly string[]; unidades: readonly string[] } = { perfis: [], unidades: [] },
+  estrutura: DepsAdm['estrutura'],
+  atuais: { perfis: readonly string[]; unidades: readonly string[]; ccEscopo: string | null } = { perfis: [], unidades: [], ccEscopo: null },
 ): Promise<Resultado<{ perfis: Perfil[] }>> {
   const perfis = await tx.perfil.findMany({ where: { codigo: { in: [...u.perfis] } }, select: { id: true, codigo: true, nome: true, ativo: true } });
   const perfilAceito = (codigo: string) => perfis.some((p) => p.codigo === codigo && (p.ativo || atuais.perfis.includes(codigo)));
@@ -71,6 +84,15 @@ async function resolverVinculos(
   const existentes = u.unidades.length === 0 ? [] : await tx.unidade.findMany({ where: { id: { in: [...u.unidades] } }, select: { id: true, ativo: true } });
   const unidadeAceita = (id: string) => existentes.some((x) => x.id === id && (x.ativo || !novas.includes(id)));
   if (!u.unidades.every(unidadeAceita)) return falha([{ campo: 'unidades', mensagem: MENSAGENS_USUARIO.UNIDADE_INVALIDA }]);
+  // C25 pelo C1: o CC de escopo novo precisa ter CCs analíticos ativos na subárvore (o mesmo critério da
+  // visão do orc, R16); escopo vazio não vê nada. Como os vínculos inativos, o que já estava gravado é
+  // mantido pelo Salvar, mesmo que a estrutura tenha mudado depois.
+  if (u.ccEscopo && u.ccEscopo !== atuais.ccEscopo) {
+    const indice = await estrutura.carregarIndiceEstrutura(tx);
+    if (indice.centrosCustoAnaliticosSob(u.ccEscopo).length === 0) {
+      return falha([{ campo: 'ccEscopo', mensagem: MENSAGENS_USUARIO.CC_FORA_ESTRUTURA }]);
+    }
+  }
   // Ordem do catálogo (CODIGOS_PERFIL) para o Histórico sair estável.
   return ok({ perfis: u.perfis.map((codigo) => perfis.find((p) => p.codigo === codigo)!) });
 }
@@ -86,7 +108,7 @@ const urlAcesso = () => `${lerEnvAcesso().urlPublica}/login`;
 // UC02.12: cadastro com senha gerada pelo sistema e enviada por e-mail (RN0059, RN0071).
 export async function cadastrarUsuario(ctx: ContextoRequisicao, entrada: unknown, deps: Partial<DepsAdm> = {}): Promise<Resultado<{ id: string }>> {
   exigir(ctx, FUNCIONALIDADE, 'incluir');
-  const { cliente, agora, enviarEmail: enviar } = resolver(deps);
+  const { cliente, agora, enviarEmail: enviar, estrutura } = resolver(deps);
   const v = validarUsuario(entrada);
   if (!v.ok) return v;
   const u = v.valor;
@@ -95,7 +117,7 @@ export async function cadastrarUsuario(ctx: ContextoRequisicao, entrada: unknown
   try {
     return await cliente.$transaction(async (tx) => {
       if (await tx.usuario.findUnique({ where: { loginNormalizado: u.loginNormalizado }, select: { id: true } })) return loginDuplicado();
-      const vinculos = await resolverVinculos(tx, u);
+      const vinculos = await resolverVinculos(tx, u, estrutura);
       if (!vinculos.ok) return vinculos;
       const { id } = await tx.usuario.create({
         data: {
@@ -144,7 +166,7 @@ export async function alterarUsuario(
   deps: Partial<DepsAdm> = {},
 ): Promise<Resultado<void>> {
   exigir(ctx, FUNCIONALIDADE, 'alterar');
-  const { cliente, agora } = resolver(deps);
+  const { cliente, agora, estrutura } = resolver(deps);
   if (!idValido(id)) throw inexistente();
   const contexto = contextoAuditoria(ctx);
   return cliente.$transaction(async (tx) => {
@@ -164,7 +186,7 @@ export async function alterarUsuario(
     const antes = retrato({ ...atual, perfis: codigosAntes as UsuarioValidado['perfis'], unidades: unidadesAntes });
     // Salvar sem mudança nenhuma não grava nem audita.
     if (JSON.stringify(antes) === JSON.stringify(retrato(u))) return ok(undefined);
-    const vinculos = await resolverVinculos(tx, u, { perfis: codigosAntes, unidades: unidadesAntes });
+    const vinculos = await resolverVinculos(tx, u, estrutura, { perfis: codigosAntes, unidades: unidadesAntes, ccEscopo: atual.ccEscopo });
     if (!vinculos.ok) return vinculos;
 
     // Só conta como outro Administrador quem consegue entrar: ativo, desbloqueado e já fora da senha

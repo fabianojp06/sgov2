@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { CENTROS_CUSTO_EXEMPLO, estruturaFinanceiraFalsa, type NoCentroCusto } from '@/modules/cad/servidor';
 import { emailFalso } from '@/modules/ger';
 import type { EventoAuditoria } from '@/shared/audit';
 import { definirAcao, ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
@@ -37,7 +38,8 @@ let ctx: ContextoRequisicao;
 let unidade: string;
 const AGORA = new Date('2026-11-11T12:00:00.000Z');
 const URL_ACESSO = `${lerEnvAcesso().urlPublica}/login`;
-const deps = () => ({ cliente: app, agora: () => AGORA, enviarEmail: email.enviarEmail });
+let estrutura = estruturaFinanceiraFalsa();
+const deps = () => ({ cliente: app, agora: () => AGORA, enviarEmail: email.enviarEmail, estrutura });
 
 const dados = (login: string, extra: Record<string, unknown> = {}) => ({
   nome: `Nome ${login}`,
@@ -201,15 +203,44 @@ describe('alterarUsuario (UC02.13)', () => {
   });
 
   it('inativar e reativar, ou mudar o CC de escopo: as sessões caem', async () => {
-    const id = await cadastrar('enzo', { perfis: ['GESTOR_DIRETORIA'], ccEscopo: '1.2' });
-    expect((await usuario(id)).ccEscopo).toBe('1.2');
-    for (const mudanca of [{ ativo: false }, { ativo: true }, { ccEscopo: '1.3' }]) {
+    const id = await cadastrar('enzo', { perfis: ['GESTOR_DIRETORIA'], ccEscopo: '4.3' });
+    expect((await usuario(id)).ccEscopo).toBe('4.3');
+    for (const mudanca of [{ ativo: false }, { ativo: true }, { ccEscopo: '4.4' }]) {
       const antes = await usuario(id);
       const entrada = dados('enzo', { perfis: ['GESTOR_DIRETORIA'], ccEscopo: antes.ccEscopo, ativo: antes.ativo, ...mudanca });
       expect((await alterarUsuario(ctx, id, antes.versao, entrada, deps())).ok).toBe(true);
       expect((await usuario(id)).acessoVersao).toBe(antes.acessoVersao + 1);
     }
-    expect(await usuario(id)).toMatchObject({ ativo: true, ccEscopo: '1.3' });
+    expect(await usuario(id)).toMatchObject({ ativo: true, ccEscopo: '4.4' });
+  });
+
+  it('CC de escopo pelo C1: inexistente, inativo ou sem analítico ativo é recusado; o já gravado é mantido', async () => {
+    const recusa = { ok: false, erros: [{ campo: 'ccEscopo', mensagem: MENSAGENS_USUARIO.CC_FORA_ESTRUTURA }] };
+    const gestor = (login: string, ccEscopo: string) => dados(login, { perfis: ['GESTOR_DIRETORIA'], ccEscopo });
+    expect(await cadastrarUsuario(ctx, gestor('caio', '9.9'), deps())).toEqual(recusa);
+    const inativar = (n: NoCentroCusto, alvo: string): NoCentroCusto => ({
+      ...n,
+      ativo: n.classificacao === alvo ? false : n.ativo,
+      filhos: n.filhos.map((f) => inativar(f, alvo)),
+    });
+    try {
+      estrutura = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => inativar(n, '4.4')) });
+      expect(await cadastrarUsuario(ctx, gestor('caio', '4.4'), deps())).toEqual(recusa);
+      // Sintético com analítico ativo embaixo vale (a diretoria inteira).
+      const r = await cadastrarUsuario(ctx, gestor('caio', '4.3'), deps());
+      if (!r.ok) throw new Error('esperava sucesso');
+      // Depois que a estrutura muda, o Salvar mantém o CC gravado, mas não aceita trocar para outro fora dela.
+      estrutura = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => inativar(inativar(n, '4.3.0'), '4.3.2')) });
+      // Sintético ativo sem nenhum analítico ativo embaixo, como valor novo: recusado (não basta existir).
+      expect(await cadastrarUsuario(ctx, gestor('quim', '4.3'), deps())).toEqual(recusa);
+      const antes = await usuario(r.valor.id);
+      expect(await alterarUsuario(ctx, r.valor.id, antes.versao, { ...gestor('caio', '4.3'), nome: 'Caio Lima' }, deps())).toEqual({ ok: true, valor: undefined });
+      const depois = await usuario(r.valor.id);
+      expect(await alterarUsuario(ctx, r.valor.id, depois.versao, gestor('caio', '4.3.2'), deps())).toEqual(recusa);
+      expect(await usuario(r.valor.id)).toMatchObject({ nome: 'Caio Lima', ccEscopo: '4.3' });
+    } finally {
+      estrutura = estruturaFinanceiraFalsa();
+    }
   });
 
   it('unidades: troca, esvazia e recusa unidade inativa nova; sem derrubar as sessões', async () => {
