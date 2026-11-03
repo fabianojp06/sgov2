@@ -50,6 +50,25 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 **Console do Easypanel:** como a imagem não tem `USER node`, o console e o `docker exec` entram como root. É assim que o `resolver` funciona. Use o console só para os procedimentos deste documento.
 
+## Seed e administrador inicial (#195)
+
+A imagem traz a seed (`prisma/seed.ts` em bundle, `/app/seed/seed.mjs`): configuração de acesso, perfis, catálogo, administrador inicial e os dados de referência do `cad`. Ela roda **só** num serviço próprio, nunca no `app` nem no `worker`:
+
+- **Serviço `migracao`** (um por ambiente): a mesma imagem, com `implantar` no campo de argumentos (migra e, se passar, semeia). Roda uma vez por deploy, antes do `app`. Variáveis: `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `AMBIENTE` (`hml` ou `producao`). Em hml, também `CARGA_DADOS_REFERENCIA=1`; em prod, **sem** ela (a seed recusa, R15).
+- **Primeiro deploy:** acrescente ao serviço `migracao` as `ADMIN_INICIAL_LOGIN`, `ADMIN_INICIAL_EMAIL` e `ADMIN_INICIAL_SENHA` (16 ou mais caracteres). Depois do primeiro acesso do administrador, **tire as três do Easypanel**.
+- **O que a seed faz:**
+  - banco **sem nenhum usuário** e sem as `ADMIN_INICIAL_*`: falha de propósito (`Administrador inicial: defina ...`), e o serviço sai com erro;
+  - com usuários e sem as variáveis: só avisa no log, sem derrubar o deploy. `[ADMIN_INICIAL_AUSENTE]` quer dizer que não há administrador ativo; `[ADMIN_INICIAL_CONFLITO]`, que o login das variáveis já existe sem ser administrador ativo;
+  - **alerta:** o log do serviço `migracao` com `[ADMIN_INICIAL_AUSENTE]` ou `[ADMIN_INICIAL_CONFLITO]` pede ação do PO.
+- **Só a seed** (sem migrar): `semear` no lugar de `implantar`.
+
+### Break-glass: nenhum administrador ativo
+
+1. No serviço `migracao`, defina as três `ADMIN_INICIAL_*` com um **login novo** (o login de um usuário que já existe dá `[ADMIN_INICIAL_CONFLITO]`).
+2. Rode o serviço com `semear` (ou espere o próximo deploy). A seed cria o administrador só quando não há nenhum ativo, numa trava do banco: duas execuções juntas criam um só.
+3. Entre com o login novo, troque a senha, reative ou corrija os administradores e **tire as três variáveis do Easypanel**.
+4. O Histórico registra a criação pelo sistema.
+
 ## Credenciais (só nos *environments* do GitHub e no Easypanel)
 
 | Onde | Nome | Para quê |
@@ -90,7 +109,7 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 ## A imagem
 
-- `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
+- `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`), a seed (bundle em `/app/seed/seed.mjs`, `docker/seed/build.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
 - `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
 - Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`), `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `URL_PUBLICA` (o endereço público com `https`, que o app exige em produção desde a US-026; ver `CONFIAR_PROXY` no `.env.example`).
 - **Serviço `worker`:** a mesma imagem, com `worker` no campo de **argumentos** (o CMD) do Easypanel, sem trocar o *entrypoint*. O *healthcheck* e o `tini` dependem do *entrypoint* da imagem. Variáveis: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), `AMBIENTE` (`hml` ou `producao`) e `URL_PUBLICA` (a **mesma** do app), além das de e-mail abaixo. Sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.

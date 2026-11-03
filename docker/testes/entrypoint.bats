@@ -16,7 +16,7 @@ SH
 #!/bin/sh
 echo "node $*" >> "$REGISTRO"
 echo "node-env MIGRATE_DATABASE_URL=${MIGRATE_DATABASE_URL:-<ausente>}" >> "$REGISTRO"
-exit 0
+exit "${NODE_SAIDA:-0}"
 SH
   mkdir -p "$T/migrador/prisma/migrations/202610260000_nucleo_x"
   chmod +x "$T/migrador/node_modules/.bin/prisma" "$T/bin/node"
@@ -46,6 +46,32 @@ teardown() { rm -rf "$T"; }
 @test "migrar: sai com o código do prisma" {
   PRISMA_SAIDA=3 run "$SCRIPT" migrar
   [ "$status" -eq 3 ]
+  ! grep -q '^node' "$REGISTRO"
+}
+
+@test "semear: roda a seed com a MIGRATE_DATABASE_URL e o código dela, sem migrar" {
+  NODE_SAIDA=5 run "$SCRIPT" semear
+  [ "$status" -eq 5 ]
+  grep -q "^node $T/seed/seed.mjs$" "$REGISTRO"
+  grep -q '^node-env MIGRATE_DATABASE_URL=postgresql://sgo_migrator' "$REGISTRO"
+  ! grep -q '^prisma' "$REGISTRO"
+}
+
+@test "semear sem MIGRATE_DATABASE_URL → sai com erro, sem chamar a seed" {
+  unset MIGRATE_DATABASE_URL
+  run "$SCRIPT" semear
+  [ "$status" -ne 0 ]
+  ! grep -q '^node' "$REGISTRO"
+}
+
+@test "implantar: migra e depois semeia; migração com falha → não semeia" {
+  run "$SCRIPT" implantar
+  [ "$status" -eq 0 ]
+  [ "$(sed -n 1p "$REGISTRO")" = 'prisma migrate deploy' ]
+  grep -q "^node $T/seed/seed.mjs$" "$REGISTRO"
+  : > "$REGISTRO"
+  PRISMA_SAIDA=1 run "$SCRIPT" implantar
+  [ "$status" -ne 0 ]
   ! grep -q '^node' "$REGISTRO"
 }
 

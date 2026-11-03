@@ -4,6 +4,9 @@
 #                        migração com falha → sai com erro antes de abrir a porta, e o Easypanel
 #                        (atualização start-first) mantém a versão anterior no ar
 #   migrar               só a migração (prisma migrate deploy), com o código de saída do Prisma
+#   semear               roda a seed (/app/seed/seed.mjs, o prisma/seed.ts em bundle; #195) com a
+#                        MIGRATE_DATABASE_URL, como o usuário node; com o código de saída dela
+#   implantar            migrar e, só se passar, semear: o serviço de migração do deploy
 #   resolver <migration> marca uma migration com falha como desfeita (prisma migrate resolve
 #                        --rolled-back), para o PO destravar o deploy (runbook, "migration presa")
 #   worker               sobe o worker (outbox e filas, US-010), sem migrar: quem migra é o app
@@ -18,7 +21,7 @@ MIGRADOR_DIR="${MIGRADOR_DIR:-/opt/migrador}"
 APP_USUARIO="${APP_USUARIO-node}"
 
 uso() {
-  echo "Uso: entrypoint.sh app | migrar | resolver <migration> | worker" >&2
+  echo "Uso: entrypoint.sh app | migrar | semear | implantar | resolver <migration> | worker" >&2
   exit 64
 }
 
@@ -59,6 +62,19 @@ migrar() {
   prisma migrate deploy
 }
 
+# A seed precisa da MIGRATE_DATABASE_URL (dona dos dados de referência) e das ADMIN_INICIAL_* do
+# serviço de migração; desce para o APP_USUARIO sem capacidades, mas com o ambiente.
+semear() {
+  exigir_url_migracao
+  echo "Aplicando as seeds..."
+  cd "$APP_DIR"
+  if [[ -n "$APP_USUARIO" && "$(id -u)" == 0 ]]; then
+    exec setpriv --reuid="$APP_USUARIO" --regid="$APP_USUARIO" --init-groups \
+      --inh-caps=-all --bounding-set=-all --no-new-privs node "$APP_DIR/seed/seed.mjs"
+  fi
+  exec node "$APP_DIR/seed/seed.mjs"
+}
+
 case "${1:-}" in
   app)
     migrar
@@ -67,6 +83,13 @@ case "${1:-}" in
     ;;
   migrar)
     migrar
+    ;;
+  semear)
+    semear
+    ;;
+  implantar)
+    migrar
+    semear
     ;;
   resolver)
     [[ -n "${2:-}" ]] || uso
