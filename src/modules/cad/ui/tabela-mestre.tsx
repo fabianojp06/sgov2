@@ -43,6 +43,20 @@ const ROTULO_FORMA: Record<ItemTela['forma'], string> = {
   PERCENTUAL_SALARIO: '% do salário',
 };
 
+/** O pedido do Salvar: a inclusão vai sem a versão (campo blindado no incluir); a alteração, com ela. */
+export function montarEnvio(item: ItemTela, novo: boolean, ano: number): { tipo: 'incluir'; dados: DadosItem } | { tipo: 'alterar'; dados: DadosItem & { versao: number } } {
+  const { provisorio: _p, versao, ...dados } = item;
+  void _p;
+  return novo ? { tipo: 'incluir', dados: { ...dados, ano } } : { tipo: 'alterar', dados: { ...dados, versao, ano } };
+}
+
+/** Trocar a forma zera valor e percentual: o que valia para uma forma não vale para a outra. */
+export const trocarForma = (item: ItemTela, forma: ItemTela['forma']): ItemTela => ({ ...item, forma, valor: null, percentual: null });
+
+/** Campos com controle no formulário; os erros dos outros vão para o alerta geral, para nenhum sumir. */
+const CAMPOS_COM_CONTROLE = ['codigo', 'forma', 'nome', 'valor', 'percentual', 'conta'];
+export const errosGerais = (erros: readonly ErroCampo[]) => erros.filter((e) => !CAMPOS_COM_CONTROLE.includes(e.campo)).map((e) => e.mensagem);
+
 export function TabelaMestre({
   ano,
   itens,
@@ -85,10 +99,13 @@ export function TabelaMestre({
     setEditando(ITEM_NOVO);
     setAberturas((n) => n + 1);
   };
+  // Ao fechar, o foco volta ao botão que abriu o formulário (quem usa teclado não perde o lugar).
+  const quemAbriu = useRef<HTMLButtonElement | null>(null);
   const fechar = () => {
     setEditando(null);
     setNovo(false);
     setErros([]);
+    quemAbriu.current?.focus();
   };
 
   const nos: NoGrade<Colunas>[] = itens.map((i) => ({
@@ -106,13 +123,12 @@ export function TabelaMestre({
 
   const salvar = () => {
     if (!editando) return;
-    const { provisorio: _p, versao, ...dados } = editando;
-    void _p;
+    const envio = montarEnvio(editando, novo && incluir !== undefined, ano);
     iniciar(async () => {
       try {
-        const r = novo && incluir ? await incluir({ ...dados, ano }) : await alterar({ ...dados, versao, ano });
+        const r = envio.tipo === 'incluir' && incluir ? await incluir(envio.dados) : await alterar(envio.dados as DadosItem & { versao: number });
         if (r.ok) {
-          setAviso(novo ? `Benefício ${dados.codigo} incluído.` : `Benefício ${dados.codigo} alterado.`);
+          setAviso(envio.tipo === 'incluir' ? `Benefício ${envio.dados.codigo} incluído.` : `Benefício ${envio.dados.codigo} alterado.`);
           fechar();
         } else setErros(r.erros);
       } catch {
@@ -126,7 +142,13 @@ export function TabelaMestre({
     <section>
       <p role="status">{aviso}</p>
       {podeIncluir && incluir && (
-        <button type="button" onClick={abrirInclusao}>
+        <button
+          type="button"
+          onClick={(e) => {
+            quemAbriu.current = e.currentTarget;
+            abrirInclusao();
+          }}
+        >
           Incluir benefício
         </button>
       )}
@@ -161,7 +183,14 @@ export function TabelaMestre({
               ))}
             </select>
           </label>{' '}
-          <button type="button" disabled={!escolhido} onClick={() => abrir(escolhido)}>
+          <button
+            type="button"
+            disabled={!escolhido}
+            onClick={(e) => {
+              quemAbriu.current = e.currentTarget;
+              abrir(escolhido);
+            }}
+          >
             Abrir
           </button>
         </div>
@@ -177,7 +206,7 @@ export function TabelaMestre({
           <h2 ref={titulo} tabIndex={-1}>
             {novo ? 'Incluir benefício' : `Alterar ${editando.nome} (${editando.codigo})`}
           </h2>
-          {erroDe('_') && <p role="alert">{erroDe('_')}</p>}
+          {errosGerais(erros).length > 0 && <p role="alert">{errosGerais(erros).join(' ')}</p>}
           {novo && (
             <>
               <Campo id="codigo" rotulo="Código" erro={erroDe('codigo')} valor={editando.codigo} mudar={(v) => setEditando({ ...editando, codigo: v })} />
@@ -186,7 +215,8 @@ export function TabelaMestre({
                 <select
                   id="beneficio-forma"
                   value={editando.forma}
-                  onChange={(e) => setEditando({ ...editando, forma: e.target.value as ItemTela['forma'], valor: null, percentual: null })}
+                  onChange={(e) => setEditando(trocarForma(editando, e.target.value as ItemTela['forma']))}
+                  {...(erroDe('forma') ? { 'aria-invalid': true, 'aria-describedby': 'beneficio-forma-erro' } : {})}
                 >
                   {(Object.keys(ROTULO_FORMA) as ItemTela['forma'][]).map((f) => (
                     <option key={f} value={f}>
@@ -194,6 +224,11 @@ export function TabelaMestre({
                     </option>
                   ))}
                 </select>
+                {erroDe('forma') && (
+                  <span id="beneficio-forma-erro" role="alert">
+                    {erroDe('forma')}
+                  </span>
+                )}
               </div>
             </>
           )}

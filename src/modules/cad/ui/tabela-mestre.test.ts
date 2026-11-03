@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/authz/configuracao';
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
-import { ITEM_NOVO, TabelaMestre, type ItemTela } from './tabela-mestre';
+import { errosGerais, ITEM_NOVO, montarEnvio, TabelaMestre, trocarForma, type ItemTela } from './tabela-mestre';
 
 // Tela da Tabela Mestre: inclusão pela tela e seletor de ano (US-050).
 vi.mock('next/server', () => ({ connection: async () => undefined }));
@@ -41,6 +41,32 @@ describe('TabelaMestre (SSR)', () => {
 
   it('o item novo começa com o prefixo do código, valor mensal e ativo', () => {
     expect(ITEM_NOVO).toMatchObject({ codigo: 'beneficio.', forma: 'VALOR_MENSAL', ativo: true, padraoPosicao: false, valor: null });
+  });
+});
+
+describe('lógica do formulário', () => {
+  it('inclusão vai sem a versão (blindada no incluir); alteração, com ela; nenhum dos dois leva "provisorio"', () => {
+    const inc = montarEnvio({ ...ITEM_NOVO, codigo: 'beneficio.creche' }, true, 2027);
+    expect(inc.tipo).toBe('incluir');
+    expect(inc.dados).toEqual({ codigo: 'beneficio.creche', nome: '', forma: 'VALOR_MENSAL', valor: null, percentual: null, conta: '', padraoPosicao: false, ativo: true, ano: 2027 });
+    const alt = montarEnvio(item, false, 2027);
+    expect(alt).toMatchObject({ tipo: 'alterar', dados: { codigo: 'beneficio.vr', versao: 1, ano: 2027 } });
+    expect('provisorio' in alt.dados).toBe(false);
+  });
+
+  it('trocar a forma zera valor e percentual', () => {
+    expect(trocarForma(item, 'PERCENTUAL_SALARIO')).toMatchObject({ forma: 'PERCENTUAL_SALARIO', valor: null, percentual: null, nome: 'Vale-refeição' });
+  });
+
+  it('erros sem controle no formulário vão para o alerta geral (nenhum some)', () => {
+    expect(
+      errosGerais([
+        { campo: '_', mensagem: 'Geral.' },
+        { campo: 'forma', mensagem: 'Forma.' },
+        { campo: 'ativo', mensagem: 'Ativo inválido.' },
+        { campo: 'conta', mensagem: 'Conta.' },
+      ]),
+    ).toEqual(['Geral.', 'Ativo inválido.']);
   });
 });
 
