@@ -175,6 +175,12 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
   });
 
+  it('id de exercício que não é UUID: "Exercício não encontrado.", não erro inesperado', async () => {
+    const e = await exercicio();
+    const r = importarPlanilha(ctx(), { exercicioId: 'nao-e-uuid', arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4')] }) }, e.deps());
+    await expect(r).rejects.toMatchObject({ codigo: 'orc.exercicio_inexistente' });
+  });
+
   it('erro de célula do leitor (3 casas) aparece uma vez só, sem repetir a validação', async () => {
     const e = await exercicio();
     const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4', { 'Valor unitário (R$)': 350.123 })] }) }, e.deps());

@@ -69,7 +69,7 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
       if (forma === 'COPIA' && anoOrigem === null) return falha([{ campo: 'forma', mensagem: MENSAGENS_ORC.SEM_EXERCICIO_ANTERIOR }]);
 
       const novo = await tx.orcamentoExercicio.create({ data: { ano } });
-      await deps.custoPessoal.garantirPremissasExercicio(tx, contextoAuditoria(ctx), ano);
+      const premissasNovas = await deps.custoPessoal.garantirPremissasExercicio(tx, contextoAuditoria(ctx), ano);
       const copiadas = { posicoes: 0, pacotes: 0 };
       const puladas = { posicoes: 0, pacotes: 0 };
       if (anoOrigem !== null) {
@@ -78,7 +78,7 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
         // posições e pacotes saem do mesmo estado.
         await tx.$queryRaw`SELECT 1 FROM orc_exercicio WHERE id = ${origem.id}::uuid FOR SHARE`;
         const indice = await deps.estrutura.carregarIndiceEstrutura(tx);
-        const contasVetadas = contasVetadasEmPacote(indice, await deps.custoPessoal.obterPremissasExercicio(tx, ano));
+        const contasVetadas = contasVetadasEmPacote(indice, premissasNovas);
         const [posicoes, pacotes] = await Promise.all([
           tx.posicaoOrcada.findMany({ where: { exercicioId: origem.id } }),
           tx.pacoteBaseZero.findMany({ where: { exercicioId: origem.id } }),
@@ -109,7 +109,7 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
         descricao:
           anoOrigem === null
             ? `Exercício ${ano} criado em branco`
-            : `Exercício ${ano} criado copiando ${anoOrigem}: ${copiadas.posicoes} posições e ${copiadas.pacotes} pacotes; puladas ${puladas.posicoes} posições e ${puladas.pacotes} pacotes (CC ou conta inativos)`,
+            : `Exercício ${ano} criado copiando ${anoOrigem}: ${copiadas.posicoes} posições e ${copiadas.pacotes} pacotes; puladas ${puladas.posicoes} posições e ${puladas.pacotes} pacotes (CC ou conta inativos, ou conta de pessoal em pacote)`,
         depois: { ano, forma, anoOrigem, copiadas, puladas },
       });
       return ok({ id: novo.id, copiadas, puladas });
