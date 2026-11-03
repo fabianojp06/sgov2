@@ -4,7 +4,7 @@ export * from './contrato';
 // Tabela Mestre de Benefícios (US-050): ações e tela.
 export { alterarBeneficio, incluirBeneficio } from './application/acoes-beneficios';
 export { TabelaMestre, type ItemTela } from './ui/tabela-mestre';
-export { listarBeneficiosMestre } from './application/beneficios';
+export { listarAnosBeneficios, listarBeneficiosMestre } from './application/beneficios';
 export { FORMAS_BENEFICIO, valorMensalPorPessoa, type BeneficioMestre, type EntradaBeneficio, type FormaBeneficio } from './domain/beneficios';
 
 // Importação do plano de contas (US-043 parte 4): ações e tela.

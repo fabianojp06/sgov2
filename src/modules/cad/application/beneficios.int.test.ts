@@ -8,7 +8,7 @@ import type { EntradaBeneficio } from '../domain/beneficios';
 import { congelarPremissasExercicio, garantirPremissasExercicio } from '../infrastructure/premissas';
 import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
-import { alterarBeneficioMestre, incluirBeneficioMestre, listarBeneficiosMestre } from './beneficios';
+import { alterarBeneficioMestre, incluirBeneficioMestre, listarAnosBeneficios, listarBeneficiosMestre } from './beneficios';
 
 // US-050 parte 1 (plano do P4, Task 10, Step 1), com Postgres real. Os testes compartilham o banco e
 // dependem da ordem (o congelamento de 2027 vem por último).
@@ -73,6 +73,11 @@ describe('Tabela Mestre de Benefícios', () => {
     expect(itens.filter((i) => i.padraoPosicao).map((i) => i.codigo)).toEqual(['beneficio.saude_basico', 'beneficio.seguro_vida', 'beneficio.vr']);
   });
 
+  it('exercícios para o seletor de ano: os que têm parâmetros; exige consultar', async () => {
+    expect(await listarAnosBeneficios(gfin(), { cliente: app })).toEqual([2027]);
+    await expect(listarAnosBeneficios(ctx([]), { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
+  });
+
   it('alteração auditada, sai do provisório e incrementa a versão do ano (I6)', async () => {
     const va = await versaoAno();
     expect(await alterarBeneficioMestre(grh(), 2027, 'beneficio.vr', await versaoItem('beneficio.vr'), vr(), { cliente: app })).toEqual({ ok: true, valor: undefined });
@@ -111,6 +116,12 @@ describe('Tabela Mestre de Benefícios', () => {
     });
   });
 
+  it('inclusão num exercício sem parâmetros: recusada pelo servidor, nada gravado', async () => {
+    const r = await incluirBeneficioMestre(grh(), 2031, vr({ codigo: 'beneficio.sem_ano' }), { cliente: app });
+    expect(r.ok).toBe(false);
+    expect((await migrator.query(`SELECT count(*)::int AS n FROM beneficio_mestre WHERE ano = 2031`)).rows[0].n).toBe(0);
+  });
+
   it('origem blindada também na inclusão', async () => {
     const bruto = { ...vr({ codigo: 'beneficio.outro' }), provisorio: false } as unknown as EntradaBeneficio;
     await expect(incluirBeneficioMestre(grh(), 2027, bruto, { cliente: app })).rejects.toMatchObject({ codigo: 'cad.violacao_governanca' });
@@ -147,6 +158,8 @@ describe('Tabela Mestre de Benefícios', () => {
     const resumo = (xs: typeof a) => xs.map((i) => [i.codigo, i.forma, i.valor?.paraString() ?? null, i.percentual?.paraString() ?? null, i.conta, i.padraoPosicao]);
     expect(resumo(b)).toEqual(resumo(a));
     expect(b).toHaveLength(8);
+    // O seletor de ano depende do mais recente primeiro.
+    expect(await listarAnosBeneficios(gfin(), { cliente: app })).toEqual([2028, 2027]);
   });
 
   it('ano congelado → cad.exercicio_congelado; INSERT direto recusado pelo trigger', async () => {
