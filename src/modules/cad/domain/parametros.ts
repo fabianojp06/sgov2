@@ -46,6 +46,12 @@ const normalizar = (s: string) => {
   return t.includes(',') && !t.includes('.') ? t.replace(',', '.') : t;
 };
 
+/** O percentual digitado (ponto ou vírgula decimal), ou null se não estiver no formato. */
+export function percentualDoTexto(texto: string): Percentual | null {
+  const t = normalizar(texto);
+  return TEXTO_PERCENTUAL.test(t) ? Percentual.dePontos(t) : null;
+}
+
 function percentual(campo: string, texto: string, min: number, max: number, erros: ErroCampo[]): Percentual | null {
   const t = normalizar(texto);
   if (!TEXTO_PERCENTUAL.test(t)) {

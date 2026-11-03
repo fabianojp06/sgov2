@@ -27,6 +27,14 @@ describe('bundle do worker', () => {
     expect(entradas).toContain('src/modules/ger/infrastructure/trabalhador-email.ts');
   });
 
+  // E-N4: o nome de exibição sai do cad pelo servidor.ts, sem puxar os casos de uso (que exigem permissão).
+  it('leva o obterParametroSistema do cad, sem os casos de uso dos parâmetros', () => {
+    expect(entradas).toContain('worker/nome-exibicao.ts');
+    expect(entradas).toContain('src/modules/cad/infrastructure/parametro-sistema.ts');
+    // O saneamento (puro) entra pelo processador de cargas; os casos de uso e as ações, nunca.
+    expect(entradas.filter((e) => /^src\/modules\/cad\/application\/(parametros|tela-parametros|acoes-)/.test(e))).toEqual([]);
+  });
+
   it.each(PROIBIDOS)('não leva %s', (_nome, padrao) => {
     expect(entradas.filter((e) => padrao.test(e))).toEqual([]);
   });

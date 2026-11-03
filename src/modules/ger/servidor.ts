@@ -14,8 +14,8 @@ export { NOVAS_TENTATIVAS_EMAIL } from './infrastructure/trabalhador-email';
 /**
  * Registra os trabalhadores do ger no worker: hoje, o de email.enviar. Ele é registrado mesmo sem
  * SMTP (cada tentativa falha com "SMTP não configurado" e a mensagem não fica parada com a senha,
- * R23); nesse caso, emite [EMAIL_SEM_SMTP] uma vez. O nome de exibição da instituição vem do cad a
- * partir da Task 9; até lá, vazio.
+ * R23); nesse caso, emite [EMAIL_SEM_SMTP] uma vez. O nome de exibição da instituição vem do cad
+ * (parametro_sistema, pelo worker); sem ele, vazio.
  */
 export async function registrarTrabalhadoresGer(
   fila: FilaGerenciada,
