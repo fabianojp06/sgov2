@@ -2,7 +2,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { seedAdm } from '@/modules/adm';
-import type { ContextoRequisicao } from '@/shared/authz';
+import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import type { EntradaBeneficio } from '../domain/beneficios';
@@ -75,8 +75,15 @@ describe('benefícios do cargo (RN_CAR_07)', () => {
     const r = await alterarBeneficiosCargo(grh(), cargos.C1!, 2027, await versao('C1'), [{ codigo: 'beneficio.vr', ativo: true, valorManual: null }], { cliente: app });
     expect(r.ok).toBe(true);
     expect(await linha('C1')).toEqual({ origem: 'MESTRE', valor: null });
-    // Sem cad.salarios, sem os valores.
-    expect((await listarBeneficiosCargo(ctx(['cad.cargos', 'consultar']), cargos.C1!, 2027, { cliente: app })).mascarado).toBe(true);
+    // ativo = false gravado.
+    await alterarBeneficiosCargo(grh(), cargos.C1!, 2027, await versao('C1'), [{ codigo: 'beneficio.vr', ativo: false, valorManual: null }], { cliente: app });
+    expect((await migrator.query(`SELECT ativo FROM beneficio_cargo WHERE cargo_id = $1 AND codigo = 'beneficio.vr'`, [cargos.C1])).rows[0].ativo).toBe(false);
+    // Sem cad.salarios: sem os valores (todos nulos) e sem gravar.
+    const semSalarios = ctx(['cad.cargos', 'consultar'], ['cad.cargos', 'alterar']);
+    const m = await listarBeneficiosCargo(semSalarios, cargos.C1!, 2027, { cliente: app });
+    expect(m.mascarado).toBe(true);
+    expect(m.itens.every((i) => i.valorMestre === null && i.valorManual === null && i.percentualMestre === null)).toBe(true);
+    await expect(alterarBeneficiosCargo(semSalarios, cargos.C1!, 2027, await versao('C1'), [], { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
   });
 
   it('percentual não tem valor manual; versão velha do cargo → concorrência', async () => {
@@ -92,20 +99,35 @@ describe('benefícios do cargo (RN_CAR_07)', () => {
       ok: false,
       erros: [{ campo: 'itens.0.valorManual', mensagem: 'O benefício percentual não tem valor manual.' }],
     });
+    const ano = async () => (await migrator.query('SELECT versao FROM parametros_exercicio WHERE ano = 2027')).rows[0].versao as number;
+    const antes = await ano();
     expect(await alterarBeneficiosCargo(grh(), cargos.C1!, 2027, 999, [{ codigo: 'beneficio.vr', ativo: true, valorManual: null }], { cliente: app })).toMatchObject({ ok: false, erros: [{ mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }] });
+    // A falha não sobe a versão do ano (R10/I6).
+    expect(await ano()).toBe(antes);
   });
 });
 
 describe('sobrescrita pela Tabela Mestre (RN_CAR_06, C8)', () => {
-  it('3 cargos com VR manual voltam a MESTRE, com 3 Históricos; o de 2028 não muda', async () => {
+  it('3 cargos com VR manual voltam a MESTRE, com 3 Históricos; o de 2028 e o outro item não mudam', async () => {
     for (const c of ['C1', 'C2', 'C3']) await manual(c, 2027, '45');
     await manual('C1', 2028, '46');
+    // Outro item manual (VA) no C2: fica como está.
+    await alterarBeneficiosCargo(grh(), cargos.C2!, 2027, await versao('C2'), [{ codigo: 'beneficio.va', ativo: true, valorManual: '300' }], { cliente: app });
     const r = await alterarBeneficioMestre(grh(), 2027, 'beneficio.vr', (await vr()).versao, await entradaVr(2027, '38.00'), { cliente: app });
     expect(r.ok).toBe(true);
     for (const c of ['C1', 'C2', 'C3']) expect(await linha(c)).toEqual({ origem: 'MESTRE', valor: null });
     expect(await linha('C1', 2028)).toEqual({ origem: 'MANUAL', valor: '46.00' });
+    expect((await migrator.query(`SELECT origem::text AS o FROM beneficio_cargo WHERE cargo_id = $1 AND codigo = 'beneficio.va'`, [cargos.C2])).rows[0].o).toBe('MANUAL');
     const h = await migrator.query(`SELECT registro_id FROM historico_operacao WHERE descricao LIKE 'Benefício beneficio.vr de 2027 do cargo % voltou ao valor da Tabela Mestre' ORDER BY registro_id`);
     expect(h.rows.map((x) => x.registro_id)).toEqual(['C1', 'C2', 'C3']);
+  });
+
+  it('a tela aberta antes da sobrescrita não reenvia o valor manual apagado (a versão do cargo subiu)', async () => {
+    await manual('C1', 2027, '45');
+    const vAntiga = await versao('C1');
+    expect((await alterarBeneficioMestre(grh(), 2027, 'beneficio.vr', (await vr()).versao, await entradaVr(2027, '37.00'), { cliente: app })).ok).toBe(true);
+    expect((await alterarBeneficiosCargo(grh(), cargos.C1!, 2027, vAntiga, [{ codigo: 'beneficio.vr', ativo: true, valorManual: '45' }], { cliente: app })).ok).toBe(false);
+    expect(await linha('C1')).toEqual({ origem: 'MESTRE', valor: null });
   });
 
   it('atomicidade: com a auditoria falhando no 2º cargo, nada muda (nem a Tabela Mestre)', async () => {

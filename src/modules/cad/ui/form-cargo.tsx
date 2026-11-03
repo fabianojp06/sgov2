@@ -118,6 +118,25 @@ export function FormCargo({
   const erroDe = (campo: string) => estado.erros.filter((e) => e.campo === campo).map((e) => e.mensagem).join(' ');
   const gerais = estado.erros.filter((e) => !['mercadoMinimo', 'mercadoMaximo', 'adicional', 'fonteAtiva', 'funcaoGratificada', 'salarioDefinido'].includes(e.campo));
 
+  const [avisoBeneficios, setAvisoBeneficios] = useState('');
+  const salvarBeneficios = () => {
+    if (!beneficios || !alterarBeneficios) return;
+    iniciar(async () => {
+      setAvisoBeneficios('');
+      try {
+        const r = await alterarBeneficios(montarEnvioBeneficios(cargo.id, beneficios.ano, estado.versao, benef));
+        // A versão do cargo é a mesma do formulário; a mensagem é a dos benefícios, não a do cargo.
+        setEstado((a) => ({ ...depoisDeSalvar(a, r), salvo: false }));
+        if (r.ok) {
+          setOrigens(new Map(benef.map((x) => [x.codigo, x.valorManual.trim() === '' ? 'MESTRE' : 'MANUAL'])));
+          setAvisoBeneficios(`Benefícios de ${beneficios.ano} salvos.`);
+        }
+      } catch {
+        setEstado((a) => ({ ...a, erros: [{ campo: '_', mensagem: 'Não foi possível salvar os benefícios. Confira a conexão e tente de novo.' }] }));
+      }
+    });
+  };
+
   const salvar = () =>
     iniciar(async () => {
       setEstado((a) => ({ ...a, salvo: false }));
@@ -286,13 +305,24 @@ export function FormCargo({
                 <span>{b.percentualMestre ? `${b.percentualMestre.replace(/\.?0+$/, '')}% do salário` : 'sem percentual'}</span>
               ) : (
                 <>
-                  <span>Tabela Mestre: {b.valorMestre ? emReais(b.valorMestre) : 'sem valor'}</span>{' '}
-                  <label htmlFor={`beneficio-${b.codigo}`}>Valor manual (R$)</label>{' '}
+                  <span>
+                    Tabela Mestre: {b.valorMestre ? `${emReais(b.valorMestre)} ${b.forma === 'VALOR_DIARIO' ? 'por dia útil' : 'por mês'}` : 'sem valor'}
+                  </span>{' '}
+                  <label htmlFor={`beneficio-${b.codigo}`}>
+                    Valor manual de {b.nome} ({b.forma === 'VALOR_DIARIO' ? 'R$ por dia útil' : 'R$ por mês'})
+                  </label>{' '}
                   <input
                     id={`beneficio-${b.codigo}`}
                     value={benef[i]?.valorManual ?? ''}
                     inputMode="decimal"
                     onChange={(e) => setBenef(benef.map((x, j) => (j === i ? { ...x, valorManual: e.target.value } : x)))}
+                    // Enter aqui salva os benefícios, não o cargo (o campo está dentro do formulário do cargo).
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        salvarBeneficios();
+                      }
+                    }}
                   />
                 </>
               )}{' '}
@@ -303,21 +333,12 @@ export function FormCargo({
             <button
               type="button"
               disabled={salvando}
-              onClick={() =>
-                iniciar(async () => {
-                  try {
-                    const r = await alterarBeneficios(montarEnvioBeneficios(cargo.id, beneficios.ano, estado.versao, benef));
-                    setEstado((a) => depoisDeSalvar(a, r));
-                    if (r.ok) setOrigens(new Map(benef.map((x) => [x.codigo, x.valorManual.trim() === '' ? 'MESTRE' : 'MANUAL'])));
-                  } catch {
-                    setEstado((a) => ({ ...a, erros: [{ campo: '_', mensagem: 'Não foi possível salvar os benefícios. Confira a conexão e tente de novo.' }] }));
-                  }
-                })
-              }
+              onClick={salvarBeneficios}
             >
               Salvar benefícios
             </button>
           )}
+          <p role="status">{avisoBeneficios}</p>
         </fieldset>
       )}
       {!bloqueado && (

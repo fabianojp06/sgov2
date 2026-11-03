@@ -89,19 +89,21 @@ export async function alterarBeneficiosCargo(
       const vistos = new Set<string>();
       itens.forEach((it, i) => {
         const m = mestre.get(it.codigo);
-        if (!m || vistos.has(it.codigo)) return erros.push({ campo: `itens.${i}.codigo`, mensagem: 'Benefício desconhecido neste exercício ou repetido.' });
+        // Só os itens ativos da Tabela Mestre, os mesmos que a tela mostra.
+        if (!m || !m.ativo || vistos.has(it.codigo)) return erros.push({ campo: `itens.${i}.codigo`, mensagem: 'Benefício desconhecido, inativo neste exercício ou repetido.' });
         vistos.add(it.codigo);
         const v = dinheiroDoTexto(it.valorManual);
-        if (v === 'invalido') return erros.push({ campo: `itens.${i}.valorManual`, mensagem: 'Informe o valor com até 2 casas decimais.' });
+        if (v === 'invalido') return erros.push({ campo: `itens.${i}.valorManual`, mensagem: `${m.nome}: informe o valor com até 2 casas decimais.` });
         if (v !== null && m.forma === 'PERCENTUAL_SALARIO') return erros.push({ campo: `itens.${i}.valorManual`, mensagem: 'O benefício percentual não tem valor manual.' });
         validos.push({ codigo: it.codigo, ativo: it.ativo, valorManual: v });
       });
       if (erros.length > 0) return falha(erros);
 
-      await tocarVersaoExercicio(tx, ano);
       const cargo = await tx.cargo.findUnique({ where: { id: cargoId }, select: { codigo: true } });
       const r = await tx.cargo.updateMany({ where: { id: cargoId, versao: versaoCargo }, data: { versao: { increment: 1 } } });
-      if (!cargo || r.count === 0) return falha([{ campo: '_', mensagem: MSG_CONCORRENCIA }]);
+      // throw (não return): o rollback desfaz o que já subiu, inclusive a versão do ano (R10/I6).
+      if (!cargo || r.count === 0) throw new ErroDominio('cad.concorrencia', MSG_CONCORRENCIA);
+      await tocarVersaoExercicio(tx, ano);
       const antes = await tx.beneficioCargo.findMany({ where: { cargoId, ano }, orderBy: { codigo: 'asc' } });
       for (const v of validos) {
         const dados = { ativo: v.ativo, valorManual: v.valorManual?.paraString() ?? null, origem: v.valorManual ? ('MANUAL' as const) : ('MESTRE' as const) };

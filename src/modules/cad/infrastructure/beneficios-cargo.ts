@@ -14,6 +14,8 @@ export async function sobrescreverManuaisDoItem(tx: TxCliente, contexto: Context
       where: { cargoId_ano_codigo: { cargoId: m.cargoId, ano, codigo } },
       data: { valorManual: null, origem: 'MESTRE', atualizadoEm: new Date() },
     });
+    // A versão do cargo sobe: uma tela aberta antes não reenvia o valor manual apagado (concorrência).
+    await tx.cargo.update({ where: { id: m.cargoId }, data: { versao: { increment: 1 } } });
     await auditar(tx, {
       contexto,
       funcionalidade: 'cad.cargos',
