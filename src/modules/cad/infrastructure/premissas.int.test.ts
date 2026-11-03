@@ -1,12 +1,14 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { seedAdm } from '@/modules/adm';
-import type { ContextoRequisicao } from '@/shared/authz';
+import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
-import { Dinheiro } from '@/shared/kernel';
+import { Dinheiro, Percentual } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { alterarBeneficioMestre } from '../application/beneficios';
-import { calcularCustoPosicao, congelarPremissasExercicio, obterPremissasExercicio } from './premissas';
+import { criarProvedorSemaforo } from '../application/semaforo';
+import { tocarVersaoExercicio } from './parametro-sistema';
+import { calcularCustoPosicao, congelarPremissasExercicio, garantirPremissasExercicio, obterPremissasExercicio } from './premissas';
 import { seedCad } from './seed';
 import { seedDadosReferenciaCad } from './seed-referencia';
 
@@ -110,6 +112,58 @@ describe('C2 real: premissas do exercício', () => {
     } finally {
       await sync.$executeRaw`UPDATE conta_contabil SET ativa = true, inativada_em = NULL WHERE classificacao = '4.1.1.1.005'`;
     }
+  });
+
+  it('#234: a escrita concorrente espera o congelamento e é recusada pelo ano congelado (mesma linha)', async () => {
+    await app.$transaction((tx) => garantirPremissasExercicio(tx, SISTEMA, 2028));
+    let liberar!: () => void;
+    const segurando = new Promise<void>((r) => (liberar = r));
+    let congelou!: () => void;
+    const congelado = new Promise<void>((r) => (congelou = r));
+    // A oficialização congela e ainda não confirmou: a linha do ano fica presa.
+    const oficializacao = app.$transaction(
+      async (tx) => {
+        await congelarPremissasExercicio(tx, SISTEMA, 2028);
+        congelou();
+        await segurando;
+      },
+      { timeout: 20_000 },
+    );
+    oficializacao.catch(() => congelou());
+    await congelado;
+    try {
+      const escrita = app.$transaction((tx) => tocarVersaoExercicio(tx, 2028), { timeout: 20_000 }).then(
+        () => 'gravou',
+        (e: { codigo?: string }) => e.codigo,
+      );
+      // A escrita está de fato esperando um lock (não só atrasada): pg_locks com um pedido não concedido.
+      const fim = Date.now() + 10_000;
+      let esperando = false;
+      while (!esperando && Date.now() < fim) {
+        esperando = (await migrator.query(`SELECT 1 FROM pg_locks WHERE NOT granted LIMIT 1`)).rowCount === 1;
+        if (!esperando) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(esperando).toBe(true);
+      liberar();
+      await oficializacao;
+      expect(await escrita).toBe('cad.exercicio_congelado');
+    } finally {
+      liberar();
+    }
+    expect((await obterPremissasExercicio(app, 2028))!.congelado).toBe(true);
+  });
+
+  it('#234: provedor do semáforo do orc com as faixas do exercício; sem cad.parametros, recusa', async () => {
+    const provedor = criarProvedorSemaforo({ cliente: app });
+    // "funcionalidade:ação" literal parece usuário:senha para o GitGuardian: a permissão sai daqui.
+    const ctx = (...p: [string, string][]): ContextoRequisicao => ({ usuarioId, usuarioRotulo: 'GFIN', sessaoUid: 's', ip: '127.0.0.1', permissoes: new Set(p.map(([f, a]) => `${f}:${a}`)) });
+    const gfin = ctx(['cad.parametros', 'consultar']);
+    const faixas = await provedor.faixas(gfin, 2027);
+    expect(faixas && [faixas.verdeAte, faixas.amareloAte, faixas.laranjaAte].map((f) => f.formatar())).toEqual(['70,00%', '85,00%', '95,00%']);
+    expect(provedor.classificar(Percentual.dePontos('85'), faixas!)).toBe('AMARELO');
+    expect(provedor.classificar(null, faixas!)).toBeNull();
+    expect(await provedor.faixas(gfin, 2099)).toBeNull();
+    await expect(provedor.faixas(ctx(), 2027)).rejects.toBeInstanceOf(ErroPermissao);
   });
 
   it('ano congelado → congelado: true', async () => {
