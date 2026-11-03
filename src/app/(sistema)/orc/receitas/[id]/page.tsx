@@ -6,7 +6,7 @@ import { exigirPagina } from '@/shared/authz';
 export default async function AlterarReceita({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await exigirPagina('orc.receitas', 'alterar');
   const { id } = await params;
-  const [receita, exercicios] = await Promise.all([obterReceita(ctx, id).catch(naoEncontradoSeNegado), listarExercicios(ctx)]);
+  const [receita, exercicios] = await Promise.all([obterReceita(ctx, id).catch(naoEncontradoSeNegado(ctx)), listarExercicios(ctx)]);
   const exercicio = receita && exercicios.find((e) => e.id === receita.exercicioId);
   if (!receita || !exercicio) notFound();
   return (

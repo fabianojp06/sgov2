@@ -9,7 +9,7 @@ export default async function NovaReceita({ searchParams }: { searchParams: Prom
   const atual = exercicioDoAno(exercicios, ano);
   if (!atual) notFound();
   // Com CC de escopo, 404 (R15); fora de edição, o aviso no lugar do formulário.
-  const { editavel } = await listarReceitas(ctx, atual.id).catch(naoEncontradoSeNegado);
+  const { editavel } = await listarReceitas(ctx, atual.id).catch(naoEncontradoSeNegado(ctx));
   return (
     <main>
       <h1>{`Nova receita (${atual.ano})`}</h1>
