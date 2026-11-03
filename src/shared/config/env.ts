@@ -11,22 +11,30 @@ const esquema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: urlPostgres,
   MIGRATE_DATABASE_URL: urlPostgres.optional(),
-  SHADOW_DATABASE_URL: urlPostgres.optional(),
+  // Vazia conta como ausente, como no prisma.config.ts (SHADOW_DATABASE_URL= no .env).
+  SHADOW_DATABASE_URL: z.preprocess((v) => (v === '' ? undefined : v), urlPostgres.optional()),
   // Filas (pg-boss): conecta como sgo_fila, dono só do schema pgboss.
   FILA_DATABASE_URL: urlPostgres.optional(),
 });
 
 export type Env = z.infer<typeof esquema>;
 
+// As mensagens dizem a variável e o destino encontrado (host:porta/banco), nunca o usuário ou a senha.
 export function validarShadow(databaseUrl: string, shadowUrl: string | undefined): void {
   if (shadowUrl === undefined) return;
-  if (shadowUrl === databaseUrl) throw new Error('shadow igual ao banco principal');
-  const shadow = new URL(shadowUrl);
+  if (shadowUrl === databaseUrl) throw new Error('SHADOW_DATABASE_URL: shadow igual ao banco principal');
+  let shadow: URL;
+  try {
+    shadow = new URL(shadowUrl);
+  } catch {
+    throw new Error('SHADOW_DATABASE_URL: não é uma URL válida');
+  }
+  const destino = `${shadow.hostname}:${shadow.port || '5432'}${shadow.pathname}`;
   if (!ehDevLocal(shadowUrl)) {
-    throw new Error('shadow fora do dev local (spec §11.5)');
+    throw new Error(`SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); encontrado ${destino}`);
   }
   if (!shadow.pathname.replace(/^\//, '').endsWith('_shadow')) {
-    throw new Error('o banco shadow deve terminar em _shadow');
+    throw new Error(`SHADOW_DATABASE_URL: o banco shadow deve terminar em _shadow; encontrado ${destino}`);
   }
 }
 

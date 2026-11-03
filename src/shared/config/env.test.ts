@@ -4,6 +4,19 @@ import { lerEnv, validarComandoPrisma, validarShadow } from './env';
 const dev = 'postgresql://sgo_migrator:x@127.0.0.1:55432/sgo_dev';
 
 describe('validarShadow (spec §11.5)', () => {
+  it('a mensagem diz a variável e o destino, sem usuário nem senha; URL malformada tem mensagem própria', () => {
+    const dev = 'postgresql://u:x@127.0.0.1:55432/sgo_dev';
+    expect(() => validarShadow(dev, 'postgresql://u:x@10.0.1.5:5432/sgo_shadow')).toThrow(
+      'SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); encontrado 10.0.1.5:5432/sgo_shadow',
+    );
+    try {
+      validarShadow(dev, 'postgresql://u:x@10.0.1.5:5432/sgo_shadow');
+    } catch (e) {
+      expect(String(e)).not.toContain('u:x');
+    }
+    expect(() => validarShadow(dev, 'postgresql://[nao-e-host')).toThrow('SHADOW_DATABASE_URL: não é uma URL válida');
+  });
+
   it('recusa shadow igual ao banco principal', () => {
     expect(() => validarShadow(dev, dev)).toThrow('shadow igual ao banco principal');
   });
@@ -30,6 +43,10 @@ describe('validarShadow (spec §11.5)', () => {
 });
 
 describe('lerEnv', () => {
+  it('SHADOW_DATABASE_URL vazia conta como ausente, como no prisma.config.ts', () => {
+    expect(lerEnv({ DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo_dev', SHADOW_DATABASE_URL: '' }).SHADOW_DATABASE_URL).toBeUndefined();
+  });
+
   it('exige DATABASE_URL', () => {
     expect(() => lerEnv({})).toThrow('DATABASE_URL');
   });
