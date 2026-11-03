@@ -2,6 +2,7 @@
 export { listarCatalogoDoMenu, listarUnidadesDoUsuario } from './application/catalogo-ativo';
 export { MODULOS_MENU, type CodigoModuloMenu, type DeclaracaoFuncionalidade } from './application/catalogo';
 export { obterConfiguracaoAcesso, type ConfiguracaoAcesso } from './application/configuracao';
+export { obterEscopoCentroCusto } from './application/escopo-cc';
 export { instalarFuncionalidades } from './application/instalar-funcionalidades';
 export {
   carregarPermissoes,
