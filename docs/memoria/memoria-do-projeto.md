@@ -115,13 +115,13 @@
   - **Stub do argon2 no bundle do worker:** a seed do cad usa o `index.ts` do adm, que alcança o `@node-rs/argon2`. O conserto limpo é o `adm/servidor.ts` (#213).
   - **Revisão 12.12:** o plano permite no máximo 2 rodadas, depois disso o PO decide. A US-043 parte 1 (#212) teve 3 rodadas, e o PR registra isso.
 - **P4 da frente B completo na `main` (03/11)**, com a autorização do PO para seguir as recomendações e fazer o merge, cada PR com a revisão 12.12 por agente independente e o CI verde:
-  - US-053 telas de parâmetros (#249), inclusão e seletor de ano na Tabela Mestre (#254);
+  - US-053, telas de parâmetros (#249); US-050, inclusão e seletor de ano na Tabela Mestre (#254);
   - cargos: carga do Rubi com o salário real cifrado (12a, #261), telas e importação (12b, #267), tabela salarial e senioridades (12c, #270), benefícios do cargo com a sobrescrita pela Tabela Mestre (13, #272) e custo de 1 pessoa pelo motor, com o bloco do encargo (14, #274, fecha #73);
   - migrations novas: `202611031000_cad_cargos`, `202611031100_cad_tabela_salarial` e `202611031200_cad_beneficio_cargo`. O dev da frente B (56432) está com as 15, sem pendência.
 - **Encargo do cargo (decisão pelo UC03.19 §6.1):** o consolidado é sobre a Fonte Ativa + adicional (5.000,00 + 1.500,00 → 3.315,00, 51%). A tabela de janeiro do bloco mostra também o encargo sobre férias e 13º provisionados (C33), com rótulo próprio.
 - **Acréscimos aos contratos para a frente A (03/11):**
   - C3: `aria-invalid`/`aria-describedby` só com erro no Formulario e `LegendaComErro` (#278, #229); `AcaoConfirmada` no `ger` (#284, #230); leitor com várias abas (`lerPlanilhasSegura`, `indiceAba`, prazo único, até 10 abas; #279, #231) e células avulsas (`celulas: ['E1']`; #287, #232);
-  - C2: `provedorSemaforo` para o `deps.semaforo` do `orc` e o teste da corrida da oficialização (#295, #234). A ordem dos locks nos benefícios do cargo foi corrigida (linha do ano antes do cargo).
+  - C2: `provedorSemaforo` para o `deps.semaforo` do `orc` e o teste da corrida da oficialização (#295, #234). A ordem dos locks nos benefícios do cargo foi corrigida no mesmo PR (linha do ano antes do cargo).
 - **Plataforma (03/11):** job **E2E** no `ci.yml` (#292, #228: 18 passaram e 1 foi pulado); a imagem confere o Argon2 nativo e a ausência do Playwright (#297, #190); seed no deploy pelo serviço `migracao` com `implantar` (#299, #195; `docs/operacao/deploy.md`, "Seed e administrador inicial", com o break-glass).
 - **Correções do `cad` (03/11):** Histórico dos cadastros globais sem TP, `sessaoUid` vazio recusado no lote e Zod em `ptBR` (#276); log das cargas sem valores da linha, porque o nome do cargo ia para o log (#288).
 
@@ -295,11 +295,11 @@
   - `retries: process.env.CI ? 1 : 0` e o reporter `github` no `playwright.config.ts` antes de o E2E virar obrigatório (#292);
   - `adm/servidor.ts` e `orc/servidor.ts` para a seed: um `server-only` num `application/` do `adm` ou do `orc` quebraria o bundle da seed (#299);
   - `guarda.ts` ainda grava o TP na auditoria de negação de cadastro global (revisão do #276).
-- [ ] #221 (exportação XLSX real): atualizado com a `main` por merge, porque o force push do rebase foi negado pelo classificador. Depois do "de acordo" na #223, recriar a branch a partir da `main` com um commit só. A #233 (texto que vira fórmula) já está coberta no XLSX pelo M2 do #221; fica aberta só pelo CSV do `rel`.
-- [ ] Rolagem do plano de contas (`e2e/cad/rolagem-plano.spec.ts`) continua em `fixme`: a tela não tem `expandir=todos`, o plano oficial tem 174 contas e o spec do `cad` roda antes do do `orc` no mesmo banco. Recomendação: o plano B do PO em hml.
+- [ ] Frente B, #221 (exportação XLSX real): atualizado com a `main` por merge, porque o force push do rebase foi negado pelo classificador. Depois do "de acordo" na #223, a frente B recria a branch a partir da `main` com um commit só. A #233 (texto que vira fórmula) já está coberta no XLSX pelo M2 do #221; fica aberta só pelo CSV do `rel`.
+- [ ] Rolagem do plano de contas (`e2e/cad/rolagem-plano.spec.ts`) continua em `fixme`: a tela não tem `expandir=todos`, o plano oficial tem 174 contas e o spec do `cad` roda antes do do `orc` no mesmo banco. Recomendação para o PO: medir em hml pelo plano B do próprio spec (Chrome DevTools › Performance, 5 s rolando o plano de 5.000 linhas expandido; FPS médio ≥ 55 e nenhuma tarefa longa acima de 50 ms).
 - [ ] Pendências baixas registradas nos PRs de 03/11: dois CONSULTA de `cad.salarios` por abertura da tela do cargo (#274); a tela do cargo sem seletor de ano (#274); sem jsdom, o foco da `AcaoConfirmada` e o efeito do aria do Formulario não têm teste de interação (#278, #284); nenhum passo da imagem faz login com senha (#297).
-- [ ] US-119 (runbook, #141) depende das Tarefas 6 e 7 (deploy real e backup), bloqueadas pelo GAP-INF-001. US-122 (#145): falta só repetir o teste dos hooks numa sessão nova.
-- [ ] D12: nas primeiras rodadas de 03/11, a frente B rodou integração com `npx vitest` direto, fora do `flock`. Depois passou a usar `npm run test:int`, que respeita o lock.
+- [ ] US-119 (runbook, #141) depende das Tarefas 6 e 7 (deploy real e backup), bloqueadas pelo GAP-INF-001. US-122 (#145): falta a frente B repetir o teste dos hooks numa sessão nova (o hook não recarrega na sessão em que foi alterado).
+- [x] D12 (nota): nas primeiras rodadas de 03/11, a frente B rodou integração com `npx vitest` direto, fora do `flock`; depois passou a usar `npm run test:int`, que respeita o lock.
 
 **Com SMEs**
 - [ ] Wellington: ISS, GAP-CAD-004/005 e GAP-CAR-005 (contas de obrigações e riscos trabalhistas).
