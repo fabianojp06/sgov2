@@ -19,6 +19,7 @@ export {
   type NoGrade,
   type PropsGradeArvore,
 } from './ui/grade-arvore';
+export { AcaoConfirmada, MENSAGEM_FALHA_ACAO, type AcaoFormulario } from './ui/acao-confirmada';
 export { ErroDoCampo, Formulario, LegendaComErro, type PropsFormulario } from './ui/formulario';
 export {
   aplicarFiltros,
