@@ -5,7 +5,7 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/authz/configuracao';
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import type { CargoTela } from '../domain/cargo-tela';
-import { camposIniciais, COR_DESVIO, FormCargo, montarEnvioCargo } from './form-cargo';
+import { camposIniciais, COR_DESVIO, FormCargo, montarEnvioBeneficios, montarEnvioCargo } from './form-cargo';
 import { ListaCargos } from './lista-cargos';
 
 // Telas de cargo (plano do P4, Task 12b, Step 1).
@@ -15,6 +15,8 @@ vi.mock('@/modules/cad', async (original) => ({
   ...(await original<typeof import('@/modules/cad')>()),
   obterCargo: async () => falso.cargo,
   listarCargos: async () => [],
+  listarBeneficiosCargo: async () => ({ ano: null, itens: [], mascarado: false }),
+  listarTabelaSalarial: async () => ({ faixas: [], senioridades: [] }),
 }));
 const { default: PaginaCargo } = await import('../../../app/(sistema)/cad/cargos/[id]/page');
 const { default: PaginaImportar } = await import('../../../app/(sistema)/cad/cargos/importar/page');
@@ -82,6 +84,23 @@ describe('FormCargo (SSR)', () => {
     const envio = montarEnvioCargo(ilegivel, 2, camposIniciais(ilegivel));
     expect('funcaoGratificada' in envio).toBe(false);
     expect(envio).toMatchObject({ salarioDefinido: null });
+  });
+
+  it('benefícios do exercício: a origem de cada um (RN_CAR_07) e o envio com vazio = Tabela Mestre', () => {
+    const beneficios = {
+      ano: 2027,
+      itens: [
+        { codigo: 'beneficio.vr', nome: 'Vale-refeição', forma: 'VALOR_DIARIO' as const, valorMestre: '36.50', percentualMestre: null, ativo: true, valorManual: '40.00', origem: 'MANUAL' as const },
+        { codigo: 'beneficio.va', nome: 'Vale-alimentação', forma: 'VALOR_MENSAL' as const, valorMestre: '500.00', percentualMestre: null, ativo: false, valorManual: null, origem: 'MESTRE' as const },
+      ],
+    };
+    const h = renderToString(createElement(FormCargo, { cargo: aberto, podeAlterar: true, alterar: ok, beneficios, alterarBeneficios: ok }));
+    expect(h).toContain('Benefícios de <!-- -->2027');
+    expect(h).toContain('Origem: <!-- -->manual');
+    expect(h).toContain('Origem: <!-- -->Tabela Mestre');
+    expect(h).toContain('>Salvar benefícios</button>');
+    expect(montarEnvioBeneficios('c1', 2027, 3, [{ codigo: 'beneficio.vr', ativo: true, valorManual: ' ' }]).itens).toEqual([{ codigo: 'beneficio.vr', ativo: true, valorManual: null }]);
+    expect(renderToString(createElement(FormCargo, { cargo: mascarado, podeAlterar: true, alterar: ok, beneficios }))).not.toContain('Benefícios de');
   });
 
   it('sem poder alterar: sem Salvar', () => {

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Dinheiro } from '@/shared/kernel';
 import { dinheiroDoTexto, FONTES_ATIVAS, GRAUS_INSALUBRIDADE, type FonteAtiva, type GrauInsalubridade } from '../domain/cargo';
-import { ROTULO_DESVIO, ROTULO_FONTE, type CargoTela, type FaixaTela } from '../domain/cargo-tela';
+import { ROTULO_DESVIO, ROTULO_FONTE, type BeneficioCargoTela, type CargoTela, type FaixaTela } from '../domain/cargo-tela';
 import { depoisDeSalvar, type EstadoSalvar, type RespostaSalvar } from './form-parametros-logica';
 
 // Cargo (US-049 parte 2; plano do P4, Task 12b). Os campos do Rubi ficam desabilitados (só a carga
@@ -60,6 +60,13 @@ export function origemDepoisDeSalvar(origem: string | null, salvo: { minimo: str
   return mesmoValor(salvo.minimo, enviado.minimo) && mesmoValor(salvo.maximo, enviado.maximo) ? origem : 'Editado manualmente';
 }
 
+export type EnvioBeneficios = { idCargo: string; ano: number; versao: number; itens: { codigo: string; ativo: boolean; valorManual: string | null }[] };
+
+/** O pedido de "Salvar benefícios": valor manual vazio volta ao da Tabela Mestre (origem MESTRE). */
+export function montarEnvioBeneficios(cargoId: string, ano: number, versao: number, itens: readonly { codigo: string; ativo: boolean; valorManual: string }[]): EnvioBeneficios {
+  return { idCargo: cargoId, ano, versao, itens: itens.map((i) => ({ codigo: i.codigo, ativo: i.ativo, valorManual: i.valorManual.trim() === '' ? null : i.valorManual })) };
+}
+
 export type Campos = {
   mercadoMinimo: string;
   mercadoMaximo: string;
@@ -86,6 +93,8 @@ export function FormCargo({
   alterar,
   faixas = [],
   copiarFaixa,
+  beneficios = null,
+  alterarBeneficios,
 }: {
   cargo: CargoTela;
   podeAlterar: boolean;
@@ -93,7 +102,12 @@ export function FormCargo({
   /** Faixas ativas da tabela salarial deste cargo (REQ_TAB_003), para quem tem cad.tabela_salarial. */
   faixas?: readonly FaixaTela[];
   copiarFaixa?: (e: { idCargo: string; idFaixa: string; versaoFaixa: number; versao: number }) => Promise<RespostaSalvar>;
+  /** Benefícios do cargo no exercício (US-050 parte 2); sem valores se mascarado. */
+  beneficios?: { ano: number; itens: readonly BeneficioCargoTela[] } | null;
+  alterarBeneficios?: (e: EnvioBeneficios) => Promise<RespostaSalvar>;
 }) {
+  const [benef, setBenef] = useState(() => (beneficios?.itens ?? []).map((b) => ({ codigo: b.codigo, ativo: b.ativo, valorManual: b.valorManual ?? '' })));
+  const [origens, setOrigens] = useState(() => new Map((beneficios?.itens ?? []).map((b) => [b.codigo, b.origem])));
   const [origem, setOrigem] = useState(cargo.origemMercado);
   // O último mínimo e máximo gravados (carregados, salvos ou copiados da faixa), para a origem do mercado.
   const [mercadoSalvo, setMercadoSalvo] = useState({ minimo: cargo.salarios.minimo, maximo: cargo.salarios.maximo });
@@ -253,6 +267,58 @@ export function FormCargo({
             ))}
           </ul>
         </section>
+      )}
+      {beneficios && beneficios.itens.length > 0 && !cargo.mascarado && (
+        <fieldset disabled={bloqueado} aria-describedby="beneficios-origem">
+          <legend>Benefícios de {beneficios.ano}</legend>
+          <p id="beneficios-origem">Sem valor manual, vale o da Tabela Mestre. A alteração do item na Tabela Mestre apaga os valores manuais.</p>
+          {beneficios.itens.map((b, i) => (
+            <div key={b.codigo}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={benef[i]?.ativo ?? false}
+                  onChange={(e) => setBenef(benef.map((x, j) => (j === i ? { ...x, ativo: e.target.checked } : x)))}
+                />{' '}
+                {b.nome}
+              </label>{' '}
+              {b.forma === 'PERCENTUAL_SALARIO' ? (
+                <span>{b.percentualMestre ? `${b.percentualMestre.replace(/\.?0+$/, '')}% do salário` : 'sem percentual'}</span>
+              ) : (
+                <>
+                  <span>Tabela Mestre: {b.valorMestre ? emReais(b.valorMestre) : 'sem valor'}</span>{' '}
+                  <label htmlFor={`beneficio-${b.codigo}`}>Valor manual (R$)</label>{' '}
+                  <input
+                    id={`beneficio-${b.codigo}`}
+                    value={benef[i]?.valorManual ?? ''}
+                    inputMode="decimal"
+                    onChange={(e) => setBenef(benef.map((x, j) => (j === i ? { ...x, valorManual: e.target.value } : x)))}
+                  />
+                </>
+              )}{' '}
+              <span>Origem: {origens.get(b.codigo) === 'MANUAL' ? 'manual' : 'Tabela Mestre'}</span>
+            </div>
+          ))}
+          {!bloqueado && alterarBeneficios && (
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() =>
+                iniciar(async () => {
+                  try {
+                    const r = await alterarBeneficios(montarEnvioBeneficios(cargo.id, beneficios.ano, estado.versao, benef));
+                    setEstado((a) => depoisDeSalvar(a, r));
+                    if (r.ok) setOrigens(new Map(benef.map((x) => [x.codigo, x.valorManual.trim() === '' ? 'MESTRE' : 'MANUAL'])));
+                  } catch {
+                    setEstado((a) => ({ ...a, erros: [{ campo: '_', mensagem: 'Não foi possível salvar os benefícios. Confira a conexão e tente de novo.' }] }));
+                  }
+                })
+              }
+            >
+              Salvar benefícios
+            </button>
+          )}
+        </fieldset>
       )}
       {!bloqueado && (
         <button type="submit" disabled={salvando}>
