@@ -93,7 +93,7 @@ Os salários dos cargos (real, definido e função gratificada) são gravados ci
 
 1. Gere a chave nova e guarde-a no cofre, com um id novo.
 2. No `app`, mova a atual para `CHAVE_CIFRA_SALARIOS_ANTERIORES` (`id_antigo:base64_antigo`) e ponha a nova em `CHAVE_CIFRA_SALARIOS` e `CHAVE_CIFRA_SALARIOS_ID`. Reinicie o `app`.
-3. Rode a ação "Regravar salários com a chave atual" na tela de cargos (`cad.cargos:executar`, Task 12b). Ela regrava os campos manuais no app e manda o salário real num lote `CARGOS_RECIFRA` para o worker.
+3. Rode a ação "Regravar salários com a chave atual" na tela de cargos (`cad.cargos:executar`, Task 12b). Ela regrava os campos manuais no app e manda o salário real num lote `CARGOS_RECIFRA` para o worker. Repita a ação até ela não ter mais o que regravar (um cargo alterado durante a regravação fica para a rodada seguinte). Com uma carga de cargos em andamento, a ação recusa e nada é regravado.
 4. Confira que nenhum envelope usa o id antigo: `SELECT count(*) FROM cargo WHERE '<id_antigo>' IN (split_part(salario_real_cifrado, ':', 2), split_part(salario_definido_cifrado, ':', 2), split_part(funcao_gratificada_cifrada, ':', 2));` deve dar 0. (`LIKE` não serve: o `_` do id é curinga.)
 5. Só então retire a chave antiga de `CHAVE_CIFRA_SALARIOS_ANTERIORES`. Depois da troca, a primeira recarga do Rubi também troca o envelope do salário real de todos os cargos: o lote conta todos como alterados (versão + 1 e uma entrada no Histórico cada), mesmo sem mudança de valor. Mantenha a cópia no cofre enquanto houver backup que a use.
 

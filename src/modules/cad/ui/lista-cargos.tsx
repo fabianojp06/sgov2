@@ -53,7 +53,10 @@ export function ListaCargos({
               setErro('');
               try {
                 const r = await regravar({});
-                if (r.ok) setAviso(`Regravação pedida: ${r.valor.manuais} cargos com salários manuais regravados${r.valor.cargaId ? '; o salário real segue numa carga do worker.' : '.'}`);
+                if (r.ok) {
+                  const m = r.valor.manuais;
+                  setAviso(`Regravação pedida: ${m} ${m === 1 ? 'cargo' : 'cargos'} com salários manuais regravados${r.valor.cargaId ? `; o salário real segue na carga ${r.valor.cargaId} do worker. Repita até não haver o que regravar.` : '.'}`);
+                }
                 else setErro(r.erros.map((e) => e.mensagem).join(' '));
               } catch {
                 setErro('Não foi possível pedir a regravação. Confira a conexão e tente de novo.');

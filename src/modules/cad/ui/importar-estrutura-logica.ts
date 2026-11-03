@@ -58,7 +58,8 @@ const n = (v: number | null) => v ?? 0;
 /** Texto da situação do lote, para o role="status". */
 export function textoSituacao(e: EstadoCargaTela): string {
   if (e.situacao === 'CONCLUIDA') {
-    if (e.tipo === 'CARGOS' || e.tipo === 'CARGOS_RECIFRA') {
+    if (e.tipo === 'CARGOS_RECIFRA') return `Salários regravados com a chave atual: ${n(e.alteradas)} ${n(e.alteradas) === 1 ? 'cargo' : 'cargos'}; ${n(e.inalteradas)} sem alteração.`;
+    if (e.tipo === 'CARGOS') {
       return `Cargos importados: ${n(e.incluidas)} incluídos, ${n(e.alteradas)} alterados, ${n(e.inativadas)} inativados, ${n(e.inalteradas)} sem alteração.`;
     }
     if (e.tipo === 'CENTROS_CUSTO') {

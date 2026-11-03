@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Dinheiro } from '@/shared/kernel';
 import { FONTES_ATIVAS, GRAUS_INSALUBRIDADE, type FonteAtiva, type GrauInsalubridade } from '../domain/cargo';
 import { ROTULO_DESVIO, ROTULO_FONTE, type CargoTela } from '../domain/cargo-tela';
 import { depoisDeSalvar, type EstadoSalvar, type RespostaSalvar } from './form-parametros-logica';
@@ -24,6 +25,8 @@ const ROTULO_GRAU: Readonly<Record<GrauInsalubridade, string>> = { MINIMO: 'Mín
 export const COR_DESVIO: Readonly<Record<NonNullable<CargoTela['desvioDeMercado']>, string>> = { ABAIXO: '#b45309', DENTRO: '#15803d', ACIMA: '#b91c1c' };
 
 const vazioParaNulo = (s: string) => (s.trim() === '' ? null : s);
+// Exibição em pt-BR ("10.200,00"); os campos editáveis aceitam ponto ou vírgula.
+const emReais = (v: string) => Dinheiro.de(v).formatar();
 
 /** O pedido do Salvar: os salários só vão quando a tela os mostra (sem máscara). */
 export function montarEnvioCargo(c: CargoTela, versao: number, f: Campos): EnvioCargo {
@@ -103,9 +106,10 @@ export function FormCargo({ cargo, podeAlterar, alterar }: { cargo: CargoTela; p
         <Somente id="tabela" rotulo="Tabela salarial" valor={cargo.tabelaSalarial ?? ''} />
         <Somente id="faixa" rotulo="Faixa" valor={cargo.faixa ?? ''} />
         <Somente id="nivel" rotulo="Nível" valor={cargo.nivel ?? ''} />
-        {!cargo.mascarado && <Somente id="real" rotulo="Salário real (R$)" valor={cargo.salarios.real ?? ''} />}
+        {!cargo.mascarado && <Somente id="real" rotulo="Salário real" valor={cargo.salarios.real ? emReais(cargo.salarios.real) : ''} />}
       </fieldset>
       {cargo.mascarado && <p>Os salários ficam mascarados: você não tem a permissão de ver salários.</p>}
+      {cargo.salariosIlegiveis && <p role="alert">Algum salário deste cargo não pôde ser lido (chave de cifra). Avise o administrador.</p>}
       <fieldset disabled={bloqueado}>
         <legend>Mercado e salários</legend>
         {!cargo.mascarado && (
@@ -134,7 +138,7 @@ export function FormCargo({ cargo, podeAlterar, alterar }: { cargo: CargoTela; p
           </select>
           {erroDe('fonteAtiva') && <span id="cargo-fonteAtiva-erro">{erroDe('fonteAtiva')}</span>}
         </div>
-        {!cargo.mascarado && cargo.salarioDaFonte !== null && <p>Salário da fonte ativa: R$ {cargo.salarioDaFonte}</p>}
+        {!cargo.mascarado && cargo.salarioDaFonte !== null && <p>Salário da fonte ativa: {emReais(cargo.salarioDaFonte)}</p>}
         {cargo.desvioDeMercado && (
           <p>
             <span style={{ color: COR_DESVIO[cargo.desvioDeMercado] }} aria-hidden="true">

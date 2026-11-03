@@ -24,6 +24,8 @@ export type CargoTela = {
   salarioDaFonte: string | null;
   adicional: AdicionalTela;
   desvioDeMercado: 'ABAIXO' | 'DENTRO' | 'ACIMA' | null;
+  /** Algum envelope não voltou (chave fora do keyring, adulteração): os campos vêm nulos. */
+  salariosIlegiveis: boolean;
   ativo: boolean;
   versao: number;
 };

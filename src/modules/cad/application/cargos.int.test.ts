@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { PrismaClient } from '@/generated/prisma/client';
 import { seedAdm } from '@/modules/adm';
 import type { EventoAuditoria } from '@/shared/audit';
-import type { ContextoRequisicao } from '@/shared/authz';
+import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/authz/configuracao';
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import { criarPrisma, executarSeeds } from '@/shared/db';
@@ -129,8 +129,9 @@ describe('máscara dos salários (R24)', () => {
     expect(c?.salarios.funcaoGratificada).toBe('1200.00');
     const h = await migrator.query(`SELECT registro_id, tipo_operacao::text AS tipo, antes, depois FROM historico_operacao WHERE funcionalidade = 'cad.salarios' ORDER BY id`);
     expect(h.rows).toEqual([
-      { registro_id: '*', tipo: 'CONSULTA', antes: null, depois: null },
-      { registro_id: 'C1', tipo: 'CONSULTA', antes: null, depois: null },
+      // Os códigos dos cargos lidos, nunca os valores (R24).
+      { registro_id: '*', tipo: 'CONSULTA', antes: null, depois: { cargos: ['C1'] } },
+      { registro_id: 'C1', tipo: 'CONSULTA', antes: null, depois: { cargos: ['C1'] } },
     ]);
   });
 });
@@ -147,6 +148,31 @@ describe('alterarCargo', () => {
     expect((await migrator.query(`SELECT funcao_gratificada_cifrada AS fg FROM cargo WHERE id = $1`, [id])).rows[0].fg).toBe(um.fg);
     const h = await migrator.query(`SELECT coalesce(antes::text, '') || coalesce(depois::text, '') AS t FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND tipo_operacao = 'ALTERACAO'`);
     for (const { t } of h.rows) expect(t).not.toMatch(/1200|7500/);
+  });
+
+  it('E6 usa o SMN do exercício mais recente; mudar só a fonte não troca a origem do mercado', async () => {
+    await carregar([{ codigo: 'C1', salario: null }]);
+    const id = await idDe('C1');
+    await migrator.query(`INSERT INTO parametros_exercicio (ano, reajuste, mes_data_base, ipca, dias_uteis_mes, semaforo_verde_ate, semaforo_amarelo_ate, semaforo_laranja_ate, salario_minimo)
+      SELECT 2099, reajuste, mes_data_base, ipca, dias_uteis_mes, semaforo_verde_ate, semaforo_amarelo_ate, semaforo_laranja_ate, NULL FROM parametros_exercicio WHERE ano = 2027`);
+    try {
+      expect(await alterarCargo(grh(), id, 1, entrada({ insalubridade: 'MEDIO' }), { cliente: app, cifra: cifraK1 })).toMatchObject({ ok: false, erros: [{ campo: 'adicional' }] });
+    } finally {
+      await migrator.query('DELETE FROM parametros_exercicio WHERE ano = 2099');
+    }
+    expect((await alterarCargo(grh(), id, 1, entrada(), { cliente: app, cifra: cifraK1 })).ok).toBe(true);
+    await migrator.query(`UPDATE cargo SET origem_mercado_rotulo = 'Preenchido via Tabela Salarial — X/Pleno' WHERE id = $1`, [id]);
+    await alterarCargo(grh(), id, 2, entrada({ fonteAtiva: 'REAL' }), { cliente: app, cifra: cifraK1 });
+    expect((await migrator.query(`SELECT origem_mercado_rotulo AS r FROM cargo WHERE id = $1`, [id])).rows[0].r).toBe('Preenchido via Tabela Salarial — X/Pleno');
+  });
+
+  it('envelope ilegível não derruba a lista: o campo vem nulo e marcado, com o log só do código e do campo', async () => {
+    await carregar([{ codigo: 'C1', salario: '7500.00' }], cifraK0);
+    const semK0 = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: K1, CHAVE_CIFRA_SALARIOS_ID: 'k1' });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const [c] = await listarCargos(grh(), { cliente: app, cifra: semK0 });
+    expect(c).toMatchObject({ salariosIlegiveis: true, salarios: { real: null } });
+    expect(log).toHaveBeenCalledWith('[CIFRA_SALARIOS_ILEGIVEL]', { codigoCargo: 'C1', campo: 'salario_real' });
   });
 
   it('E6: insalubridade sem SMN → erro em adicional; E5 pela tela; versão velha → concorrência', async () => {
@@ -169,7 +195,7 @@ describe('alterarCargo', () => {
     await carregar([{ codigo: 'C1', salario: null }]);
     const id = await idDe('C1');
     const semSalarios = ctx(['cad.cargos', 'consultar'], ['cad.cargos', 'alterar']);
-    expect((await alterarCargo(semSalarios, id, 1, entrada(), { cliente: app, cifra: cifraK1 })).ok).toBe(false);
+    await expect(alterarCargo(semSalarios, id, 1, entrada(), { cliente: app, cifra: cifraK1 })).rejects.toBeInstanceOf(ErroPermissao);
     await migrator.query('REVOKE INSERT ON historico_operacao FROM sgo_app');
     try {
       await expect(alterarCargo(grh(), id, 1, entrada(), { cliente: app, cifra: cifraK1 })).rejects.toThrow(/permission denied/);
@@ -218,6 +244,20 @@ describe('regravarCifraSalarios (I7)', () => {
     expect(k0.rows[0].n).toBe(0);
     const [c1] = await listarCargos(grh(), { cliente: app, cifra: cifraK1 });
     expect(c1?.salarios).toMatchObject({ real: '7500.00', funcaoGratificada: '1200.00' });
+  });
+
+  it('cargo já na chave atual não é tocado nem contado; com uma carga de cargos em andamento, nada começa', async () => {
+    await carregar([{ codigo: 'C1', salario: '7500.00' }]);
+    await alterarCargo(grh(), await idDe('C1'), 1, entrada(), { cliente: app, cifra: cifraK1 });
+    const antes = (await migrator.query(`SELECT salario_real_cifrado AS r, funcao_gratificada_cifrada AS fg, versao FROM cargo WHERE codigo = 'C1'`)).rows[0];
+    expect(await regravarCifraSalarios(grh(), { cliente: app, cifra: cifraK1 })).toEqual({ ok: true, valor: { manuais: 0, cargaId: null } });
+    expect((await migrator.query(`SELECT salario_real_cifrado AS r, funcao_gratificada_cifrada AS fg, versao FROM cargo WHERE codigo = 'C1'`)).rows[0]).toEqual(antes);
+    const r = await solicitarCargaCargos(grh(), await xlsx([{ codigo: 'C1', salario: '7500.00' }]), { cliente: app, cifra: cifraK1 });
+    expect(r.ok).toBe(true);
+    expect(await regravarCifraSalarios(grh(), { cliente: app, cifra: cifraK1 })).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Já existe uma carga de cargos em andamento. Tente de novo em instantes.' }],
+    });
   });
 
   it('cargo cujo salário real mudou entre o pedido e o worker não é sobrescrito pela regravação', async () => {

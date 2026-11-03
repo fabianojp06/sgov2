@@ -63,23 +63,42 @@ type CargoBanco = Prisma.CargoGetPayload<{ select: typeof SELECAO }>;
 
 const decimal = (d: Prisma.Decimal | null) => (d === null ? null : Dinheiro.de(d.toFixed(2)));
 
-function decifrar(cifra: CifraSalarios, envelope: string | null, codigoCargo: string, campo: CampoCifrado): Dinheiro | null {
-  return envelope === null ? null : cifra.decifrar(envelope, { codigoCargo, campo });
+/** A cifra só é criada se algum cargo tiver envelope (sem salário, a tela abre sem a chave). */
+function cifraPreguicosa(deps: Deps): () => CifraSalarios {
+  let cifra: CifraSalarios | null = deps.cifra ?? null;
+  return () => (cifra ??= criarCifraSalarios());
 }
 
-function salariosDe(c: CargoBanco, cifra: CifraSalarios): SalariosCargo {
-  return {
+/**
+ * Um envelope que não volta (chave retirada cedo do keyring, adulteração, chave ausente) não derruba a
+ * tela: o campo vem nulo e marcado ilegível, com o log só do código e do campo (I9).
+ */
+function salariosDe(c: CargoBanco, cifra: () => CifraSalarios): { salarios: SalariosCargo; ilegivel: boolean } {
+  let ilegivel = false;
+  const decifrar = (envelope: string | null, campo: CampoCifrado): Dinheiro | null => {
+    if (envelope === null) return null;
+    try {
+      return cifra().decifrar(envelope, { codigoCargo: c.codigo, campo });
+    } catch {
+      ilegivel = true;
+      console.error('[CIFRA_SALARIOS_ILEGIVEL]', { codigoCargo: c.codigo, campo });
+      return null;
+    }
+  };
+  const salarios = {
     minimo: decimal(c.mercadoMinimo),
     maximo: decimal(c.mercadoMaximo),
-    funcaoGratificada: decifrar(cifra, c.funcaoGratificadaCifrada, c.codigo, 'funcao_gratificada'),
-    real: decifrar(cifra, c.salarioRealCifrado, c.codigo, 'salario_real'),
-    definido: decifrar(cifra, c.salarioDefinidoCifrado, c.codigo, 'salario_definido'),
+    funcaoGratificada: decifrar(c.funcaoGratificadaCifrada, 'funcao_gratificada'),
+    real: decifrar(c.salarioRealCifrado, 'salario_real'),
+    definido: decifrar(c.salarioDefinidoCifrado, 'salario_definido'),
   };
+  return { salarios, ilegivel };
 }
 
 const NULOS = { minimo: null, maximo: null, funcaoGratificada: null, real: null, definido: null };
 
-function paraTela(c: CargoBanco, salarios: SalariosCargo | null): CargoTela {
+function paraTela(c: CargoBanco, lidos: { salarios: SalariosCargo; ilegivel: boolean } | null): CargoTela {
+  const salarios = lidos?.salarios ?? null;
   const txt = (d: Dinheiro | null) => d?.paraString() ?? null;
   return {
     id: c.id,
@@ -98,14 +117,16 @@ function paraTela(c: CargoBanco, salarios: SalariosCargo | null): CargoTela {
     salarioDaFonte: salarios && c.fonteAtiva ? txt(salarioDaFonte(salarios, c.fonteAtiva)) : null,
     adicional: c.adicionalTipo === 'PERICULOSIDADE' ? { tipo: 'PERICULOSIDADE' } : c.adicionalTipo === 'INSALUBRIDADE' && c.adicionalGrau ? { tipo: 'INSALUBRIDADE', grau: c.adicionalGrau } : null,
     desvioDeMercado: salarios ? desvioDeMercado(salarios) : null,
+    salariosIlegiveis: lidos?.ilegivel ?? false,
     ativo: c.ativo,
     versao: c.versao,
   };
 }
 
-async function registrarConsulta(cliente: PrismaClient, ctx: ContextoRequisicao, registroId: string, descricao: string): Promise<void> {
+// R24: o CONSULTA leva os códigos dos cargos lidos, nunca os valores.
+async function registrarConsulta(cliente: PrismaClient, ctx: ContextoRequisicao, registroId: string, descricao: string, codigos: readonly string[]): Promise<void> {
   await cliente.$transaction((tx) =>
-    auditar(tx, { contexto: contextoDe(ctx), funcionalidade: 'cad.salarios', tipo: 'CONSULTA', registroId, descricao }),
+    auditar(tx, { contexto: contextoDe(ctx), funcionalidade: 'cad.salarios', tipo: 'CONSULTA', registroId, descricao, depois: { cargos: codigos } }),
   );
 }
 
@@ -115,9 +136,9 @@ export async function listarCargos(ctx: ContextoRequisicao, deps: Deps = {}): Pr
   const cliente = deps.cliente ?? prisma;
   const cargos = await cliente.cargo.findMany({ select: SELECAO, orderBy: { codigo: 'asc' } });
   if (!veSalarios(ctx)) return cargos.map((c) => paraTela(c, null));
-  const cifra = deps.cifra ?? criarCifraSalarios();
+  const cifra = cifraPreguicosa(deps);
   const tela = cargos.map((c) => paraTela(c, salariosDe(c, cifra)));
-  await registrarConsulta(cliente, ctx, '*', `Salários de ${cargos.length} cargos consultados sem máscara`);
+  await registrarConsulta(cliente, ctx, '*', `Salários de ${cargos.length} ${cargos.length === 1 ? 'cargo consultado' : 'cargos consultados'} sem máscara`, cargos.map((c) => c.codigo));
   return tela;
 }
 
@@ -129,8 +150,8 @@ export async function obterCargo(ctx: ContextoRequisicao, id: string, deps: Deps
   const c = await cliente.cargo.findUnique({ where: { id }, select: SELECAO });
   if (!c) return null;
   if (!veSalarios(ctx)) return paraTela(c, null);
-  const tela = paraTela(c, salariosDe(c, deps.cifra ?? criarCifraSalarios()));
-  await registrarConsulta(cliente, ctx, c.codigo, `Salários do cargo ${c.codigo} consultados sem máscara`);
+  const tela = paraTela(c, salariosDe(c, cifraPreguicosa(deps)));
+  await registrarConsulta(cliente, ctx, c.codigo, `Salários do cargo ${c.codigo} consultados sem máscara`, [c.codigo]);
   return tela;
 }
 
@@ -167,6 +188,8 @@ const CAMPOS_ORIGEM_BLINDADA = [
   'origemMercado',
   'origemMercadoRotulo',
   'id',
+  'criadoEm',
+  'atualizadoEm',
 ] as const;
 
 /** M-n4: confere o pedido bruto antes do parse; com campo blindado, audita e lança cad.violacao_governanca. */
@@ -213,7 +236,8 @@ export async function alterarCargo(ctx: ContextoRequisicao, id: string, versao: 
   if (dados.fonteAtiva !== null && !(FONTES_ATIVAS as readonly string[]).includes(dados.fonteAtiva)) erros.push({ campo: 'fonteAtiva', mensagem: 'Fonte ativa inválida.' });
   // Os campos de mercado e os salários são todos sensíveis (R24): sem vê-los, não há como alterar o cargo
   // sem apagar o que não se vê. Os perfis do plano já casam as duas permissões (Analista GRH).
-  if (!veSalarios(ctx)) return falha([{ campo: '_', mensagem: 'Sem a permissão de ver salários, o cargo não pode ser alterado.' }]);
+  // Negação auditada (403 pela definirAcao), como as outras escritas sem permissão (M4).
+  exigir(ctx, 'cad.salarios', 'consultar');
   const mexeSalario = dados.funcaoGratificada !== undefined || dados.salarioDefinido !== undefined;
   const fg = dados.funcaoGratificada === undefined ? undefined : dinheiroDoTexto(dados.funcaoGratificada);
   const definido = dados.salarioDefinido === undefined ? undefined : dinheiroDoTexto(dados.salarioDefinido);
@@ -290,6 +314,10 @@ export async function regravarCifraSalarios(ctx: ContextoRequisicao, deps: Deps 
   exigir(ctx, 'cad.cargos', 'executar');
   const cliente = deps.cliente ?? prisma;
   const cifra = deps.cifra ?? criarCifraSalarios();
+  // Com uma carga de cargos em andamento, nada começa: senão os manuais seriam regravados e o lote não.
+  if (await cliente.cargaEstrutura.count({ where: { grupo: 'CARGOS', situacao: { in: ['PENDENTE', 'PROCESSANDO'] } } })) {
+    return falha([{ campo: '_', mensagem: EM_ANDAMENTO }]);
+  }
   const atual = `v1:${cifra.idChaveAtual()}:`;
   const antigo = (e: string | null): e is string => e !== null && !e.startsWith(atual);
   const cargos = await cliente.cargo.findMany({ select: { id: true, codigo: true, salarioRealCifrado: true, funcaoGratificadaCifrada: true, salarioDefinidoCifrado: true } });
@@ -301,12 +329,12 @@ export async function regravarCifraSalarios(ctx: ContextoRequisicao, deps: Deps 
     const def = antigo(c.salarioDefinidoCifrado) ? cifra.cifrar(cifra.decifrar(c.salarioDefinidoCifrado, { codigoCargo: c.codigo, campo: 'salario_definido' }), { codigoCargo: c.codigo, campo: 'salario_definido' }) : null;
     if (!fg && !def) continue;
     await cliente.$transaction(async (tx) => {
-      // Otimista: um cargo alterado no meio (envelope já diferente do lido) não é sobrescrito.
-      const r = await tx.cargo.updateMany({
-        where: { id: c.id, funcaoGratificadaCifrada: c.funcaoGratificadaCifrada, salarioDefinidoCifrado: c.salarioDefinidoCifrado },
-        data: { ...(fg ? { funcaoGratificadaCifrada: fg } : {}), ...(def ? { salarioDefinidoCifrado: def } : {}), versao: { increment: 1 } },
-      });
-      if (r.count === 0) return;
+      // Otimista e por coluna: a coluna alterada no meio (envelope já diferente do lido) não é
+      // sobrescrita, e a outra segue.
+      const fgOk = fg ? (await tx.cargo.updateMany({ where: { id: c.id, funcaoGratificadaCifrada: c.funcaoGratificadaCifrada }, data: { funcaoGratificadaCifrada: fg } })).count > 0 : false;
+      const defOk = def ? (await tx.cargo.updateMany({ where: { id: c.id, salarioDefinidoCifrado: c.salarioDefinidoCifrado }, data: { salarioDefinidoCifrado: def } })).count > 0 : false;
+      if (!fgOk && !defOk) return;
+      await tx.cargo.update({ where: { id: c.id }, data: { versao: { increment: 1 } } });
       manuais++;
       // Os envelopes, nunca os valores (R7).
       await auditar(tx, {
@@ -316,7 +344,7 @@ export async function regravarCifraSalarios(ctx: ContextoRequisicao, deps: Deps 
         registroId: c.codigo,
         descricao: `Salários do cargo ${c.codigo} regravados com a chave atual`,
         antes: { funcaoGratificadaCifrada: c.funcaoGratificadaCifrada, salarioDefinidoCifrado: c.salarioDefinidoCifrado },
-        depois: { funcaoGratificadaCifrada: fg ?? c.funcaoGratificadaCifrada, salarioDefinidoCifrado: def ?? c.salarioDefinidoCifrado },
+        depois: { funcaoGratificadaCifrada: fgOk ? fg : c.funcaoGratificadaCifrada, salarioDefinidoCifrado: defOk ? def : c.salarioDefinidoCifrado },
       });
     });
   }

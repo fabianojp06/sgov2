@@ -34,6 +34,7 @@ const aberto: CargoTela = {
   salarioDaFonte: '10200.00',
   adicional: null,
   desvioDeMercado: 'DENTRO',
+  salariosIlegiveis: false,
   ativo: true,
   versao: 2,
 };
@@ -56,6 +57,10 @@ describe('FormCargo (SSR)', () => {
     expect(h).toContain(`color:${COR_DESVIO.DENTRO}`);
     expect(h).toContain('Dentro do mercado');
     expect(h).toContain('>Salvar</button>');
+    // Exibição em pt-BR.
+    expect(h).toContain('R$ 10.200,00');
+    expect(h).not.toContain('Avise o administrador');
+    expect(html({ ...aberto, salariosIlegiveis: true })).toContain('Avise o administrador');
   });
 
   it('mascarado (R24): nenhum valor no HTML, o aviso, e sem os campos de salário', () => {
