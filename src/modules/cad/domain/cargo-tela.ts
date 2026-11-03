@@ -77,3 +77,20 @@ export type BeneficioCargoTela = {
   /** RN_CAR_07: de onde vem o valor usado. */
   origem: 'MESTRE' | 'MANUAL';
 };
+
+/** Custo do cargo para a tela (US-051 parte 2; REQ_CAR_013): o encargo consolidado e por componente. */
+export type CustoCargoTela =
+  | { mascarado: true }
+  | { mascarado: false; erro: string }
+  | {
+      mascarado: false;
+      erro?: undefined;
+      base: string;
+      encargoTotal: string;
+      percentualTotal: string;
+      componentes: readonly { nome: string; percentual: string; valor: string }[];
+      totalMes1: string;
+      totalAno: string;
+      linhasMes1: readonly { componente: string; nome: string | null; valor: string }[];
+      avisos: readonly string[];
+    };

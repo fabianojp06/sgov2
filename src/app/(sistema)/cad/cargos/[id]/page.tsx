@@ -3,10 +3,13 @@ import {
   acaoAlterarBeneficiosCargo,
   acaoAlterarCargo,
   acaoCopiarFaixaParaCargo,
+  BlocoEncargo,
+  calcularCustoCargo,
   FormCargo,
   listarBeneficiosCargo,
   listarTabelaSalarial,
   obterCargo,
+  paraTelaCusto,
 } from "@/modules/cad";
 import { exigirPagina } from "@/shared/authz";
 
@@ -32,6 +35,11 @@ export default async function Cargo({
     : [];
   // Benefícios do cargo no exercício mais recente (US-050 parte 2).
   const b = await listarBeneficiosCargo(ctx, cargo.id, null);
+  // Custo de 1 pessoa no mesmo exercício pelo MotorCustoPessoal (US-051 parte 2).
+  const custo =
+    b.ano === null
+      ? null
+      : paraTelaCusto(await calcularCustoCargo(ctx, cargo.id, b.ano));
   return (
     <main>
       <h1>
@@ -48,6 +56,7 @@ export default async function Cargo({
         beneficios={b.ano === null ? null : { ano: b.ano, itens: b.itens }}
         alterarBeneficios={acaoAlterarBeneficiosCargo}
       />
+      {custo && b.ano !== null && <BlocoEncargo custo={custo} ano={b.ano} />}
     </main>
   );
 }
