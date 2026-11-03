@@ -57,6 +57,11 @@ export class Dinheiro {
     return this.valor.comparedTo(o.valor) as -1 | 0 | 1;
   }
 
+  // Igualdade por valor: === entre dois Dinheiro compara a referência, nunca o valor.
+  igual(o: Dinheiro): boolean {
+    return this.comparar(o) === 0;
+  }
+
   ehZero(): boolean {
     return this.valor.isZero();
   }
