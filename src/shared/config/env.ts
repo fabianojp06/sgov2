@@ -11,27 +11,46 @@ const esquema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: urlPostgres,
   MIGRATE_DATABASE_URL: urlPostgres.optional(),
-  SHADOW_DATABASE_URL: urlPostgres.optional(),
+  // Vazia conta como ausente, como no prisma.config.ts (SHADOW_DATABASE_URL= no .env).
+  SHADOW_DATABASE_URL: z.preprocess((v) => (v === '' ? undefined : v), urlPostgres.optional()),
   // Filas (pg-boss): conecta como sgo_fila, dono só do schema pgboss.
   FILA_DATABASE_URL: urlPostgres.optional(),
 });
 
 export type Env = z.infer<typeof esquema>;
 
+// As mensagens dizem a variável e o destino encontrado (host:porta/banco), nunca o usuário ou a senha.
 export function validarShadow(databaseUrl: string, shadowUrl: string | undefined): void {
   if (shadowUrl === undefined) return;
-  if (shadowUrl === databaseUrl) throw new Error('shadow igual ao banco principal');
-  const shadow = new URL(shadowUrl);
+  if (shadowUrl === databaseUrl) throw new Error('SHADOW_DATABASE_URL: shadow igual ao banco principal');
+  let shadow: URL;
+  try {
+    shadow = new URL(shadowUrl);
+  } catch {
+    throw new Error('SHADOW_DATABASE_URL: não é uma URL válida');
+  }
+  const destino = descreverDestino(shadow);
   if (!ehDevLocal(shadowUrl)) {
-    throw new Error('shadow fora do dev local (spec §11.5)');
+    throw new Error(`SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); ${destino}`);
   }
   if (!shadow.pathname.replace(/^\//, '').endsWith('_shadow')) {
-    throw new Error('o banco shadow deve terminar em _shadow');
+    throw new Error(`SHADOW_DATABASE_URL: o banco shadow deve terminar em _shadow; ${destino}`);
   }
 }
 
 // O driver e o Prisma honram host, hostaddr e port na query string, que trocariam o destino.
 const PARAMETROS_DE_DESTINO = new Set(['host', 'hostaddr', 'port']);
+
+// "encontrado host:porta/banco", só quando dá para dizer sem expor credencial. postgresql:// não é
+// esquema especial do WHATWG: uma senha com "/" sem escape vira host, porta e path, e o path leva o
+// resto da senha e o "@". Nesses casos, e quando a query troca o destino, a mensagem não mostra a URL.
+function descreverDestino(url: URL): string {
+  if ([...url.searchParams.keys()].some((chave) => PARAMETROS_DE_DESTINO.has(chave.toLowerCase()))) {
+    return 'a query da URL altera o host ou a porta';
+  }
+  if (url.pathname.includes('@') || !/^[A-Za-z0-9._-]+$/.test(url.hostname)) return 'destino não mostrado (URL fora do formato)';
+  return `encontrado ${url.hostname}:${url.port || '5432'}${url.pathname}`;
+}
 
 function ehDevLocal(url: string): boolean {
   const { hostname, port, searchParams } = new URL(url);

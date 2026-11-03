@@ -4,6 +4,21 @@ import { lerEnv, validarComandoPrisma, validarShadow } from './env';
 const dev = 'postgresql://sgo_migrator:x@127.0.0.1:55432/sgo_dev';
 
 describe('validarShadow (spec §11.5)', () => {
+  it('a mensagem diz a variável e o destino, sem usuário nem senha; URL malformada tem mensagem própria', () => {
+    const dev = 'postgresql://u:x@127.0.0.1:55432/sgo_dev';
+    expect(() => validarShadow(dev, 'postgresql://u:x@10.0.1.5:5432/sgo_shadow')).toThrow(
+      'SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); encontrado 10.0.1.5:5432/sgo_shadow',
+    );
+    // Senha com "/" sem escape: o parser lê o usuário como host e o resto da senha vai para o path.
+    expect(() => validarShadow(dev, 'postgresql://u:1234/abcd@10.0.0.1:5432/x')).toThrow(
+      'SHADOW_DATABASE_URL: shadow fora do dev local (spec §11.5); destino não mostrado (URL fora do formato)',
+    );
+    expect(() => validarShadow(dev, 'postgresql://u:x@127.0.0.1:55432/sgo_shadow?host=outro')).toThrow(
+      'shadow fora do dev local (spec §11.5); a query da URL altera o host ou a porta',
+    );
+    expect(() => validarShadow(dev, 'postgresql://[nao-e-host')).toThrow('SHADOW_DATABASE_URL: não é uma URL válida');
+  });
+
   it('recusa shadow igual ao banco principal', () => {
     expect(() => validarShadow(dev, dev)).toThrow('shadow igual ao banco principal');
   });
@@ -30,6 +45,10 @@ describe('validarShadow (spec §11.5)', () => {
 });
 
 describe('lerEnv', () => {
+  it('SHADOW_DATABASE_URL vazia conta como ausente, como no prisma.config.ts', () => {
+    expect(lerEnv({ DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo_dev', SHADOW_DATABASE_URL: '' }).SHADOW_DATABASE_URL).toBeUndefined();
+  });
+
   it('exige DATABASE_URL', () => {
     expect(() => lerEnv({})).toThrow('DATABASE_URL');
   });
