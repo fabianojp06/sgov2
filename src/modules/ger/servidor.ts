@@ -64,3 +64,6 @@ export {
   type PlanilhaLida,
   type ResultadoAbas,
 } from './infrastructure/ler-xlsx';
+
+// Exportação XLSX real do C3 (R21): só no servidor (Server Actions, relatórios), nunca no navegador.
+export { exportarXlsx } from './infrastructure/exportar-xlsx';

@@ -26,13 +26,23 @@ const DIA_BRASILIA = new Intl.DateTimeFormat('en-CA', {
 export const celulaData = (d: Date): ValorCelula => DIA_BRASILIA.format(d);
 export const celulaDataSemHora = (d: Date): ValorCelula => d.toISOString().slice(0, 10);
 
-function formatarData(valor: string): string | undefined {
+/** Data ISO do contrato → Date (meia-noite UTC), ou undefined se o dia não existe. Tela e planilha usam a mesma regra. */
+export function lerDataIso(valor: string): Date | undefined {
   const partes = DATA_ISO.exec(valor);
   if (!partes) return undefined;
   const [, ano, mes, dia] = partes as unknown as [string, string, string, string];
   const data = new Date(Date.UTC(Number(ano), Number(mes) - 1, Number(dia)));
-  const valida = data.getUTCMonth() === Number(mes) - 1 && data.getUTCDate() === Number(dia);
-  return valida ? `${dia}/${mes}/${ano}` : undefined;
+  // setUTCFullYear: Date.UTC trata os anos 0 a 99 como 1900 + ano.
+  data.setUTCFullYear(Number(ano));
+  const valida = data.getUTCFullYear() === Number(ano) && data.getUTCMonth() === Number(mes) - 1 && data.getUTCDate() === Number(dia);
+  return valida ? data : undefined;
+}
+
+function formatarData(valor: string): string | undefined {
+  const data = lerDataIso(valor);
+  if (!data) return undefined;
+  const [ano, mes, dia] = data.toISOString().slice(0, 10).split('-') as [string, string, string];
+  return `${dia}/${mes}/${ano.padStart(4, '0')}`;
 }
 
 function formatarOuLancar(tipo: TipoColuna, valor: string): string {
