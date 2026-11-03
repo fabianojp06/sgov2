@@ -8,6 +8,8 @@ export const ADMIN_INICIAL = { login: 'admin.e2e', email: 'admin.e2e@example.org
 export const SENHA = 'SenhaE2E2026x';
 export const NOVA_SENHA = 'NovaSenhaE2E2027y';
 
+export const PERFIL_SEM_PERMISSAO = 'E2E_SEM_PERMISSAO';
+
 // Um usuário por cenário: bloqueio, senha errada e logoff mudam o estado dele. Só a manutenção é
 // global, e o spec a desliga no finally; com mais de um worker, isso deixaria de bastar.
 export const USUARIOS = {
@@ -20,7 +22,17 @@ export const USUARIOS = {
   // Cadastro de usuários (e2e/adm/usuarios.spec.ts, US-038).
   cadastro: { login: 'adm.usuarios', nome: 'E2E Administrador Usuários', perfil: 'ADMINISTRADOR' },
   desbloqueio: { login: 'orc.desbloq', nome: 'E2E Orçamentista Desbloqueio', perfil: 'ORCAMENTISTA' },
-} as const;
+  // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do
+  // orc, todos os perfis padrão, menos o Administrador, recebem alguma funcionalidade.
+  semPermissao: { login: 'sem.permissao', nome: 'E2E Sem Permissão', perfil: PERFIL_SEM_PERMISSAO },
+  // Orçamento da Adm. Central (e2e/orc/orcamento.spec.ts, P6). O gestor vê só a subárvore da
+  // Diretoria de Estudos e Projetos (4.1) da minuta de CC carregada pela seed do cad.
+  gfin: { login: 'gfin.orc', nome: 'E2E Gestor Financeiro', perfil: 'GFIN' },
+  direx: { login: 'direx.orc', nome: 'E2E Diretoria Executiva', perfil: 'DIREX' },
+  gestor: { login: 'gestor.dep', nome: 'E2E Gestor da DEP', perfil: 'GESTOR_DIRETORIA', ccEscopo: '4.1' },
+  // GFIN da frente B para a rolagem do plano de contas (e2e/cad/rolagem-plano.spec.ts, issue #218).
+  gfinPlano: { login: 'gfin.plano', nome: 'E2E Gestor Financeiro Plano', perfil: 'GFIN' },
+} as const satisfies Record<string, { login: string; nome: string; perfil: string; ccEscopo?: string }>;
 
 export async function entrar(page: Page, login: string, senha: string): Promise<void> {
   await page.goto('/login');
