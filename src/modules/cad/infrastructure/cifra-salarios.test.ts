@@ -28,6 +28,11 @@ describe('cifra dos salários', () => {
     expect(cifra.decifrar(cifra.cifrar(Dinheiro.de('0.01'), ctx), ctx).paraString()).toBe('0.01');
   });
 
+  it('negativo é recusado, sem citar o valor (o maior Dinheiro, 16 caracteres, ainda cabe no tamanho fixo)', () => {
+    expect(() => cifra.cifrar(Dinheiro.de('-1.00'), ctx)).toThrow(expect.objectContaining({ codigo: 'cad.salario_invalido' }));
+    expect(cifra.decifrar(cifra.cifrar(Dinheiro.de('9999999999999.99'), ctx), ctx).paraString()).toBe('9999999999999.99');
+  });
+
   it('1.000 cifras do mesmo valor → 1.000 IVs distintos', () => {
     const ivs = new Set(Array.from({ length: 1000 }, () => cifra.cifrar(valor, ctx).split(':')[2]));
     expect(ivs.size).toBe(1000);

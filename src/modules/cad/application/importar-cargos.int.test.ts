@@ -155,6 +155,28 @@ describe('importação dos cargos do Rubi (R20)', () => {
     }
   });
 
+  it('rotação adiantada: com k0 ainda em _ANTERIORES, a recarga troca o envelope para a chave atual (mesmo valor)', async () => {
+    const k0b64 = Buffer.alloc(32, 9).toString('base64');
+    const k0 = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: k0b64, CHAVE_CIFRA_SALARIOS_ID: 'k0' });
+    const r0 = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra: k0 });
+    if (!r0.ok) throw new Error('recusada');
+    await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+    const comAnterior = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: CHAVE_TESTE_CIFRA, CHAVE_CIFRA_SALARIOS_ID: ID_CHAVE_TESTE, CHAVE_CIFRA_SALARIOS_ANTERIORES: `k0:${k0b64}` });
+    const r1 = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra: comAnterior });
+    if (!r1.ok) throw new Error('recusada');
+    await iniciarProcessadorCargas({ clienteSync: sync, automatico: false }).executarCiclo();
+    expect((await cargo('C1')).salario_real_cifrado).toMatch(new RegExp(`^v1:${ID_CHAVE_TESTE}:`));
+  });
+
+  it('envelope da chave atual que não fecha (copiado de outro cargo): cifra de novo e avisa, só com o código', async () => {
+    await carregar([linha('C1'), linha('C2', { 'Salário Real': '9100.00' })]);
+    await migrator.query(`UPDATE cargo SET salario_real_cifrado = (SELECT salario_real_cifrado FROM cargo WHERE codigo = 'C2') WHERE codigo = 'C1'`);
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await carregar([linha('C1'), linha('C2', { 'Salário Real': '9100.00' })]);
+    expect(aviso).toHaveBeenCalledWith('[CIFRA_SALARIOS_ENVELOPE_INVALIDO]', { codigoCargo: 'C1' });
+    expect(cifra.decifrar((await cargo('C1')).salario_real_cifrado, { codigoCargo: 'C1', campo: 'salario_real' }).paraString()).toBe('7500.00');
+  });
+
   it('envelope de uma chave que saiu do keyring: a recarga cifra de novo com a atual, sem erro', async () => {
     const k0 = criarCifraSalarios({ CHAVE_CIFRA_SALARIOS: Buffer.alloc(32, 7).toString('base64'), CHAVE_CIFRA_SALARIOS_ID: 'k0' });
     const r0 = await solicitarCargaCargos(grh(), await xlsx([linha('C1')]), { cliente: app, cifra: k0 });

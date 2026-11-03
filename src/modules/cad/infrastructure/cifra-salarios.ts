@@ -82,10 +82,13 @@ export function criarCifraSalarios(fonte: Readonly<Record<string, string | undef
     idChaveAtual: () => exigirConfig().atual.id,
     cifrar(valor, { codigoCargo, campo }) {
       const { atual } = exigirConfig();
+      const texto = valor.paraString();
+      // Negativo ou longo demais viraria um envelope que não volta (o tamanho fixo pressupõe isso). I9: sem o valor.
+      if (valor.ehNegativo() || texto.length > TAMANHO_TEXTO) throw new ErroDominio('cad.salario_invalido', 'Salário inválido para cifrar: negativo ou grande demais.');
       const iv = randomBytes(TAMANHO_IV);
       const c = createCipheriv('aes-256-gcm', atual.chave, iv, { authTagLength: TAMANHO_TAG });
       c.setAAD(aad(codigoCargo, campo, atual.id));
-      const cifra = Buffer.concat([c.update(valor.paraString().padStart(TAMANHO_TEXTO, '0'), 'utf8'), c.final()]);
+      const cifra = Buffer.concat([c.update(texto.padStart(TAMANHO_TEXTO, '0'), 'utf8'), c.final()]);
       return [VERSAO, atual.id, b64url(iv), b64url(c.getAuthTag()), b64url(cifra)].join(':');
     },
     decifrar(envelope, { codigoCargo, campo }) {
