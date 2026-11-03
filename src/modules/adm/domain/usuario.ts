@@ -21,6 +21,7 @@ export const MENSAGENS_USUARIO = {
   ALTERADO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
   DESBLOQUEIO_INATIVO: 'O desbloqueio só é possível para usuário bloqueado e ativo',
   RESET_INATIVO: 'Só é possível gerar nova senha para um usuário ativo',
+  RESET_BLOQUEADO: 'Desbloqueie o usuário antes de gerar nova senha',
   RESET_PROPRIO: 'Para trocar a sua própria senha, use Alterar senha',
   INEXISTENTE: 'Usuário não encontrado',
   UNIDADES_DEMAIS: 'Selecione no máximo 200 Termos de Parceria',
