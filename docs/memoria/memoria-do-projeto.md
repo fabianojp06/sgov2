@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: pilha mergeada; à tarde, #222 com a M5, ambiente único, Node 24 no CI e as telas do plano de contas); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
+Última atualização: 03/11/2026 (frente A, P6 completo na `main`, ressalvas do P5 e melhorias menores); 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: pilha mergeada; à tarde, #222 com a M5, ambiente único, Node 24 no CI e as telas do plano de contas); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
 
 ---
 
@@ -119,6 +119,9 @@
 - PRs: compartilhado do P5 (#189), US-034 com o **contrato C6** (#193), seed no orquestrador (#194), US-026 login (#196, #200), US-032 logoff (#201), US-030 troca de senha (#203), US-031 tela principal, menu, seletor de TP e ajuda (#206), E2E de acesso (#235), US-038 parte 1, casos de uso de usuário (#236), e US-038 parte 2, telas (#237, fecha a #60). Todos com a revisão 12.12.
 - **`src/modules/adm/servidor.ts`** (#236): entrada só de servidor do adm, com `instalarFuncionalidades` e `DeclaracaoFuncionalidade`. A seed do cad importa dele, e o stub do argon2 saiu do `worker/build.mjs`. Agora o `worker/build.test.ts` reprova qualquer argon2 no bundle. Isso resolve a #213.
 - O #237 entrou com o GitGuardian vermelho, com a aprovação do PO: dois falsos positivos (`'adm.usuarios:incluir'` e `resetarSenha: acao`) em commits antigos do PR. O commit final já não tem os padrões. Os incidentes 39442399 e 39442400 continuam abertos no painel.
+- **Ressalvas da revisão de bloco do P5 corrigidas em 03/11:**
+  - itens 2 e 3 (#263): gerar nova senha para usuário bloqueado é recusado ("Desbloqueie o usuário antes de gerar nova senha" [PROVISÓRIO]), e a troca de senha pelo próprio usuário não muda mais a `versao` do cadastro;
+  - itens 1 e 5 (#266): o Histórico do cadastro de usuários sai sem TP, e o `error.tsx` de `(sistema)` tem texto de página ("Não foi possível exibir esta página. Tente novamente ou contate o Administrador." [PROVISÓRIO]).
 - Verificação manual da US-038 com o worker e o Mailpit (02/11), aprovada:
   - o cadastro chegou ao Mailpit;
   - o login com a senha temporária levou à troca obrigatória;
@@ -142,31 +145,24 @@
   - "Versão do registro inválida. Recarregue a tela."
   - "Não foi possível concluir a operação. Tente novamente."
 
-**P6 Orçamento da Adm. Central (frente A, 02/11)**
-- **Plano na `main` (#238):** `docs/superpowers/plans/2026-11-02-trilha-2027-p6-orcamento.md`.
-  - Decisões D-P6-1 a D-P6-7 pendentes do PO; vale a recomendação quando houver dúvida.
-  - O schema da Task 1 tem o CHECK do `enviado_por` em Em Aprovação.
-- **Tasks 0 a 8 implementadas**, cada uma com a revisão 12.12 e as correções, numa pilha de branches locais, nesta ordem:
-  - Task 0: `c6-exibir-no-menu` (`Closes #211`);
-  - Task 1: `us-055-orcamento-schema`, com a `compartilhado-seed-orc` (seed do `orc` no orquestrador);
-  - Task 2: `us-121-calculo-linhas`;
-  - Task 4a: `us-121-validacao-planilha`;
-  - Task 3: `us-055-exercicios` (`Closes #77`);
-  - Task 5: `us-060-receitas` (`Closes #82`);
-  - Task 4b: `us-121-importacao` (`Closes #143`);
-  - Task 6: `us-058-visao-cc` (`Closes #80`);
-  - Task 7: `us-059-teto` (`Refs #81`);
-  - Task 8: `us-061-aprovacao` (`Closes #83`).
-- A pilha leva por merge versões antigas do C1, do C2 e do leitor. Esses PRs já estão na `main` (#209, #210, #212 e o C2 real no #226), então falta rebasear tudo antes do primeiro PR.
-- Suítes da pilha: unidade 814, arquitetura 293, integração do `orc` 107, build com as 8 páginas `/orc`.
-- **Bloqueios:**
-  - **Task 9 (E2E do P6):** espera as seeds do `cad` com dados reais.
-  - **Semáforo do teto:** entra por injeção (`ProvedorSemaforo`) até a Task 9a do P4 (#234). Por isso a US-059 vai com `Refs #81`.
-  - **CC de escopo no cadastro de usuário:** a conferência pelo C1 entra agora que a US-038 e o C1 estão na `main`.
-- Revisões de consumidor postadas no #209, no #210 e no #212. Issues abertas para a frente B: #228 a #234.
+**P6 Orçamento da Adm. Central (frente A): completo na `main` em 03/11**
+- **Plano:** `docs/superpowers/plans/2026-11-02-trilha-2027-p6-orcamento.md` (#238). As decisões D-P6-1 a D-P6-7 continuam pendentes do PO, e vale a recomendação.
+- **PRs, todos com a revisão 12.12 e o CI verde:**
+  - 02/11: C6 `exibirNoMenu` (#243, fecha a #211) e a US-055 parte 1, schema do `orc` com o CHECK do `enviado_por` (#247);
+  - 03/11: seed do `orc` no orquestrador (#251), US-121 em três partes (#252 cálculo, #253 validação, #258 importação, fecha a #143), US-055 parte 2 (#255, fecha a #77), US-060 (#256, fecha a #82), US-058 (#259, fecha a #80), US-059 (#260, `Refs #81`), US-061 (#262, fecha a #83) e o E2E (#265).
+- **E2E do P6 (#265):**
+  - o `e2e/aut/semear.ts` roda as seeds reais na ordem do `prisma/seed.ts`, com o C1 e o C2 reais, e recusa banco que não seja o efêmero do teste;
+  - usuários novos `gfin`, `direx`, `gestor` (escopo 4.1) e `semPermissao` (perfil criado só no teste: com as seeds do `cad` e do `orc`, todo perfil padrão tem menu);
+  - seis cenários; o semáforo é conferido como "—" com o aviso até a #234;
+  - E2E completo: 18 passaram e 1 foi pulado (a rolagem da frente B).
+- **Para a frente B (#218):** o usuário `gfinPlano` já está semeado. O `e2e/cad/rolagem-plano.spec.ts` segue em `fixme`, porque a carga de 5.000 linhas depende do worker, que o E2E não sobe. A frente B decide se o plano entra pelo migrator ou subindo o worker.
+- **Pendentes do P6:**
+  - **Semáforo do teto:** entra por injeção até a Task 9a do P4 (#234). Por isso a #81 continua aberta.
+  - **Revisão de bloco do P6:** ainda não feita (§12.12; `/code-review ultra` opcional do PO no P6).
+- **CC de escopo pelo C1 (#264):** o cadastro de usuário recusa CC de escopo novo sem CC analítico ativo na subárvore ("CC de escopo sem centro de custo analítico ativo." [PROVISÓRIA]). O CC já gravado é mantido pelo Salvar, decisão nova para o PO validar.
 
 **Repositório (documentação)**
-- Spec oficial **versão 1.4** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3; 1.4: `prisma/schema/nucleo.prisma` da frente A). Status: aguardando a aprovação final do PO.
+- Spec oficial **versão 1.6** (1.1: rodada de revisão R1–R15; 1.2: rotina de code review §12.12; 1.3: propriedade de config, db, filas e tests/integracao na §12.3; 1.4: `prisma/schema/nucleo.prisma` da frente A; 1.5: decisões do PO no plano do P5; 1.6: limite por IP só com falhas de credencial, §11.2a, #257). Status: aguardando a aprovação final do PO.
 - Backlog: `docs/backlog/backlog-sgo-v2.md` e `.csv`, com 122 histórias (US-001 a US-122), 22 épicos e releases R0 a R9. Total de 1294 h (1557 h com contingência). O gerador fica em `docs/backlog/fonte/`.
 - Planilha-modelo do orçamento 2027, com o gerador em `docs/modelos/fonte/`.
 - Scripts de sincronização com o GitHub em `docs/backlog/fonte/github/`.
@@ -229,26 +225,29 @@
 - [ ] Frente A: `statement_timeout`/`lock_timeout` nas conexões do worker (`src/shared/db`), sugestão da revisão do #198. Revisão de consumidor dos contratos C3 e C4.
 - [ ] PO: merge do #249; o #221 depois da #223.
 - [ ] PO, no `worker` de hml e prod: `SYNC_DATABASE_URL` com o `sgo_sync`, e o `app` **sem** ela; `AMBIENTE` no `app`, no `worker` e no serviço de migração (`docs/operacao/ambientes.md`). As variáveis da seed no deploy ficaram na #195.
-- [ ] Frente A: ~~`adm/servidor.ts` com `instalarFuncionalidades` (#213)~~ feito no #236; usuário GFIN no `global-setup` do e2e (#218); `exibirNoMenu` no C6 (#211); "de acordo" com o `exportarXlsx` só pelo `servidor.ts` (#223); C2 real (`calcularCustoPosicao`, `obterPremissasExercicio`, `garantir`, `congelar`) já na `main` (#226), pronto para a US-121.
+- [ ] Frente A: ~~`adm/servidor.ts` (#213)~~ feito no #236; ~~usuário GFIN no `global-setup` do e2e (#218)~~ semeado no #265 (falta a frente B tirar o `fixme`); ~~`exibirNoMenu` no C6 (#211)~~ feito no #243; "de acordo" com o `exportarXlsx` só pelo `servidor.ts` (#223).
 - [ ] Frente B: filtrar o `meta` do Prisma no log dos lotes de cargos (Task 12a). O stub do argon2 já saiu com o `adm/servidor.ts` da frente A (#236), e a troca do `ambienteDoCad` está no #240. "Mostrar inativas" do plano de contas não é retido na sessão (pendência do #245). Pendências baixas registradas nos PRs: aria-invalid nos campos da DIREX com só o erro geral (#248); lista de campos blindados igual nas duas ações dos parâmetros (#249); sem jsdom, os formulários não têm teste de interação.
 - [ ] Frente B, Tasks seguintes do P4: US-050 parte 2 (inclusão de benefícios pela tela e seletor de ano; reusar o `ui/seletor-ano.tsx` do #249), 12a a 12c (cargos), 13 e 14. Telas comuns já prontas: `ui/importar-estrutura.tsx` (com campos extras por `children`), `ui/arvore-estrutura.tsx` e `domain/arvore-tela.ts`.
 - [x] Frente A: detalhar o plano do P5 (Acesso) com writing-plans.
 
-**Frente A (P5/P6, 02/11)**
-- [ ] PO: validar as decisões D-P6-1 a D-P6-7 e os textos [PROVISÓRIOS] da US-038.
+**Frente A (03/11)**
+- [ ] PO: validar as decisões D-P6-1 a D-P6-7, a manutenção do CC de escopo já gravado (#264) e os textos [PROVISÓRIOS] da US-038 e das ressalvas do P5 (#263, #264, #266).
 - [ ] PO: marcar como falso positivo, no painel do GitGuardian, os incidentes 39442399 e 39442400 (#237).
-- [ ] Fechar a #213, que o #236 resolveu, e avisar a frente B: as linhas dela sobre o stub do argon2 (seções 5 e 7) ficaram desatualizadas, porque o stub já saiu no #236.
-- [ ] P6: rebasear a pilha na `main` e abrir os PRs na ordem da pilha, um por vez, cada um com a confirmação do PO.
-- [ ] PR compartilhado do encerramento do P5:
-  - `test-results/`, `playwright-report/` e `blob-report/` no `.gitignore`;
-  - trava de "um processo pesado por vez" (`flock`) no `test:int` e no `test:e2e`;
-  - spec v1.6 §11.2a, a combinar com a frente B (que registra os `Refs #n` na v1.5).
-- [ ] Revisão de bloco do P5 (02/11, aprovado com ressalvas, sem bloqueante). Viram issues da frente A:
-  1. o Histórico das ações que não são por TP sai com o `unidadeId` do TP selecionado; o `orc` já nasce com `unidadeId` nulo;
-  2. gerar nova senha para usuário bloqueado e ativo manda o e-mail, mas o login continua bloqueado;
-  3. a troca de senha do usuário incrementa a `versao` e derruba o formulário aberto do Administrador;
-  4. o provedor de contexto roda até três vezes por página;
-  5. o `error.tsx` de `(sistema)` mostra o texto do UC01.03 E1 para qualquer erro.
+- [ ] Revisão de bloco do P6.
+- [ ] Ressalva 4 da revisão de bloco do P5: o provedor de contexto roda até três vezes por página.
+  - Não foi aplicado o `cache` do React, porque o provedor é criado no `instrumentation.ts`, fora da camada `react-server`, onde o `cache` é só repasse.
+  - Memorizar no `obterContexto` dependeria do escopo do React nas Server Actions. Só aplicar depois de medir no app rodando, contando as chamadas por página.
+- [ ] Achados menores das revisões de 03/11, sem issue:
+  - não há `src/app/error.tsx` nem `global-error.tsx`: um erro de render do `TelaPrincipal` cai na página padrão do Next, em inglês;
+  - a negação auditada (`guarda.ts`) grava a unidade do contexto também para funcionalidade global;
+  - o `alertdialog` do `error.tsx` não tem gestão de foco nem Esc.
+- [ ] **Para a frente B:**
+  - `cad/application/parametros.ts`, `beneficios.ts` e `importar-estrutura.ts` gravam o TP do seletor no Histórico de cadastro global (o adm passou a gravar nulo no #266);
+  - `processador-cargas.ts` aceita `sessaoUid` vazio (o `auditar` passou a recusar no #268);
+  - `acoes-parametros.ts` usa `z.locales.pt()`; as ações e o adm usam `ptBR` (#269).
+- [ ] #172 e #177 (melhorias menores): parte feita no #268 e no #269; o resto continua aberto.
+- [ ] Criação de issue pelo agente foi negada pelo classificador em 03/11 (a autorização do PO cobria commit, PR e merge). As ressalvas ficaram registradas aqui e nos PRs.
+- [ ] D12: em 03/11, duas rodadas de E2E da frente A coincidiram com o `vitest` da frente B (o `flock` do #257 só vale para quem usa `npm run test:int`/`test:e2e`; rodar o vitest direto escapa do lock).
 
 **Com SMEs**
 - [ ] Wellington: ISS, GAP-CAD-004/005 e GAP-CAR-005 (contas de obrigações e riscos trabalhistas).
@@ -259,6 +258,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações |
 | 26/10–02/11/2026 | A | P5 concluído na `main`: US-031 (#206), E2E de acesso (#235), US-038 em duas partes (#236, com o `adm/servidor.ts`, e #237); revisão de bloco do P5; verificação manual com o Mailpit; plano do P6 (#238) e Tasks 0 a 8 do P6 em branches locais; revisões de consumidor do C1, do C2 e do leitor; issues #228 a #234 para a frente B; merges aprovados pelo PO um a um |
 | 02/11/2026 | B | Noite: merges do PO (#240, #241, #242, #244, #245, #246 e #248); Task 8 (#248, telas de CC e trava da DIREX, revisão com security-review) e Task 9b (#249, parâmetros e SMN; a revisão achou brechas na auditoria da origem blindada, corrigidas com a conferência no pedido bruto); build: rodar `prisma generate` na cópia principal antes do `npm run build` |
 | 02/11/2026 | B | Tarde: merges do PO da pilha do P4 e do #222 (M5 pela recomendação, com uma 3.ª rodada de revisão só do commit da M5); #240 (ambiente único), #241/#242 (Node 24 no CI, o `pr.yml` separado por ser compartilhado), #244 (tela de importação do plano, duas rodadas de revisão) e #245 (consulta em árvore); D12: duas rodadas de teste coincidiram com a integração da frente A, depois disso toda rodada pesada espera o `vitest` da outra frente |
