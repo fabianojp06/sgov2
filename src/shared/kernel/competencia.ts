@@ -40,6 +40,11 @@ export class Competencia {
     return `${MESES[this.mes - 1]}/${String(this.ano % 100).padStart(2, '0')}`;
   }
 
+  // Igualdade por valor: === entre duas Competencia compara a referência.
+  igual(o: Competencia): boolean {
+    return this.ano === o.ano && this.mes === o.mes;
+  }
+
   comparar(o: Competencia): -1 | 0 | 1 {
     const a = this.ano * 12 + this.mes;
     const b = o.ano * 12 + o.mes;

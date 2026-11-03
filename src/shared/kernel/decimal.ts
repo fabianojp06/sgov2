@@ -17,6 +17,12 @@ const TAMANHO_MAXIMO = 40;
 // objetos que só fingem ser Decimal.
 export function paraDec(v: string | Decimal, tipo: string): Dec {
   if (Decimal.isDecimal(v)) {
+    // Expoente fora da faixa (1e5000000) montaria um texto de milhões de dígitos no toFixed antes da
+    // validação: recusa pelo expoente, que é barato. Nenhum valor do núcleo passa de 10^40.
+    const expoente = (v as { e?: unknown }).e;
+    if (typeof expoente !== 'number' || Math.abs(expoente) > TAMANHO_MAXIMO) {
+      throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}`);
+    }
     const texto = typeof v.toFixed === 'function' ? v.toFixed() : '';
     if (!NUMERO.test(texto)) throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}`);
     return new D(texto);
@@ -27,7 +33,8 @@ export function paraDec(v: string | Decimal, tipo: string): Dec {
   if (v.length > TAMANHO_MAXIMO) {
     throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}: texto longo demais`, { tamanho: v.length });
   }
-  if (!NUMERO.test(v)) throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}: "${v}"`, { valor: v });
+  // JSON.stringify escapa caracteres de controle: a mensagem não leva quebra de linha nem ESC ao log.
+  if (!NUMERO.test(v)) throw new ErroDominio('VALOR_INVALIDO', `Valor inválido para ${tipo}: ${JSON.stringify(v)}`, { valor: v });
   return new D(v);
 }
 

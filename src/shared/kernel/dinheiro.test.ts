@@ -72,6 +72,23 @@ describe('Dinheiro (spec §5, D5)', () => {
 });
 
 describe('Dinheiro: entradas inválidas e invariantes (revisão 12.12)', () => {
+  it('igual() compara o valor, não a referência', () => {
+    expect(Dinheiro.de('10').igual(Dinheiro.de('10.00'))).toBe(true);
+    expect(Dinheiro.de('10').igual(Dinheiro.de('10.01'))).toBe(false);
+  });
+
+  it('Decimal com expoente enorme é recusado sem montar o texto (#168)', () => {
+    const inicio = performance.now();
+    expect(() => Dinheiro.de(new Decimal('1e5000000'))).toThrow(expect.objectContaining({ codigo: 'VALOR_INVALIDO' }));
+    expect(() => Dinheiro.de(new Decimal('1e-5000000'))).toThrow(expect.objectContaining({ codigo: 'VALOR_INVALIDO' }));
+    expect(performance.now() - inicio).toBeLessThan(500);
+    expect(Dinheiro.de(new Decimal('1234.5')).paraString()).toBe('1234.50');
+  });
+
+  it('a mensagem do texto inválido escapa caracteres de controle (#168)', () => {
+    expect(() => Dinheiro.de('1\n2\u001b')).toThrow('Valor inválido para Dinheiro: "1\\n2\\u001b"');
+  });
+
   it.each([
     ['NaN', new Decimal(NaN)],
     ['Infinity', new Decimal(Infinity)],
