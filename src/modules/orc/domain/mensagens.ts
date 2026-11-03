@@ -36,4 +36,8 @@ export const MENSAGENS_ORC = {
   SITUACAO_RECEITA: 'Situação obrigatória: Confirmado ou Previsto.',
   TP_REPETIDO: (linhas: readonly number[]) => `TP / versão repetido nas linhas ${linhas.slice(0, -1).join(', ')} e ${linhas.at(-1)}.`,
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
+  // Receitas (Task 5)
+  RECEITA_DUPLICADA: (tp: string) => `Já existe receita do TP ${tp} neste exercício.`,
+  RECEITA_INEXISTENTE: 'Receita não encontrada.',
+  SELO_TRANSICAO: 'Digitado na transição',
 } as const;

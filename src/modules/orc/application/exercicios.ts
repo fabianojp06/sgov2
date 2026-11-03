@@ -13,12 +13,14 @@ import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 // Exercícios do orçamento da Adm. Central (US-055; plano do P6, Task 3; spec §6.6).
 
+const CONSULTAS_ORC = ['orc.orcamento', 'orc.exercicios', 'orc.receitas', 'orc.importacao', 'orc.aprovacao'];
+
 export type ResumoExercicio = { id: string; ano: number; situacao: SituacaoExercicio; rotuloSituacao: string; versao: number };
 
-// Seletor de exercício e lista: quem consulta o orçamento (inclusive o Gestor de Diretoria) ou a
-// tela de exercícios vê os anos.
+// Seletor de exercício e lista: quem consulta qualquer tela do orc (inclusive o Gestor de
+// Diretoria, pelo orçamento) vê os anos.
 export async function listarExercicios(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly ResumoExercicio[]> {
-  if (!ctx.permissoes.has('orc.orcamento:consultar') && !ctx.permissoes.has('orc.exercicios:consultar')) {
+  if (!CONSULTAS_ORC.some((f) => ctx.permissoes.has(`${f}:consultar`))) {
     throw new ErroPermissao('orc.orcamento', 'consultar');
   }
   const { cliente } = resolverDeps(depsParciais);

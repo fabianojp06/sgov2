@@ -255,6 +255,6 @@ describe('listarExercicios', () => {
     expect(l.map((e) => e.ano)).toEqual([...l.map((e) => e.ano)].sort((a, b) => b - a));
     expect(l.find((e) => e.ano === 2097)).toMatchObject({ situacao: 'RASCUNHO', rotuloSituacao: 'Rascunho' });
     expect((await listarExercicios(ctx(['orc.exercicios:consultar']), deps().d)).length).toBe(l.length);
-    await expect(listarExercicios(ctx(['orc.receitas:consultar']), deps().d)).rejects.toBeInstanceOf(ErroPermissao);
+    await expect(listarExercicios(ctx(['adm.usuarios:consultar']), deps().d)).rejects.toBeInstanceOf(ErroPermissao);
   });
 });
