@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MENSAGEM_ERRO_PAGINA, sairComErro } from './aut/sair-erro';
 
 // Falha numa página da área logada (o carregamento do layout, E1 e E2 do UC01.03, é tratado nele).
@@ -9,17 +9,37 @@ import { MENSAGEM_ERRO_PAGINA, sairComErro } from './aut/sair-erro';
 export default function Erro({ retry }: { error: Error; reset: () => void; retry: () => void }) {
   const [confirmando, setConfirmando] = useState(false);
   const [saindo, setSaindo] = useState(false);
+  const sair = useRef<HTMLButtonElement>(null);
+  const nao = useRef<HTMLButtonElement>(null);
+  const abriu = useRef(false);
+
+  // Como na AcaoConfirmada: ao abrir, o foco vai para o Não (a opção segura); ao fechar, volta ao Sair.
+  useEffect(() => {
+    if (confirmando) {
+      abriu.current = true;
+      nao.current?.focus();
+    } else if (abriu.current) {
+      sair.current?.focus();
+    }
+  }, [confirmando]);
   return (
     <div role="alert">
       <p>{MENSAGEM_ERRO_PAGINA}</p>
       <button type="button" onClick={retry}>
         Tentar novamente
       </button>
-      <button type="button" onClick={() => setConfirmando(true)}>
+      <button type="button" ref={sair} onClick={() => setConfirmando(true)}>
         Sair
       </button>
       {confirmando ? (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="sair-erro-pergunta">
+        // Sem aria-modal: o foco não fica preso no diálogo, e o Esc fecha.
+        <div
+          role="alertdialog"
+          aria-labelledby="sair-erro-pergunta"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && !saindo) setConfirmando(false);
+          }}
+        >
           <p id="sair-erro-pergunta">Deseja realmente sair?</p>
           <button
             type="button"
@@ -31,7 +51,7 @@ export default function Erro({ retry }: { error: Error; reset: () => void; retry
           >
             Sim
           </button>
-          <button type="button" onClick={() => setConfirmando(false)}>
+          <button type="button" ref={nao} disabled={saindo} onClick={() => setConfirmando(false)}>
             Não
           </button>
         </div>
