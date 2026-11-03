@@ -245,11 +245,15 @@ export async function resetarSenha(ctx: ContextoRequisicao, id: string, deps: Pa
   const senha = await senhaTemporaria(cliente, agora());
   const contexto = contextoAuditoria(ctx);
   return cliente.$transaction(async (tx) => {
-    const atual = await tx.usuario.findUnique({ where: { id }, select: { nome: true, email: true, login: true, ativo: true, versao: true, trocaSenhaObrigatoria: true } });
+    const atual = await tx.usuario.findUnique({ where: { id }, select: { nome: true, email: true, login: true, ativo: true, bloqueado: true, versao: true, trocaSenhaObrigatoria: true } });
     if (!atual) throw inexistente();
     if (!atual.ativo) return falha([{ campo: '_', mensagem: MENSAGENS_USUARIO.RESET_INATIVO }]);
+    // Bloqueado, a senha nova chegaria por e-mail sem permitir o login: o desbloqueio vem antes (A3).
+    if (atual.bloqueado) return falha([{ campo: '_', mensagem: MENSAGENS_USUARIO.RESET_BLOQUEADO }]);
     const { count } = await tx.usuario.updateMany({
-      where: { id, versao: atual.versao },
+      // ativo e bloqueado também no WHERE: um bloqueio por tentativas entre a leitura e aqui não muda
+      // a versão, e o reset não pode passar por ele.
+      where: { id, versao: atual.versao, ativo: true, bloqueado: false },
       data: {
         senhaHash: senha.hash,
         trocaSenhaObrigatoria: true,
