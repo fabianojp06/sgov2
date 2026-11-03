@@ -1,8 +1,9 @@
 import { headers } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
-import { ErroDominio, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { ErroDominio, type Resultado } from '@/shared/kernel';
 import { erroGeral, MENSAGEM_INESPERADA, resumirErro } from './guarda';
+import { validarEntrada } from './validar-entrada';
 
 // Contexto de uma ação sem sessão: só o IP, que o proxy.ts põe em x-sgo-ip depois de descartar o
 // valor enviado pelo cliente.
@@ -19,16 +20,10 @@ export function definirAcaoPublica<I, O>(
 ): (entradaBruta: unknown) => Promise<Resultado<O>> {
   return async (entradaBruta) => {
     try {
-      const validado = await cfg.entrada.safeParseAsync(entradaBruta);
-      if (!validado.success) {
-        const erros: ErroCampo[] = validado.error.issues.map((i) => ({
-          campo: i.path.length > 0 ? i.path.join('.') : '_',
-          mensagem: i.message,
-        }));
-        return { ok: false, erros };
-      }
+      const validado = await validarEntrada(cfg.entrada, entradaBruta);
+      if (!validado.ok) return { ok: false, erros: validado.erros };
       const ip = (await headers()).get(CABECALHO_IP);
-      return await executar(validado.data, { ip: ip || null });
+      return await executar(validado.valor, { ip: ip || null });
     } catch (erro) {
       unstable_rethrow(erro);
       if (erro instanceof ErroDominio) return { ok: false, erros: erroGeral(erro.message) };

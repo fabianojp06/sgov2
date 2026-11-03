@@ -1,6 +1,6 @@
 import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
-import { ErroDominio, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { ErroDominio, type Resultado } from '@/shared/kernel';
 import {
   autorizar,
   erroGeral,
@@ -10,6 +10,7 @@ import {
   registrarErroInesperado,
   registrarNegacao,
 } from './guarda';
+import { validarEntrada } from './validar-entrada';
 import { ErroPermissao, type Acao, type ContextoRequisicao, type RespostaAcao } from './tipos';
 
 type ConfigAcao<I> = { funcionalidade: string; acao: Acao; entrada: z.ZodType<I> };
@@ -35,16 +36,10 @@ export function definirAcao<I, O>(
       }
       ctx = autorizacao.ctx;
 
-      const validado = await cfg.entrada.safeParseAsync(entradaBruta);
-      if (!validado.success) {
-        const erros: ErroCampo[] = validado.error.issues.map((i) => ({
-          campo: i.path.length > 0 ? i.path.join('.') : '_',
-          mensagem: i.message,
-        }));
-        return { ok: false, erros };
-      }
+      const validado = await validarEntrada(cfg.entrada, entradaBruta);
+      if (!validado.ok) return { ok: false, erros: validado.erros };
 
-      const resultado: unknown = await executar(validado.data, ctx);
+      const resultado: unknown = await executar(validado.valor, ctx);
       if (!ehResultado(resultado)) throw new Error('executar não devolveu um Resultado');
       return resultado as Resultado<O>;
     } catch (erro) {

@@ -98,6 +98,14 @@ describe('definirAcao', () => {
     expect(executar).not.toHaveBeenCalled();
   });
 
+  it('mensagem padrão do Zod sai em português; a do schema continua valendo (#177)', async () => {
+    contexto = comPermissao('usuarios:incluir');
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, vi.fn());
+    expect(await acao('lixo')).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Entrada inválida: esperava um objeto, recebeu um texto' }] });
+    expect(await acao({ nome: 7 })).toEqual({ ok: false, erros: [{ campo: 'nome', mensagem: 'Entrada inválida: esperava um texto, recebeu um número' }] });
+    expect(await acao({ nome: '' })).toEqual({ ok: false, erros: [{ campo: 'nome', mensagem: 'Informe o nome' }] });
+  });
+
   it('ErroDominio vira mensagem clara', async () => {
     contexto = comPermissao('usuarios:incluir');
     const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, async () => {
