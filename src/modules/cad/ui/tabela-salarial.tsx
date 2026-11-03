@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { GradeArvore, type NoGrade } from '@/modules/ger';
-import type { ErroCampo } from '@/shared/kernel';
+import { Dinheiro, type ErroCampo } from '@/shared/kernel';
 import type { FaixaTela, SenioridadeTela } from '../domain/cargo-tela';
 
 // Tabela salarial de mercado e senioridades (US-049 parte 3; UC03.19 §5). A exclusão é inativação.
@@ -48,7 +48,7 @@ export function TabelaSalarial({
   const erroDe = (c: string) => erros.filter((e) => e.campo === c).map((e) => e.mensagem).join(' ');
   const gerais = erros.filter((e) => !['cargoId', 'senioridadeId', 'minimo', 'maximo', 'nome'].includes(e.campo)).map((e) => e.mensagem);
 
-  const executar = (acao: () => Promise<Resposta>, sucesso: string, fechar = true) =>
+  const executar = (acao: () => Promise<Resposta>, sucesso: string, fechar = true, depois?: () => void) =>
     iniciar(async () => {
       setAviso('');
       try {
@@ -56,6 +56,7 @@ export function TabelaSalarial({
         if (r.ok) {
           setErros([]);
           setAviso(sucesso);
+          depois?.();
           if (fechar) setEditando(null);
         } else setErros(r.erros);
       } catch {
@@ -110,7 +111,7 @@ export function TabelaSalarial({
             <option value="">Escolha uma faixa</option>
             {ativasFaixas.map((f) => (
               <option key={f.id} value={f.id}>
-                {`${f.cargo} / ${f.senioridade}: ${f.minimo} a ${f.maximo}`}
+                {`${f.cargo} / ${f.senioridade}: ${Dinheiro.de(f.minimo).formatar()} a ${Dinheiro.de(f.maximo).formatar()}`}
               </option>
             ))}
           </select>{' '}
@@ -194,8 +195,8 @@ export function TabelaSalarial({
             aria-label="Incluir senioridade"
             onSubmit={(e) => {
               e.preventDefault();
-              executar(() => incluirSenioridade({ nome: novaSenioridade }), `Senioridade ${novaSenioridade.trim()} incluída.`, false);
-              setNovaSenioridade('');
+              // O nome só some se der certo: com erro ("Já existe…"), fica para corrigir.
+              executar(() => incluirSenioridade({ nome: novaSenioridade }), `Senioridade ${novaSenioridade.trim()} incluída.`, false, () => setNovaSenioridade(''));
             }}
             noValidate
           >

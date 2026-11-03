@@ -86,11 +86,13 @@ function validarFaixa(e: EntradaFaixa): Resultado<{ minimo: Dinheiro; maximo: Di
   return ok({ minimo: minimo as Dinheiro, maximo: maximo as Dinheiro });
 }
 
+// FOR SHARE: trava o cargo e a senioridade contra a inativação concorrente (o UPDATE de `ativa` pega
+// FOR NO KEY UPDATE, que espera), senão a faixa entraria ativa sob uma senioridade inativa (E4).
 async function conferirReferencias(tx: TxCliente, e: EntradaFaixa): Promise<ErroCampo[]> {
   const erros: ErroCampo[] = [];
-  const cargo = await tx.cargo.findUnique({ where: { id: e.cargoId }, select: { ativo: true } });
+  const [cargo] = await tx.$queryRaw<{ ativo: boolean }[]>`SELECT "ativo" FROM "cargo" WHERE "id" = ${e.cargoId}::uuid FOR SHARE`;
   if (!cargo?.ativo) erros.push({ campo: 'cargoId', mensagem: 'O cargo deve existir e estar ativo.' });
-  const s = await tx.senioridade.findUnique({ where: { id: e.senioridadeId }, select: { ativa: true } });
+  const [s] = await tx.$queryRaw<{ ativa: boolean }[]>`SELECT "ativa" FROM "senioridade" WHERE "id" = ${e.senioridadeId}::uuid FOR SHARE`;
   if (!s?.ativa) erros.push({ campo: 'senioridadeId', mensagem: 'A senioridade deve existir e estar ativa.' });
   return erros;
 }
@@ -154,7 +156,16 @@ export async function inativarFaixaSalarial(ctx: ContextoRequisicao, id: string,
   return (deps.cliente ?? prisma).$transaction(async (tx: TxCliente) => {
     const r = await tx.faixaSalarial.updateMany({ where: { id, versao, ativa: true }, data: { ativa: false, versao: { increment: 1 } } });
     if (r.count === 0) return falha([{ campo: '_', mensagem: MSG_CONCORRENCIA }]);
-    await auditar(tx, { contexto: contextoDe(ctx), funcionalidade: FUNC, tipo: 'ALTERACAO', registroId: id, descricao: 'Faixa salarial inativada', antes: { ativa: true }, depois: { ativa: false } });
+    const f = await tx.faixaSalarial.findUnique({ where: { id }, select: { cargoId: true, senioridadeId: true } });
+    await auditar(tx, {
+      contexto: contextoDe(ctx),
+      funcionalidade: FUNC,
+      tipo: 'ALTERACAO',
+      registroId: id,
+      descricao: 'Faixa salarial inativada',
+      antes: { ativa: true, cargoId: f?.cargoId, senioridadeId: f?.senioridadeId },
+      depois: { ativa: false },
+    });
     return ok(undefined);
   });
 }
@@ -165,8 +176,14 @@ export async function incluirSenioridade(ctx: ContextoRequisicao, nome: string, 
   const n = nome.trim();
   if (n.length < 1 || n.length > 40 || /[\p{Cc}\p{Cf}]/u.test(n)) return falha([{ campo: 'nome', mensagem: 'Informe o nome da senioridade, com até 40 caracteres.' }]);
   return (deps.cliente ?? prisma).$transaction(async (tx: TxCliente) => {
-    const existe = await tx.senioridade.findFirst({ where: { nome: { equals: n, mode: 'insensitive' } }, select: { id: true } });
-    if (existe) return falha([{ campo: 'nome', mensagem: 'Já existe uma senioridade com esse nome.' }]);
+    const existe = await tx.senioridade.findFirst({ where: { nome: { equals: n, mode: 'insensitive' } }, select: { id: true, ativa: true, nome: true } });
+    if (existe?.ativa) return falha([{ campo: 'nome', mensagem: 'Já existe uma senioridade com esse nome.' }]);
+    // A inativa do mesmo nome volta (o nome é único sem diferenciar maiúsculas).
+    if (existe) {
+      await tx.senioridade.update({ where: { id: existe.id }, data: { ativa: true } });
+      await auditar(tx, { contexto: contextoDe(ctx), funcionalidade: FUNC, tipo: 'ALTERACAO', registroId: existe.id, descricao: `Senioridade ${existe.nome} reativada`, antes: { ativa: false }, depois: { ativa: true } });
+      return ok({ id: existe.id });
+    }
     const s = await tx.senioridade.create({ data: { nome: n }, select: { id: true } });
     await auditar(tx, { contexto: contextoDe(ctx), funcionalidade: FUNC, tipo: 'INSERCAO', registroId: s.id, descricao: `Senioridade ${n} incluída`, depois: { nome: n } });
     return ok({ id: s.id });
@@ -193,13 +210,28 @@ export async function inativarSenioridade(ctx: ContextoRequisicao, id: string, d
  * "Preenchido via Tabela Salarial — <cargo>/<senioridade>" (cad.cargos:alterar e cad.salarios, como a
  * alteração do cargo). A edição manual depois troca o indicador para "Editado manualmente".
  */
-export async function copiarFaixaParaCargo(ctx: ContextoRequisicao, cargoId: string, faixaId: string, versao: number, deps: Deps = {}): Promise<Resultado<{ versao: number }>> {
+export async function copiarFaixaParaCargo(
+  ctx: ContextoRequisicao,
+  cargoId: string,
+  faixaId: string,
+  versaoFaixa: number,
+  versao: number,
+  deps: Deps = {},
+): Promise<Resultado<{ versao: number }>> {
   exigir(ctx, 'cad.cargos', 'alterar');
   exigir(ctx, 'cad.salarios', 'consultar');
-  if (!UUID.test(cargoId) || !UUID.test(faixaId) || !Number.isInteger(versao)) return falha([{ campo: '_', mensagem: 'Cargo, faixa ou versão inválidos. Recarregue a tela.' }]);
+  exigir(ctx, FUNC, 'consultar');
+  if (!UUID.test(cargoId) || !UUID.test(faixaId) || !Number.isInteger(versao) || !Number.isInteger(versaoFaixa)) {
+    return falha([{ campo: '_', mensagem: 'Cargo, faixa ou versão inválidos. Recarregue a tela.' }]);
+  }
   return (deps.cliente ?? prisma).$transaction(async (tx: TxCliente) => {
-    const f = await tx.faixaSalarial.findUnique({ where: { id: faixaId }, include: { senioridade: { select: { nome: true } }, cargo: { select: { nomeOficial: true } } } });
-    if (!f || !f.ativa || f.cargoId !== cargoId) return falha([{ campo: '_', mensagem: 'A faixa deve ser ativa e do mesmo cargo.' }]);
+    // A faixa que o usuário viu (versão), travada contra a alteração ou inativação concorrente.
+    const [travada] = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "faixa_salarial" WHERE "id" = ${faixaId}::uuid AND "versao" = ${versaoFaixa} AND "ativa" FOR SHARE`;
+    const f = travada
+      ? await tx.faixaSalarial.findUnique({ where: { id: faixaId }, include: { senioridade: { select: { nome: true } }, cargo: { select: { nomeOficial: true } } } })
+      : null;
+    if (!f) return falha([{ campo: '_', mensagem: 'A faixa mudou ou foi inativada. Recarregue a tela.' }]);
+    if (f.cargoId !== cargoId) return falha([{ campo: '_', mensagem: 'A faixa deve ser do mesmo cargo.' }]);
     const antes = await tx.cargo.findUnique({ where: { id: cargoId }, select: { codigo: true, mercadoMinimo: true, mercadoMaximo: true, origemMercadoRotulo: true } });
     const rotulo = `Preenchido via Tabela Salarial — ${f.cargo.nomeOficial}/${f.senioridade.nome}`;
     const r = await tx.cargo.updateMany({

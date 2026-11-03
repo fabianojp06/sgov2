@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Dinheiro } from '@/shared/kernel';
-import { FONTES_ATIVAS, GRAUS_INSALUBRIDADE, type FonteAtiva, type GrauInsalubridade } from '../domain/cargo';
+import { dinheiroDoTexto, FONTES_ATIVAS, GRAUS_INSALUBRIDADE, type FonteAtiva, type GrauInsalubridade } from '../domain/cargo';
 import { ROTULO_DESVIO, ROTULO_FONTE, type CargoTela, type FaixaTela } from '../domain/cargo-tela';
 import { depoisDeSalvar, type EstadoSalvar, type RespostaSalvar } from './form-parametros-logica';
 
@@ -44,6 +44,22 @@ export function montarEnvioCargo(c: CargoTela, versao: number, f: Campos): Envio
   };
 }
 
+/** O mesmo valor em dinheiro (ponto, vírgula, casas): "6000" e "6000.00" não são mudança. */
+const mesmoValor = (a: string | null, b: string | null) => {
+  const x = dinheiroDoTexto(a);
+  const y = dinheiroDoTexto(b);
+  if (x === null || y === null || x === 'invalido' || y === 'invalido') return x === y || (x === 'invalido' && y === 'invalido' && a === b);
+  return x.comparar(y) === 0;
+};
+
+/**
+ * A origem do mercado depois de salvar (REQ_TAB_005), como o servidor grava: se o mínimo ou o máximo
+ * mudaram em relação ao último salvo (ou copiado da faixa), "Editado manualmente"; senão, a mesma.
+ */
+export function origemDepoisDeSalvar(origem: string | null, salvo: { minimo: string | null; maximo: string | null }, enviado: { minimo: string | null; maximo: string | null }): string | null {
+  return mesmoValor(salvo.minimo, enviado.minimo) && mesmoValor(salvo.maximo, enviado.maximo) ? origem : 'Editado manualmente';
+}
+
 export type Campos = {
   mercadoMinimo: string;
   mercadoMaximo: string;
@@ -76,9 +92,11 @@ export function FormCargo({
   alterar: (e: EnvioCargo) => Promise<RespostaSalvar>;
   /** Faixas ativas da tabela salarial deste cargo (REQ_TAB_003), para quem tem cad.tabela_salarial. */
   faixas?: readonly FaixaTela[];
-  copiarFaixa?: (e: { idCargo: string; idFaixa: string; versao: number }) => Promise<RespostaSalvar>;
+  copiarFaixa?: (e: { idCargo: string; idFaixa: string; versaoFaixa: number; versao: number }) => Promise<RespostaSalvar>;
 }) {
   const [origem, setOrigem] = useState(cargo.origemMercado);
+  // O último mínimo e máximo gravados (carregados, salvos ou copiados da faixa), para a origem do mercado.
+  const [mercadoSalvo, setMercadoSalvo] = useState({ minimo: cargo.salarios.minimo, maximo: cargo.salarios.maximo });
   const [f, setF] = useState<Campos>(() => camposIniciais(cargo));
   const [estado, setEstado] = useState<EstadoSalvar>({ versao: cargo.versao, erros: [], salvo: false });
   const [salvando, iniciar] = useTransition();
@@ -90,8 +108,14 @@ export function FormCargo({
     iniciar(async () => {
       setEstado((a) => ({ ...a, salvo: false }));
       try {
-        const r = await alterar(montarEnvioCargo(cargo, estado.versao, f));
+        const envio = montarEnvioCargo(cargo, estado.versao, f);
+        const r = await alterar(envio);
         setEstado((a) => depoisDeSalvar(a, r));
+        if (r.ok) {
+          const enviado = { minimo: envio.mercadoMinimo, maximo: envio.mercadoMaximo };
+          setOrigem((o) => origemDepoisDeSalvar(o, mercadoSalvo, enviado));
+          setMercadoSalvo(enviado);
+        }
       } catch {
         setEstado((a) => ({ ...a, erros: [{ campo: '_', mensagem: 'Não foi possível salvar. Confira a conexão e tente de novo.' }] }));
       }
@@ -138,7 +162,8 @@ export function FormCargo({
             <Campo id="salarioDefinido" rotulo="Salário definido (R$)" erro={erroDe('salarioDefinido')} valor={f.salarioDefinido} mudar={(v) => setF({ ...f, salarioDefinido: v })} />
           </>
         )}
-        {origem && <p>Origem do mercado: {origem}</p>}
+        {/* R24: a origem (cargo/senioridade da faixa) revelaria o mercado mascarado. */}
+        {origem && !cargo.mascarado && <p>Origem do mercado: {origem}</p>}
         <div>
           <label htmlFor="cargo-fonteAtiva">Fonte ativa</label>{' '}
           <select
@@ -196,6 +221,7 @@ export function FormCargo({
       {!bloqueado && !cargo.mascarado && copiarFaixa && faixas.length > 0 && (
         <section aria-labelledby="titulo-tabela-salarial">
           <h2 id="titulo-tabela-salarial">Tabela salarial deste cargo</h2>
+          <a href={`/cad/tabela-salarial?cargo=${cargo.id}`}>Abrir a tabela salarial deste cargo</a>
           <ul>
             {faixas.map((fx) => (
               <li key={fx.id}>
@@ -206,11 +232,12 @@ export function FormCargo({
                   onClick={() =>
                     iniciar(async () => {
                       try {
-                        const r = await copiarFaixa({ idCargo: cargo.id, idFaixa: fx.id, versao: estado.versao });
+                        const r = await copiarFaixa({ idCargo: cargo.id, idFaixa: fx.id, versaoFaixa: fx.versao, versao: estado.versao });
                         setEstado((a) => depoisDeSalvar(a, r));
                         if (r.ok) {
                           // RN_TAB_04: a faixa sobrescreve o mínimo e o máximo; seguem editáveis.
                           setF((a) => ({ ...a, mercadoMinimo: fx.minimo, mercadoMaximo: fx.maximo }));
+                          setMercadoSalvo({ minimo: fx.minimo, maximo: fx.maximo });
                           setOrigem(`Preenchido via Tabela Salarial — ${cargo.nomeOficial}/${fx.senioridade}`);
                         }
                       } catch {

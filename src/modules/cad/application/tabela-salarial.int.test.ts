@@ -156,7 +156,7 @@ describe('cópia da faixa para o cargo (REQ_TAB_003/005, RN_TAB_04)', () => {
   it('copia mínimo e máximo com o rótulo "Preenchido via Tabela Salarial — <cargo>/<senioridade>"; a edição manual troca para "Editado manualmente"', async () => {
     const id = await faixa('Sênior', '8000', '12000');
     const v = await versaoCargo();
-    expect(await copiarFaixaParaCargo(grh(), cargoId, id, v, { cliente: app })).toEqual({ ok: true, valor: { versao: v + 1 } });
+    expect(await copiarFaixaParaCargo(grh(), cargoId, id, 1, v, { cliente: app })).toEqual({ ok: true, valor: { versao: v + 1 } });
     const c = (await migrator.query('SELECT mercado_minimo::text AS mi, mercado_maximo::text AS ma, origem_mercado_rotulo AS r FROM cargo WHERE id = $1', [cargoId])).rows[0];
     expect(c).toEqual({ mi: '8000.00', ma: '12000.00', r: 'Preenchido via Tabela Salarial — Analista/Sênior' });
     await alterarCargo(grh(), cargoId, v + 1, { mercadoMinimo: '8100', mercadoMaximo: '12000', periculosidade: false, insalubridade: null, fonteAtiva: null }, { cliente: app, cifra });
@@ -165,10 +165,50 @@ describe('cópia da faixa para o cargo (REQ_TAB_003/005, RN_TAB_04)', () => {
 
   it('sem cad.salarios: ErroPermissao; versão velha: concorrência; faixa inativa: recusada', async () => {
     const id = await faixa();
-    await expect(copiarFaixaParaCargo(ctx(['cad.cargos', 'alterar']), cargoId, id, await versaoCargo(), { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
-    expect((await copiarFaixaParaCargo(grh(), cargoId, id, 999, { cliente: app })).ok).toBe(false);
+    await expect(copiarFaixaParaCargo(ctx(['cad.cargos', 'alterar']), cargoId, id, 1, await versaoCargo(), { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
+    expect((await copiarFaixaParaCargo(grh(), cargoId, id, 1, 999, { cliente: app })).ok).toBe(false);
+    // Versão da faixa que o usuário não viu.
+    expect((await copiarFaixaParaCargo(grh(), cargoId, id, 7, await versaoCargo(), { cliente: app })).ok).toBe(false);
     await inativarFaixaSalarial(grh(), id, 1, { cliente: app });
-    expect((await copiarFaixaParaCargo(grh(), cargoId, id, await versaoCargo(), { cliente: app })).ok).toBe(false);
+    expect((await copiarFaixaParaCargo(grh(), cargoId, id, 2, await versaoCargo(), { cliente: app })).ok).toBe(false);
+  });
+});
+
+describe('regras que os mutantes pegam', () => {
+  it('cópia de faixa de outro cargo é recusada; alterar faixa inativa é recusado; o filtro por cargo vale', async () => {
+    const outro = (await migrator.query(`INSERT INTO cargo (codigo, nome_oficial) VALUES ('C2', 'Outro') RETURNING id`)).rows[0].id as string;
+    try {
+      const r = await incluirFaixaSalarial(grh(), { cargoId: outro, senioridadeId: await sen('Pleno'), minimo: '1000', maximo: '2000' }, { cliente: app });
+      if (!r.ok) throw new Error('recusada');
+      expect(await copiarFaixaParaCargo(grh(), cargoId, r.valor.id, 1, await versaoCargo(), { cliente: app })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'A faixa deve ser do mesmo cargo.' }] });
+      await faixa();
+      expect((await listarTabelaSalarial(gfin(), { cargoId }, { cliente: app })).faixas.map((f) => f.cargoId)).toEqual([cargoId]);
+      await inativarFaixaSalarial(grh(), r.valor.id, 1, { cliente: app });
+      expect((await alterarFaixaSalarial(grh(), r.valor.id, 2, { cargoId: outro, senioridadeId: await sen('Pleno'), minimo: '1', maximo: '2' }, { cliente: app })).ok).toBe(false);
+    } finally {
+      await migrator.query('DELETE FROM faixa_salarial');
+      await migrator.query(`DELETE FROM cargo WHERE codigo = 'C2'`);
+    }
+  });
+
+  it('reincluir o nome de uma senioridade inativa a reativa', async () => {
+    const r = await incluirSenioridade(grh(), 'Trainee', { cliente: app });
+    if (!r.ok) throw new Error('recusada');
+    await inativarSenioridade(grh(), r.valor.id, { cliente: app });
+    expect(await incluirSenioridade(grh(), 'trainee', { cliente: app })).toEqual({ ok: true, valor: { id: r.valor.id } });
+    expect((await migrator.query('SELECT ativa FROM senioridade WHERE id = $1', [r.valor.id])).rows[0].ativa).toBe(true);
+  });
+
+  it('a ação de cópia: 403 auditado sem alterar; campo blindado no pedido é auditado (M-n4)', async () => {
+    const { acaoCopiarFaixaParaCargo } = await import('./acoes-tabela-salarial');
+    const id = await faixa();
+    contexto = gfin();
+    expect(await acaoCopiarFaixaParaCargo({ idCargo: cargoId, idFaixa: id, versaoFaixa: 1, versao: 1 })).toMatchObject({ ok: false, status: 403 });
+    expect(negacoes).toEqual([expect.objectContaining({ funcionalidade: 'cad.cargos' })]);
+    contexto = grh();
+    const antes = Number((await migrator.query('SELECT count(*) AS n FROM historico_operacao')).rows[0].n);
+    expect(await acaoCopiarFaixaParaCargo({ idCargo: cargoId, idFaixa: id, versaoFaixa: 1, versao: 1, origemMercadoRotulo: 'x' })).toMatchObject({ ok: false });
+    expect(Number((await migrator.query('SELECT count(*) AS n FROM historico_operacao')).rows[0].n)).toBe(antes + 1);
   });
 });
 

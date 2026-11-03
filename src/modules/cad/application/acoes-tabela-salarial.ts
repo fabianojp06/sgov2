@@ -4,6 +4,8 @@ import 'server-only';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { definirAcao } from '@/shared/authz';
+import { falha } from '@/shared/kernel';
+import { conferirOrigemBlindadaCargo } from './cargos';
 import { alterarFaixaSalarial, copiarFaixaParaCargo, inativarFaixaSalarial, inativarSenioridade, incluirFaixaSalarial, incluirSenioridade } from './tabela-salarial';
 
 // Server Actions da tabela salarial (US-049 parte 3). A negação (403) é auditada pela definirAcao (C5).
@@ -58,11 +60,13 @@ export const acaoInativarSenioridade = definirAcao(
 );
 
 // REQ_TAB_003: a cópia mexe no cargo (cad.cargos:alterar, e cad.salarios no caso de uso).
-export const acaoCopiarFaixaParaCargo = definirAcao(
-  { funcionalidade: 'cad.cargos', acao: 'alterar', entrada: z.object({ idCargo: id, idFaixa: id, versao: z.number().int() }).strict() },
-  async (e, ctx) => {
-    const r = await copiarFaixaParaCargo(ctx, e.idCargo, e.idFaixa, e.versao);
-    if (r.ok) atualizar();
-    return r;
-  },
-);
+// A entrada chega bruta para a origem blindada do cargo ser auditada antes do parse (M-n4).
+const esquemaCopia = z.object({ idCargo: id, idFaixa: id, versaoFaixa: z.number().int(), versao: z.number().int() }).strict();
+export const acaoCopiarFaixaParaCargo = definirAcao({ funcionalidade: 'cad.cargos', acao: 'alterar', entrada: z.unknown() }, async (bruto, ctx) => {
+  await conferirOrigemBlindadaCargo(ctx, bruto);
+  const e = esquemaCopia.safeParse(bruto);
+  if (!e.success) return falha([{ campo: '_', mensagem: 'Pedido inválido. Recarregue a tela.' }]);
+  const r = await copiarFaixaParaCargo(ctx, e.data.idCargo, e.data.idFaixa, e.data.versaoFaixa, e.data.versao);
+  if (r.ok) atualizar();
+  return r;
+});
