@@ -83,6 +83,40 @@ describe('fila', () => {
 });
 
 
+describe('#182: privilégios do sgo_fila e índice do outbox', () => {
+  it('sgo_fila não tem nenhum privilégio nas tabelas do schema public nem cria nele', async () => {
+    const { rows } = await migrator.query<{ tabela: string }>(
+      // Pelo oid (pg_class): a versão por nome pode ser avaliada antes do filtro e tropeçar no catálogo.
+      `SELECT c.relname AS tabela FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+          AND has_table_privilege('sgo_fila', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')`,
+    );
+    expect(rows).toEqual([]);
+    const { rows: tabelas } = await migrator.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+    );
+    expect(tabelas[0]!.n).toBeGreaterThan(10); // a consulta de cima viu as tabelas de verdade
+    const { rows: schema } = await migrator.query<{ cria: boolean }>(`SELECT has_schema_privilege('sgo_fila', 'public', 'CREATE') AS cria`);
+    expect(schema[0]!.cria).toBe(false);
+  });
+
+  it('a leitura de pendentes do publicarOutbox pode usar o índice parcial outbox_mensagem_pendentes_idx', async () => {
+    await migrator.query('BEGIN');
+    try {
+      // Com poucas linhas o planejador prefere varrer a tabela: sem seqscan, o plano mostra se o índice serve.
+      await migrator.query('SET LOCAL enable_seqscan = off');
+      const { rows } = await migrator.query<{ 'QUERY PLAN': string }>(
+        `EXPLAIN SELECT id, tipo, dados FROM outbox_mensagem
+          WHERE publicado_em IS NULL AND tentativas < 5 AND NOT (id::text = ANY('{}'::text[]))
+          ORDER BY criado_em LIMIT 1 FOR UPDATE SKIP LOCKED`,
+      );
+      expect(rows.map((r) => r['QUERY PLAN']).join('\n')).toContain('outbox_mensagem_pendentes_idx');
+    } finally {
+      await migrator.query('ROLLBACK');
+    }
+  });
+});
+
 describe('C4: dado sensível', () => {
   it('apagarJob remove o job (e seus dados) depois do envio', async () => {
     // Os trabalhadores de 'teste.eco' já registrados consomem o job.
