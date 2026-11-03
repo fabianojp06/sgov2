@@ -165,6 +165,13 @@ describe('criarExercicio copiando o anterior', () => {
     });
   });
 
+  it('R18 em qualquer situação: a origem Em Elaboração também é copiada', async () => {
+    const origem = await exercicioComLancamentos(2075);
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${origem.id}::uuid`;
+    const r = await criarExercicio(ctx(), { ano: 2076, forma: 'COPIA' }, deps({ custoPessoal: custoPessoalFalso([premissasExemplo(2076)]) }).d);
+    expect(r.ok && r.valor.copiadas.posicoes).toBe(2);
+  });
+
   it('erro de cálculo na cópia: nada é criado (ErroRecalculo desfaz a transação)', async () => {
     await exercicioComLancamentos(2080);
     const custo = custoPessoalFalso([premissasExemplo(2081)]);

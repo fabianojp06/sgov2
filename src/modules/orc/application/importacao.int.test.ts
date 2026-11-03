@@ -258,6 +258,14 @@ describe('importarPlanilha: escopo e §10.2', () => {
     expect(JSON.stringify(r)).not.toContain('4.4');
   });
 
+  it('com escopo, erro do cálculo numa posição do próprio escopo: a mensagem detalhada continua', async () => {
+    const e = await exercicio();
+    const custo = custoPessoalFalso([premissasExemplo(e.ano)]);
+    const recusa3 = { ...custo, calcularCustoPosicao: (p: Parameters<typeof custo.calcularCustoPosicao>[0], q: Parameters<typeof custo.calcularCustoPosicao>[1]) => (p.quantidade === 3 ? falha([{ campo: 'salarioMensal', mensagem: 'Componente sem conta.' }]) : custo.calcularCustoPosicao(p, q)) };
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.3.0', { Quantidade: 3 })] }) }, e.deps({ obterEscopo: async () => '4.3', custoPessoal: recusa3 }));
+    expect(r.ok ? [] : r.erros.map((x) => x.mensagem)).toEqual([expect.stringMatching(/^CC 4\.3\.0, cargo .+: Componente sem conta\.$/)]);
+  });
+
   it('sem orc.importacao:executar: ErroPermissao; auditoria falhando: nada gravado', async () => {
     const e = await exercicio();
     const arquivo = await montarPlanilha({ pessoal: [linhaPessoal('4.4')] });
