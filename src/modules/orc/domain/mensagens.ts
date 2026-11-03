@@ -7,6 +7,8 @@ export const MENSAGENS_ORC = {
   SEM_EXERCICIO_ANTERIOR: 'Não há exercício anterior para copiar.',
   SITUACAO_NAO_EDITAVEL: (situacao: string) => `Este exercício não pode ser alterado na situação ${situacao}.`,
   PREMISSAS_DESATUALIZADAS: 'As premissas do exercício mudaram depois do último cálculo. Recalcule o orçamento.',
+  PREMISSAS_DESATUALIZADAS_ESCOPO: 'As premissas do exercício mudaram depois do último cálculo. Peça à GFIN para recalcular o orçamento antes de importar.',
+  RECALCULO_FORA_DO_ESCOPO: 'Há posições de outros centros de custo que não puderam ser calculadas. Avise a GFIN.',
   PREMISSAS_MUDARAM_NA_APROVACAO: 'As premissas do exercício mudaram durante a aprovação. Tente novamente.',
   RECALCULADO: 'O orçamento foi recalculado.',
   FORA_DO_ESCOPO_TOTAL: 'Esta operação é só para quem vê toda a Adm. Central.',

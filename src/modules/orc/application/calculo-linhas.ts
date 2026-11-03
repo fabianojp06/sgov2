@@ -36,8 +36,13 @@ export const errosNaoEditavel = (s: SituacaoExercicio) => [{ campo: '_', mensage
 // Erro de cálculo ou de situação dentro da transação: lançar (e não devolver um Resultado) desfaz
 // tudo o que quem chamou já gravou, como as posições da cópia e da importação. O caso de uso
 // converte em Resultado de falha fora da transação.
+// ccs: o CC de cada erro (nulo quando o erro é do exercício), para a importação com escopo não
+// mostrar posição de CC fora dele.
 export class ErroRecalculo extends ErroDominio {
-  constructor(readonly erros: readonly ErroCampo[]) {
+  constructor(
+    readonly erros: readonly ErroCampo[],
+    readonly ccs: readonly (string | null)[] = erros.map(() => null),
+  ) {
     super('orc.recalculo_invalido', erros.map((e) => e.mensagem).join(' '));
     this.name = 'ErroRecalculo';
   }
@@ -75,7 +80,10 @@ export async function recalcularExercicio(tx: TxCliente, exercicioId: string, de
       premissas,
     );
     if (!r.ok) {
-      throw new ErroRecalculo(r.erros.map((erro) => ({ campo: `posicoes.${p.id}.${erro.campo}`, mensagem: `CC ${p.cc}, cargo ${p.cargo}: ${erro.mensagem}` })));
+      throw new ErroRecalculo(
+        r.erros.map((erro) => ({ campo: `posicoes.${p.id}.${erro.campo}`, mensagem: `CC ${p.cc}, cargo ${p.cargo}: ${erro.mensagem}` })),
+        r.erros.map(() => p.cc),
+      );
     }
     for (const l of r.valor.linhas) {
       linhas.push({ cc: p.cc, conta: l.conta, origem: 'PESSOAL', componente: l.componente, posicaoId: p.id, pacoteId: null, meses: textos(l.meses), total: l.total.paraString() });

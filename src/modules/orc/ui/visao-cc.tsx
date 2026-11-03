@@ -67,7 +67,8 @@ function paraGrade(n: No, ano: number): NoGrade<Campos> {
       total: n.total.paraString(),
       percentual: n.percentualDoEscopo?.paraString() ?? null,
     },
-    href: `/orc/orcamento?ano=${ano}&cc=${encodeURIComponent(n.cc)}`,
+    // A âncora leva ao detalhe, que fica abaixo da grade.
+    href: `/orc/orcamento?ano=${ano}&cc=${encodeURIComponent(n.cc)}#detalhe-cc`,
     filhos: n.filhos.map((f) => paraGrade(f, ano)),
   };
 }

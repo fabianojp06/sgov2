@@ -159,6 +159,13 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
   });
 
+  it('pacote numa conta de pessoal (raízes 4.1.1.1 e 4.1.1.2): conta não permitida e nada gravado', async () => {
+    const e = await exercicio();
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4', { 'Conta analítica': '4.1.1.1.001' })] }) }, e.deps());
+    expect(r.ok ? [] : r.erros).toContainEqual({ campo: 'linhas.Pacotes base zero.5.Conta analítica', mensagem: 'Conta não permitida em pacote base zero.' });
+    expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
+  });
+
   it('erro de célula do leitor (3 casas) aparece uma vez só, sem repetir a validação', async () => {
     const e = await exercicio();
     const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pacotes: [linhaPacote('4.4', { 'Valor unitário (R$)': 350.123 })] }) }, e.deps());
@@ -219,6 +226,36 @@ describe('importarPlanilha: escopo e §10.2', () => {
       erros: [{ campo: '_', mensagem: 'Receitas só podem ser importadas por quem vê toda a Adm. Central.' }],
     });
     expect(await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.3.0')] }) }, d)).toMatchObject({ ok: true });
+  });
+
+  it('com escopo e premissas mais novas que o último cálculo: recusa (o recálculo do exercício é da GFIN, R15)', async () => {
+    const e = await exercicio();
+    await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.4')] }) }, e.deps());
+    const antes = await contagem(e.id);
+    const novas = custoPessoalFalso([{ ...premissasExemplo(e.ano), versao: 2 }]);
+    const d = e.deps({ obterEscopo: async () => '4.3', custoPessoal: novas });
+    expect(await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.3.0')] }) }, d)).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'As premissas do exercício mudaram depois do último cálculo. Peça à GFIN para recalcular o orçamento antes de importar.' }],
+    });
+    expect(await contagem(e.id)).toEqual(antes);
+    expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versaoPremissas).toBe(1);
+    // Sem escopo, a GFIN importa e o recálculo traz a versão nova, registrada no Histórico.
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.3.0')] }) }, e.deps({ custoPessoal: novas }));
+    if (!r.ok) throw new Error('esperava sucesso');
+    const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'orc.importacao', descricao: { contains: `exercício ${e.ano}` } }, orderBy: { id: 'asc' } });
+    expect(h.at(-1)).toMatchObject({ antes: { versaoPremissas: 1 }, depois: expect.objectContaining({ versaoPremissas: 2, linhas: 2 }) });
+  });
+
+  it('com escopo, erro do cálculo numa posição de CC fora dele: aviso genérico, sem o CC nem o cargo', async () => {
+    const e = await exercicio();
+    await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.4')] }) }, e.deps());
+    const custo = custoPessoalFalso([premissasExemplo(e.ano)]);
+    // Recusa só a posição já gravada no 4.4 (quantidade 2); a do gestor, no 4.3.0, tem quantidade 3.
+    const recusa44 = { ...custo, calcularCustoPosicao: (p: Parameters<typeof custo.calcularCustoPosicao>[0], q: Parameters<typeof custo.calcularCustoPosicao>[1]) => (p.quantidade === 2 ? falha([{ campo: 'salarioMensal', mensagem: 'Componente sem conta.' }]) : custo.calcularCustoPosicao(p, q)) };
+    const r = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: await montarPlanilha({ pessoal: [linhaPessoal('4.3.0', { Quantidade: 3 })] }) }, e.deps({ obterEscopo: async () => '4.3', custoPessoal: recusa44 }));
+    expect(r).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Há posições de outros centros de custo que não puderam ser calculadas. Avise a GFIN.' }] });
+    expect(JSON.stringify(r)).not.toContain('4.4');
   });
 
   it('sem orc.importacao:executar: ErroPermissao; auditoria falhando: nada gravado', async () => {

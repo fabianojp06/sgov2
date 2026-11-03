@@ -166,6 +166,12 @@ describe('validarPlanilha: Pacotes base zero', () => {
     expect(r.ok && r.conteudo.pacotes[0]).toMatchObject({ distribuicao: 'PONTUAL', mesOcorrencia: 7, justificativa: '- reposição de toner' });
   });
 
+  it('limites contam caracteres como o char_length do banco (emoji conta um)', () => {
+    const J = 'Atividade / justificativa (mín. 10 caracteres)';
+    const r = validar({ pacotes: [pacote(5, { [J]: '🚀'.repeat(9) }), pacote(6, { [J]: '🚀'.repeat(1000) })] });
+    expect(erros(r)).toEqual([`Pacotes base zero:5:${J}:Justificativa com menos de 10 caracteres.`]);
+  });
+
   it('erros por campo', () => {
     const J = 'Atividade / justificativa (mín. 10 caracteres)';
     const r = validar({

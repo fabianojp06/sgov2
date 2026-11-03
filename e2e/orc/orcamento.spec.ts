@@ -104,9 +104,10 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     // Linha 6 da aba Pessoal num CC sintético (a diretoria, que não aceita lançamento).
     await arquivo.setInputFiles(await montarPlanilha({ ...validas, pessoal: [...validas.pessoal.slice(0, 1), posicao(ccSintetico('4.1'))] }));
     await page.getByRole('button', { name: 'Importar' }).click();
-    const relatorio = conteudo(page).getByRole('alert');
-    await expect(relatorio).toContainText('A planilha tem erros. Nada foi importado.');
-    await expect(relatorio.getByRole('table', { name: 'Erros por linha (1)' })).toBeVisible();
+    // Só a frase fica na região viva; a tabela de erros vem fora dela.
+    await expect(conteudo(page).getByRole('alert')).toHaveText('A planilha tem erros. Nada foi importado.');
+    const relatorio = conteudo(page).getByRole('table', { name: 'Erros por linha (1)' });
+    await expect(relatorio).toBeVisible();
     await expect(linhaDe(relatorio, 'Pessoal').getByRole('cell')).toHaveText(['6', 'CC analítico', 'CC não é analítico ativo.']);
     expect(await contarNoBanco()).toEqual({ posicoes: 0, pacotes: 0, importacoes: 0 });
 
@@ -151,7 +152,7 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     await expect(valorDo(painel, 'Saldo')).toHaveText(new RegExp(`^${escapar(emReais(resultado))}`));
     // O semáforo real (faixas por exercício do cad, Task 9a do P4, #234) ainda não está na main: o
     // painel aparece sem a faixa e com o aviso. Quando chegar, trocar por "Verde"/"Amarelo"/... .
-    await expect(valorDo(painel, 'Semáforo')).toHaveText('—');
+    await expect(valorDo(painel, 'Semáforo')).toHaveText('Indisponível');
     await expect(page.getByText('As faixas do semáforo ainda não estão disponíveis.')).toBeVisible();
   });
 

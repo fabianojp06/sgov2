@@ -8,6 +8,7 @@ import type { Prioridade } from '../domain/pacote';
 import { calcularPainel, type Painel } from '../domain/resultado';
 import { resolverDeps, type DepsOrc, type FaixaSemaforo } from './deps';
 import { resolverEscopo, type Escopo } from './escopo';
+import { contarCaracteres } from '../domain/texto';
 
 // Visão por centro de custo (US-058; plano do P6, Task 6; RN_TOT_01): árvore de CC com pessoal +
 // encargos, base zero, total e % do escopo; detalhe com a série mês a mês e as linhas CC × conta
@@ -209,7 +210,8 @@ export async function obterVisaoExercicio(
     };
   }
 
-  // Indicadores do escopo (§6.6).
+  // Indicadores do escopo (§6.6). "Empregados em dezembro" = soma das quantidades das posições ativas em
+  // dezembro (mês de saída 12) [PROVISÓRIA, D-P6-7], até a validação do PO.
   const filtroCc = escopo.tipo === 'TOTAL' ? {} : { cc: { in: [...escopo.ccs] } };
   const [pacotes, dezembro] = await Promise.all([
     c.pacoteBaseZero.count({ where: { exercicioId: ex.id, ...filtroCc } }),
@@ -256,7 +258,7 @@ export async function obterVisaoExercicio(
       else avisos.push(MENSAGENS_ORC.SEMAFORO_INDISPONIVEL);
     }
     // D-P6-2 vale também depois: receita reduzida pode deixar o teto manual acima dela sem justificativa.
-    if (base.tetoManual && base.tetoManual.comparar(base.tetoPadrao) > 0 && (ex.tetoJustificativa ?? '').trim().length < 15) {
+    if (base.tetoManual && base.tetoManual.comparar(base.tetoPadrao) > 0 && contarCaracteres((ex.tetoJustificativa ?? '').trim()) < 15) {
       avisos.push(MENSAGENS_ORC.TETO_SEM_JUSTIFICATIVA);
     }
     painel = { ...base, semaforo, justificativaTeto: ex.tetoJustificativa };

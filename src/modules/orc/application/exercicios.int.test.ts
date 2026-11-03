@@ -91,9 +91,11 @@ describe('criarExercicio em branco', () => {
   });
 
   it('ano repetido, ano fora da faixa e forma ausente', async () => {
-    expect(await criarExercicio(ctx(), { ano: 2040, forma: 'EM_BRANCO' }, deps().d)).toEqual({
+    // O ano repetido nasce aqui: o teste não depende do anterior.
+    await migrator.orcamentoExercicio.create({ data: { ano: 2045 } });
+    expect(await criarExercicio(ctx(), { ano: 2045, forma: 'EM_BRANCO' }, deps().d)).toEqual({
       ok: false,
-      erros: [{ campo: 'ano', mensagem: 'Já existe um exercício para o ano 2040.' }],
+      erros: [{ campo: 'ano', mensagem: 'Já existe um exercício para o ano 2045.' }],
     });
     for (const ano of [1999, 2100, 'x']) {
       expect(await criarExercicio(ctx(), { ano, forma: 'EM_BRANCO' }, deps().d)).toEqual({

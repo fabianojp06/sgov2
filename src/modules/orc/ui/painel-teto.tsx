@@ -52,7 +52,8 @@ export function PainelTeto({ painel }: { painel: DadosPainel }) {
         <dt>Saldo</dt>
         <dd className={painel.saldo.ehNegativo() ? 'negativo' : undefined}>{`${comSinal(painel.saldo)}${painel.saldo.ehNegativo() ? ' (acima do teto)' : ''}`}</dd>
         <dt>Semáforo</dt>
-        <dd>{painel.semaforo ? SEMAFORO[painel.semaforo] : '—'}</dd>
+        {/* Texto, não traço: o leitor de tela lê "Indisponível" [PROVISÓRIO]. */}
+        <dd>{painel.semaforo ? SEMAFORO[painel.semaforo] : 'Indisponível'}</dd>
       </dl>
     </section>
   );

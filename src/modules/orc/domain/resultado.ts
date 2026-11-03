@@ -1,5 +1,6 @@
 import { Dinheiro, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
 import { MENSAGENS_ORC } from './mensagens';
+import { contarCaracteres } from './texto';
 
 // Teto, uso e resultado do exercício (US-059; spec §6.6). Receita confirmada é o rateio líquido
 // confirmado (ISS "a definir", GAP-ORC-007: líquido = rateio); a prevista não entra no saldo nem
@@ -55,7 +56,7 @@ export function validarTeto(
   if (valor.ehZero() || valor.ehNegativo()) return falha([{ campo: 'teto', mensagem: MENSAGENS_ORC.TETO_ZERO }]);
   const texto = (justificativa ?? '').trim();
   if (valor.comparar(receitaConfirmada) > 0) {
-    if (texto.length < 15) return falha([{ campo: 'justificativa', mensagem: MENSAGENS_ORC.TETO_JUSTIFICATIVA }]);
+    if (contarCaracteres(texto) < 15) return falha([{ campo: 'justificativa', mensagem: MENSAGENS_ORC.TETO_JUSTIFICATIVA }]);
     return ok({ valor, justificativa: texto });
   }
   return ok({ valor, justificativa: texto === '' ? null : texto });

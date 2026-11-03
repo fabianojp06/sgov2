@@ -39,7 +39,7 @@ describe('VisaoCc', () => {
     expect(h).toContain('Importante R$ 4.389,00');
     expect(h).toContain('role="treegrid"');
     expect(h).toContain('14.180 · 4 DIREX');
-    expect(h).toContain('href="/orc/orcamento?ano=2027&amp;cc=4"');
+    expect(h).toContain('href="/orc/orcamento?ano=2027&amp;cc=4#detalhe-cc"');
     expect(h).toContain('(Inativo)');
   });
 

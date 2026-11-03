@@ -73,7 +73,7 @@ function Tabela({
         <p>{vazio}</p>
       ) : (
         // Tabela larga (17 colunas): região rolável e focável, para não rolar a página inteira.
-        <div role="region" aria-labelledby={idCaption} tabIndex={0}>
+        <div role="region" aria-labelledby={idCaption} tabIndex={0} style={{ overflowX: 'auto' }}>
           <table>
             <caption
               id={idCaption}
