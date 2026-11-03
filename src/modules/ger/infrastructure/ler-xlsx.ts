@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import { falha, ok, type Resultado } from '@/shared/kernel';
+import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { empacotarSemCompressao, lerZipSeguro, ZipInvalido } from './zip-seguro';
 
 // Leitura segura de .xlsx (plano do P4, R4; acréscimo ao C3 em @/modules/ger/servidor).
@@ -219,30 +219,49 @@ export async function lerPlanilhaSegura(
   }
 }
 
+/** Pedido de uma aba em `lerPlanilhasSegura`: os limites do zip são da chamada, não da aba. */
+export type PedidoAba = Omit<OpcoesLeitura, 'limites'> & { limites?: Partial<Pick<LimitesPlanilha, 'linhas' | 'colunas' | 'caracteresCelula'>> };
+
+/** Erro de `lerPlanilhasSegura`: `indiceAba` diz qual pedido falhou (null: o arquivo ou o semáforo). */
+export type ResultadoAbas = { ok: true; valor: readonly PlanilhaLida[] } | { ok: false; erros: readonly ErroCampo[]; indiceAba: number | null };
+
+export const MAXIMO_ABAS = 10;
+const falhaAba = (r: Resultado<unknown>, indiceAba: number | null): ResultadoAbas => ({ ok: false, erros: r.ok ? [] : r.erros, indiceAba });
+
 /**
  * Lê várias abas do mesmo .xlsx numa chamada (#231): o semáforo fica preso do começo ao fim (uma
  * leitura concorrente não entra entre uma aba e outra) e o zip é aberto uma vez só. Cada aba tem
- * as próprias colunas, limites de linhas e colunas e prazo; os limites do zip vêm de `limites`.
- * Erro de arquivo em qualquer aba reprova tudo; o resultado vem na ordem pedida.
+ * as próprias colunas e limites de linhas, colunas e caracteres; os limites do zip vêm de `limites`.
+ * O prazo é um só para a chamada inteira (30 s), dividido na ordem das abas. De 1 a 10 abas, sem
+ * repetir. Erro em qualquer aba reprova tudo, com o índice do pedido; o resultado vem na ordem pedida.
  */
 export async function lerPlanilhasSegura(
   arquivo: { nome: string; conteudo: Uint8Array },
-  abas: readonly OpcoesLeitura[],
-  limites?: Partial<LimitesPlanilha>,
-): Promise<Resultado<readonly PlanilhaLida[]>> {
-  if (ocupado) return erroArquivo(MSG_LEITOR_OCUPADO);
+  pedidos: readonly PedidoAba[],
+  limites?: Partial<LimitesPlanilha> & { prazoMs?: number },
+): Promise<ResultadoAbas> {
+  const nomes = pedidos.map((p) => (p.aba === undefined ? '' : normalizarNomeColuna(p.aba)));
+  if (pedidos.length === 0 || pedidos.length > MAXIMO_ABAS || new Set(nomes).size !== nomes.length) {
+    // Erro do chamador, não do arquivo: o texto fica no contrato.
+    throw new Error(`lerPlanilhasSegura: de 1 a ${MAXIMO_ABAS} abas, sem repetir`);
+  }
+  if (ocupado) return falhaAba(erroArquivo(MSG_LEITOR_OCUPADO), null);
   ocupado = true;
   try {
-    const doZip = { ...LIMITES_PADRAO, ...limites };
+    const { prazoMs, ...doZipPedido } = limites ?? {};
+    const doZip = { ...LIMITES_PADRAO, ...doZipPedido };
     const aberto = abrir(arquivo, doZip);
-    if ('erro' in aberto) return aberto.erro;
+    if ('erro' in aberto) return falhaAba(aberto.erro, null);
+    const fim = Date.now() + Math.min(prazoMs ?? PRAZO_LEITURA_MS, PRAZO_LEITURA_MS);
     const lidas: PlanilhaLida[] = [];
-    for (const opcoes of abas) {
-      const r = await ler(aberto, opcoes, { ...doZip, ...opcoes.limites });
-      if (!r.ok) return r;
+    for (const [i, pedido] of pedidos.entries()) {
+      const restante = fim - Date.now();
+      if (restante <= 0) return falhaAba(recusar('prazo de leitura'), i);
+      const r = await ler(aberto, { ...pedido, prazoMs: Math.min(pedido.prazoMs ?? restante, restante) }, { ...doZip, ...pedido.limites });
+      if (!r.ok) return falhaAba(r, i);
       lidas.push(r.valor);
     }
-    return ok(lidas);
+    return { ok: true, valor: lidas };
   } finally {
     ocupado = false;
   }

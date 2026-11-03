@@ -387,18 +387,42 @@ describe('lerPlanilhasSegura — várias abas numa chamada (#231)', () => {
     // E a de uma aba também segura a de várias.
     const [c, d] = await Promise.all([ler(await planilha([COLUNAS, ['4', 'DESPESAS', null]])), lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, pedidos)]);
     expect(c.ok).toBe(true);
-    expect(d).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: MSG_LEITOR_OCUPADO }] });
+    expect(d).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: MSG_LEITOR_OCUPADO }], indiceAba: null });
   });
 
-  it('erro de arquivo numa aba reprova tudo; o semáforo é liberado', async () => {
+  it('erro numa aba reprova tudo e diz qual (indiceAba); erro do arquivo, indiceAba null; o semáforo é liberado', async () => {
     const x = await tresAbas();
     const r = await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, [pedidos[0]!, { aba: 'Inexistente', colunas: ['A'], linhaCabecalhoMax: 4 }]);
-    expect(r).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'A aba "Inexistente" não foi encontrada.' }] });
+    expect(r).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'A aba "Inexistente" não foi encontrada.' }], indiceAba: 1 });
+    // Cabeçalho fora do layout na 3ª aba (R6 do orc precisa saber qual).
+    const cab = await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, [pedidos[0]!, pedidos[1]!, { ...pedidos[2]!, colunas: ['TP', 'Outra'] }]);
+    expect(cab).toMatchObject({ ok: false, indiceAba: 2 });
     // Limite de linhas por aba: a Pacotes tem 2 linhas de dados.
     const limite = await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, [pedidos[0]!, { ...pedidos[1]!, limites: { linhas: 1 } }]);
-    expect(limite).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'A planilha passa de 1 linhas.' }] });
+    expect(limite).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'A planilha passa de 1 linhas.' }], indiceAba: 1 });
+    // Limite do zip na chamada.
+    expect(await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, pedidos, { bytes: 100 })).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'Planilha inválida ou grande demais.' }], indiceAba: null });
     const zipRuim = await lerPlanilhasSegura({ nome: 'x.xlsx', conteudo: new Uint8Array(10) }, pedidos);
-    expect(zipRuim.ok).toBe(false);
+    expect(zipRuim).toMatchObject({ ok: false, indiceAba: null });
+    expect((await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, pedidos)).ok).toBe(true);
+  });
+
+  it('sem abas, mais de 10 ou repetidas: erro do chamador; o semáforo não fica preso', async () => {
+    const x = await tresAbas();
+    await expect(lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, [])).rejects.toThrow('de 1 a 10 abas');
+    await expect(lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, [pedidos[0]!, { ...pedidos[0]!, aba: 'PESSOAL' }])).rejects.toThrow('sem repetir');
+    await expect(lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, Array.from({ length: 11 }, (_, i) => ({ ...pedidos[0]!, aba: `A${i}` })))).rejects.toThrow();
+    expect((await ler(await planilha([COLUNAS, ['4', 'DESPESAS', null]]))).ok).toBe(true);
+  });
+
+  it('o prazo é um só para a chamada: esgotado, a aba seguinte é recusada com o índice', async () => {
+    const x = await tresAbas();
+    const agora = vi.spyOn(Date, 'now');
+    let t = 0;
+    agora.mockImplementation(() => (t += 20_000));
+    const r = await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, pedidos);
+    agora.mockRestore();
+    expect(r).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem: 'Planilha inválida ou grande demais.' }], indiceAba: 1 });
     expect((await lerPlanilhasSegura({ nome: 'orc.xlsx', conteudo: x }, pedidos)).ok).toBe(true);
   });
 });

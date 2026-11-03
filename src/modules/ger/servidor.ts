@@ -53,10 +53,13 @@ export {
   lerPlanilhaSegura,
   lerPlanilhasSegura,
   LIMITES_PADRAO,
+  MAXIMO_ABAS,
   MSG_LEITOR_OCUPADO,
   type ErroLinha,
   type LimitesPlanilha,
   type LinhaPlanilha,
   type OpcoesLeitura,
+  type PedidoAba,
   type PlanilhaLida,
+  type ResultadoAbas,
 } from './infrastructure/ler-xlsx';
