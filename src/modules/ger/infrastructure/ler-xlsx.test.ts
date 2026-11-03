@@ -450,6 +450,42 @@ describe('células avulsas (#232)', () => {
     expect(r.valor[1]!.linhas).toHaveLength(1);
   });
 
+  it('aba sem tabela: a linha 1 ausente ou a aba vazia dão E1 null, sem reprovar o arquivo', async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Instruções').getCell('A3').value = 'Texto a partir da linha 3';
+    wb.addWorksheet('Vazia');
+    const x = new Uint8Array(await wb.xlsx.writeBuffer());
+    const r = await lerPlanilhasSegura({ nome: 'o.xlsx', conteudo: x }, [
+      { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1', 'A3'] },
+      { aba: 'Vazia', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] },
+    ]);
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    expect(r.valor.map((p) => p.celulasAvulsas)).toEqual([{ E1: null, A3: 'Texto a partir da linha 3' }, { E1: null }]);
+  });
+
+  it('numa aba com tabela: antes do cabeçalho, numa linha de dados e além do linhaCabecalhoMax; número vira texto', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Plano de Contas');
+    ws.getCell('E1').value = 2;
+    ws.getRow(3).values = COLUNAS;
+    ws.getRow(4).values = ['4', 'DESPESAS', null];
+    ws.getCell('D20').value = 'rodapé';
+    const r = await lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: new Uint8Array(await wb.xlsx.writeBuffer()) }, { colunas: COLUNAS, linhaCabecalhoMax: 3, celulas: ['E1', 'B4', 'D20'] });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    expect(r.valor.celulasAvulsas).toEqual({ E1: '2', B4: 'DESPESAS', D20: 'rodapé' });
+    // A linha 20 só tem a D, que não é coluna da tabela: não entra nas linhas.
+    expect(r.valor.linhas).toHaveLength(1);
+  });
+
+  it('célula avulsa acima do limite de caracteres: erro pelo endereço, valor null', async () => {
+    const r = await lerPlanilhaSegura(
+      { nome: 'o.xlsx', conteudo: await comInstrucoes('x'.repeat(50)) },
+      { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'], limites: { caracteresCelula: 10 } },
+    );
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    expect(r.valor).toMatchObject({ celulasAvulsas: { E1: null }, errosCelula: [{ linha: 1, coluna: 'E1', mensagem: 'Célula com mais de 10 caracteres.' }] });
+  });
+
   it('célula com fórmula sem resultado: erro de célula pelo endereço, sem o conteúdo', async () => {
     const r = await lerPlanilhaSegura({ nome: 'orc.xlsx', conteudo: await comInstrucoes({ formula: 'A1' }) }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
@@ -462,7 +498,16 @@ describe('células avulsas (#232)', () => {
     expect(enderecoCelula('AA10')).toEqual({ linha: 10, coluna: 27 });
     for (const e of ['e1', 'E0', '1E', 'E1001', 'E1:F2', '']) expect(enderecoCelula(e), e).toBeNull();
     const x = await comInstrucoes('v');
-    await expect(lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['AF1'] })).rejects.toThrow('formato A1');
+    await expect(lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['AE1'] })).rejects.toThrow('formato A1');
+    expect((await lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['AD1'] })).ok).toBe(true);
+    await expect(lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1', 'E1'] })).rejects.toThrow('sem repetir');
+    // No de várias abas, o endereço inválido do 2º pedido é recusado antes de ler o 1º.
+    await expect(
+      lerPlanilhasSegura({ nome: 'o.xlsx', conteudo: x }, [
+        { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] },
+        { aba: 'Plano de Contas', colunas: COLUNAS, linhaCabecalhoMax: 10, celulas: ['e1'] },
+      ]),
+    ).rejects.toThrow('formato A1');
     await expect(lerPlanilhaSegura({ nome: 'o.xlsx', conteudo: x }, { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: Array.from({ length: 21 }, (_, i) => `A${i + 1}`) })).rejects.toThrow();
     // O semáforo foi liberado.
     expect((await ler(await planilha([COLUNAS, ['4', 'DESPESAS', null]]))).ok).toBe(true);
