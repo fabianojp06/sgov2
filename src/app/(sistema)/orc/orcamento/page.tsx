@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { listarExercicios, MENSAGENS_ORC, obterVisaoExercicio, recalcularAcao, SeletorExercicio, VisaoCc } from '@/modules/orc';
+import { definirTetoAcao, listarExercicios, MENSAGENS_ORC, obterVisaoExercicio, recalcularAcao, SeletorExercicio, VisaoCc } from '@/modules/orc';
 import { exigirPagina, negarNaPagina } from '@/shared/authz';
 import { ErroDominio } from '@/shared/kernel';
 
@@ -28,15 +28,19 @@ export default async function Orcamento({ searchParams }: { searchParams: Promis
       </main>
     );
   }
+  const podeAlterar = ctx.permissoes.has('orc.orcamento:alterar') && visao.escopo.tipo === 'TOTAL' && visao.exercicio.editavel;
+  const AVISOS: Readonly<Record<string, string>> = { recalculado: MENSAGENS_ORC.RECALCULADO, teto: MENSAGENS_ORC.TETO_DEFINIDO };
   return (
     <main>
       <h1>{`Orçamento da Adm. Central ${visao.exercicio.ano}`}</h1>
       <SeletorExercicio exercicios={exercicios} anoAtual={visao.exercicio.ano} rota="/orc/orcamento" />
       <VisaoCc
         visao={visao}
-        podeRecalcular={ctx.permissoes.has('orc.orcamento:alterar') && visao.escopo.tipo === 'TOTAL' && visao.exercicio.editavel}
+        podeRecalcular={podeAlterar}
         recalcular={recalcularAcao}
-        aviso={aviso === 'recalculado' ? MENSAGENS_ORC.RECALCULADO : undefined}
+        podeDefinirTeto={podeAlterar}
+        definirTeto={definirTetoAcao}
+        aviso={typeof aviso === 'string' && Object.hasOwn(AVISOS, aviso) ? AVISOS[aviso] : undefined}
       />
     </main>
   );

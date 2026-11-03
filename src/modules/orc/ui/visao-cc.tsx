@@ -2,6 +2,8 @@ import { GradeArvore, type ColunaGrade, type NoGrade } from '@/modules/ger';
 import { Dinheiro, type Percentual } from '@/shared/kernel';
 import { valorParaTela } from '../domain/valor-tela';
 import { AcaoConfirmada, type AcaoFormulario } from './acao-confirmada';
+import { FormTeto } from './form-teto';
+import { PainelTeto, type DadosPainel } from './painel-teto';
 
 // Visão por centro de custo (US-058, §6.6): indicadores do escopo, árvore de CC (C3) com pessoal +
 // encargos, base zero, total e % do escopo, e o detalhe do CC escolhido com a série mês a mês e as
@@ -19,7 +21,8 @@ type No = {
 };
 type Linha = { conta: string; descricaoConta: string; origem: 'PESSOAL' | 'BASE_ZERO'; meses: readonly Dinheiro[]; total: Dinheiro };
 export type DadosVisao = {
-  exercicio: { id: string; ano: number; rotuloSituacao: string; editavel: boolean };
+  exercicio: { id: string; ano: number; rotuloSituacao: string; editavel: boolean; versao: number };
+  painel: DadosPainel | null;
   escopo: { tipo: 'TOTAL' } | { tipo: 'SUBARVORE'; raiz: string };
   arvore: readonly No[];
   indicadores: {
@@ -104,7 +107,21 @@ function TabelaSerie({ id, titulo, linhas }: { id: string; titulo: string; linha
 
 const soma = (xs: readonly Dinheiro[]) => Dinheiro.somarTodos(xs);
 
-export function VisaoCc({ visao, podeRecalcular, recalcular, aviso }: { visao: DadosVisao; podeRecalcular: boolean; recalcular: AcaoFormulario; aviso?: string | undefined }) {
+export function VisaoCc({
+  visao,
+  podeRecalcular,
+  recalcular,
+  podeDefinirTeto = false,
+  definirTeto,
+  aviso,
+}: {
+  visao: DadosVisao;
+  podeRecalcular: boolean;
+  recalcular: AcaoFormulario;
+  podeDefinirTeto?: boolean;
+  definirTeto?: AcaoFormulario;
+  aviso?: string | undefined;
+}) {
   const { exercicio, indicadores: i, detalhe } = visao;
   return (
     <>
@@ -140,6 +157,16 @@ export function VisaoCc({ visao, podeRecalcular, recalcular, aviso }: { visao: D
           <dd>{`Essencial R$ ${valorParaTela(i.porPrioridade.ESSENCIAL)} · Importante R$ ${valorParaTela(i.porPrioridade.IMPORTANTE)} · Desejável R$ ${valorParaTela(i.porPrioridade.DESEJAVEL)}`}</dd>
         </dl>
       </section>
+      {visao.painel && <PainelTeto painel={visao.painel} />}
+      {visao.painel && podeDefinirTeto && definirTeto && (
+        <FormTeto
+          exercicioId={exercicio.id}
+          versao={exercicio.versao}
+          tetoManual={visao.painel.tetoManual ? valorParaTela(visao.painel.tetoManual) : null}
+          justificativa={visao.painel.justificativaTeto}
+          salvar={definirTeto}
+        />
+      )}
       <section aria-labelledby="arvore-cc">
         <h2 id="arvore-cc">Por centro de custo</h2>
         <GradeArvore

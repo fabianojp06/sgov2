@@ -5,6 +5,7 @@ import { definirAcao } from '@/shared/authz';
 import { falha } from '@/shared/kernel';
 import { recalcular } from './calculo-linhas';
 import { entradaBruta } from './entrada-exercicio';
+import { definirTeto } from './teto';
 
 // "Recalcular" na visão do orçamento (R9). Volta à visão do exercício com o aviso.
 export const recalcularAcao = definirAcao({ funcionalidade: 'orc.orcamento', acao: 'alterar', entrada: entradaBruta }, async (e, ctx) => {
@@ -12,4 +13,10 @@ export const recalcularAcao = definirAcao({ funcionalidade: 'orc.orcamento', aca
   const r = await recalcular(ctx, e['exercicioId']);
   if (!r.ok) return r;
   redirect(`/orc/orcamento?ano=${r.valor.ano}&aviso=recalculado`);
+});
+
+export const definirTetoAcao = definirAcao({ funcionalidade: 'orc.orcamento', acao: 'alterar', entrada: entradaBruta }, async (e, ctx) => {
+  const r = await definirTeto(ctx, e);
+  if (!r.ok) return r;
+  redirect(`/orc/orcamento?ano=${r.valor.ano}&aviso=teto`);
 });

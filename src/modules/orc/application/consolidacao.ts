@@ -5,7 +5,8 @@ import { Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
 import { editavel, ROTULO_SITUACAO, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import type { Prioridade } from '../domain/pacote';
-import { resolverDeps, type DepsOrc } from './deps';
+import { calcularPainel, type Painel } from '../domain/resultado';
+import { resolverDeps, type DepsOrc, type FaixaSemaforo } from './deps';
 import { resolverEscopo, type Escopo } from './escopo';
 
 // Visão por centro de custo (US-058; plano do P6, Task 6; RN_TOT_01): árvore de CC com pessoal +
@@ -54,8 +55,11 @@ export type ExercicioVisao = {
   versao: number;
   premissasDesatualizadas: boolean;
 };
+export type PainelVisao = Painel & { semaforo: FaixaSemaforo | null; justificativaTeto: string | null };
 export type VisaoExercicio = {
   exercicio: ExercicioVisao;
+  // Teto, semáforo e resultado: só para quem vê a Adm. Central inteira (R8); null com escopo.
+  painel: PainelVisao | null;
   escopo: Escopo;
   arvore: readonly NoVisao[];
   indicadores: Indicadores;
@@ -234,10 +238,35 @@ export async function obterVisaoExercicio(
     avisos.push(MENSAGENS_ORC.PREMISSAS_INDISPONIVEIS);
   }
 
+  // Painel (US-059): receitas e despesas da Adm. Central inteira, só sem escopo.
+  let painel: PainelVisao | null = null;
+  if (escopo.tipo === 'TOTAL') {
+    const receitas = await c.receitaRateio.findMany({ where: { exercicioId: ex.id }, select: { situacao: true, meses: true } });
+    const base = calcularPainel(
+      somarSeries(sPessoal.total, sBase.total),
+      receitas.map((r) => ({ situacao: r.situacao as 'CONFIRMADO' | 'PREVISTO', meses: r.meses.map((m) => Dinheiro.de(m.toString())) })),
+      ex.tetoManual === null ? null : Dinheiro.de(ex.tetoManual.toString()),
+    );
+    let semaforo: FaixaSemaforo | null = null;
+    if (!deps.semaforo) avisos.push(MENSAGENS_ORC.SEMAFORO_INDISPONIVEL);
+    else if (!ctx.permissoes.has('cad.parametros:consultar')) avisos.push(MENSAGENS_ORC.SEMAFORO_SEM_PERMISSAO);
+    else {
+      const faixas = await deps.semaforo.faixas(ctx, ex.ano);
+      if (faixas) semaforo = deps.semaforo.classificar(base.uso, faixas);
+      else avisos.push(MENSAGENS_ORC.SEMAFORO_INDISPONIVEL);
+    }
+    // D-P6-2 vale também depois: receita reduzida pode deixar o teto manual acima dela sem justificativa.
+    if (base.tetoManual && base.tetoManual.comparar(base.tetoPadrao) > 0 && (ex.tetoJustificativa ?? '').trim().length < 15) {
+      avisos.push(MENSAGENS_ORC.TETO_SEM_JUSTIFICATIVA);
+    }
+    painel = { ...base, semaforo, justificativaTeto: ex.tetoJustificativa };
+  }
+
   const situacao = ex.situacao as SituacaoExercicio;
   return {
     exercicio: { id: ex.id, ano: ex.ano, situacao, rotuloSituacao: ROTULO_SITUACAO[situacao], editavel: editavel(situacao), versao: ex.versao, premissasDesatualizadas },
     escopo,
+    painel,
     arvore,
     indicadores: {
       orcamentoAno: totalEscopo,

@@ -36,6 +36,14 @@ export const MENSAGENS_ORC = {
   SITUACAO_RECEITA: 'Situação obrigatória: Confirmado ou Previsto.',
   TP_REPETIDO: (linhas: readonly number[]) => `TP / versão repetido nas linhas ${linhas.slice(0, -1).join(', ')} e ${linhas.at(-1)}.`,
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
+  // Teto e resultado (Task 7)
+  TETO_ZERO: 'O teto precisa ser maior que zero.',
+  TETO_JUSTIFICATIVA: 'Teto maior que a receita confirmada exige justificativa com pelo menos 15 caracteres.',
+  SEM_TETO: 'Sem teto: não há receita confirmada nem teto manual.',
+  SEMAFORO_SEM_PERMISSAO: 'Sem permissão para ver as faixas do semáforo.',
+  SEMAFORO_INDISPONIVEL: 'As faixas do semáforo ainda não estão disponíveis.',
+  TETO_DEFINIDO: 'Teto do exercício gravado.',
+  TETO_SEM_JUSTIFICATIVA: 'O teto manual passou da receita confirmada e não tem justificativa: grave o teto de novo com a justificativa (o envio para aprovação é recusado até lá).',
   // Visão (Task 6)
   PREMISSAS_INEXISTENTES: 'O exercício ainda não tem premissas cadastradas.',
   PREMISSAS_INDISPONIVEIS: 'As premissas do exercício ainda não estão disponíveis.',
