@@ -90,12 +90,14 @@ achados=$(docker run --rm --name "$PREFIXO-find" --user root --network none "${L
 echo "1b. O app tem o binário nativo do Argon2 (glibc) e não leva o Playwright (#190)"
 # A base é bookworm (glibc): o pacote opcional é o @node-rs/argon2-linux-x64-gnu. O standalone do
 # Next precisa tê-lo rastreado; sem ele, o login de hml e prod quebra só na primeira senha.
-argon=$(docker run --rm --name "$PREFIXO-argon2" --network none "${LIMITES[@]}" --workdir /app --entrypoint node "$IMAGEM" -e \
-  "require('@node-rs/argon2').hash('x', { algorithm: 2 }).then((h) => console.log(h.split('\$')[1])).catch((e) => console.log('falhou: ' + e.message))" 2>&1)
-[[ "$argon" == argon2id ]] || falhar "o Argon2 não roda na imagem: $argon"
-# O Next declara o @playwright/test como peer opcional (nota do #189): nada dele no standalone.
+# Como o usuário node (o app desce para o uid 1000): uma permissão errada no .node também reprova.
+# O stderr fica fora da captura (vai para o log); o || true deixa a causa chegar ao falhar (set -e).
+argon=$(docker run --rm --name "$PREFIXO-argon2" --user node --network none "${LIMITES[@]}" --workdir /app --entrypoint node "$IMAGEM" -e \
+  "require('@node-rs/argon2').hash('x', { algorithm: 2 }).then((h) => console.log(h.split('\$')[1])).catch((e) => console.log('falhou: ' + e.message))" || true)
+[[ "$argon" == argon2id ]] || falhar "o Argon2 não roda na imagem: ${argon:-sem saída (veja o erro do node acima)}"
+# O Next declara o @playwright/test como peer opcional (nota do #189): nada dele em /app, em nenhum nível.
 playwright=$(docker run --rm --name "$PREFIXO-playwright" --network none "${LIMITES[@]}" --entrypoint sh "$IMAGEM" -c \
-  'ls -d /app/node_modules/playwright /app/node_modules/playwright-core /app/node_modules/@playwright 2>/dev/null; true')
+  'find /app -xdev -type d \( -name playwright -o -name playwright-core -o -name @playwright \) -prune -print; true')
 [[ -z "$playwright" ]] || falhar "o Playwright está na imagem: $playwright"
 
 echo "2. Banco descartável numa rede sem internet"
