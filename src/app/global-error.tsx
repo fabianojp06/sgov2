@@ -1,20 +1,20 @@
 'use client';
 
-// Último recurso: erro no próprio layout raiz. Substitui o layout inteiro, por isso traz o html e o
-// body. Sem dependência de módulo: só o texto em português e o Tentar novamente.
-export const MENSAGEM_ERRO_GERAL = 'O sistema não pôde ser exibido. Tente novamente em instantes.';
+// Último recurso: erro no próprio layout raiz. Substitui o layout inteiro, por isso traz o html, o
+// body e o título (o metadata do layout não vale aqui). Sem dependência de módulo: só o texto em
+// português [PROVISÓRIO] e o Tentar novamente.
+const MENSAGEM_ERRO_GERAL = 'O sistema não pôde ser exibido. Tente novamente em instantes.';
 
 export default function ErroGeral({ retry }: { error: Error; reset: () => void; retry: () => void }) {
   return (
     <html lang="pt-BR">
       <body>
+        <title>SGO 2.0</title>
         <main>
-          <div role="alert">
-            <p>{MENSAGEM_ERRO_GERAL}</p>
-            <button type="button" onClick={retry}>
-              Tentar novamente
-            </button>
-          </div>
+          <p role="alert">{MENSAGEM_ERRO_GERAL}</p>
+          <button type="button" onClick={retry}>
+            Tentar novamente
+          </button>
         </main>
       </body>
     </html>
