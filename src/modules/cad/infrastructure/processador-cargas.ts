@@ -90,7 +90,8 @@ function revalidarRecifra(linhas: readonly { numero: number; dados: unknown }[],
 const contextoLote = z.object({
   usuarioId: z.uuid().nullable(),
   usuarioRotulo: z.string().min(1),
-  sessaoUid: z.string().nullable(),
+  // Vazio é recusado como no auditar (#268); nulo só nas operações do sistema.
+  sessaoUid: z.string().min(1).nullable(),
   ip: z.string().nullable(),
   unidadeId: z.uuid().nullable().optional(),
 });
@@ -272,7 +273,8 @@ export function iniciarProcessadorCargas(deps: {
           }
           await tx.cargaEstrutura.update({ where: { id: lote.id }, data: { situacao: 'PROCESSANDO', processandoDesde: agora() } });
           const lido = contextoLote.parse(lote.contexto_auditoria);
-          const contexto: ContextoAuditoria = { ...lido, unidadeId: lido.unidadeId ?? null };
+          // Cadastro global: o Histórico não leva o TP do seletor (como o adm no #266).
+          const contexto: ContextoAuditoria = { ...lido, unidadeId: null };
           const staging = await tx.cargaEstruturaLinha.findMany({ where: { cargaId: lote.id }, orderBy: { numero: 'asc' } });
           let r: Awaited<ReturnType<typeof aplicarCarga>>;
           // Os avisos da validação (saneamento, R3 da minuta) vão para o lote junto com os da R5.

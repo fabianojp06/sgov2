@@ -11,7 +11,7 @@ import { alterarParametrosExercicio, alterarSalarioMinimo, conferirOrigemBlindad
 // Server Actions dos parâmetros do exercício e do salário mínimo (US-053 parte 2). A negação (403) é
 // auditada pela definirAcao (C5). A entrada chega bruta (z.unknown) para a origem blindada ser
 // conferida e auditada antes do parse (M4/M-n4); só depois vem o schema .strict(), em português.
-const PORTUGUES = z.locales.pt().localeError;
+const PORTUGUES = z.locales.ptBR().localeError;
 const texto = (max: number, mensagem: string) => z.string().max(max, mensagem);
 const pct = texto(20, 'Informe um percentual com até 4 casas decimais.');
 const conta = texto(40, 'Conta inválida.');

@@ -30,7 +30,7 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
   usuarioRotulo: ctx.usuarioRotulo,
   sessaoUid: ctx.sessaoUid,
   ip: ctx.ip,
-  unidadeId: ctx.unidadeId ?? null,
+  unidadeId: null,
 });
 
 const veSalarios = (ctx: ContextoRequisicao) => ctx.permissoes.has('cad.salarios:consultar');
