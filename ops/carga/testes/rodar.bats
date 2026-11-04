@@ -5,9 +5,15 @@ bats_require_minimum_version 1.5.0
 
 setup() {
   T="$(mktemp -d)"
-  printf '#!/bin/sh\necho "sgo_sessao=abc=def"\n' > "$T/node"
-  printf '#!/bin/sh\necho "$@" > %s/docker.args\nenv > %s/docker.env\ncat > /dev/null\n' "$T" "$T" > "$T/docker"
-  chmod +x "$T/node" "$T/docker"
+  # O docker dublê faz os dois papéis: o login (imagem do Playwright) devolve o cookie; o k6 registra.
+  cat > "$T/docker" <<SH
+#!/bin/sh
+case "\$*" in
+  *mcr.microsoft.com/playwright*) echo "\$@" > "$T/login.args"; env > "$T/login.env"; echo "sgo_sessao=abc=def" ;;
+  *) echo "\$@" > "$T/docker.args"; env > "$T/docker.env"; cat > /dev/null ;;
+esac
+SH
+  chmod +x "$T/docker"
   export PATH="$T:$PATH" SGO_LOCK="$T/lock"
   unset SGO_VUS SGO_DURACAO SGO_HOST_HML SGO_JANELA_PO
   SCRIPT="$BATS_TEST_DIRNAME/../rodar.sh"
@@ -24,6 +30,10 @@ teardown() { rm -rf "$T"; }
   grep -qx 'SGO_COOKIE=sgo_sessao' "$T/docker.env"
   grep -qx 'SGO_VUS=20' "$T/docker.env"
   run ! grep -q 'SGO_SENHA' "$T/docker.env"
+  # O login roda no contêiner do Playwright, com o repositório só para leitura e a senha por nome.
+  grep -q -- '-v [^ ]*:/repo:ro' "$T/login.args"
+  grep -q -- '-e SGO_SENHA ' "$T/login.args"
+  run ! grep -q 'segredo' "$T/login.args"
 }
 
 @test "destinos recusados: barra no fim, http remoto, IP e localhost em https" {
