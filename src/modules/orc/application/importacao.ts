@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { QUANTIDADE_MAXIMA } from '@/modules/cad/servidor';
-import { lerPlanilhaSegura, type LinhaPlanilha } from '@/modules/ger/servidor';
+import { lerPlanilhasSegura, type LinhaPlanilha } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { Dinheiro, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
@@ -11,6 +11,7 @@ import {
   COLUNAS_PACOTES,
   COLUNAS_PESSOAL,
   COLUNAS_RECEITAS,
+  LAYOUT,
   validarPlanilha,
   type Aba,
   type ErroPlanilha,
@@ -26,7 +27,7 @@ import { resolverEscopo } from './escopo';
 
 export type ResumoCc = { cc: string; posicoes: number; pacotes: number; total: Dinheiro };
 export type ResultadoImportacao = { posicoes: number; pacotes: number; ccs: number; receitas: number; resumoPorCc: readonly ResumoCc[]; mensagem: string };
-export type DepsImportacao = DepsOrc & { lerPlanilha: typeof lerPlanilhaSegura };
+export type DepsImportacao = DepsOrc & { lerPlanilhas: typeof lerPlanilhasSegura };
 
 const ABAS: readonly { aba: Aba; colunas: readonly string[] }[] = [
   { aba: 'Pessoal', colunas: COLUNAS_PESSOAL },
@@ -59,23 +60,35 @@ export async function importarPlanilha(
 ): Promise<Resultado<ResultadoImportacao>> {
   exigir(ctx, 'orc.importacao', 'executar');
   const deps = resolverDeps(depsParciais);
-  const lerPlanilha = depsParciais.lerPlanilha ?? lerPlanilhaSegura;
+  const lerPlanilhas = depsParciais.lerPlanilhas ?? lerPlanilhasSegura;
   const indice = await deps.estrutura.carregarIndiceEstrutura(deps.cliente);
   const escopo = await resolverEscopo(deps.cliente, ctx, indice, deps);
 
-  // Três leituras, uma por aba, só com as colunas de entrada (R6). Erro de arquivo reprova tudo.
+  // Uma leitura só (#279): a versão do layout em Instruções!E1 e as três abas, só com as colunas de
+  // entrada (R6). Erro de arquivo reprova tudo; o índice do pedido diz qual aba falhou.
   // Sem colunasTexto: um CC de dois segmentos ("4.4") pode chegar como número da lista do Excel e
   // é lido certo; CC de 3 a 5 segmentos e conta nunca são número. TP convertido em data é recusado
   // na validação.
   const lidas: Record<Aba, readonly LinhaPlanilha[]> = { Pessoal: [], 'Pacotes base zero': [], Receitas: [] };
   const errosCelula: ErroPlanilha[] = [];
   let nomeArquivo = entrada.arquivo.nome;
-  for (const { aba, colunas } of ABAS) {
-    const r = await lerPlanilha(entrada.arquivo, { aba, colunas, linhaCabecalhoMax: 4 });
-    if (!r.ok) return falha(r.erros.map((e) => ({ campo: 'arquivo', mensagem: erroDeArquivo(aba, colunas, e.mensagem) })));
-    lidas[aba] = r.valor.linhas;
-    nomeArquivo = r.valor.nomeArquivo;
-    errosCelula.push(...r.valor.errosCelula.map((e) => ({ ...e, aba })));
+  const r = await lerPlanilhas(entrada.arquivo, [
+    { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] },
+    ...ABAS.map(({ aba, colunas }) => ({ aba, colunas, linhaCabecalhoMax: 4 })),
+  ]);
+  if (!r.ok) {
+    // Sem a aba Instruções: fora do layout. Outro erro nela (prazo, limite, arquivo malformado) vem
+    // como o leitor disse.
+    if (r.indiceAba === 0 && r.erros.every((e) => e.mensagem.startsWith('A aba "'))) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
+    const pedido = r.indiceAba === null || r.indiceAba === 0 ? undefined : ABAS[r.indiceAba - 1];
+    return falha(r.erros.map((e) => ({ campo: 'arquivo', mensagem: pedido ? erroDeArquivo(pedido.aba, pedido.colunas, e.mensagem) : e.mensagem })));
+  }
+  const [instrucoes, ...abas] = r.valor;
+  if (instrucoes!.celulasAvulsas?.E1?.trim() !== LAYOUT) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
+  for (const [i, { aba }] of ABAS.entries()) {
+    lidas[aba] = abas[i]!.linhas;
+    nomeArquivo = abas[i]!.nomeArquivo;
+    errosCelula.push(...abas[i]!.errosCelula.map((e) => ({ ...e, aba })));
   }
 
   // Premissas do ano do exercício para o veto das contas de pessoal em pacote; o exercício é travado

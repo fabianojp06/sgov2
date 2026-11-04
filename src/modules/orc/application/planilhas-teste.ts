@@ -12,6 +12,7 @@ export type OpcoesPlanilha = {
   receitas?: readonly Linha[];
   formulasSemValor?: boolean; // coluna cinza com fórmula sem resultado + 300 linhas só com fórmula
   semColuna?: { aba: 'Pessoal' | 'Pacotes base zero' | 'Receitas'; coluna: string };
+  versaoLayout?: string | null; // Instruções!E1; null: sem a aba Instruções
 };
 
 function aba(wb: ExcelJS.Workbook, nome: string, colunas: readonly string[], linhas: readonly Linha[], o: OpcoesPlanilha) {
@@ -38,7 +39,7 @@ function aba(wb: ExcelJS.Workbook, nome: string, colunas: readonly string[], lin
 
 export async function montarPlanilha(o: OpcoesPlanilha & { nome?: string } = {}): Promise<{ nome: string; conteudo: Uint8Array }> {
   const wb = new ExcelJS.Workbook();
-  wb.addWorksheet('Instruções').getCell('E1').value = 'ADMC-ORC v1.0';
+  if (o.versaoLayout !== null) wb.addWorksheet('Instruções').getCell('E1').value = o.versaoLayout ?? 'ADMC-ORC v1.0';
   aba(wb, 'Pessoal', COLUNAS_PESSOAL, o.pessoal ?? [], o);
   aba(wb, 'Pacotes base zero', COLUNAS_PACOTES, o.pacotes ?? [], o);
   aba(wb, 'Receitas', COLUNAS_RECEITAS, o.receitas ?? [], o);

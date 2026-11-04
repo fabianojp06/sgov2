@@ -4,8 +4,9 @@ import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
 import { falha } from '@/shared/kernel';
 import { readFileSync } from 'node:fs';
-import { lerPlanilhaSegura } from '@/modules/ger/servidor';
+import { lerPlanilhasSegura } from '@/modules/ger/servidor';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
+import { COLUNAS_PACOTES, COLUNAS_PESSOAL, COLUNAS_RECEITAS } from '../domain/planilha';
 import type { DepsImportacao } from './importacao';
 import { importarPlanilha } from './importacao';
 import { linhaPacote, linhaPessoal, linhaReceita, montarPlanilha } from './planilhas-teste';
@@ -197,9 +198,25 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
       campo: 'arquivo',
       mensagem: expect.stringMatching(/^Planilha fora do layout ADMC-ORC v1\.0: a aba Pessoal precisa do cabeçalho, até a linha 4, com as colunas CC analítico, Cargo,/),
     });
+    // Cabeçalho faltando na última aba (índice 3 do pedido): a mensagem diz a aba certa.
+    const semTp = await montarPlanilha({ pessoal: [linhaPessoal('4.4')], semColuna: { aba: 'Receitas', coluna: 'TP / versão' } });
+    const rr = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: semTp }, e.deps());
+    expect(rr.ok ? '' : rr.erros[0]?.mensagem).toMatch(/^Planilha fora do layout ADMC-ORC v1\.0: a aba Receitas precisa do cabeçalho/);
     const lixo = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: { nome: 'x.xlsx', conteudo: new TextEncoder().encode('não sou zip') } }, e.deps());
     expect(lixo.ok).toBe(false);
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
+  });
+
+  it('versão do layout (R6, Instruções!E1): outra versão ou sem a aba Instruções → erro de arquivo e nada gravado', async () => {
+    const e = await exercicio();
+    const mensagem = 'Planilha fora do layout ADMC-ORC v1.0: a célula E1 da aba Instruções precisa trazer ADMC-ORC v1.0.';
+    for (const versaoLayout of ['ADMC-ORC v0.9', '', null]) {
+      const arquivo = await montarPlanilha({ pessoal: [linhaPessoal('4.4')], versaoLayout });
+      expect(await importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps())).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem }] });
+    }
+    // Espaços em volta não reprovam.
+    const comEspacos = await montarPlanilha({ pessoal: [linhaPessoal('4.4')], versaoLayout: '  ADMC-ORC v1.0 ' });
+    expect((await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: comEspacos }, e.deps())).ok).toBe(true);
   });
 
   it('planilha sem lançamentos e exercício Em Aprovação', async () => {
@@ -293,18 +310,17 @@ describe('importarPlanilha: escopo e §10.2', () => {
   it('duas importações simultâneas do mesmo exercício: serializadas pela trava, estado igual ao de uma', async () => {
     const e = await exercicio();
     const arquivo = await montarPlanilha({ pessoal: [linhaPessoal('4.4'), linhaPessoal('4.3.0')] });
-    // As abas são lidas uma vez com o leitor real e servidas de memória, para as duas importações
+    // O arquivo é lido uma vez com o leitor real e servido de memória, para as duas importações
     // chegarem juntas à transação (o leitor real atende uma leitura por processo).
-    const lidas = new Map<string, Awaited<ReturnType<typeof lerPlanilhaSegura>>>();
-    for (const aba of ['Pessoal', 'Pacotes base zero', 'Receitas']) {
-      const { COLUNAS_PACOTES, COLUNAS_PESSOAL, COLUNAS_RECEITAS } = await import('../domain/planilha');
-      const colunas = aba === 'Pessoal' ? COLUNAS_PESSOAL : aba === 'Receitas' ? COLUNAS_RECEITAS : COLUNAS_PACOTES;
-      lidas.set(aba, await lerPlanilhaSegura(arquivo, { aba, colunas, linhaCabecalhoMax: 4 }));
-    }
-    const lerPlanilha: typeof lerPlanilhaSegura = async (_a, o) => lidas.get(o.aba!)!;
+    let lida: Awaited<ReturnType<typeof lerPlanilhasSegura>> | undefined;
+    const lerPlanilhas: typeof lerPlanilhasSegura = async (a, pedidos) => (lida ??= await lerPlanilhasSegura(a, pedidos));
+    await lerPlanilhas(arquivo, [
+      { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] },
+      ...(['Pessoal', 'Pacotes base zero', 'Receitas'] as const).map((aba) => ({ aba, colunas: { Pessoal: COLUNAS_PESSOAL, 'Pacotes base zero': COLUNAS_PACOTES, Receitas: COLUNAS_RECEITAS }[aba], linhaCabecalhoMax: 4 })),
+    ]);
     const [r1, r2] = await Promise.all([
-      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps({ lerPlanilha })),
-      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps({ lerPlanilha })),
+      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps({ lerPlanilhas })),
+      importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps({ lerPlanilhas })),
     ]);
     expect(r1.ok && r2.ok).toBe(true);
     // Sem a trava, as duas apagariam antes de a outra gravar e o exercício ficaria com 4 posições.
