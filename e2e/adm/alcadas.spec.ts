@@ -25,7 +25,7 @@ test('administrador: cadastra a alçada de WA01, troca o titular e exclui', asyn
   await page.getByLabel('Substituto').selectOption({ label: USUARIOS.direx.nome });
   await page.getByRole('button', { name: 'Salvar' }).click();
   await expect(page).toHaveURL(/\/adm\/alcadas\?aviso=cadastrada$/);
-  const ativa = grade(page).getByRole('row').filter({ hasText: 'Ativa' });
+  const ativa = grade(page).getByRole('row').filter({ hasText: 'Ativa' }).filter({ hasNotText: 'Inativa' });
   await expect(ativa).toContainText(USUARIOS.gfin.nome);
 
   await ativa.getByRole('link', { name: /WA01/ }).click();
