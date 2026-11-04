@@ -1,6 +1,7 @@
 import { ErroDominio } from '@/shared/kernel';
 import type { EmailRenderizado, MensagemEmail, ModeloEmail } from './modelos-email';
 import type { LinhaCorpo, VersaoModelo } from './modelos/tipos';
+import { usuarioRecuperacaoSenhaV1 } from './modelos/usuario-recuperacao-senha.v1';
 import { usuarioSenhaInicialV1 } from './modelos/usuario-senha-inicial.v1';
 import { usuarioSenhaRedefinidaV1 } from './modelos/usuario-senha-redefinida.v1';
 import { temCaractereDeControle } from './texto';
@@ -10,6 +11,7 @@ import { temCaractereDeControle } from './texto';
 export const VERSOES_MODELO: { readonly [M in ModeloEmail]: Readonly<Record<number, VersaoModelo<M>>> } = {
   'usuario.senha_inicial': { 1: usuarioSenhaInicialV1 },
   'usuario.senha_redefinida': { 1: usuarioSenhaRedefinidaV1 },
+  'usuario.recuperacao_senha': { 1: usuarioRecuperacaoSenhaV1 },
 };
 
 const SISTEMA = 'SGO 2.0 – Sistema de Gestão Orçamentária';

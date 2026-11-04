@@ -159,7 +159,7 @@ describe('enviarEmail (real)', () => {
 
 describe('modelos', () => {
   it('os modelos com senha são sensíveis (dados apagados após o envio)', () => {
-    expect([...MODELOS_SENSIVEIS].sort()).toEqual(['usuario.senha_inicial', 'usuario.senha_redefinida']);
+    expect([...MODELOS_SENSIVEIS].sort()).toEqual(['usuario.recuperacao_senha', 'usuario.senha_inicial', 'usuario.senha_redefinida']);
   });
 
   it('o falso tipa os dados pelo modelo registrado', async () => {

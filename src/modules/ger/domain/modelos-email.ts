@@ -8,6 +8,8 @@ import { temCaractereDeControle } from './texto';
 export type DadosModeloEmail = {
   'usuario.senha_inicial': { nome: string; login: string; senhaTemporaria: string; urlAcesso: string };
   'usuario.senha_redefinida': { nome: string; login: string; senhaTemporaria: string; urlAcesso: string };
+  // Recuperação pela tela de login (US-029, frente A).
+  'usuario.recuperacao_senha': { nome: string; login: string; senhaTemporaria: string; urlAcesso: string };
 };
 export type ModeloEmail = keyof DadosModeloEmail;
 
@@ -20,6 +22,7 @@ export type ModeloEmail = keyof DadosModeloEmail;
 export const SENSIBILIDADE_MODELO = {
   'usuario.senha_inicial': true,
   'usuario.senha_redefinida': true,
+  'usuario.recuperacao_senha': true,
 } as const satisfies Record<ModeloEmail, boolean>;
 
 export const MODELOS_SENSIVEIS: ReadonlySet<ModeloEmail> = new Set(
@@ -52,6 +55,7 @@ export function validarDestinatario(destinatario: Destinatario): void {
 export const VERSAO_ATUAL = {
   'usuario.senha_inicial': 1,
   'usuario.senha_redefinida': 1,
+  'usuario.recuperacao_senha': 1,
 } as const satisfies Record<ModeloEmail, number>;
 
 // O que vai ao outbox e ao job (payload de email.enviar).
