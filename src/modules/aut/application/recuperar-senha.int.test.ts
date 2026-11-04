@@ -152,7 +152,7 @@ describe('login e troca com a temporária (D-P8-3, D-P8-3a)', () => {
     const temp = a.temporaria();
     agora = new Date(agora.getTime() + 25 * 3600_000);
     try {
-      expect(await entrar('rec.vigente', temp)).toMatchObject({ ok: false, mensagem: MENSAGENS.SENHA_EXPIRADA });
+      expect(await entrar('rec.vigente', temp)).toMatchObject({ ok: false, motivo: 'SENHA_EXPIRADA', mensagem: MENSAGENS.RECUPERACAO_EXPIRADA });
     } finally {
       agora = new Date('2026-11-11T12:00:00.000Z');
     }

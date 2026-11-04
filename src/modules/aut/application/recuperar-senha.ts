@@ -8,6 +8,7 @@ import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
 import { MENSAGENS } from '../domain/mensagens';
 import { obterHashFicticio } from './autenticar';
 import { criarLimitadorLogin, type LimitadorLogin } from './limite-login';
+import { limitadorLogin } from './limitador';
 
 // Recuperação de senha pela tela de login (US-029; EP084 UC01.01 A1, E5 a E7; RN0516, RN0517; C21).
 // - Resposta única (A1.5) para qualquer login: existente ou não, ativo ou não, bloqueado ou não, com
@@ -22,6 +23,8 @@ export type DepsRecuperacao = {
   agora: () => Date;
   enviarEmail: typeof enviarEmail;
   limitador: LimitadorLogin;
+  // Vaga de Argon2: a mesma do login (D-P5-1), para a recuperação não somar hashes simultâneos na VPS.
+  concorrencia: Pick<LimitadorLogin, 'executar'>;
   hashSenha: (senha: string) => Promise<string>;
 };
 
@@ -45,6 +48,7 @@ export async function solicitarRecuperacaoSenha(
   const agora = (deps.agora ?? (() => new Date()))();
   const enviar = deps.enviarEmail ?? enviarEmail;
   const limitador = deps.limitador ?? limitadorRecuperacao;
+  const concorrencia = deps.concorrencia ?? limitadorLogin;
   const hash = deps.hashSenha ?? hashSenha;
   const resposta = ok({ mensagem: MENSAGENS.RECUPERACAO_ENVIADA });
   if (typeof entrada.login !== 'string' || entrada.login.trim() === '') return falha([{ campo: 'login', mensagem: MENSAGENS.LOGIN_OBRIGATORIO_RECUPERACAO }]);
@@ -56,7 +60,7 @@ export async function solicitarRecuperacaoSenha(
   }
 
   // Fase 1: leitura sem trava e o Argon2 (real para o elegível, fictício para o resto).
-  const fase1 = await limitador.executar(async () => {
+  const fase1 = await concorrencia.executar(async () => {
     const lido = normalizado ? await travarUsuarioParaLogin(cliente, normalizado, false) : null;
     const elegivel = lido !== null && lido.ativo && !lido.bloqueado && lido.email !== '';
     if (!elegivel) {

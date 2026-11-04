@@ -184,7 +184,7 @@ export async function autenticar(
       if (temporariaConfere) {
         if (!u.recuperacaoExpiraEm || u.recuperacaoExpiraEm.getTime() <= agora.getTime()) {
           await auditarTentativa(tx, t, 'Tentativa de login com senha temporária da recuperação expirada');
-          return { resultado: negar('SENHA_EXPIRADA', MENSAGENS.SENHA_EXPIRADA) };
+          return { resultado: negar('SENHA_EXPIRADA', MENSAGENS.RECUPERACAO_EXPIRADA) };
         }
         await limparRecuperacao(tx, u.id);
         const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras, true);
