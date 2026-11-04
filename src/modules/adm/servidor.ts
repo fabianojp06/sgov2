@@ -4,3 +4,5 @@
 // de usuário, que exigem permissão, ficam só no index.ts.
 export { type DeclaracaoFuncionalidade } from './application/catalogo';
 export { instalarFuncionalidades } from './application/instalar-funcionalidades';
+// Contagem de usuários por perfil para a conferência da carga do rel (#137); sem permissão própria.
+export { contarUsuariosPorPerfil, type ContagemUsuarios } from './application/contagem-usuarios';
