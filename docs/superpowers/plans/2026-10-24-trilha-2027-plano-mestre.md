@@ -18,7 +18,7 @@
 | P4 Componentes e cadastros | B | US-021 #43, US-025 #47, US-043 #65, US-044 #66, US-046 #68, US-049 #71, US-050 #72, US-051 #73, US-053 #75 | 96 | 05/11 – 27/11 | P1 completo | a detalhar após P1 |
 | P5 Acesso | A | US-026 #48, US-030 #52, US-031 #53, US-032 #54, US-034 #56, US-038 #60 | 74 | 11/11 – 25/11 | P1; contratos C3 e C4; US-025 | `2026-10-25-trilha-2027-p5-acesso.md` (inclui o contrato C6, bloqueio, limite de taxa e E2E mínimo, decisões do PO de 25/10) |
 | P6 Orçamento da Adm. Central | A | US-055 #77, US-120 #142, US-121 #143, US-058 #80, US-059 #81, US-060 #82, US-061 #83 | 60 | 25/11 – 11/12 | P4 (contratos C1 e C2), P5 | a detalhar após P5 |
-| P7 Go-live | B (+PO) | US-115 #137, US-116 #138, US-117 #139 | 40 | 27/11 – 07/12 | P3, P6 | `2026-11-04-trilha-2027-p7-go-live.md` (decisões D-P7-1 a 5; Tasks 1 e 2 e o dev local das 3 e 4 já podem começar) |
+| P7 Go-live | B (+PO) | US-115 #137, US-116 #138, US-117 #139 | 40 | 27/11 – 07/12 | P3, P6 | `2026-11-04-trilha-2027-p7-go-live.md` (decisões D-P7-1 a 8; Tasks 1 e 2 e o dev local das 3 e 4 já podem começar) |
 
 \* Previsão do `docs/backlog/fonte/cronograma.py` com 40 h/semana por frente. A 60 h/semana por frente, a trilha termina por volta de 27/11. **Se em 20/11 o P6 não tiver começado, o PO aciona o plano B** (aprovação de 30/11 sobre a planilha-modelo).
 
