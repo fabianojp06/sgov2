@@ -24,14 +24,18 @@ Como os usuários-chave aprovam o que vai para produção (US-117, plano do P7, 
 | Gestor de Diretoria | um gestor de cada diretoria piloto | Orçamento (escopo da diretoria) |
 | Diretoria Executiva (DIREX) | indicado pela DIREX | Orçamento (aprovação e rejeição) |
 
-Cada usuário-chave recebe em hml um usuário com o perfil dele, criado pelo Administrador pela tela de usuários. A senha inicial vai por canal combinado com o PO, nunca por issue, e é trocada no primeiro acesso.
+Cada usuário-chave recebe em hml um usuário com o perfil dele, criado pelo Administrador pela tela de usuários, com o **e-mail institucional real**:
+- a senha inicial é gerada pelo sistema e enviada só por e-mail (RN0059). Por isso, o SMTP de hml precisa estar configurado;
+- a senha vale 24 horas e é trocada no primeiro acesso;
+- nunca vai por issue nem por mensagem;
+- o Gestor de Diretoria precisa do "Centro de custo de escopo" da diretoria dele.
 
 ## A issue de homologação
 
-O PO abre uma issue por release, com a label `homologacao` e o título `Homologação R1 — <tag>`. O corpo segue o modelo abaixo, e o roteiro da release entra como checklist.
+O PO abre uma issue por release, com a label `homologacao` e o título `Homologação R1 — <data>` (D-P7-4). O corpo segue o modelo abaixo, e o roteiro da release entra como checklist.
 
 ```markdown
-**Release:** <tag> · **Ambiente:** hml · **Período:** <de> a <até>
+**Release:** <SHA curto em hml> · **Ambiente:** hml · **Período:** <de> a <até>
 
 **Roteiro:** docs/operacao/homologacao/roteiro-r1.md (um item por passo; marque ao concluir)
 
@@ -50,7 +54,7 @@ O PO abre uma issue por release, com a label `homologacao` e o título `Homologa
   - **alta:** fluxo principal não conclui;
   - **média:** fluxo conclui com contorno;
   - **baixa:** texto, layout.
-- **Defeito crítico ou alto bloqueia o aceite.** A correção gera uma tag nova, e o roteiro é refeito só nos blocos afetados, registrados na mesma issue.
+- **Defeito crítico ou alto bloqueia o aceite.** A correção entra na `main` como um commit novo, que chega a hml com um SHA novo. O PO anota o SHA novo na mesma issue, e o roteiro é refeito só nos blocos afetados.
 
 ## Aceite
 
