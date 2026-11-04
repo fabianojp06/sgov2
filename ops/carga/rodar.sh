@@ -38,12 +38,16 @@ if [[ "${BASH_REMATCH[2]}" == m ]]; then segundos=$(( segundos * 60 )); fi
 exec 9>"${SGO_LOCK:-/tmp/sgo-processo-pesado.lock}"
 flock -w 1800 9 || { echo "Outro processo pesado em curso há 30 min; tente depois." >&2; exit 3; }
 
-# Repositório só para leitura; o node_modules pelo caminho real (numa worktree, é um symlink). A senha
-# vai por nome de variável (-e SGO_SENHA), nunca na linha de comando.
-par="$(docker run --rm --network host --memory 1g --cpus 1 \
+# Repositório só para leitura. Numa worktree, o node_modules é um symlink absoluto: a segunda montagem
+# vai para o destino dele dentro do contêiner (o runc resolve o symlink); na cópia principal, é o
+# próprio /repo/node_modules. A senha vai por nome de variável (-e SGO_SENHA), nunca na linha de
+# comando. --init como no e2e/global-setup.ts, mas como root: numa worktree, o destino do node_modules
+# fica sob /root, que o pwuser não atravessa (as duas montagens continuam só para leitura).
+par="$(docker run --rm --init --network host --memory 1g --cpus 1 \
   -v "$RAIZ":/repo:ro -v "$(readlink -f "$RAIZ/node_modules")":/repo/node_modules:ro -w /repo \
   -e SGO_BASE -e SGO_LOGIN -e SGO_SENHA "$NAVEGADOR" node ops/carga/sessao.mjs)"
 unset SGO_SENHA SGO_LOGIN
+[[ "$par" =~ ^(__Host-)?sgo_sessao=.+$ ]] || recusar "O login não devolveu o cookie de sessão; nada foi medido." 
 export SGO_COOKIE="${par%%=*}" SGO_SESSAO="${par#*=}"
 
 docker run --rm -i --network host --memory 256m --cpus 1 \
