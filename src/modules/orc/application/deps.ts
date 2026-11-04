@@ -13,8 +13,8 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import type { Percentual } from '@/shared/kernel';
 
-// Semáforo do teto (C7, RN_PLA_006): faixas por exercício e classificação ficam no cad (Task 9a do
-// P4, R12). Até elas chegarem à main, a visão funciona sem semáforo (com aviso).
+// Semáforo do teto (C7, RN_PLA_006): faixas por exercício e classificação ficam no cad (#234). A
+// página da visão injeta o provedorSemaforo do cad; sem ele (null), a visão sai sem semáforo, com aviso.
 export type FaixaSemaforo = 'VERDE' | 'AMARELO' | 'LARANJA' | 'VERMELHO';
 export type FaixasSemaforo = { verdeAte: Percentual; amareloAte: Percentual; laranjaAte: Percentual };
 export type ProvedorSemaforo = {
