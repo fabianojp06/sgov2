@@ -32,3 +32,9 @@ export function montarSnapshot(dados: unknown): { conteudo: unknown; sha256: str
 export function conferirSnapshot(conteudo: unknown, sha256: string): boolean {
   return createHash('sha256').update(JSON.stringify(canonico(conteudo))).digest('hex') === sha256;
 }
+
+// Mesmo conteúdo pelo JSON canônico (R10): a carga do plano de contas pode zerar uma conta das premissas
+// sem subir a versão do ano (#295), então a releitura depois do congelamento compara o conteúdo também.
+export function mesmoConteudo(a: unknown, b: unknown): boolean {
+  return JSON.stringify(canonico(a)) === JSON.stringify(canonico(b));
+}
