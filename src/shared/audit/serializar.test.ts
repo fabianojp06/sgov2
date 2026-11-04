@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Competencia, Dinheiro, Percentual } from '@/shared/kernel';
 import { marcarCredenciaisAlteradas, serializarParaAuditoria } from './serializar';
 
@@ -32,10 +32,22 @@ describe('serializarParaAuditoria (Review Focus 5)', () => {
     expect(JSON.parse(JSON.stringify(r))).toEqual({ v: '12345678901234567890.123456789' });
   });
 
-  it('recusa referência circular em vez de estourar a pilha', () => {
-    const a: Record<string, unknown> = {};
-    a.eu = a;
-    expect(serializarParaAuditoria(a)).toEqual({ eu: '[circular]' });
+  it('recusa referência circular em vez de estourar a pilha, com aviso no log pelo caminho (#172)', () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const a: Record<string, unknown> = {};
+      a.eu = a;
+      expect(serializarParaAuditoria({ x: a })).toEqual({ x: { eu: '[circular]' } });
+      expect(aviso).toHaveBeenCalledTimes(1);
+      expect(aviso).toHaveBeenCalledWith('[AUDITORIA_CIRCULAR]', { caminho: '$.x.eu' });
+      // Objeto compartilhado em dois campos não é circular: sem aviso.
+      aviso.mockClear();
+      const comum = { n: 1 };
+      expect(serializarParaAuditoria({ a: comum, b: comum })).toEqual({ a: { n: 1 }, b: { n: 1 } });
+      expect(aviso).not.toHaveBeenCalled();
+    } finally {
+      aviso.mockRestore();
+    }
   });
 });
 
