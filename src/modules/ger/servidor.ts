@@ -67,3 +67,5 @@ export {
 
 // Exportação XLSX real do C3 (R21): só no servidor (Server Actions, relatórios), nunca no navegador.
 export { exportarXlsx } from './infrastructure/exportar-xlsx';
+// Exportação CSV segura do C3 (#233): mesma forma, uma aba, com o texto que vira fórmula escapado.
+export { exportarCsv } from './infrastructure/exportar-csv';
