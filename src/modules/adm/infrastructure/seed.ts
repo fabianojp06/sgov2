@@ -19,6 +19,22 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'incluir', 'alterar'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar'] },
   },
+  {
+    // US-040 (UC02.24; spec §6.4: Administração › Histórico). Nível Avançado: a consulta é registrada.
+    // O Auditor também consulta (§11.3), na única exceção da RN_SEED_003 (D-P8-8).
+    codigo: 'adm.historico',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Histórico',
+    nome: 'Histórico de Operações',
+    rota: '/adm/historico',
+    ordem: 3,
+    nivelLog: 'AVANCADO',
+    ajuda:
+      'Consulte as operações registradas no sistema, por usuário, funcionalidade, tipo e período. ' +
+      'A consulta é só de leitura; dá para imprimir e exportar o resultado.',
+    acoes: ['consultar', 'exportar', 'imprimir'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'exportar', 'imprimir'], AUDITOR: ['consultar', 'exportar', 'imprimir'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {

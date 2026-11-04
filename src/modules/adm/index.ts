@@ -16,6 +16,15 @@ export {
 export { gravarNovaSenha } from './application/senhas';
 export { alterar, cadastrar, desbloquear, gerarNovaSenha } from './application/acoes-usuarios';
 export {
+  consultarHistorico,
+  FUNCIONALIDADE_HISTORICO,
+  MENSAGEM_PERIODO,
+  POR_PAGINA,
+  type FiltroHistorico,
+  type LinhaHistorico,
+  type PaginaHistorico,
+} from './application/historico';
+export {
   alterarUsuario,
   cadastrarUsuario,
   desbloquearUsuario,
