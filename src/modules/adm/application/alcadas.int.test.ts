@@ -91,10 +91,39 @@ describe('troca de aprovador e exclusão (D-P8-7, soft delete)', () => {
     expect(await inativarAlcada(ctx, nova, 1, deps())).toEqual({ ok: true, valor: undefined });
     expect(await migrator.alcadaAprovacao.findUniqueOrThrow({ where: { id: nova } })).toMatchObject({ ativa: false, versao: 2 });
     expect((await historico(nova)).map((h) => h.tipoOperacao)).toEqual(['INSERCAO', 'EXCLUSAO']);
-    // As três linhas do fluxo continuam no banco (quem aprovava em cada período).
+    // As duas linhas do fluxo continuam no banco (quem aprovava em cada período).
     expect(await migrator.alcadaAprovacao.count({ where: { fluxo: 'WA05' } })).toBe(2);
     const lista = await listarAlcadas(ctx, deps());
     expect(lista.filter((l) => l.fluxo === 'WA05').every((l) => !l.ativa)).toBe(true);
+  });
+
+  it('troca para aprovador inativo, alçada inativa e salvar sem mudança; Histórico da troca com antes e depois', async () => {
+    const [t, s, outro, inativo] = [await usuario('tit.borda'), await usuario('sub.borda'), await usuario('outro.borda'), await usuario('ina.borda', false)];
+    await migrator.$executeRaw`UPDATE adm_alcada_aprovacao SET ativa = false, inativada_em = now() WHERE fluxo = 'WA02' AND ativa`;
+    const r = await cadastrarAlcada(ctx, { fluxo: 'WA02', titularId: t, substitutoId: s }, deps());
+    const id = r.ok ? r.valor.id : '';
+    expect(await alterarAlcada(ctx, id, 1, { titularId: inativo, substitutoId: s }, deps())).toEqual({ ok: false, erros: [{ campo: 'titularId', mensagem: MENSAGENS_ALCADA.DIFERENTES }] });
+    // Sem mudança: nada gravado, a mesma linha.
+    expect(await alterarAlcada(ctx, id, 1, { titularId: t, substitutoId: s }, deps())).toEqual({ ok: true, valor: { id } });
+    expect(await historico(id)).toHaveLength(1);
+    const troca = await alterarAlcada(ctx, id, 1, { titularId: t, substitutoId: outro }, deps());
+    expect(troca.ok).toBe(true);
+    expect((await historico(id)).at(-1)).toEqual({
+      tipoOperacao: 'ALTERACAO',
+      antes: { fluxo: 'WA02', titularId: t, substitutoId: s },
+      depois: { fluxo: 'WA02', titularId: t, substitutoId: outro },
+    });
+    expect(await alterarAlcada(ctx, id, 2, { titularId: t, substitutoId: s }, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_ALCADA.INATIVA }] });
+    expect(await inativarAlcada(ctx, id, 2, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_ALCADA.INATIVA }] });
+  });
+
+  it('CHECKs do banco: fluxo fora da lista, titular igual ao substituto e inativação incoerente', async () => {
+    const [t, s] = [await usuario('tit.check'), await usuario('sub.check')];
+    const inserir = (fluxo: string, a: string, b: string, ativa: boolean, inativadaEm: Date | null) =>
+      migrator.$executeRaw`INSERT INTO adm_alcada_aprovacao (fluxo, titular_id, substituto_id, ativa, inativada_em, criada_em) VALUES (${fluxo}, ${a}::uuid, ${b}::uuid, ${ativa}, ${inativadaEm}, now())`;
+    await expect(inserir('WA03', t, s, false, AGORA)).rejects.toThrow(/fluxo_check/);
+    await expect(inserir('WA05', t, t, false, AGORA)).rejects.toThrow(/aprovadores_check/);
+    await expect(inserir('WA05', t, s, false, null)).rejects.toThrow(/inativacao_check/);
   });
 
   it('o banco recusa DELETE da aplicação (soft delete)', async () => {
