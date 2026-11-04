@@ -34,12 +34,20 @@ describe('serializarParaAuditoria (Review Focus 5)', () => {
 
   it('recusa referência circular em vez de estourar a pilha, com aviso no log pelo caminho (#172)', () => {
     const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const a: Record<string, unknown> = {};
-    a.eu = a;
-    expect(serializarParaAuditoria({ x: a })).toEqual({ x: { eu: '[circular]' } });
-    expect(aviso).toHaveBeenCalledTimes(1);
-    expect(aviso).toHaveBeenCalledWith('[AUDITORIA_CIRCULAR]', { caminho: '$.x.eu' });
-    aviso.mockRestore();
+    try {
+      const a: Record<string, unknown> = {};
+      a.eu = a;
+      expect(serializarParaAuditoria({ x: a })).toEqual({ x: { eu: '[circular]' } });
+      expect(aviso).toHaveBeenCalledTimes(1);
+      expect(aviso).toHaveBeenCalledWith('[AUDITORIA_CIRCULAR]', { caminho: '$.x.eu' });
+      // Objeto compartilhado em dois campos não é circular: sem aviso.
+      aviso.mockClear();
+      const comum = { n: 1 };
+      expect(serializarParaAuditoria({ a: comum, b: comum })).toEqual({ a: { n: 1 }, b: { n: 1 } });
+      expect(aviso).not.toHaveBeenCalled();
+    } finally {
+      aviso.mockRestore();
+    }
   });
 });
 
