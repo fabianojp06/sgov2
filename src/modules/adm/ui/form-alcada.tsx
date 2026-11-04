@@ -68,6 +68,7 @@ export function FormAlcada({ alcada, fluxos, usuarios, salvar, excluir }: PropsF
       <p>
         <a href="/adm/alcadas">Cancelar</a>
       </p>
+      {/* Pergunta [PROVISÓRIA]: o UC02.28 ainda não foi redigido (GAP-ADM-002). */}
       {alcada && excluir && (
         <AcaoConfirmada rotulo="Excluir" pergunta="Deseja realmente excluir esta alçada?" acao={excluir} campos={{ id: alcada.id, versao: String(alcada.versao) }} />
       )}

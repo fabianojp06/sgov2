@@ -54,6 +54,7 @@ export function ListaAlcadas({
       <h1>Alçadas de Aprovação</h1>
       {textoAviso && <p role="status">{textoAviso}</p>}
       {podeIncluir && <a href="/adm/alcadas/novo">Novo</a>}
+      {/* Texto vazio [PROVISÓRIO]. */}
       <GradeArvore idGrade="adm.alcadas" rotulo="Alçadas de Aprovação" nos={nos} colunas={COLUNAS} textoVazio="Nenhuma alçada cadastrada." />
     </div>
   );
