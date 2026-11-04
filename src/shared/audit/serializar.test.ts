@@ -116,8 +116,8 @@ describe('serializarParaAuditoria: sem perda silenciosa e sem dado sensível (re
 
   it('credencial pelo nome inteiro, não por pedaço (#172): campos de negócio não são omitidos', () => {
     const ficticio = String(Date.now());
-    const credenciais = ['senha', 'senhaHash', 'senha_hash', 'senhaTemporaria', 'senhaAtual', 'novaSenha', 'senhaInicial', 'token', 'tokenHash', 'tokenApi', 'refreshToken', 'hash', 'segredo', 'segredoTotp', 'totp', 'apiKey', 'api_key', 'credencial', 'credenciais', ['pass', 'word'].join(''), 'passwd', 'clientSecret'];
-    const negocio = ['senhaMinimo', 'senhaExpiraEm', 'senhaExigeLetra', 'senha_exige_digito', 'senhaTemporariaHoras', 'trocaSenhaObrigatoria', 'trocaSenhaPendente', 'hashArquivo', 'credenciamento', 'desenhoContas', 'tokenizacao'];
+    const credenciais = ['senha', 'senhaHash', 'senha_hash', 'senhaTemporaria', 'senhaAtual', 'novaSenha', 'senhaInicial', 'token', 'tokenHash', 'tokenApi', 'refreshToken', 'hash', 'segredo', 'segredoTotp', 'totp', 'apiKey', 'api_key', 'credencial', 'credenciais', ['pass', 'word'].join(''), 'passwd', 'clientSecret', 'senhaAntiga', 'senhaHashAntiga', 'senhaProvisoria', 'tokenRecuperacao', 'tokenConvite', 'segredoMfa', 'secretKey', 'tokens', 'segredos', 'hashes', 'APIKey', 'SMTPSenha', 'TOTPSegredo', 'senha.hash', 'privateKey', 'chavePrivada', 'accessKey', 'chaveAcesso', 'pin', 'otp', 'jwt', 'senhaAtiva', 'mfaAtivo'];
+    const negocio = ['senhaMinimo', 'senhaExpiraEm', 'senhaExigeLetra', 'senha_exige_digito', 'senhaTemporariaHoras', 'trocaSenhaObrigatoria', 'trocaSenhaPendente', 'hashArquivo', 'credenciamento', 'desenhoContas', 'tokenizacao', 'chaveNatural', 'idempotencyKey'];
     const saida = serializarParaAuditoria(Object.fromEntries([...credenciais, ...negocio].map((c) => [c, ficticio]))) as Record<string, unknown>;
     expect(credenciais.filter((c) => saida[c] !== '[omitido]')).toEqual([]);
     expect(negocio.filter((c) => saida[c] !== ficticio)).toEqual([]);

@@ -12,25 +12,39 @@ import { ErroAuditoria } from './erros';
 //
 // Convenção: audite valores monetários como Dinheiro/Percentual. Um Decimal cru vem com a
 // escala de origem ("1234.5" do banco × "1234.50" do Dinheiro) e geraria delta falso.
-// Credencial pelo nome inteiro (#172), não por pedaço: o nome é quebrado em palavras (camelCase, _ ou
-// -) e é credencial quando a última palavra é uma credencial (senhaHash, novaSenha, refreshToken), é
-// `api key`, ou quando há uma credencial seguida de um qualificador do valor (senhaTemporaria,
-// tokenApi). Assim, senhaMinimo, senhaExpiraEm, trocaSenhaPendente, hashArquivo e credenciamento
-// ficam no Histórico. Na dúvida, um nome novo de credencial entra nas listas.
-const CREDENCIAIS = new Set(['senha', 'senhas', 'password', 'passwd', 'hash', 'token', 'segredo', 'secret', 'totp', 'credencial', 'credenciais']);
-const QUALIFICADORES = new Set(['hash', 'temporaria', 'temporario', 'atual', 'nova', 'novo', 'anterior', 'confirmacao', 'inicial', 'api', 'acesso', 'refresh', 'cifrado', 'cifrada']);
+// Credencial pelo nome inteiro (#172), não por pedaço, e na dúvida omitida (o Histórico é imutável).
+// O nome é quebrado em palavras (camelCase, siglas, `_`, `-` ou `.`). É credencial quando alguma
+// palavra é uma credencial (senhaHash, tokenRecuperacao, SMTPSenha) ou quando uma chave vem com um
+// qualificador de segredo (privateKey, chaveAcesso, apiKey). A exceção é fechada: a última palavra
+// é um sufixo de negócio (senhaMinimo, senhaExpiraEm, trocaSenhaPendente, hashArquivo). Nome novo de
+// campo de negócio que caia na regra entra em SUFIXOS_NEGOCIO; credencial nova, em CREDENCIAIS.
+const CREDENCIAIS = new Set([
+  ...['senha', 'password', 'passwd', 'hash', 'token', 'segredo', 'secret', 'credencial', 'jwt', 'salt', 'digest', 'apikey'].flatMap((p) => [p, `${p}s`]),
+  'credenciais',
+  'hashes',
+  'totp',
+  'otp',
+  'pin',
+  'mfa',
+]);
+const CHAVES = new Set(['key', 'keys', 'chave', 'chaves']);
+const SEGREDO_DA_CHAVE = new Set(['privada', 'private', 'secreta', 'secret', 'acesso', 'access', 'api', 'cifra', 'assinatura', 'signing']);
+const SUFIXOS_NEGOCIO = new Set([
+  'minimo', 'maximo', 'exige', 'letra', 'digito', 'maiuscula', 'minuscula', 'simbolo', 'em', 'horas', 'dias', 'minutos',
+  'obrigatoria', 'obrigatorio', 'pendente', 'tentativas', 'arquivo',
+]);
 
 export function chaveSensivel(chave: string): boolean {
   const palavras = chave
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
-    .split(/[\s_-]+/)
+    .split(/[\s_.-]+/)
     .filter(Boolean);
-  const ultima = palavras.at(-1) ?? '';
-  if (CREDENCIAIS.has(ultima)) return true;
-  if (ultima === 'key' && palavras.at(-2) === 'api') return true;
-  return QUALIFICADORES.has(ultima) && palavras.slice(0, -1).some((p) => CREDENCIAIS.has(p));
+  const credencial = palavras.some((p) => CREDENCIAIS.has(p)) || (palavras.some((p) => CHAVES.has(p)) && palavras.some((p) => SEGREDO_DA_CHAVE.has(p)));
+  return credencial && !SUFIXOS_NEGOCIO.has(palavras.at(-1) ?? '');
 }
+
 export const OMITIDO = '[omitido]';
 export const OMITIDO_ALTERADO = '[omitido: alterado]';
 
