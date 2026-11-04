@@ -8,8 +8,12 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   forbidOnly: true,
-  retries: 0,
-  reporter: 'list',
+  // No CI, uma nova tentativa separa instabilidade de falha real, e o reporter `github` anota a falha
+  // no PR (pedido da frente B no #292, antes de o E2E virar obrigatório). Local: sem nova tentativa.
+  // Limite: o banco é um só para a rodada, então a nova tentativa de um cenário com estado (grupo
+  // serial do orc, troca de senha, bloqueio, inclusão de usuário) falha de novo; só ajuda nos sem estado.
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['github'], ['list']] : 'list',
   globalSetup: './e2e/global-setup.ts',
   use: {
     baseURL: 'http://127.0.0.1:3190',
