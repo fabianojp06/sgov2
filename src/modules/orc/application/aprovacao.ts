@@ -9,7 +9,7 @@ import { Dinheiro, ErroDominio, falha, ok, type ErroCampo, type Resultado } from
 import { ROTULO_SITUACAO, transicionar, type EventoCiclo, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { calcularPainel, validarTeto } from '../domain/resultado';
-import { montarSnapshot } from '../infrastructure/snapshot';
+import { mesmoConteudo, montarSnapshot } from '../infrastructure/snapshot';
 import { contextoAuditoria, travarExercicio, type ExercicioTravado } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
@@ -146,11 +146,14 @@ export async function aprovarExercicio(ctx: ContextoRequisicao, bruto: unknown, 
     const para = await transitar(ctx, tx, e, 'APROVAR', deps, { oficializadoEm });
 
     // R10: congela as premissas no C2 e relê na mesma transação; se uma escrita da GRH/GFIN entrou
-    // entre a leitura e o congelamento, a versão muda e tudo é desfeito. O snapshot guarda as
-    // premissas já congeladas.
+    // entre a leitura e o congelamento, a versão muda e tudo é desfeito. A carga do plano de contas
+    // pode zerar uma conta sem subir a versão (#295): o conteúdo, fora o `congelado`, também é
+    // comparado. O snapshot guarda as premissas já congeladas.
     await deps.custoPessoal.congelarPremissasExercicio(tx, contextoAuditoria(ctx), e.ano);
     const congeladas = await deps.custoPessoal.obterPremissasExercicio(tx, e.ano);
-    if (!congeladas || congeladas.versao !== premissas.versao) recusar(MENSAGENS_ORC.PREMISSAS_MUDARAM_NA_APROVACAO);
+    if (!congeladas || congeladas.versao !== premissas.versao || !mesmoConteudo({ ...congeladas, congelado: null }, { ...premissas, congelado: null })) {
+      recusar(MENSAGENS_ORC.PREMISSAS_MUDARAM_NA_APROVACAO);
+    }
 
     // Snapshot sempre com a Adm. Central inteira, independente de quem aprova.
     const despesasMes = Array.from({ length: 12 }, (_, i) => Dinheiro.somarTodos(linhas.map((l) => Dinheiro.de(l.meses[i]!.toString()))));

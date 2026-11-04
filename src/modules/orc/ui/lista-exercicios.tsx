@@ -1,4 +1,4 @@
-import { AcaoConfirmada, type AcaoFormulario } from './acao-confirmada';
+import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 
 // Exercícios do orçamento da Adm. Central (US-055). O botão Avançar só aparece em Rascunho, para
 // quem pode alterar; Novo exercício, para quem pode incluir.

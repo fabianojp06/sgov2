@@ -1,7 +1,7 @@
 import { GradeArvore, type ColunaGrade, type NoGrade } from '@/modules/ger';
 import { Dinheiro, type Percentual } from '@/shared/kernel';
 import { valorParaTela } from '../domain/valor-tela';
-import { AcaoConfirmada, type AcaoFormulario } from './acao-confirmada';
+import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 import { FormTeto } from './form-teto';
 import { PainelTeto, type DadosPainel } from './painel-teto';
 

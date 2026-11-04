@@ -1,6 +1,6 @@
 import { Dinheiro } from "@/shared/kernel";
 import { valorParaTela } from "../domain/valor-tela";
-import { AcaoConfirmada, type AcaoFormulario } from "./acao-confirmada";
+import { AcaoConfirmada, type AcaoFormulario } from "@/modules/ger";
 
 // Receitas do rateio dos TPs no exercício (US-060; C35). Confirmadas e previstas em tabelas
 // separadas (a prevista fica fora do saldo e do teto); cada linha com o selo de digitada na

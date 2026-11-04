@@ -26,7 +26,7 @@ import {
   type PlanilhaExportacao,
   type PropsGradeArvore,
 } from '@/modules/ger';
-import { exportarXlsx } from '@/modules/ger/servidor';
+import { exportarCsv, exportarXlsx } from '@/modules/ger/servidor';
 
 // Contrato C3 (plano do P3, Tarefa 2): componentes de tela do módulo ger.
 const aba = (nome: string, linhas: number): PlanilhaExportacao => ({
@@ -166,6 +166,9 @@ describe('API pública do ger (C3)', () => {
     expect('exportarXlsx' in ger).toBe(false);
     expect(typeof ger.validarPlanilhas).toBe('function');
     expect(typeof exportarXlsx).toBe('function');
+    expect('exportarCsv' in ger).toBe(false);
+    expect(typeof exportarCsv).toBe('function');
+    expect(typeof ger.exportarCsvFalso).toBe('function');
     expect(typeof ger.exportarXlsxFalso).toBe('function');
     // Filtros da Tree Grid (US-021 parte 3): props opcionais filtros e escopoSessao.
     expect(typeof ger.aplicarFiltros).toBe('function');

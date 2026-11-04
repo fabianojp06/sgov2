@@ -1,7 +1,7 @@
 'use client';
 
 import { ErroDoCampo, Formulario } from '@/modules/ger';
-import type { AcaoFormulario } from './acao-confirmada';
+import type { AcaoFormulario } from '@/modules/ger';
 
 // Rejeição pela DIREX (C36): justificativa de pelo menos 15 caracteres. Componente cliente.
 export function FormRejeicao({ id, versao, rejeitar }: { id: string; versao: number; rejeitar: AcaoFormulario }) {

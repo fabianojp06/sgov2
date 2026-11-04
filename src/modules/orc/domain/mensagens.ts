@@ -61,6 +61,8 @@ export const MENSAGENS_ORC = {
   // Importação (Task 4b)
   PLANILHA_COM_ERROS: 'A planilha tem erros. Nada foi importado.',
   PLANILHA_VAZIA: 'A planilha não tem lançamentos.',
+  // [PROVISÓRIO] (R6, #279): a aba Instruções sem a versão do layout em E1.
+  VERSAO_LAYOUT: 'Planilha fora do layout ADMC-ORC v1.0: a célula E1 da aba Instruções precisa trazer ADMC-ORC v1.0.',
   FORA_DO_LAYOUT: (aba: string, colunas: readonly string[]) =>
     `Planilha fora do layout ADMC-ORC v1.0: a aba ${aba} precisa do cabeçalho, até a linha 4, com as colunas ${colunas.join(', ')}.`,
   MAIS_ERROS: (n: number) => `E mais ${n} erro(s) não listados. Corrija os acima e importe de novo.`,

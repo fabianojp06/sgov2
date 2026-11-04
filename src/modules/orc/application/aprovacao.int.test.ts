@@ -279,6 +279,31 @@ describe('aprovarExercicio', () => {
     expect(await migrator.snapshotExercicio.count({ where: { exercicioId: e.id } })).toBe(0);
   });
 
+  it('corrida com a carga do plano de contas (R10, #295): conteúdo muda sem subir a versão → mensagem e nada muda', async () => {
+    const e = await enviado();
+    // A carga do plano inativa a conta de um componente: a leitura depois do congelamento traz a conta
+    // zerada e o aviso, com a mesma versão.
+    let congelou = false;
+    const corrida = {
+      ...e.custo,
+      congelarPremissasExercicio: async (...args: Parameters<typeof e.custo.congelarPremissasExercicio>) => {
+        congelou = true;
+        return e.custo.congelarPremissasExercicio(...args);
+      },
+      obterPremissasExercicio: async (tx: Parameters<typeof e.custo.obterPremissasExercicio>[0], a: number) => {
+        const p = await e.custo.obterPremissasExercicio(tx, a);
+        if (!congelou || !p) return p;
+        return { ...p, contas: { ...p.contas, ferias: '' }, avisos: [...p.avisos, 'A conta 4.1.1.1.003 de Férias não é mais analítica ativa.'] };
+      },
+    };
+    expect(await aprovarExercicio(DIREX(), { id: e.id, versao: String(await e.versao()) }, e.deps({ custoPessoal: corrida }))).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'As premissas do exercício mudaram durante a aprovação. Tente novamente.' }],
+    });
+    expect(await situacao(e.id)).toBe('EM_APROVACAO');
+    expect(await migrator.snapshotExercicio.count({ where: { exercicioId: e.id } })).toBe(0);
+  });
+
   it('§10.2: GFIN aprovando, escopo, duas aprovações simultâneas e auditoria falhando', async () => {
     const e = await enviado();
     const v = String(await e.versao());
