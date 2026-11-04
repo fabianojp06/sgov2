@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 03/11/2026 (frente B, P4 completo na `main`, acréscimos ao C2 e ao C3 pedidos pela frente A, E2E no CI e seed no deploy; à noite, #302 e #221); 03/11/2026 (frente A, P6 completo na `main`, ressalvas do P5 e melhorias menores); 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: pilha mergeada; à tarde, #222 com a M5, ambiente único, Node 24 no CI e as telas do plano de contas); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
+Última atualização: 04/11/2026 (frente B, P7 planejado e iniciado: plano, roteiro de homologação, conferência da carga, segurança e carga); 03/11/2026 (frente B, P4 completo na `main`, acréscimos ao C2 e ao C3 pedidos pela frente A, E2E no CI e seed no deploy; à noite, #302 e #221); 03/11/2026 (frente A, P6 completo na `main`, ressalvas do P5 e melhorias menores); 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: pilha mergeada; à tarde, #222 com a M5, ambiente único, Node 24 no CI e as telas do plano de contas); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
 
 ---
 
@@ -309,19 +309,41 @@
   - ~~marcar como falso positivo, no GitGuardian, os incidentes 39444187 e 39442400 do #221~~ **feito pelo PO em 03/11**;
   - ~~fechar a #223~~ **fechada pelo PO em 03/11**, depois do #221 na `main`.
 - [ ] **Para a frente A:**
-  - trocar as cópias da `AcaoConfirmada` do `adm` e do `orc` pela do `ger` (corpo do #284);
-  - na importação do `orc`, usar `lerPlanilhasSegura` com o `indiceAba` para a mensagem da R6 e `celulas: ['E1']` na aba `Instruções` (#279, #287);
+  - ~~trocar as cópias da `AcaoConfirmada` do `adm` e do `orc` pela do `ger`~~ **feito pela frente A (#312)**;
+  - ~~na importação do `orc`, usar `lerPlanilhasSegura` com o `indiceAba`~~ **feito pela frente A (#311)**;
   - injetar `provedorSemaforo` de `@/modules/cad` no `deps.semaforo` de produção (#295);
-  - R10: a carga do plano de contas pode inativar uma conta e mudar as premissas do ano sem subir a versão (#295);
-  - `retries: process.env.CI ? 1 : 0` e o reporter `github` no `playwright.config.ts` antes de o E2E virar obrigatório (#292);
+  - ~~R10: a carga do plano de contas muda as premissas sem subir a versão~~ **tratado pela frente A (#309)**;
+  - ~~`retries` e o reporter `github` no `playwright.config.ts`~~ **feito pela frente A (#314)**;
   - `adm/servidor.ts` e `orc/servidor.ts` para a seed: um `server-only` num `application/` do `adm` ou do `orc` quebraria o bundle da seed (#299);
   - `guarda.ts` ainda grava o TP na auditoria de negação de cadastro global (revisão do #276).
 - [x] Frente B, #221 (exportação XLSX real): na `main` em 03/11, à noite (`2bc237a`). Não foi preciso recriar a branch: com os falsos positivos marcados pelo PO, bastou um merge da `main` (árvore conferida contra a testada) e o *squash*. A #233 (texto que vira fórmula) já está coberta no XLSX pelo M2 do #221; fica aberta só pelo CSV do `rel` e é o **próximo item da frente B (04/11)**, sem dependência de ninguém.
 - [ ] Rolagem do plano de contas (`e2e/cad/rolagem-plano.spec.ts`) continua em `fixme`: a tela não tem `expandir=todos`, o plano oficial tem 174 contas e o spec do `cad` roda antes do do `orc` no mesmo banco. Recomendação para o PO: medir em hml pelo plano B do próprio spec (Chrome DevTools › Performance, 5 s rolando o plano de 5.000 linhas expandido; FPS médio ≥ 55 e nenhuma tarefa longa acima de 50 ms).
 - [ ] Pendências baixas registradas nos PRs de 03/11: dois CONSULTA de `cad.salarios` por abertura da tela do cargo (#274); a tela do cargo sem seletor de ano (#274); sem jsdom, o foco da `AcaoConfirmada` e o efeito do aria do Formulario não têm teste de interação (#278, #284); nenhum passo da imagem faz login com senha (#297).
-- [ ] US-119 (runbook, #141) depende das Tarefas 6 e 7 (deploy real e backup), bloqueadas pelo GAP-INF-001. US-122 (#145): falta a frente B repetir o teste dos hooks numa sessão nova (o hook não recarrega na sessão em que foi alterado).
+- [ ] US-119 (runbook, #141) depende das Tarefas 6 e 7 (deploy real e backup), bloqueadas pelo GAP-INF-001. ~~US-122 (#145): falta repetir o teste dos hooks numa sessão nova~~ **feito em 04/11:** as travas de produção, da `main` e de banco bloquearam (comentário na #145).
 - [x] Comunicação entre as frentes (PO, 03/11): quando for necessário, cada frente fala direto com a outra, sem o PO de mensageiro. Usa `SendMessage` se a sessão da outra aparecer no `ListAgents`; senão, comenta na issue ou no PR do assunto. Para esses comentários de coordenação, não é mais preciso pedir autorização ao PO, como dizia a regra do canal entre as frentes acima. Fechar ou criar issue, mudar label e decisões do PO continuam com o PO.
 - [x] D12 (nota): nas primeiras rodadas de 03/11, a frente B rodou integração com `npx vitest` direto, fora do `flock`; depois passou a usar `npm run test:int`, que respeita o lock.
+
+**Frente B (04/11)**
+- [ ] **PO:**
+  - **carga de desempenho:** dar o ok para a primeira rodada do `ops/carga/rodar.sh` no dev local (D-P7-1; 20 usuários, cerca de 3 min, `--memory 256m`). A frente B não roda sem o ok, porque a VPS é a mesma da produção;
+  - **decisões D-P7-1 a 8** do plano do P7 (#307): sem objeção, valem as recomendações. A D-P7-6 diz que, sem o GAP-CC-001, o orçamento segue pelo plano B e o go-live espera; a §6.1a e a R16 proíbem a minuta em prod;
+  - **`X-Powered-By: Next.js`:** é um achado baixo da US-116 (#318). A correção é `poweredByHeader: false` no `next.config.ts`, num PR compartilhado, e a frente B abre com o ok do PO;
+  - **`alerta-memoria.sh`:** reinstalar na VPS depois do #308 (`install -m 0755 ops/vps/alerta-memoria.sh /usr/local/sbin/sgo-alerta-memoria`), para a URL do webhook sair do `ps`;
+  - **homologação:** criar a label `homologacao` antes da issue da R1 (D-P7-4).
+- [ ] **Para a frente A:**
+  - **conferência da carga:** o contrato `contarUsuariosPorPerfil(tx)` no `adm/servidor.ts` para a seção de usuários. A proposta está na #137;
+  - **`e2e/aut/semear.ts`:** acrescentar a `seedRel`, porque sem ela a tela do `rel` fica fora da matriz de autorização (#322). Pedido na #137;
+  - **`main-unico.test.ts`:** tirar a exceção `${SISTEMA}/cad` do `FORA`, porque as páginas do `cad` já não abrem `<main>` (#320);
+  - **CSP completa e HSTS:** no `proxy.ts` ou no Traefik (PO). O teste está em `test.fixme` no `e2e/seguranca/cabecalhos.spec.ts` (#318).
+- [ ] **Frente B, próximos passos do P7:**
+  - Task 2 parte 2: a seção de usuários, depois do contrato do `adm`;
+  - Task 3: a primeira rodada da carga (com o ok do PO) e as metas de servidor por teste de integração com tempo (escrita simples, recálculo e exportação de 5.000 linhas);
+  - Task 4: o ZAP (ativo no dev local, *baseline* em hml);
+  - Tasks 5 a 7: dependem da Tarefa 6 do P3 (GAP-INF-001).
+- [x] **Lições de 04/11:**
+  - **`server-only` no `servidor.ts`:** o `servidor.ts` de um módulo nunca pode alcançar um arquivo com `server-only`, porque o worker e a seed caem fora do Next. Quem mexer em `servidor.ts` roda o `worker/bundle.test.ts` (o #317 caiu nisso na primeira versão);
+  - **GitHub instável:** com o incidente, o push por SSH falhava. O contorno foi `git -c credential.helper='!gh auth git-credential' push https://github.com/fabianojp06/sgov2.git <branch>`, e o merge pela API REST (`PUT pulls/N/merge` com `sha`) quando o GraphQL falhou;
+  - **revisores em subagente:** o prompt diz explicitamente "não rode `git checkout`/`git switch` em `/root/sistemas/sgo-b`". Um revisor fez isso uma vez e voltou; a cópia principal foi conferida.
 
 **Com SMEs**
 - [ ] Wellington: ISS, GAP-CAD-004/005 e GAP-CAR-005 (contas de obrigações e riscos trabalhistas).
@@ -332,6 +354,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 04/11/2026 | B | P7 planejado e iniciado: plano (#307, D-P7-1 a 8); roteiro de homologação (#313, Task 1); relatório de conferência da carga, o primeiro do `rel` (#317, Task 2) e a seed no orquestrador (#319); testes de segurança de cabeçalhos e cookie (#318) e a matriz de autorização pelo catálogo (#322, Task 4); ferramentas de carga com o k6, sem rodar (#321, Task 3); CSV seguro no `ger` (#306, fecha a #233); pendências da VPS (#308, fecha a #153); páginas do `cad` sem `<main>` (#320); teste dos hooks numa sessão nova (#145); GitHub com incidente na manhã (push por HTTPS, merge pela API REST); revisão 12.12 por agente independente em cada PR |
 | 03/11/2026 | B | P4 completo na `main`: #249, #254, cargos 12a a 12c (#261, #267, #270), benefícios do cargo (#272) e custo do cargo (#274); correções do `cad` pedidas pela frente A (#276) e log das cargas sem valores (#288); C3 para a frente A (#278, #279, #284, #287) e C2 (#295); E2E no CI (#292), Argon2 na imagem (#297) e seed no deploy (#299); #221 atualizado com a `main`; revisão 12.12 por agente independente em cada PR, com os bloqueantes corrigidos antes do merge; merges com a autorização do PO para seguir as recomendações; à noite, benefícios do cargo no exercício novo (#302, decisão do PO) e #221 na `main` depois da #223 |
 | 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão de bloco do P6 com 3 lentes e correções (#273, #275); à tarde, dívida técnica: issue #280 e ressalva 4 do P5 com medição (#293), fronteiras de erro da raiz (#290), diálogos e `<main>` único (#281, #291), auditoria (#282, #294), config e prisma (#283, #286), kernel (#285), testes das filas (#289); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações; noite: aprovação do PO na #223 publicada, regra do aviso direto entre frentes (#303) e #223 fechada |
 | 26/10–02/11/2026 | A | P5 concluído na `main`: US-031 (#206), E2E de acesso (#235), US-038 em duas partes (#236, com o `adm/servidor.ts`, e #237); revisão de bloco do P5; verificação manual com o Mailpit; plano do P6 (#238) e Tasks 0 a 8 do P6 em branches locais; revisões de consumidor do C1, do C2 e do leitor; issues #228 a #234 para a frente B; merges aprovados pelo PO um a um |
