@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { auditar, type EventoAuditoria } from '@/shared/audit';
 import { prisma } from '@/shared/db';
-import type { ContextoRequisicao, ProvedorContexto } from './tipos';
+import type { ContextoRequisicao, MotivoAusenciaSessao, ProvedorContexto } from './tipos';
 
 export type AuditorNegacao = (evento: EventoAuditoria) => Promise<void>;
 
@@ -66,6 +66,10 @@ async function obterContextoSemCache(): Promise<ContextoRequisicao | null> {
   }
   return estado.provedor.obter();
 }
+
+// Motivo da falta de sessão (US-028), consultado só quando obterContexto devolve null. O cache junta
+// a leitura do layout e a da página no mesmo render.
+export const obterMotivoAusencia = cache(async (): Promise<MotivoAusenciaSessao | null> => (await estado.provedor?.motivoAusencia?.()) ?? null);
 
 export function auditarNegacao(evento: EventoAuditoria): Promise<void> {
   return estado.auditor(evento);

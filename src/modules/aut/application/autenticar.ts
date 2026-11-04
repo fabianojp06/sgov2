@@ -86,6 +86,7 @@ async function criarSessao(
     ip: t.ip,
     agora: t.agora,
     maximoHoras,
+    motivoAnteriores: 'NOVO_ACESSO',
   });
   await zerarFalhasLogin(tx, usuario.id);
   const contexto = { usuarioId: usuario.id, usuarioRotulo: usuario.login, sessaoUid, ip: t.ip };
