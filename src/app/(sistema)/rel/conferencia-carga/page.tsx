@@ -10,7 +10,7 @@ export default async function ConferenciaCarga({ searchParams }: { searchParams:
   const tela = await obterConferenciaCarga(ctx, /^\d{4}$/.test(anoTexto ?? '') ? Number(anoTexto) : null);
   const podeExportar = ctx.permissoes.has('rel.conferencia_carga:exportar');
   return (
-    <main>
+    <div>
       <h1>Conferência da carga {tela.ano ?? ''}</h1>
       <p>Contagens e totais dos cadastros, para conferir contra as planilhas de origem.</p>
       <SeletorAno acao="/rel/conferencia-carga" anos={tela.anos} ano={tela.ano} />
@@ -40,6 +40,6 @@ export default async function ConferenciaCarga({ searchParams }: { searchParams:
           ))}
         </tbody>
       </table>
-    </main>
+    </div>
   );
 }
