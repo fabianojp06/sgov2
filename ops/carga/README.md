@@ -12,10 +12,14 @@ Cenários do k6 do plano do P7 (Task 3). As metas de servidor da §10.3 são med
 ## Como rodar
 
 ```bash
-SGO_BASE=http://127.0.0.1:3200 SGO_LOGIN=<login> SGO_SENHA=<senha> \
-  SGO_PAGINAS=/inicio,/cad/plano-contas,/cad/centros-custo SGO_VUS=20 SGO_DURACAO=2m \
-  ops/carga/rodar.sh
+read -r -p 'Login: ' SGO_LOGIN; read -rs -p 'Senha: ' SGO_SENHA; echo; export SGO_LOGIN SGO_SENHA
+SGO_BASE=http://127.0.0.1:3200 SGO_PAGINAS=/inicio,/cad/plano-contas,/cad/centros-custo \
+  SGO_VUS=20 SGO_DURACAO=2m ops/carga/rodar.sh
 ```
+
+- A senha não vai para o histórico do shell nem para a linha de comando.
+- **Em hml:** use `SGO_BASE=https://<host>`, `SGO_HOST_HML=<host>` (o host de hml informado pelo PO) e `SGO_JANELA_PO=sim`. Sem eles, o script recusa. Também recusa IP literal, `localhost`, mais de 20 usuários virtuais e mais de 25 minutos.
+- **A sessão aberta pela carga** continua válida até expirar: 30 minutos sem uso ou 12 horas no máximo. O Sair de outra sessão não a encerra. Use um usuário só para a carga.
 
 - **`sessao.mjs`:** entra uma vez pelo login real (Playwright), mede o tempo até a tela principal (`[CARGA_LOGIN]`) e passa o cookie de sessão ao k6.
 - **`paginas.js`:** abre as páginas em sequência, com 1 s entre elas. Uma resposta diferente de 200 conta como erro, inclusive o 307 para o login de uma sessão perdida.

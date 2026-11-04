@@ -20,7 +20,8 @@ try {
   await pagina.getByLabel('Senha', { exact: true }).fill(senha);
   const inicio = performance.now();
   await pagina.getByRole('button', { name: 'Entrar' }).click();
-  await pagina.waitForURL(/\/inicio$/, { timeout: 30_000 });
+  await pagina.waitForURL(/\/(inicio|troca-senha)$/, { timeout: 30_000 });
+  if (pagina.url().endsWith('/troca-senha')) throw new Error('O usuário tem troca de senha obrigatória: troque a senha pela tela antes da carga.');
   console.error(`[CARGA_LOGIN] ${Math.round(performance.now() - inicio)} ms até a tela principal`);
   const cookie = (await pagina.context().cookies()).find((c) => c.name === 'sgo_sessao' || c.name === '__Host-sgo_sessao');
   if (!cookie) throw new Error('Sem cookie de sessão depois do login');

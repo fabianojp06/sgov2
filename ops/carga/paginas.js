@@ -13,18 +13,23 @@ if (!BASE || !SESSAO) throw new Error('SGO_BASE e SGO_SESSAO são obrigatórias 
 
 // Páginas que o perfil da sessão abre; outras dariam 404 e entrariam como erro.
 const PAGINAS = (__ENV.SGO_PAGINAS || '/inicio,/cad/plano-contas,/cad/centros-custo').split(',');
+// O rodar.sh já confere o teto da D-P7-1; aqui de novo, para uma execução direta do k6.
+const VUS = Number(__ENV.SGO_VUS || 20);
+if (!Number.isInteger(VUS) || VUS < 1 || VUS > 20) throw new Error('SGO_VUS deve ser um inteiro de 1 a 20 (D-P7-1)');
 
 export const options = {
   // D-P7-1: no máximo 20 usuários virtuais; rampa curta para o PO acompanhar a memória.
   stages: [
-    { duration: '30s', target: Number(__ENV.SGO_VUS || 20) },
-    { duration: __ENV.SGO_DURACAO || '2m', target: Number(__ENV.SGO_VUS || 20) },
+    { duration: '30s', target: VUS },
+    { duration: __ENV.SGO_DURACAO || '2m', target: VUS },
     { duration: '15s', target: 0 },
   ],
   thresholds: {
     // §10.3 não fixa meta para a navegação; o p95 de 1,5 s é o da escrita simples, usado como
     // referência. Falha registrada, não corte: o corte é a memória da VPS (D-P7-1).
     http_req_duration: ['p(95)<1500'],
+    // Um limite por página, para o resumo mostrar o p95 de cada uma (README, Resultados).
+    ...Object.fromEntries(PAGINAS.map((p) => [`http_req_duration{pagina:${p}}`, ['p(95)<1500']])),
     checks: ['rate>0.99'],
   },
   summaryTrendStats: ['avg', 'med', 'p(90)', 'p(95)', 'max'],
