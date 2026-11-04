@@ -15,8 +15,13 @@ export {
 } from './application/login';
 export { gravarNovaSenha } from './application/senhas';
 export { alterar, cadastrar, desbloquear, gerarNovaSenha } from './application/acoes-usuarios';
+export { registrarImpressaoHistorico } from './application/acoes-historico';
+export { consultaDaUrl, lerFiltroHistorico, type ValoresFiltro } from './application/filtro-historico';
 export {
   consultarHistorico,
+  exportarHistorico,
+  MENSAGEM_EXPORTACAO_LIMITE,
+  registrarImpressao,
   FUNCIONALIDADE_HISTORICO,
   MENSAGEM_PERIODO,
   POR_PAGINA,
@@ -42,6 +47,8 @@ export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { esquemaUsuario, MENSAGENS_USUARIO, type EntradaUsuario } from './domain/usuario';
 export { validarSenha, type PoliticaSenha } from './domain/politica-senha';
 export { FormUsuario } from './ui/form-usuario';
+export { BotaoImprimir } from './ui/botao-imprimir';
+export { TelaHistorico } from './ui/tela-historico';
 export { ListaUsuarios } from './ui/lista-usuarios';
 export { seedAdministradorInicial } from './infrastructure/admin-inicial';
 export { gerarSenhaTemporaria } from './infrastructure/gerar-senha';

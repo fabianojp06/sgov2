@@ -1,6 +1,8 @@
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { auditar, type TipoOperacao } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
+import { exportarXlsx } from '@/modules/ger/servidor';
+import { LIMITE_EXPORTACAO_SINCRONA } from '@/modules/ger';
 import { prisma } from '@/shared/db';
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import { carregarPermissoes } from './login';
@@ -94,4 +96,67 @@ export async function consultarHistorico(ctx: ContextoRequisicao, f: FiltroHisto
       porPagina: POR_PAGINA,
     });
   });
+}
+
+// [PROVISÓRIO] (D-P8-11): a exportação assíncrona e o PDF são da US-024.
+export const MENSAGEM_EXPORTACAO_LIMITE = 'A exportação passa de 5.000 linhas. Reduza o período ou os filtros.';
+const HORA_BRASILIA = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+const contexto = (ctx: ContextoRequisicao) => ({ usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null });
+
+// Exportar (UC0.05; RN_LOG_EXP): XLSX até o limite síncrono, com os filtros na primeira linha (RN0011),
+// e um EXPORTACAO no Histórico com a quantidade e os filtros.
+export async function exportarHistorico(
+  ctx: ContextoRequisicao,
+  f: Omit<FiltroHistorico, 'pagina'>,
+  deps: Partial<DepsHistorico> = {},
+): Promise<Resultado<{ bytes: Uint8Array; nome: string }>> {
+  exigir(ctx, FUNCIONALIDADE_HISTORICO, 'exportar');
+  const cliente = deps.cliente ?? prisma;
+  if (!periodoValido(f)) return falha([{ campo: 'de', mensagem: MENSAGEM_PERIODO }]);
+  if ((f.usuario?.length ?? 0) > MAXIMO_USUARIO) return falha([{ campo: 'usuario', mensagem: MENSAGEM_USUARIO_FILTRO }]);
+  const where = await filtroDoHistorico(ctx, { ...f, pagina: 1 }, cliente);
+  return cliente.$transaction(async (tx) => {
+    const total = await tx.historicoOperacao.count({ where });
+    if (total > LIMITE_EXPORTACAO_SINCRONA) return falha([{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }]);
+    const linhas = await tx.historicoOperacao.findMany({
+      where,
+      orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }],
+      select: { descricao: true, usuarioRotulo: true, funcionalidade: true, ocorridoEm: true, tipoOperacao: true },
+    });
+    const filtros = descreverFiltros(f);
+    const arquivo = await exportarXlsx([
+      {
+        nome: 'Histórico de Operações',
+        colunas: [
+          { titulo: 'Data da Operação', tipo: 'texto', largura: 18 },
+          { titulo: 'Usuário', tipo: 'texto', largura: 24 },
+          { titulo: 'Funcionalidade', tipo: 'texto', largura: 24 },
+          { titulo: 'Tipo de Operação', tipo: 'texto', largura: 16 },
+          { titulo: 'Descrição', tipo: 'texto', largura: 80 },
+        ],
+        linhas: [
+          [`Filtros: ${filtros}`, null, null, null, null],
+          ...linhas.map((l) => [HORA_BRASILIA.format(l.ocorridoEm), l.usuarioRotulo, l.funcionalidade, l.tipoOperacao, l.descricao]),
+        ],
+      },
+    ]);
+    if (!arquivo.ok) return arquivo;
+    await auditar(tx, {
+      contexto: contexto(ctx),
+      funcionalidade: FUNCIONALIDADE_HISTORICO,
+      tipo: 'EXPORTACAO',
+      descricao: `Exportou ${linhas.length} registro(s) do Histórico: ${filtros}`,
+    });
+    return ok({ bytes: arquivo.valor, nome: `historico-${f.de.toISOString().slice(0, 10)}-a-${f.ate.toISOString().slice(0, 10)}.xlsx` });
+  });
+}
+
+// Imprimir (UC0.05): a impressão é a do navegador; o servidor só registra o IMPRESSAO com os filtros.
+export async function registrarImpressao(ctx: ContextoRequisicao, f: Omit<FiltroHistorico, 'pagina'>, deps: Partial<DepsHistorico> = {}): Promise<Resultado<void>> {
+  exigir(ctx, FUNCIONALIDADE_HISTORICO, 'imprimir');
+  if (!periodoValido(f)) return falha([{ campo: 'de', mensagem: MENSAGEM_PERIODO }]);
+  await (deps.cliente ?? prisma).$transaction((tx) =>
+    auditar(tx, { contexto: contexto(ctx), funcionalidade: FUNCIONALIDADE_HISTORICO, tipo: 'IMPRESSAO', descricao: `Imprimiu o Histórico: ${descreverFiltros(f)}` }),
+  );
+  return ok(undefined);
 }

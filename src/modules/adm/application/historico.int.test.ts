@@ -3,7 +3,8 @@ import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedAdm } from '../infrastructure/seed';
-import { consultarHistorico, MENSAGEM_PERIODO, MENSAGEM_USUARIO_FILTRO } from './historico';
+import ExcelJS from 'exceljs';
+import { consultarHistorico, exportarHistorico, MENSAGEM_EXPORTACAO_LIMITE, MENSAGEM_PERIODO, MENSAGEM_USUARIO_FILTRO, registrarImpressao } from './historico';
 
 // Consulta do Histórico de Operações (US-040, UC02.24): alcance por perfil (RN0099, RN0100), filtros,
 // paginação no banco e o registro da própria consulta (nível Avançado, §5).
@@ -120,5 +121,42 @@ describe('consultarHistorico', () => {
     expect(ultimo.descricao).toContain('tipo LOGIN');
     expect(ultimo.descricao).toContain('página 3');
     await expect(consultarHistorico({ ...admin, permissoes: new Set() }, { de: DE, ate: ATE, pagina: 1 }, deps())).rejects.toBeInstanceOf(ErroPermissao);
+  });
+});
+
+describe('exportarHistorico e registrarImpressao (UC0.05, RN_LOG_EXP)', () => {
+  const exportador = () => ({ ...admin, permissoes: new Set(['adm.historico:consultar', 'adm.historico:exportar', 'adm.historico:imprimir']) });
+
+  it('XLSX com os filtros na primeira linha e as colunas do UC02.24; EXPORTACAO com a quantidade e os filtros', async () => {
+    const r = await exportarHistorico(exportador(), { de: DE, ate: ATE, funcionalidade: 'orc.exercicios' }, deps());
+    expect(r.ok).toBe(true);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((r.ok ? r.valor.bytes : new Uint8Array()) as unknown as ArrayBuffer);
+    const aba = wb.worksheets[0]!;
+    const valores = (n: number) => (aba.getRow(n).values as unknown[]).slice(1).map((v) => (v === undefined || v === null ? null : String(v)));
+    expect(valores(1)).toEqual(['Data da Operação', 'Usuário', 'Funcionalidade', 'Tipo de Operação', 'Descrição']);
+    expect(valores(2)[0]).toContain('funcionalidade orc.exercicios');
+    expect(valores(3).slice(1, 4)).toEqual(['ana.maria', 'orc.exercicios', 'ALTERACAO']);
+    expect(aba.rowCount).toBe(3);
+    const ultimo = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'adm.historico', tipoOperacao: 'EXPORTACAO' }, orderBy: { id: 'desc' } });
+    expect(ultimo.descricao).toMatch(/^Exportou 1 registro\(s\) do Histórico: .*funcionalidade orc\.exercicios/);
+  });
+
+  it('acima de 5.000 linhas → recusa sem gerar nem registrar; sem a permissão → ErroPermissao', async () => {
+    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
+      SELECT '2026-08-10T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa ' || g FROM generate_series(1, 5001) g`;
+    const antes = await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } });
+    expect(await exportarHistorico(exportador(), { de: new Date('2026-08-01T03:00:00Z'), ate: new Date('2026-08-31T03:00:00Z') }, deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }],
+    });
+    expect(await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } })).toBe(antes);
+    await expect(exportarHistorico(admin, { de: DE, ate: ATE }, deps())).rejects.toBeInstanceOf(ErroPermissao);
+  });
+
+  it('registrarImpressao grava um IMPRESSAO com os filtros', async () => {
+    expect(await registrarImpressao(exportador(), { de: DE, ate: ATE, tipo: 'LOGIN' }, deps())).toEqual({ ok: true, valor: undefined });
+    const ultimo = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'adm.historico', tipoOperacao: 'IMPRESSAO' }, orderBy: { id: 'desc' } });
+    expect(ultimo.descricao).toContain('tipo LOGIN');
   });
 });
