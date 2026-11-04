@@ -70,7 +70,8 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 - [ ] `ops/vps/docker-user.sh` e `sgo-docker-user.service` (plano P2, Tarefa 2): serão criados junto com a aplicação da regra da porta 3000.
 - [ ] **Risco aceito até a pendência acima:** o Easypanel segue aberto na 3000 por HTTP; a senha do painel trafega sem criptografia. Registrar a data do aceite do PO.
 - [ ] Atualizar `docs/memoria/memoria-do-projeto.md` no encerramento do P2.
-- [ ] Verificar os hooks das sessões (US-122 Step 12) depois do merge da US-002.
+- [x] Verificar os hooks das sessões (US-122 Step 12): verificado numa sessão nova da frente B em 04/11/2026, com as travas de produção, da `main` e de banco ativas (#145).
 - [ ] Chave SSH do PO → SSH só por chave → fail2ban mais rígido (5 tentativas, 1 h).
-- [ ] Fechar a 3000 na `DOCKER-USER` (com o túnel combinado com o PO).
-- [ ] Canal do alerta (`ALERTA_WEBHOOK_URL`).
+- [ ] Fechar a 3000 na `DOCKER-USER` (com o túnel combinado com o PO), no `iptables` **e** no `ip6tables` (ou com a publicação em IPv6 desligada no Docker): só a regra IPv4 deixaria a 3000 aberta pelo IPv6 da VPS. Conferir de fora pelos dois endereços.
+- [ ] Canal do alerta (`ALERTA_WEBHOOK_URL`). Depois do merge da #153, reinstalar o `alerta-memoria.sh` pelo `instalar.sh`: a URL passou a ir pelo stdin do `curl`, fora do `ps`.
+- [ ] Opcional, com a chave SSH do PO: `ignoreip = 127.0.0.1/8 ::1 <IP fixo do PO>` no `jail-sgo.local`, se o PO tiver IP fixo. Com IP dinâmico, fica o console do hPanel como acesso de emergência.

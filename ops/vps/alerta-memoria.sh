@@ -33,7 +33,10 @@ if (( disp_mb < LIMITE_MB )); then
     fi
     "$LOGGER" -t sgo-alerta "$msg" || true
     if [[ -n "${ALERTA_WEBHOOK_URL:-}" ]]; then
-      "$CURL" -fsS -m 10 -d "$msg" "$ALERTA_WEBHOOK_URL" >/dev/null 2>&1 \
+      # A URL (que costuma levar o token) vai pelo stdin (-K -), nunca na linha de comando, que o ps mostra.
+      url="${ALERTA_WEBHOOK_URL//\\/\\\\}"
+      url="${url//\"/\\\"}"
+      printf 'url = "%s"\n' "$url" | "$CURL" -fsS -m 10 -d "$msg" -K - >/dev/null 2>&1 \
         || "$LOGGER" -t sgo-alerta "falha ao enviar o alerta para o webhook" || true
     fi
   fi

@@ -37,7 +37,9 @@ teardown() { rm -rf "$T"; }
   [ "$(cat "$PROC/101/oom_score_adj")" = "-500" ]
   [ "$(cat "$PROC/201/oom_score_adj")" = "-200" ]
   [ "$(cat "$PROC/301/oom_score_adj")" = "500" ]
+  [ "$(cat "$PROC/401/oom_score_adj")" = "500" ]
   [ "$(cat "$PROC/501/oom_score_adj")" = "-300" ]
+  [ "$(cat "$PROC/601/oom_score_adj")" = "-300" ]
   [ "$(cat "$PROC/701/oom_score_adj")" = "0" ]
 }
 
