@@ -12,7 +12,54 @@ import { ErroAuditoria } from './erros';
 //
 // Convenção: audite valores monetários como Dinheiro/Percentual. Um Decimal cru vem com a
 // escala de origem ("1234.5" do banco × "1234.50" do Dinheiro) e geraria delta falso.
-export const CHAVE_SENSIVEL = /senha|password|passwd|hash|token|segredo|secret|totp|api_?key|credencia/i;
+// Credencial pelo nome inteiro (#172), não por pedaço, e na dúvida omitida (o Histórico é imutável).
+// O nome é quebrado em palavras (camelCase, siglas, `_`, `-` ou `.`). É credencial quando alguma
+// palavra é uma credencial (senhaHash, tokenRecuperacao, SMTPSenha) ou quando uma chave vem com um
+// qualificador de segredo (privateKey, chaveAcesso, apiKey). A exceção é fechada: a última palavra
+// é um sufixo de negócio que nunca caberia num segredo (senhaMinimo, senhaExpiraEm) ou o nome inteiro
+// está em NOMES_NEGOCIO (hashArquivo, trocaSenhaPendente). Campo de negócio novo que caia na regra
+// entra numa das duas listas; credencial nova, em CREDENCIAIS.
+const CREDENCIAIS = new Set([
+  ...['senha', 'password', 'passwd', 'passphrase', 'hash', 'token', 'segredo', 'secret', 'credencial', 'credential', 'jwt', 'salt', 'digest', 'apikey', 'bearer'].flatMap((p) => [p, `${p}s`]),
+  'credenciais',
+  'hashes',
+  'totp',
+  'otp',
+  'pin',
+  'mfa',
+]);
+const CHAVES = new Set(['key', 'keys', 'chave', 'chaves']);
+const SEGREDO_DA_CHAVE = new Set(['privada', 'private', 'secreta', 'secret', 'acesso', 'access', 'api', 'cifra', 'assinatura', 'signing']);
+const SUFIXOS_NEGOCIO = new Set([
+  'minimo', 'maximo', 'exige', 'letra', 'digito', 'maiuscula', 'minuscula', 'simbolo', 'em', 'horas', 'dias', 'minutos',
+  'obrigatoria', 'obrigatorio', 'tentativas',
+]);
+// Nomes inteiros de negócio cujo sufixo também caberia num segredo (tokenArquivo, novaSenhaPendente).
+const NOMES_NEGOCIO = new Set(['hash arquivo', 'troca senha pendente']);
+// Duas palavras que, juntas, são credencial, mas separadas não (dataVerificacao, codigoCc).
+const PARES = [
+  ['codigo', 'verificacao'],
+  ['codigos', 'verificacao'],
+  ['codigo', 'recuperacao'],
+  ['codigos', 'recuperacao'],
+  ['recovery', 'code'],
+  ['recovery', 'codes'],
+] as const;
+
+export function chaveSensivel(chave: string): boolean {
+  const palavras = chave
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[\s_.-]+/)
+    .filter(Boolean);
+  const credencial =
+    palavras.some((p) => CREDENCIAIS.has(p)) ||
+    (palavras.some((p) => CHAVES.has(p)) && palavras.some((p) => SEGREDO_DA_CHAVE.has(p))) ||
+    PARES.some((par) => par.every((p) => palavras.includes(p)));
+  return credencial && !SUFIXOS_NEGOCIO.has(palavras.at(-1) ?? '') && !NOMES_NEGOCIO.has(palavras.join(' '));
+}
+
 export const OMITIDO = '[omitido]';
 export const OMITIDO_ALTERADO = '[omitido: alterado]';
 
@@ -63,7 +110,7 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>, saltos
     const saida: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [chave, valor] of Object.entries(v)) {
       if (valor === undefined) continue;
-      saida[chave] = omitir && CHAVE_SENSIVEL.test(chave) ? OMITIDO : serializar(valor, `${caminho}.${chave}`, vistos, 0, omitir);
+      saida[chave] = omitir && chaveSensivel(chave) ? OMITIDO : serializar(valor, `${caminho}.${chave}`, vistos, 0, omitir);
     }
     return { ...saida };
   } finally {
