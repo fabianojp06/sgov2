@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { criarProvedorSemaforo } from '@/modules/cad';
 import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
@@ -109,6 +110,26 @@ describe('painel na visão', () => {
     expect(sem.avisos).toContain('Sem permissão para ver as faixas do semáforo.');
     const semProvedor = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ semaforo: null })))!;
     expect(semProvedor.avisos).toContain('As faixas do semáforo ainda não estão disponíveis.');
+  });
+});
+
+describe('semáforo real do cad (#295)', () => {
+  it('provedor do cad: usa as faixas do parâmetro do exercício', async () => {
+    const e = await exercicio();
+    await migrator.parametrosExercicio.create({
+      data: { ano: e.ano, reajuste: '0', mesDataBase: 1, ipca: '0', diasUteisMes: 22, semaforoVerdeAte: '50', semaforoAmareloAte: '80', semaforoLaranjaAte: '89' },
+    });
+    // Uso 90 passa da faixa laranja (89) deste parâmetro: Vermelho, não o Laranja das faixas falsas.
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ semaforo: criarProvedorSemaforo({ cliente: app }) })))!;
+    expect(v.painel?.semaforo).toBe('VERMELHO');
+    expect(v.avisos).not.toContain('As faixas do semáforo ainda não estão disponíveis.');
+  });
+
+  it('sem parâmetro do exercício: sem semáforo e com aviso', async () => {
+    const e = await exercicio();
+    const v = (await obterVisaoExercicio(ctx(), e.ano, null, e.deps({ semaforo: criarProvedorSemaforo({ cliente: app }) })))!;
+    expect(v.painel?.semaforo).toBeNull();
+    expect(v.avisos).toContain('As faixas do semáforo ainda não estão disponíveis.');
   });
 });
 

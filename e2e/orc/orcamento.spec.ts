@@ -123,7 +123,7 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     for (const cc of [CC_DEP, CC_DAF]) totalImportado += centavosSemSimbolo(await linhaDe(resumo, cc).getByRole('cell').nth(2).innerText());
   });
 
-  test('3. GFIN digita receitas confirmada e prevista; a visão mostra resultado e teto padrão (sem semáforo)', async ({ page }) => {
+  test('3. GFIN digita receitas confirmada e prevista; a visão mostra resultado, teto padrão e o semáforo do cad', async ({ page }) => {
     await entrarNaTelaPrincipal(page, USUARIOS.gfin.login);
     await menu(page).getByRole('link', { name: 'Receitas – Rateio dos TPs' }).click();
     await incluirReceita(page, 'TP-2027/01', 'Confirmado', '100.000,00');
@@ -150,10 +150,10 @@ test.describe.serial('orçamento da Adm. Central 2027', () => {
     const resultado = 120_000_000n - orcado;
     await expect(valorDo(painel, 'Resultado do ano')).toHaveText(`${emReais(resultado)} ${resultado > 0n ? '(superávit)' : resultado < 0n ? '(déficit)' : '(equilíbrio)'}`);
     await expect(valorDo(painel, 'Saldo')).toHaveText(new RegExp(`^${escapar(emReais(resultado))}`));
-    // O semáforo real (faixas por exercício do cad, Task 9a do P4, #234) ainda não está na main: o
-    // painel aparece sem a faixa e com o aviso. Quando chegar, trocar por "Verde"/"Amarelo"/... .
-    await expect(valorDo(painel, 'Semáforo')).toHaveText('Indisponível');
-    await expect(page.getByText('As faixas do semáforo ainda não estão disponíveis.')).toBeVisible();
+    // Semáforo real (#234): faixas dos parâmetros do exercício semeados pelo cad; o uso do teto desta
+    // importação fica na faixa verde, sem o aviso de faixas indisponíveis.
+    await expect(valorDo(painel, 'Semáforo')).toHaveText('Verde');
+    await expect(page.getByText('As faixas do semáforo ainda não estão disponíveis.')).toHaveCount(0);
   });
 
   // O escopo (C25) recorta a visão; as telas da Adm. Central inteira dão 404 aqui pelo catálogo (o

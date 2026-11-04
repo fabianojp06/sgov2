@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation';
+import { provedorSemaforo } from '@/modules/cad';
 import { definirTetoAcao, listarExercicios, MENSAGENS_ORC, obterVisaoExercicio, recalcularAcao, SeletorExercicio, VisaoCc } from '@/modules/orc';
 import { exigirPagina, negarNaPagina } from '@/shared/authz';
 import { ErroDominio } from '@/shared/kernel';
 
-// Orçamento da Adm. Central: visão por centro de custo (US-058).
+// Orçamento da Adm. Central: visão por centro de custo (US-058). O semáforo do teto vem do cad (#234)
+// e é injetado aqui, não nas deps do orc: o index do cad tem módulos server-only, e a seed (tsx)
+// importa o orc.
 type Busca = { ano?: string | string[]; cc?: string | string[]; aviso?: string | string[] };
 
 export default async function Orcamento({ searchParams }: { searchParams: Promise<Busca> }) {
@@ -14,7 +17,7 @@ export default async function Orcamento({ searchParams }: { searchParams: Promis
   const [exercicios, visao] = await Promise.all([
     listarExercicios(ctx),
     // CC fora do escopo: 404 com a negação auditada; CC inexistente: 404.
-    obterVisaoExercicio(ctx, anoPedido, ccPedido).catch((erro: unknown) => {
+    obterVisaoExercicio(ctx, anoPedido, ccPedido, { semaforo: provedorSemaforo }).catch((erro: unknown) => {
       if (erro instanceof ErroDominio && erro.codigo === 'orc.cc_inexistente') notFound();
       return negarNaPagina(ctx, erro);
     }),
