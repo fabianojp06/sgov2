@@ -7,8 +7,9 @@ import { hashDoToken } from './token';
 // Emite a sessão única do usuário (RN0519): apaga as anteriores e cria uma nova, com token
 // aleatório de 256 bits e só o SHA-256 no banco. Usada pelo login e pela troca de senha (que
 // rotaciona o token, porque a sessão muda de "só troca de senha" para o acesso completo).
-// No login (motivoAnteriores = 'NOVO_ACESSO'), cada sessão apagada deixa a marca da US-028, com o
-// prazo dela; as marcas anteriores do usuário e as vencidas saem. A troca de senha passa null.
+// No login (motivoAnteriores = 'NOVO_ACESSO'), cada sessão ainda viva que é apagada deixa a marca da
+// US-028, com o prazo dela; a que já tinha morrido por inatividade ou teto não marca (a estação vê
+// "Sessão expirada", não "novo acesso"). As marcas vencidas saem. A troca de senha passa null.
 export async function emitirSessao(
   tx: TxCliente,
   e: {
@@ -18,12 +19,17 @@ export async function emitirSessao(
     ip: string | null;
     agora: Date;
     maximoHoras: number;
+    inatividadeMin: number;
     motivoAnteriores: MotivoAusenciaSessao | null;
   },
 ): Promise<{ token: string; expiraEm: Date; sessaoUid: string; anteriores: number }> {
   if (e.motivoAnteriores) {
-    await tx.sessaoEncerrada.deleteMany({ where: { OR: [{ usuarioId: e.usuarioId }, { expiraEm: { lte: e.agora } }] } });
-    const vivas = await tx.sessaoUsuario.findMany({ where: { usuarioId: e.usuarioId }, select: { tokenHash: true, expiraEm: true } });
+    await tx.sessaoEncerrada.deleteMany({ where: { expiraEm: { lte: e.agora } } });
+    const ativaDesde = new Date(e.agora.getTime() - e.inatividadeMin * 60 * 1000);
+    const vivas = await tx.sessaoUsuario.findMany({
+      where: { usuarioId: e.usuarioId, expiraEm: { gt: e.agora }, ultimoAcessoEm: { gte: ativaDesde } },
+      select: { tokenHash: true, expiraEm: true },
+    });
     if (vivas.length > 0) {
       await tx.sessaoEncerrada.createMany({
         data: vivas.map((v) => ({ tokenHash: v.tokenHash, usuarioId: e.usuarioId, motivo: e.motivoAnteriores!, encerradaEm: e.agora, expiraEm: v.expiraEm })),

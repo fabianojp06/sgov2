@@ -164,7 +164,7 @@ describe('sessão encerrada por novo acesso (US-028, RN0519)', () => {
     expect(await provedor().motivoAusencia!()).toBe('NOVO_ACESSO');
   });
 
-  it('sem cookie, token desconhecido ou marca vencida → null; o próximo login apaga as marcas do usuário', async () => {
+  it('sem cookie, token desconhecido ou marca vencida → null; um login depois do prazo apaga as marcas vencidas', async () => {
     await criarUsuario('estacao2');
     const antigo = await logar('estacao2');
     await logar('estacao2');
@@ -176,8 +176,29 @@ describe('sessão encerrada por novo acesso (US-028, RN0519)', () => {
     expect(await provedor().motivoAusencia!()).toBeNull();
     await logar('estacao2');
     const u = await migrator.usuario.findFirstOrThrow({ where: { login: 'estacao2' } });
-    // A marca nova (deste login) é a única: as anteriores do usuário saíram.
-    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(1);
+    // A marca antiga venceu e saiu; a sessão do login anterior também já tinha vencido (teto de 12 h),
+    // então este login não marca nada.
+    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(0);
+  });
+
+  it('sessão já parada por inatividade não recebe a marca: a estação vê "Sessão expirada"', async () => {
+    await criarUsuario('estacao4');
+    await logar('estacao4');
+    agora = new Date(agora.getTime() + 31 * 60 * 1000);
+    await logar('estacao4');
+    const u = await migrator.usuario.findFirstOrThrow({ where: { login: 'estacao4' } });
+    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(0);
+  });
+
+  it('sequência A, B, C: o aviso de A continua valendo depois do login de C', async () => {
+    await criarUsuario('estacao5');
+    const a = await logar('estacao5');
+    agora = new Date(agora.getTime() + 60_000);
+    await logar('estacao5');
+    agora = new Date(agora.getTime() + 60_000);
+    await logar('estacao5');
+    cookie = a;
+    expect(await provedor().motivoAusencia!()).toBe('NOVO_ACESSO');
   });
 
   it('a troca de senha rotaciona o token sem marca de novo acesso', async () => {
@@ -185,7 +206,7 @@ describe('sessão encerrada por novo acesso (US-028, RN0519)', () => {
     await logar('estacao3');
     const u = await migrator.usuario.findFirstOrThrow({ where: { login: 'estacao3' } });
     const { emitirSessao } = await import('./sessao');
-    await app.$transaction((tx) => emitirSessao(tx, { usuarioId: u.id, acessoVersao: u.acessoVersao, trocaSenhaPendente: false, ip: null, agora, maximoHoras: 12, motivoAnteriores: null }));
+    await app.$transaction((tx) => emitirSessao(tx, { usuarioId: u.id, acessoVersao: u.acessoVersao, trocaSenhaPendente: false, ip: null, agora, maximoHoras: 12, inatividadeMin: 30, motivoAnteriores: null }));
     expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(0);
   });
 });
