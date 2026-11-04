@@ -61,26 +61,28 @@ model PerfilPermissao {
 
 // Usuário (UC02.11–UC02.14). Status e bloqueio são independentes (RN0063, RN0524).
 model Usuario {
-  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nome                  String
   email                 String
   login                 String
-  loginNormalizado      String          @unique @map("login_normalizado")
-  ativo                 Boolean         @default(true)
-  bloqueado             Boolean         @default(false)
-  tentativasFalhas      Int             @default(0) @map("tentativas_falhas")
-  senhaHash             String          @map("senha_hash")
-  trocaSenhaObrigatoria Boolean         @default(true) @map("troca_senha_obrigatoria")
-  senhaExpiraEm         DateTime?       @map("senha_expira_em") @db.Timestamptz(6)
+  loginNormalizado      String            @unique @map("login_normalizado")
+  ativo                 Boolean           @default(true)
+  bloqueado             Boolean           @default(false)
+  tentativasFalhas      Int               @default(0) @map("tentativas_falhas")
+  senhaHash             String            @map("senha_hash")
+  trocaSenhaObrigatoria Boolean           @default(true) @map("troca_senha_obrigatoria")
+  senhaExpiraEm         DateTime?         @map("senha_expira_em") @db.Timestamptz(6)
   // CC raiz de escopo do Gestor de Diretoria (C25, R8): classificação do CC, validada no P6.
-  ccEscopo              String?         @map("cc_escopo")
+  ccEscopo              String?           @map("cc_escopo")
   // Incrementado quando o acesso muda (perfis, inativação, reset, desbloqueio): derruba as sessões.
-  acessoVersao          Int             @default(0) @map("acesso_versao")
-  versao                Int             @default(0)
-  criadoEm              DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  atualizadoEm          DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  acessoVersao          Int               @default(0) @map("acesso_versao")
+  versao                Int               @default(0)
+  criadoEm              DateTime          @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm          DateTime          @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
   perfis                UsuarioPerfil[]
   sessoes               SessaoUsuario[]
+  alcadasTitular        AlcadaAprovacao[] @relation("AlcadaTitular")
+  alcadasSubstituto     AlcadaAprovacao[] @relation("AlcadaSubstituto")
   unidades              UsuarioUnidade[]
 
   @@map("usuario")
@@ -133,4 +135,24 @@ model UsuarioUnidade {
 
   @@id([usuarioId, unidadeId])
   @@map("usuario_unidade")
+}
+
+// Alçada de aprovação (US-042, spec §6.5 e §11.4): por fluxo (WA01, WA02, WA05; CHECK no banco), com
+// titular e substituto. Soft delete: trocar um aprovador ou excluir inativa a linha. Uma só ativa
+// por fluxo (índice único parcial na migration, que o Prisma não declara).
+model AlcadaAprovacao {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fluxo        String
+  titularId    String    @map("titular_id") @db.Uuid
+  titular      Usuario   @relation("AlcadaTitular", fields: [titularId], references: [id], onDelete: Restrict)
+  substitutoId String    @map("substituto_id") @db.Uuid
+  substituto   Usuario   @relation("AlcadaSubstituto", fields: [substitutoId], references: [id], onDelete: Restrict)
+  ativa        Boolean   @default(true)
+  inativadaEm  DateTime? @map("inativada_em") @db.Timestamptz(6)
+  criadaEm     DateTime  @map("criada_em") @db.Timestamptz(6)
+  versao       Int       @default(1)
+
+  @@index([titularId])
+  @@index([substitutoId])
+  @@map("adm_alcada_aprovacao")
 }

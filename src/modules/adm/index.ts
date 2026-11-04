@@ -15,6 +15,8 @@ export {
 } from './application/login';
 export { gravarNovaSenha } from './application/senhas';
 export { alterar, cadastrar, desbloquear, gerarNovaSenha } from './application/acoes-usuarios';
+export { alterarAlcada, cadastrarAlcada, inativarAlcada, listarAlcadas, type DepsAlcadas, type LinhaAlcada } from './application/alcadas';
+export { FLUXOS_APROVACAO, MENSAGENS_ALCADA, ROTULO_FLUXO, type FluxoAprovacao } from './domain/alcada';
 export {
   alterarUsuario,
   cadastrarUsuario,
