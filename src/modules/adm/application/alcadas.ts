@@ -102,29 +102,40 @@ export async function alterarAlcada(
   if (!idValido(id)) throw inexistente();
   const v = validarAprovadores(entrada);
   if (!v.ok) return v;
-  return cliente.$transaction(async (tx) => {
-    const atual = await tx.alcadaAprovacao.findUnique({ where: { id } });
-    if (!atual) throw inexistente();
-    if (atual.versao !== versao) return alterado();
-    if (!atual.ativa) return falha([{ campo: '_', mensagem: MENSAGENS_ALCADA.INATIVA }]);
-    // Salvar sem mudança não grava nem audita.
-    if (atual.titularId === v.valor.titularId && atual.substitutoId === v.valor.substitutoId) return ok({ id });
-    const ativos = await conferirAtivos(tx, v.valor);
-    if (!ativos.ok) return ativos;
-    const instante = agora();
-    if (!(await inativarLinha(tx, id, versao, instante))) return alterado();
-    const fluxo = atual.fluxo as FluxoAprovacao;
-    await auditar(tx, {
-      contexto: contextoAuditoria(ctx),
-      funcionalidade: FUNCIONALIDADE,
-      tipo: 'ALTERACAO',
-      registroId: id,
-      descricao: `Trocou os aprovadores da alçada de ${ROTULO_FLUXO[fluxo]} (${fluxo})`,
-      antes: retrato(atual),
-      depois: retrato({ fluxo, ...v.valor }),
+  try {
+    return await trocar(v.valor);
+  } catch (erro) {
+    // Duas trocas simultâneas: a segunda esbarra no índice parcial; para quem salvou, foi alteração concorrente.
+    if (ehDuplicada(erro)) return alterado();
+    throw erro;
+  }
+
+  async function trocar(aprovadores: { titularId: string; substitutoId: string }): Promise<Resultado<{ id: string }>> {
+    return cliente.$transaction(async (tx) => {
+      const atual = await tx.alcadaAprovacao.findUnique({ where: { id } });
+      if (!atual) throw inexistente();
+      if (atual.versao !== versao) return alterado();
+      if (!atual.ativa) return falha([{ campo: '_', mensagem: MENSAGENS_ALCADA.INATIVA }]);
+      const v = { valor: aprovadores };
+      // Salvar sem mudança não grava nem audita.
+      if (atual.titularId === v.valor.titularId && atual.substitutoId === v.valor.substitutoId) return ok({ id });
+      const ativos = await conferirAtivos(tx, v.valor);
+      if (!ativos.ok) return ativos;
+      const instante = agora();
+      if (!(await inativarLinha(tx, id, versao, instante))) return alterado();
+      const fluxo = atual.fluxo as FluxoAprovacao;
+      await auditar(tx, {
+        contexto: contextoAuditoria(ctx),
+        funcionalidade: FUNCIONALIDADE,
+        tipo: 'ALTERACAO',
+        registroId: id,
+        descricao: `Trocou os aprovadores da alçada de ${ROTULO_FLUXO[fluxo]} (${fluxo})`,
+        antes: retrato(atual),
+        depois: retrato({ fluxo, ...v.valor }),
+      });
+      return ok({ id: await criarLinha(tx, ctx, instante, { fluxo, ...v.valor }) });
     });
-    return ok({ id: await criarLinha(tx, ctx, instante, { fluxo, ...v.valor }) });
-  });
+  }
 }
 
 // Excluir: soft delete (§11.4).
