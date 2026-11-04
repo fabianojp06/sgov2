@@ -12,7 +12,25 @@ import { ErroAuditoria } from './erros';
 //
 // Convenção: audite valores monetários como Dinheiro/Percentual. Um Decimal cru vem com a
 // escala de origem ("1234.5" do banco × "1234.50" do Dinheiro) e geraria delta falso.
-export const CHAVE_SENSIVEL = /senha|password|passwd|hash|token|segredo|secret|totp|api_?key|credencia/i;
+// Credencial pelo nome inteiro (#172), não por pedaço: o nome é quebrado em palavras (camelCase, _ ou
+// -) e é credencial quando a última palavra é uma credencial (senhaHash, novaSenha, refreshToken), é
+// `api key`, ou quando há uma credencial seguida de um qualificador do valor (senhaTemporaria,
+// tokenApi). Assim, senhaMinimo, senhaExpiraEm, trocaSenhaPendente, hashArquivo e credenciamento
+// ficam no Histórico. Na dúvida, um nome novo de credencial entra nas listas.
+const CREDENCIAIS = new Set(['senha', 'senhas', 'password', 'passwd', 'hash', 'token', 'segredo', 'secret', 'totp', 'credencial', 'credenciais']);
+const QUALIFICADORES = new Set(['hash', 'temporaria', 'temporario', 'atual', 'nova', 'novo', 'anterior', 'confirmacao', 'inicial', 'api', 'acesso', 'refresh', 'cifrado', 'cifrada']);
+
+export function chaveSensivel(chave: string): boolean {
+  const palavras = chave
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean);
+  const ultima = palavras.at(-1) ?? '';
+  if (CREDENCIAIS.has(ultima)) return true;
+  if (ultima === 'key' && palavras.at(-2) === 'api') return true;
+  return QUALIFICADORES.has(ultima) && palavras.slice(0, -1).some((p) => CREDENCIAIS.has(p));
+}
 export const OMITIDO = '[omitido]';
 export const OMITIDO_ALTERADO = '[omitido: alterado]';
 
@@ -58,7 +76,7 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>, saltos
     const saida: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [chave, valor] of Object.entries(v)) {
       if (valor === undefined) continue;
-      saida[chave] = omitir && CHAVE_SENSIVEL.test(chave) ? OMITIDO : serializar(valor, `${caminho}.${chave}`, vistos, 0, omitir);
+      saida[chave] = omitir && chaveSensivel(chave) ? OMITIDO : serializar(valor, `${caminho}.${chave}`, vistos, 0, omitir);
     }
     return { ...saida };
   } finally {

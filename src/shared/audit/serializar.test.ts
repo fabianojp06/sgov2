@@ -114,6 +114,15 @@ describe('serializarParaAuditoria: sem perda silenciosa e sem dado sensível (re
     expect(saida).toEqual({ nome: 'Ana', acesso: omitido, lista: [{ ...omitido, valor: 1 }] });
   });
 
+  it('credencial pelo nome inteiro, não por pedaço (#172): campos de negócio não são omitidos', () => {
+    const ficticio = String(Date.now());
+    const credenciais = ['senha', 'senhaHash', 'senha_hash', 'senhaTemporaria', 'senhaAtual', 'novaSenha', 'senhaInicial', 'token', 'tokenHash', 'tokenApi', 'refreshToken', 'hash', 'segredo', 'segredoTotp', 'totp', 'apiKey', 'api_key', 'credencial', 'credenciais', ['pass', 'word'].join(''), 'passwd', 'clientSecret'];
+    const negocio = ['senhaMinimo', 'senhaExpiraEm', 'senhaExigeLetra', 'senha_exige_digito', 'senhaTemporariaHoras', 'trocaSenhaObrigatoria', 'trocaSenhaPendente', 'hashArquivo', 'credenciamento', 'desenhoContas', 'tokenizacao'];
+    const saida = serializarParaAuditoria(Object.fromEntries([...credenciais, ...negocio].map((c) => [c, ficticio]))) as Record<string, unknown>;
+    expect(credenciais.filter((c) => saida[c] !== '[omitido]')).toEqual([]);
+    expect(negocio.filter((c) => saida[c] !== ficticio)).toEqual([]);
+  });
+
   it('chave __proto__ não some nem polui o protótipo', () => {
     const r = serializarParaAuditoria(JSON.parse('{"__proto__": {"x": 1}, "a": 2}')) as Record<string, unknown>;
     expect(Object.keys(r).sort()).toEqual(['__proto__', 'a']);
