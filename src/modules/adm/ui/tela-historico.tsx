@@ -88,6 +88,7 @@ export function TelaHistorico({
               ))}
               {pagina.linhas.length === 0 && (
                 <tr>
+                  {/* Texto vazio [PROVISÓRIO]. */}
                   <td colSpan={5}>Nenhuma operação encontrada com esses filtros.</td>
                 </tr>
               )}

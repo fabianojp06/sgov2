@@ -21,7 +21,7 @@ export function BotaoImprimir({ registrar, parametros }: { registrar: (dados: Fo
             if (r.ok) {
               setErro(null);
               window.print();
-            } else setErro(r.erros[0]?.mensagem ?? 'Não foi possível imprimir.');
+            } else setErro(r.erros[0]?.mensagem ?? 'Não foi possível imprimir.'); // [PROVISÓRIO]
           })
         }
       >
