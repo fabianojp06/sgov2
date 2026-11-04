@@ -22,7 +22,7 @@ model SessaoUsuario {
 }
 
 // Marca da sessão encerrada por novo acesso (US-028, RN0519): a estação anterior vê o aviso na próxima
-// interação. Sai no vencimento (o prazo da sessão encerrada) ou no próximo login do usuário.
+// interação. Vale até o prazo da sessão encerrada; o login seguinte apaga as vencidas.
 model SessaoEncerrada {
   tokenHash   String   @id @map("token_hash")
   usuarioId   String   @map("usuario_id") @db.Uuid

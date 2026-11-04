@@ -1,6 +1,6 @@
 -- US-028 (RN0519, EP084 UC01.02 A2.2): a sessão apagada por um login em outra estação deixa uma marca
 -- pelo hash do token, para a estação anterior ver o aviso na próxima interação. A marca vale até o
--- prazo da sessão encerrada e sai no vencimento ou no próximo login do usuário.
+-- prazo da sessão encerrada e sai quando vence (o login seguinte apaga as vencidas).
 -- CreateTable
 CREATE TABLE "aut_sessao_encerrada" (
     "token_hash" TEXT NOT NULL,

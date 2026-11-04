@@ -95,7 +95,7 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
       };
     },
     // US-028: a sessão deste cookie foi encerrada por um login em outra estação? Não apaga a marca
-    // (o layout e a página perguntam na mesma requisição); ela sai no vencimento ou no próximo login.
+    // (o layout e a página perguntam na mesma requisição); ela vale até o prazo e sai depois de vencida.
     async motivoAusencia(): Promise<MotivoAusenciaSessao | null> {
       const token = await lerCookie(nomeCookieSessao());
       if (!token) return null;
