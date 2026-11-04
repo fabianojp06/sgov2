@@ -37,7 +37,14 @@ const SUFIXOS_NEGOCIO = new Set([
 // Nomes inteiros de negócio cujo sufixo também caberia num segredo (tokenArquivo, novaSenhaPendente).
 const NOMES_NEGOCIO = new Set(['hash arquivo', 'troca senha pendente']);
 // Duas palavras que, juntas, são credencial, mas separadas não (dataVerificacao, codigoCc).
-const PARES = [['codigo', 'verificacao']] as const;
+const PARES = [
+  ['codigo', 'verificacao'],
+  ['codigos', 'verificacao'],
+  ['codigo', 'recuperacao'],
+  ['codigos', 'recuperacao'],
+  ['recovery', 'code'],
+  ['recovery', 'codes'],
+] as const;
 
 export function chaveSensivel(chave: string): boolean {
   const palavras = chave

@@ -19,7 +19,7 @@ const TRAVA = String.raw`${ESQUEMA}(?:"historico_somente_insercao"|historico_som
 
 // ALTER TABLE no Histórico só com ADD COLUMN, em todas as ações do comando: renomear, mudar tipo,
 // apagar coluna, trocar dono ou schema, não. Parênteses saem antes de separar as ações pela vírgula.
-const ALTER_HIST = new RegExp(String.raw`^\s*ALTER\s+TABLE\s+(?:(?:ONLY|IF\s+EXISTS)\s+)*${HIST}([\s\S]*)$`, 'i');
+const ALTER_HIST = new RegExp(String.raw`\bALTER\s+TABLE\s+(?:(?:ONLY|IF\s+EXISTS)\s+)*${HIST}([\s\S]*)$`, 'i');
 function alterTableVedado(comando: string): boolean {
   const m = ALTER_HIST.exec(comando);
   if (!m) return false;
@@ -76,6 +76,7 @@ describe('migrations não mexem na trava do Histórico', () => {
     expect(violacoesHistorico('CREATE TRIGGER t BEFORE INSERT ON "historico_operacao" FOR EACH ROW EXECUTE FUNCTION nada();')).toEqual(['gatilho novo no Histórico']);
     expect(violacoesHistorico('CREATE RULE r AS ON INSERT TO "historico_operacao" DO INSTEAD NOTHING;')).toEqual(['regra no Histórico']);
     expect(violacoesHistorico("SELECT 'a--b'; DROP TRIGGER t ON x;")).toEqual(['DROP TRIGGER']);
+    expect(violacoesHistorico('DO $$ BEGIN ALTER TABLE historico_operacao DROP COLUMN ip; END $$;')).toEqual(['ALTER TABLE do Histórico']);
     // Aceitos: coluna nova no Histórico (com tipo de vários argumentos) e tabela de nome parecido.
     expect(violacoesHistorico('ALTER TABLE "historico_operacao" ADD COLUMN "valor" numeric(15,2), ADD COLUMN "ia" text;')).toEqual([]);
     expect(violacoesHistorico('ALTER TABLE "historico_operacao" ADD COLUMN "origem_ia" text;')).toEqual([]);
