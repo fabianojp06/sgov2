@@ -219,7 +219,7 @@
 
   Canal:
   - primeiro, mensagem entre sessões (`ListAgents` e `SendMessage`). A sessão da frente A se chama `frente-a`; a frente B informa o nome da dela no primeiro aviso. Como cada frente usa uma conta própria (`CLAUDE_CONFIG_DIR`), a mensagem entre sessões pode não funcionar;
-  - se a outra sessão não estiver alcançável, comentário na issue ou no PR (com autorização do PO) e uma linha para o PO dizendo o que a outra frente precisa saber.
+  - se a outra sessão não estiver alcançável, comentário na issue ou no PR do assunto (sem pedir autorização a cada vez: o PO autorizou os comentários de coordenação em 04/11; criar ou fechar issue e mudar label continuam com ele) e uma linha para o PO dizendo o que a outra frente precisa saber.
 
   O aviso informa e não pede mudança no código da outra frente (regra 9).
 - **Guia de comandos:** `docs/backlog/desenvolvimento-em-duas-frentes.md`.
@@ -298,7 +298,7 @@
   - #182: #289 (testes de privilégios do `sgo_fila` e do índice do outbox).
   - O resto continua aberto: regex de credencial, tipos do C5 (a combinar com a frente B) e lint compartilhado.
 - [x] "De acordo" da frente A no C3 publicado na #223, com a autorização do PO. À noite, o PO aprovou a mudança na #223, a frente B fez o merge do #221 (2bc237a) e a #223 foi fechada como concluída.
-- [ ] Criação de issue e comentário em issue pelo agente: o classificador nega sem autorização explícita do PO. A #280 foi aberta com a autorização dele. Comentário de coordenação entre as frentes conta como autorizado (seção 6, aviso direto, #303). Criar ou fechar issue e mudar label continuam com o PO.
+- [ ] Criação de issue e comentário em issue pelo agente: o classificador nega sem autorização explícita do PO. A #280 foi aberta com a autorização dele. Comentário de coordenação entre as frentes não precisa de autorização a cada vez (o PO autorizou em 04/11; seção 6, aviso direto). Criar ou fechar issue e mudar label continuam com o PO.
 - [ ] D12: em 03/11, duas rodadas de E2E da frente A coincidiram com o `vitest` da frente B (o `flock` do #257 só vale para quem usa `npm run test:int`/`test:e2e`; rodar o vitest direto escapa do lock).
 
 **Frente B (03/11)**
