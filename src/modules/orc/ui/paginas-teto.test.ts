@@ -9,11 +9,12 @@ import { calcularPainel } from '../domain/resultado';
 
 // Formulário do teto na página (Task 7): só com alterar, sem escopo e com o exercício editável.
 vi.mock('next/server', () => ({ connection: async () => undefined }));
-const caso = vi.hoisted(() => ({ escopo: 'TOTAL' as 'TOTAL' | 'SUBARVORE', editavel: true }));
+const caso = vi.hoisted(() => ({ escopo: 'TOTAL' as 'TOTAL' | 'SUBARVORE', editavel: true, deps: undefined as unknown }));
 vi.mock('@/modules/orc', async (original) => ({
   ...(await original<typeof import('@/modules/orc')>()),
   listarExercicios: async () => [],
-  obterVisaoExercicio: async () => {
+  obterVisaoExercicio: async (_ctx: unknown, _ano: unknown, _cc: unknown, deps?: unknown) => {
+    caso.deps = deps;
     const m12 = Array.from({ length: 12 }, () => Dinheiro.de('10'));
     return {
       exercicio: { id: 'e1', ano: 2027, situacao: 'EM_ELABORACAO', rotuloSituacao: 'Em Elaboração', editavel: caso.editavel, versao: 1, premissasDesatualizadas: false },
@@ -60,4 +61,12 @@ describe('formulário do teto na página', () => {
     expect(h).not.toContain('Teto manual');
     expect(h).not.toContain('Teto e resultado');
   });
+});
+
+// A página injeta o semáforo real do cad (#234): sem ele, a visão sai com o aviso de indisponível.
+it('a página passa o provedorSemaforo do cad para a visão', async () => {
+  contexto = ctx(['orc.orcamento:consultar']);
+  await html();
+  const { provedorSemaforo } = await import('@/modules/cad');
+  expect((caso.deps as { semaforo?: unknown } | undefined)?.semaforo).toBe(provedorSemaforo);
 });
