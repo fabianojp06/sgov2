@@ -77,7 +77,8 @@ describe('carregarTelaPrincipal', () => {
     const ctx = await logado('caio', 'ADMINISTRADOR', []);
     await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: false } });
     try {
-      expect((await carregarTelaPrincipal(ctx, { cliente: app })).menu).toEqual([]);
+      // O adm tem outras funcionalidades (alçadas, Histórico): só a desativada some.
+      expect((await carregarTelaPrincipal(ctx, { cliente: app })).menu.flatMap((m) => m.grupos.flatMap((g) => g.itens.map((i) => i.codigo)))).not.toContain('adm.usuarios');
     } finally {
       await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: true } });
     }
