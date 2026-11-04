@@ -51,6 +51,10 @@ export {
   premissasExemplo,
 } from './falsos';
 
+// Resumo dos cadastros para a conferência da carga (plano do P7, Task 2): só o tipo; a função
+// sai só pelo servidor.ts (decifra salários).
+export type { ContagemNivel, ResumoCadastros } from './infrastructure/resumo-cadastros';
+
 // Parâmetros por exercício (Task 9a): semáforo (RN_PLA_006) e tipos da tela.
 export { classificarSemaforo, type FaixaSemaforo, type FaixasSemaforo } from './domain/semaforo';
 export type { EntradaParametros, ParametrosExercicio } from './domain/parametros';
