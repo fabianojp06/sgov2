@@ -3,7 +3,7 @@ import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedAdm } from '../infrastructure/seed';
-import { consultarHistorico, MENSAGEM_PERIODO } from './historico';
+import { consultarHistorico, MENSAGEM_PERIODO, MENSAGEM_USUARIO_FILTRO } from './historico';
 
 // Consulta do Histórico de Operações (US-040, UC02.24): alcance por perfil (RN0099, RN0100), filtros,
 // paginação no banco e o registro da própria consulta (nível Avançado, §5).
@@ -43,6 +43,7 @@ beforeAll(async () => {
   await registro('sistema.seed', 'SISTEMA', 'Sistema', '2026-10-08T12:00:00Z');
   for (let i = 0; i < 60; i++) await registro('adm.usuarios', 'ALTERACAO', 'Lote', `2026-10-20T12:${String(i).padStart(2, '0')}:00Z`, `lote ${i}`);
   await registro('adm.usuarios', 'INSERCAO', 'Fora', '2026-11-15T12:00:00Z');
+  await registro('adm.usuarios', 'INSERCAO', 'cem%_por', '2026-09-15T12:00:00Z');
 });
 
 afterAll(async () => {
@@ -88,6 +89,28 @@ describe('consultarHistorico', () => {
   it('período acima de 366 dias ou invertido → erro de campo', async () => {
     expect(await consultarHistorico(admin, { de: new Date('2025-01-01'), ate: new Date('2026-01-03'), pagina: 1 }, deps())).toEqual({ ok: false, erros: [{ campo: 'de', mensagem: MENSAGEM_PERIODO }] });
     expect(await consultarHistorico(admin, { de: ATE, ate: DE, pagina: 1 }, deps())).toEqual({ ok: false, erros: [{ campo: 'de', mensagem: MENSAGEM_PERIODO }] });
+  });
+
+  it('% e _ no filtro de usuário são literais; página NaN vira a 1; filtro de usuário acima de 120 caracteres → erro', async () => {
+    const setembro = { de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-09-30T03:00:00Z') };
+    const pct = await consultarHistorico(admin, { ...setembro, pagina: 1, usuario: '%_' }, deps());
+    expect(pct.ok && pct.valor.linhas.map((l) => l.usuario)).toEqual(['cem%_por']);
+    const sublinhado = await consultarHistorico(admin, { ...setembro, pagina: 1, usuario: 'm_p' }, deps());
+    expect(sublinhado.ok && sublinhado.valor.total).toBe(0);
+    const nan = await consultarHistorico(admin, { de: DE, ate: ATE, pagina: Number.NaN }, deps());
+    expect(nan.ok && nan.valor.pagina).toBe(1);
+    expect(await consultarHistorico(admin, { de: DE, ate: ATE, pagina: 1, usuario: 'x'.repeat(121) }, deps())).toEqual({ ok: false, erros: [{ campo: 'usuario', mensagem: MENSAGEM_USUARIO_FILTRO }] });
+  });
+
+  it('perfil ADMINISTRADOR inativo não dá o alcance total', async () => {
+    const outro = await usuarioComPerfil('adm.inativo', 'ADMINISTRADOR');
+    await migrator.perfil.update({ where: { codigo: 'ADMINISTRADOR' }, data: { ativo: false } });
+    try {
+      const r = await consultarHistorico(outro, { de: DE, ate: ATE, pagina: 1 }, deps());
+      expect(r.ok && r.valor.total).toBe(0);
+    } finally {
+      await migrator.perfil.update({ where: { codigo: 'ADMINISTRADOR' }, data: { ativo: true } });
+    }
   });
 
   it('cada consulta grava um CONSULTA com os filtros (nível Avançado, §5); sem a permissão → ErroPermissao', async () => {

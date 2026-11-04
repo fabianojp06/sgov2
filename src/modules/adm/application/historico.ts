@@ -7,7 +7,10 @@ import { carregarPermissoes } from './login';
 
 // Consulta do Histórico de Operações (US-040, UC02.24; REQ00100 a REQ00103): só leitura, com filtro
 // e paginação no banco. O Administrador vê tudo; os outros perfis veem só as funcionalidades do
-// próprio perfil (RN0099), nunca os registros fora do catálogo (RN0100). Só os campos da listagem
+// próprio perfil (RN0099), nunca os registros fora do catálogo (RN0100). O `ate` é um instante: quem
+// monta o filtro pela tela leva-o até o fim do dia (Task 7). A unidade (TP) não recorta: hoje só o
+// Administrador e o Auditor, perfis globais, têm adm.historico; o recorte por TP fica para a US-007
+// nas tabelas de TP (pendência registrada). Só os campos da listagem
 // do UC02.24: sem antes/depois, que ainda não têm a máscara por perfil (D-P8-10). A consulta tem
 // nível Avançado (§5) e grava um CONSULTA com os filtros.
 export type DepsHistorico = { cliente: PrismaClient };
@@ -21,6 +24,8 @@ export const POR_PAGINA = 50;
 const PERIODO_MAXIMO_MS = 366 * 24 * 60 * 60 * 1000;
 // [PROVISÓRIO]
 export const MENSAGEM_PERIODO = 'O período pode ter no máximo 366 dias, com a data inicial antes da final.';
+export const MENSAGEM_USUARIO_FILTRO = 'O filtro de usuário pode ter no máximo 120 caracteres.';
+const MAXIMO_USUARIO = 120;
 
 const escaparLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
@@ -45,6 +50,7 @@ export async function filtroDoHistorico(ctx: ContextoRequisicao, f: FiltroHistor
 }
 
 export function periodoValido(f: Pick<FiltroHistorico, 'de' | 'ate'>): boolean {
+  if (Number.isNaN(f.de.getTime()) || Number.isNaN(f.ate.getTime())) return false;
   return f.de.getTime() <= f.ate.getTime() && f.ate.getTime() - f.de.getTime() <= PERIODO_MAXIMO_MS;
 }
 
@@ -60,7 +66,9 @@ export async function consultarHistorico(ctx: ContextoRequisicao, f: FiltroHisto
   exigir(ctx, FUNCIONALIDADE_HISTORICO, 'consultar');
   const cliente = deps.cliente ?? prisma;
   if (!periodoValido(f)) return falha([{ campo: 'de', mensagem: MENSAGEM_PERIODO }]);
-  const pagina = Math.max(1, Math.trunc(f.pagina));
+  if ((f.usuario?.length ?? 0) > MAXIMO_USUARIO) return falha([{ campo: 'usuario', mensagem: MENSAGEM_USUARIO_FILTRO }]);
+  // Página fora do número (NaN, Infinity) vira a primeira, sem chegar ao banco.
+  const pagina = Number.isFinite(f.pagina) ? Math.min(Math.max(1, Math.trunc(f.pagina)), 1_000_000) : 1;
   const where = await filtroDoHistorico(ctx, f, cliente);
   return cliente.$transaction(async (tx) => {
     const [linhas, total] = await Promise.all([
