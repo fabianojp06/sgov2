@@ -313,7 +313,7 @@
   - ~~na importação do `orc`, usar `lerPlanilhasSegura` com o `indiceAba`~~ **feito pela frente A (#311)**;
   - injetar `provedorSemaforo` de `@/modules/cad` no `deps.semaforo` de produção (#295);
   - ~~R10: a carga do plano de contas muda as premissas sem subir a versão~~ **tratado pela frente A (#309)**;
-  - ~~`retries` e o reporter `github` no `playwright.config.ts`~~ **feito pela frente A**;
+  - ~~`retries` e o reporter `github` no `playwright.config.ts`~~ **feito pela frente A (#314)**;
   - `adm/servidor.ts` e `orc/servidor.ts` para a seed: um `server-only` num `application/` do `adm` ou do `orc` quebraria o bundle da seed (#299);
   - `guarda.ts` ainda grava o TP na auditoria de negação de cadastro global (revisão do #276).
 - [x] Frente B, #221 (exportação XLSX real): na `main` em 03/11, à noite (`2bc237a`). Não foi preciso recriar a branch: com os falsos positivos marcados pelo PO, bastou um merge da `main` (árvore conferida contra a testada) e o *squash*. A #233 (texto que vira fórmula) já está coberta no XLSX pelo M2 do #221; fica aberta só pelo CSV do `rel` e é o **próximo item da frente B (04/11)**, sem dependência de ninguém.
