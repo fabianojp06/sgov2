@@ -4,15 +4,16 @@ import type { PlanilhaExportacao } from '@/modules/ger';
 // Linhas do relatório de conferência da carga (plano do P7, Task 2; US-115): as mesmas na tela e
 // na exportação, para a GFIN conferir o que vê com o que assina. Quantidades como texto inteiro;
 // dinheiro como texto decimal do kernel (C3).
-// `oculto`: valor que existe, mas não é mostrado sem a permissão (a soma dos salários, R24).
-export type LinhaConferencia = { secao: string; item: string; quantidade: string | null; valor: string | null; oculto?: true };
+// `oculto`: valor que existe, mas não é mostrado: sem a permissão ('oculta', R24) ou sem a chave de
+// cifra ('indisponivel').
+export type LinhaConferencia = { secao: string; item: string; quantidade: string | null; valor: string | null; oculto?: 'oculta' | 'indisponivel' };
 
 const SIM_NAO = (b: boolean) => (b ? 'sim' : 'não');
 
 export function linhasConferencia(r: ResumoCadastros): LinhaConferencia[] {
   const linhas: LinhaConferencia[] = [];
-  const add = (secao: string, item: string, quantidade: number | string | null, valor: string | null = null, oculto = false) =>
-    linhas.push({ secao, item, quantidade: quantidade === null ? null : String(quantidade), valor, ...(oculto ? { oculto: true as const } : {}) });
+  const add = (secao: string, item: string, quantidade: number | string | null, valor: string | null = null) =>
+    linhas.push({ secao, item, quantidade: quantidade === null ? null : String(quantidade), valor });
 
   for (const n of r.contas) {
     add('Plano de contas', `Nível ${n.nivel}: ativas`, n.ativos);
@@ -30,9 +31,16 @@ export function linhasConferencia(r: ResumoCadastros): LinhaConferencia[] {
   add('Cargos', 'Ativos', r.cargos.ativos);
   add('Cargos', 'Inativos', r.cargos.inativos);
   add('Cargos', 'Ativos com salário real', r.cargos.comSalarioReal);
-  // Sem cad.salarios:consultar, a soma não é decifrada nem exibida (R24).
-  add('Cargos', 'Soma dos salários reais dos cargos ativos', null, r.cargos.somaSalarioReal, r.cargos.somaSalarioReal === null);
-  if (r.cargos.salariosIlegiveis > 0) add('Cargos', 'Salários reais ilegíveis (fora da soma)', r.cargos.salariosIlegiveis);
+  // Sem cad.salarios:consultar, a soma não é decifrada nem exibida (R24). Sem a chave de cifra, ela
+  // aparece como indisponível, nunca como 0,00.
+  const soma = r.cargos.somaSalarioReal;
+  const ROTULO_SOMA = 'Soma dos salários reais dos cargos ativos';
+  if (soma.situacao === 'calculada') {
+    add('Cargos', ROTULO_SOMA, null, soma.total);
+    if (soma.ilegiveis > 0) add('Cargos', 'Salários reais ilegíveis (fora da soma)', soma.ilegiveis);
+  } else {
+    linhas.push({ secao: 'Cargos', item: ROTULO_SOMA, quantidade: null, valor: null, oculto: soma.situacao });
+  }
   add('Tabela salarial', 'Faixas ativas de cargos ativos', r.faixasSalariaisAtivas);
 
   const e = r.exercicio;
@@ -48,6 +56,8 @@ export function linhasConferencia(r: ResumoCadastros): LinhaConferencia[] {
   return linhas;
 }
 
+const MOTIVO = { oculta: 'oculto: sem permissão de consultar salários', indisponivel: 'indisponível: chave de cifra não configurada' } as const;
+
 export function planilhaConferencia(r: ResumoCadastros, ano: number): PlanilhaExportacao {
   return {
     nome: `Conferência ${ano}`,
@@ -57,6 +67,6 @@ export function planilhaConferencia(r: ResumoCadastros, ano: number): PlanilhaEx
       { titulo: 'Quantidade', tipo: 'texto', largura: 90 },
       { titulo: 'Valor', tipo: 'dinheiro', largura: 120 },
     ],
-    linhas: linhasConferencia(r).map((l) => [l.secao, l.oculto ? `${l.item} (oculto: sem permissão de consultar salários)` : l.item, l.quantidade, l.valor]),
+    linhas: linhasConferencia(r).map((l) => [l.secao, l.oculto ? `${l.item} (${MOTIVO[l.oculto]})` : l.item, l.quantidade, l.valor]),
   };
 }

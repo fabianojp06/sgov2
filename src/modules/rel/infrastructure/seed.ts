@@ -16,7 +16,8 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
       'Contagens e totais dos cadastros (plano de contas, centros de custo, cargos, tabela salarial e parâmetros do ' +
       'exercício) para conferir a carga contra as planilhas de origem. A soma dos salários só aparece para quem consulta salários.',
     acoes: ['consultar', 'exportar'],
-    perfisPadrao: { GFIN: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'], DIREX: ['consultar'] },
+    // Plano do P7 (Task 2): GFIN e Administrador; Auditor e DIREX leem (§11.3: leitura dos módulos).
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], ADMINISTRADOR: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'], DIREX: ['consultar'] },
   },
 ];
 

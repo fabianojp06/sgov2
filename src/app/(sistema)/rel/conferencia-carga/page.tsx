@@ -35,7 +35,7 @@ export default async function ConferenciaCarga({ searchParams }: { searchParams:
               <td>{l.secao}</td>
               <td>{l.item}</td>
               <td>{l.quantidade ?? ''}</td>
-              <td>{l.oculto ? 'oculto' : formatarCelula('dinheiro', l.valor)}</td>
+              <td>{l.oculto === 'oculta' ? 'oculto' : l.oculto === 'indisponivel' ? 'indisponível (sem a chave de cifra)' : formatarCelula('dinheiro', l.valor)}</td>
             </tr>
           ))}
         </tbody>
