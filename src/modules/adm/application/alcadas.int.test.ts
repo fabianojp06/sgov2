@@ -141,6 +141,9 @@ describe('resolverAprovador (RN_ALC_005, RN_WA02_006)', () => {
     const rota = (o?: { solicitanteId?: string }) => app.$transaction((tx) => resolverAprovador(tx, 'WA01', o));
     expect(await rota()).toEqual({ usuarioId: t, papel: 'TITULAR' });
     expect(await rota({ solicitanteId: t })).toEqual({ bloqueio: 'MESMO_USUARIO' });
+    // Titular bloqueado também passa ao substituto.
+    await migrator.usuario.update({ where: { id: t }, data: { bloqueado: true } });
+    expect(await rota()).toEqual({ usuarioId: s, papel: 'SUBSTITUTO' });
     await migrator.usuario.update({ where: { id: t }, data: { ativo: false } });
     expect(await rota()).toEqual({ usuarioId: s, papel: 'SUBSTITUTO' });
     expect(await rota({ solicitanteId: s })).toEqual({ bloqueio: 'MESMO_USUARIO' });
