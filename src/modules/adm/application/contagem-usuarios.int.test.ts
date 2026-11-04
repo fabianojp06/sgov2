@@ -42,7 +42,8 @@ describe('contarUsuariosPorPerfil', () => {
     expect(por.GFIN).toMatchObject({ ativos: 3, bloqueados: 1 });
     expect(por.AUDITOR).toMatchObject({ ativos: 1, bloqueados: 0 });
     expect(por.DIREX).toMatchObject({ ativos: 0, bloqueados: 0 });
-    expect(r.perfis.map((p) => p.codigo)[0]).toBe('ADMINISTRADOR');
+    expect(r.perfis.map((p) => p.codigo)).toEqual(['ADMINISTRADOR', 'ORCAMENTISTA', 'GFIN', 'ANALISTA_GRH', 'OPERADOR_VIAGENS', 'AUDITOR', 'GESTOR_DIRETORIA', 'DIREX']);
+    expect(r.perfis.every((p) => p.ativo)).toBe(true);
     expect(r.trocaSenhaPendente).toBe(1);
     expect(JSON.stringify(r)).not.toContain('gfin.');
   });
