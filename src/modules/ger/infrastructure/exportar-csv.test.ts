@@ -51,6 +51,11 @@ const INJECOES = [
   '\uFF0B1',
   '\uFF0D1',
   '\uFF201',
+  '\n=1+1',
+  '\u3000=1+1',
+  '\u2003=1+1',
+  '\uFEFF=1+1',
+  '\u200B=1+1',
 ];
 
 const planilha: PlanilhaExportacao = {
@@ -115,15 +120,16 @@ describe('exportarCsv', () => {
   });
 
   it('tira o NUL e corta no limite do Excel', () => {
-    expect(textoSeguro('a\0b')).toBe('ab');
+    expect(textoSeguro('a\0b\0')).toBe('ab');
     expect(textoSeguro('x'.repeat(40_000))).toHaveLength(32_767);
+    expect(textoSeguro('='.repeat(40_000))).toHaveLength(32_767);
   });
 
   it('recusa pelas regras do C3 (linha sem um valor por coluna, acima do limite síncrono)', () => {
     const torta = exportarCsv({ ...planilha, linhas: [['só um']] });
-    expect(torta.ok).toBe(false);
+    expect(!torta.ok && torta.erros.map((e) => e.campo)).toEqual(['planilhas.0.linhas']);
     const grande = exportarCsv({ ...planilha, linhas: Array.from({ length: 5001 }, () => ['a', null, null, null, null]) });
-    expect(grande.ok).toBe(false);
+    expect(!grande.ok && grande.erros.map((e) => e.campo)).toEqual(['linhas']);
   });
 
   it('o falso registra a chamada e devolve ok', () => {
