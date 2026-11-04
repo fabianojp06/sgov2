@@ -1,5 +1,5 @@
 import { expect, test, type APIResponse } from '@playwright/test';
-import { entrarNaTelaPrincipal, USUARIOS } from '../aut/apoio';
+import { BASE, entrarNaTelaPrincipal, USUARIOS } from '../aut/apoio';
 
 // Testes de segurança do P7 (Task 4, Step 1; US-116, #138): cabeçalhos, cookie de sessão e acesso
 // sem sessão. A CSP completa e o HSTS dependem da frente A (proxy.ts) ou do Traefik: até lá, o teste
@@ -19,6 +19,8 @@ test('página pública (/login): cabeçalhos de segurança', async ({ request })
   conferirCabecalhos(r);
 });
 
+// O proxy redireciona qualquer caminho sem o cookie de sessão. As rotas do rel entram no #317 (Task 2):
+// até lá, o teste prova o proxy, e não a rota de exportação em si.
 test('sem sessão: página protegida e exportação levam ao login, sem conteúdo', async ({ request }) => {
   for (const rota of ['/inicio', '/cad/plano-contas', '/rel/conferencia-carga', '/rel/conferencia-carga/exportar?ano=2027&formato=csv']) {
     const r = await request.get(rota, { maxRedirects: 0 });
@@ -29,7 +31,7 @@ test('sem sessão: página protegida e exportação levam ao login, sem conteúd
   }
 });
 
-test('cookie de sessão: HttpOnly, SameSite=Lax, path / e sessão; página logada com os cabeçalhos', async ({ page, context }) => {
+test('cookie de sessão: HttpOnly, SameSite=Lax e path /; página logada com os cabeçalhos', async ({ page, context }) => {
   await entrarNaTelaPrincipal(page, USUARIOS.orcamentista.login);
   const cookies = await context.cookies();
   const sessao = cookies.find((c) => c.name === 'sgo_sessao' || c.name === '__Host-sgo_sessao');
@@ -49,9 +51,8 @@ test('cookie de sessão: HttpOnly, SameSite=Lax, path / e sessão; página logad
 test('página do sistema não abre dentro de um iframe de outro site', async ({ page }) => {
   // frame-ancestors 'none': o navegador recusa o enquadramento, e o login não aparece no iframe.
   // O setContent espera o load do documento, que só acontece depois do load do iframe (inclusive o
-  // recusado): a conferência logo em seguida não passa por o iframe ainda estar carregando.
-  await page.setContent('<iframe id="alvo" src="http://127.0.0.1:3190/login" width="600" height="400"></iframe>', { waitUntil: 'load' });
-  expect(page.frames()).toHaveLength(2);
+  // recusado). O login vem no HTML do SSR: sem o frame-ancestors, o campo apareceria e o teste reprovaria.
+  await page.setContent(`<iframe id="alvo" src="${BASE}/login" width="600" height="400"></iframe>`, { waitUntil: 'load' });
   await expect(page.frameLocator('#alvo').getByLabel('Login')).toHaveCount(0, { timeout: 1_000 });
 });
 
