@@ -21,8 +21,8 @@ export const MENSAGENS_ALCADA = {
       : 'Operação indisponível: Não há aprovador ativo cadastrado para este fluxo. Contate o Administrador do sistema.',
   MESMO_USUARIO: (fluxo: FluxoAprovacao) =>
     fluxo === 'WA02'
-      ? 'O mesmo usuário não pode submeter e aprovar o próprio lote de viagens. Contate o Administrador para revisar o cadastro de alçadas.'
-      : 'O mesmo usuário não pode submeter e aprovar a própria solicitação. Contate o Administrador para revisar o cadastro de alçadas.',
+      ? 'Operação Rejeitada: O mesmo usuário não pode submeter e aprovar o próprio lote de viagens. Contate o Administrador para revisar o cadastro de alçadas.'
+      : 'Operação Rejeitada: O mesmo usuário não pode submeter e aprovar a própria solicitação. Contate o Administrador para revisar o cadastro de alçadas.',
   FLUXO: 'Selecione o fluxo de aprovação',
   TITULAR: 'Selecione o titular',
   SUBSTITUTO: 'Selecione o substituto',
