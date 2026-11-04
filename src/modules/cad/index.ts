@@ -52,3 +52,6 @@ export { acaoAlterarBeneficiosCargo } from './application/acoes-beneficios-cargo
 export { listarBeneficiosCargo } from './application/beneficios-cargo';
 export { calcularCustoCargo, paraTelaCusto } from './application/custo-cargo';
 export { BlocoEncargo } from './ui/bloco-encargo';
+
+// Conferência da carga (plano do P7, Task 2): o rel chama de application/, com a transação dele.
+export { listarAnosExercicio, resumirCadastrosParaConferencia } from './application/conferencia-cadastros';
