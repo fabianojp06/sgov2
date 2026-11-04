@@ -5,7 +5,7 @@ setup() {
   T="$(mktemp -d)"
   export LOG_ALERTAS="$T/alertas.log" ESTADO_ALERTA="$T/estado" LOGGER="$T/logger" CURL="$T/curl" LIMITE_MB=1024
   printf '#!/bin/sh\necho "$@" >> %s/logger.out\n' "$T" > "$LOGGER"
-  printf '#!/bin/sh\necho "$@" >> %s/curl.out\n' "$T" > "$CURL"
+  printf '#!/bin/sh\necho "$@" >> %s/curl.out\ncat >> %s/curl.in\n' "$T" "$T" > "$CURL"
   chmod +x "$LOGGER" "$CURL"
   SCRIPT="$BATS_TEST_DIRNAME/../alerta-memoria.sh"
 }
@@ -27,20 +27,40 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
   run "$SCRIPT"
   [ "$status" -eq 0 ]
   [ ! -s "$LOG_ALERTAS" ]
+  [ ! -e "$T/logger.out" ]
 }
 
 @test "sem webhook não tenta POST" {
   meminfo 900000
   unset ALERTA_WEBHOOK_URL
   run "$SCRIPT"
+  [ "$status" -eq 0 ]
   [ ! -e "$T/curl.out" ]
 }
 
 @test "com webhook faz POST com a mensagem" {
   meminfo 900000
-  ALERTA_WEBHOOK_URL="https://exemplo.invalid/t" run "$SCRIPT"
+  ALERTA_WEBHOOK_URL="https://exemplo.invalid/t?token=segredo" run "$SCRIPT"
   [ "$status" -eq 0 ]
-  grep -q 'exemplo.invalid' "$T/curl.out"
+  grep -q 'memória disponível baixa' "$T/curl.out"
+  # A URL vai pelo stdin (-K -), nunca nos argumentos, que o ps mostra.
+  grep -qx 'url = "https://exemplo.invalid/t?token=segredo"' "$T/curl.in"
+  run ! grep -q 'segredo' "$T/curl.out"
+}
+
+@test "URL com caractere de controle: não chama o curl e avisa no journal" {
+  meminfo 900000
+  ALERTA_WEBHOOK_URL=$'https://exemplo.invalid/a\nb' run "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [ ! -e "$T/curl.out" ]
+  grep -q 'ALERTA_WEBHOOK_URL inválida' "$T/logger.out"
+}
+
+@test "aspas e barra invertida na URL são escapadas no config do curl" {
+  meminfo 900000
+  ALERTA_WEBHOOK_URL='https://exemplo.invalid/a"b\c' run "$SCRIPT"
+  [ "$status" -eq 0 ]
+  grep -qxF 'url = "https://exemplo.invalid/a\"b\\c"' "$T/curl.in"
 }
 
 @test "falha do webhook não derruba o script" {
@@ -52,7 +72,9 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
 
 @test "um episódio longo conta uma vez só (contador de episódios, não de minutos)" {
   meminfo 900000
-  run "$SCRIPT"; run "$SCRIPT"; run "$SCRIPT"
+  run "$SCRIPT"; [ "$status" -eq 0 ]
+  run "$SCRIPT"; [ "$status" -eq 0 ]
+  run "$SCRIPT"; [ "$status" -eq 0 ]
   [ "$(wc -l < "$LOG_ALERTAS")" -eq 1 ]
 }
 
@@ -88,8 +110,8 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
 
 @test "estado sem permissão de escrita: sai com 0 e não conta o episódio" {
   meminfo 900000
-  mkdir -p "$T/ro"; chmod 555 "$T/ro"; export ESTADO_ALERTA="$T/ro/estado"
-  if [ "$(id -u)" -eq 0 ]; then skip "root ignora permissão de diretório"; fi
+  # Um diretório no lugar do arquivo de estado: a escrita falha até para root (o chmod não bastaria).
+  mkdir -p "$T/estado.d"; export ESTADO_ALERTA="$T/estado.d"
   run "$SCRIPT"
   [ "$status" -eq 0 ]
   [ ! -s "$LOG_ALERTAS" ]

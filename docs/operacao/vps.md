@@ -24,6 +24,7 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 | Alerta de memória < 1 GiB, verificado a cada minuto, registrado **por episódio** (volta ao normal acima de 120% do limite) | `/usr/local/sbin/sgo-alerta-memoria` + `sgo-alerta-memoria.timer`; config em `/etc/sgo/alerta.env`; estado em `/var/lib/sgo/alerta-memoria.estado` | `systemctl disable --now sgo-alerta-memoria.timer` |
 
 - Prioridades (`oom_score_adj`): `sgo-prod_*`/`sgo-prod-*` −500 · `easypanel.*`/`easypanel-*` −300 · `sgo-hml_*`/`sgo-hml-*` −200 · dev `sgo-a-*`/`sgo-b-*` +500 (o compose de dev da P1, Tarefa 3, também vai definir +500). Nomes parecidos (`sgo-api`, `sgo-backup`, `sgo-ab`) **não** recebem ajuste. Conferir com `sgo-ajustar-oom --simular`.
+- **Os projetos do Easypanel precisam se chamar exatamente `sgo-prod` e `sgo-hml`.** O ajuste é pelo nome do contêiner. Com outro nome, a produção fica com 0, abaixo do −300 do Traefik e do painel, e passa a morrer antes deles.
 - **Por que proteger o Easypanel e o Traefik (−300), desvio do plano:** o Traefik atende todo o tráfego de produção e o painel é o único jeito de operar os serviços. Sem o ajuste, eles ficam com 0, o mesmo valor das sessões do Claude Code no host, e podem morrer antes delas. O script só escreve o `oom_score_adj` dos processos; não reinicia nem altera contêiner, rede ou volume. **Aguarda o aceite do PO.**
 - O earlyoom **não** tem `node` nem `next-server` na lista de preferidos, porque o painel do Easypanel e o app de produção também rodam assim. Quem morre primeiro é decidido pelo `oom_score_adj`. Desvio da spec §4.3, que cita `node`/`next`: registrar na próxima revisão da spec.
 - **Contador semanal (gatilho de D12):** `grep -c "^$(date +%G-W%V) " /var/lib/sgo/alertas-memoria.log` conta **episódios** de memória baixa. Acima de 3 na semana, o dev sai da VPS (spec §4.3).
@@ -61,7 +62,7 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 ## Pendências
 
 - [ ] Teste de pico de memória (US-122 Step 10): rodar quando não houver fluxo de agentes em execução, porque o teste pode encerrar processos de dev.
-- [ ] **Reboot de prova** (P2 Tarefa 2 Step 9), numa janela combinada com o PO: conferir `swapon` 8G, `swappiness` 10, earlyoom/fail2ban/ufw/timers `sgo-*` ativos, `docker ps` com o Easypanel e, quando existir, a regra da `DOCKER-USER`.
+- [ ] **Reboot de prova** (P2 Tarefa 2 Step 9), numa janela combinada com o PO: conferir `swapon` 8G, `swappiness` 10, earlyoom/fail2ban/ufw/timers `sgo-*` ativos, `docker ps` com o Easypanel e, quando existir, a regra da `DOCKER-USER`. O fail2ban só se valida com tentativas reais: depois de algumas falhas de login de fora, `fail2ban-client status sshd` deve mostrar `Total failed` maior que 0.
 - [ ] Firewall do hPanel (PO) e conferência **de fora**: `nc -zv <ip> 3000` fechado; `nc -zv <ip> 443` aberto.
 - [ ] Quando o Easypanel criar `sgo-prod`/`sgo-hml` (US-014): reserva de memória nos serviços, swap travado nos contêineres de produção (`memory.swap.max=0` ou `memswap_limit` = `mem_limit`) e conferência do −500 com `sgo-ajustar-oom --simular`.
 - [ ] Compose de dev com `mem_limit` e `oom_score_adj` 500 (P1, Tarefa 3).
@@ -70,7 +71,8 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 - [ ] `ops/vps/docker-user.sh` e `sgo-docker-user.service` (plano P2, Tarefa 2): serão criados junto com a aplicação da regra da porta 3000.
 - [ ] **Risco aceito até a pendência acima:** o Easypanel segue aberto na 3000 por HTTP; a senha do painel trafega sem criptografia. Registrar a data do aceite do PO.
 - [ ] Atualizar `docs/memoria/memoria-do-projeto.md` no encerramento do P2.
-- [ ] Verificar os hooks das sessões (US-122 Step 12) depois do merge da US-002.
+- [x] Verificar os hooks das sessões (US-122 Step 12): verificado numa sessão nova da frente B em 04/11/2026, com as travas de produção, da `main` e de banco ativas (#145).
 - [ ] Chave SSH do PO → SSH só por chave → fail2ban mais rígido (5 tentativas, 1 h).
-- [ ] Fechar a 3000 na `DOCKER-USER` (com o túnel combinado com o PO).
-- [ ] Canal do alerta (`ALERTA_WEBHOOK_URL`).
+- [ ] Fechar a 3000 na `DOCKER-USER` (com o túnel combinado com o PO), no `iptables` **e** no `ip6tables` (ou com a publicação em IPv6 desligada no Docker): só a regra IPv4 deixaria a 3000 aberta pelo IPv6 da VPS. Conferir de fora pelos dois endereços.
+- [ ] Canal do alerta (`ALERTA_WEBHOOK_URL`). Depois do merge do PR #308, reinstalar o `alerta-memoria.sh` (pelo `instalar.sh` ou só com `install -m 0755 ops/vps/alerta-memoria.sh /usr/local/sbin/sgo-alerta-memoria`): a URL passou a ir pelo stdin do `curl`, fora do `ps`.
+- [ ] Opcional, com a chave SSH do PO: `ignoreip = 127.0.0.1/8 ::1 <IP fixo do PO>` no `jail-sgo.local`, se o PO tiver IP fixo. Com IP dinâmico, fica o console do hPanel como acesso de emergência.
