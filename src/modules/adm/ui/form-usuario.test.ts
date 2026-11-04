@@ -1,7 +1,6 @@
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AcaoConfirmada } from './acao-confirmada';
 import { FormUsuario, MENSAGEM_BLOQUEADO, type PropsFormUsuario } from './form-usuario';
 
 const acao = async () => ({ ok: true as const, valor: undefined });
@@ -91,21 +90,4 @@ describe('FormUsuario: alteração (UC02.13)', () => {
   });
 
   it('Resetar Senha disponível na alteração', () => expect(alteracao()).toContain('Resetar Senha'));
-});
-
-describe('AcaoConfirmada (UC02.13 A2, A3)', () => {
-  const props = { rotulo: 'Resetar Senha', pergunta: 'Deseja realmente resetar a senha deste usuário?', acao, id: 'x' };
-  it('fechada: só o botão', () => {
-    const h = renderToString(createElement(AcaoConfirmada, props));
-    expect(h).toContain('Resetar Senha');
-    expect(h).not.toContain('Deseja realmente');
-  });
-  it('aberta: pergunta com Sim e Não', () => {
-    const h = renderToString(createElement(AcaoConfirmada, { ...props, aberto: true }));
-    expect(h).toContain('role="alertdialog"');
-    expect(h).not.toContain('aria-modal'); // não é modal: o resto da página continua acessível
-    expect(h).toContain('Deseja realmente resetar a senha deste usuário?');
-    expect(h).toContain('>Sim<');
-    expect(h).toContain('>Não<');
-  });
 });

@@ -1,7 +1,6 @@
 'use client';
 
-import { ErroDoCampo, Formulario } from '@/modules/ger';
-import { AcaoConfirmada, type AcaoComId } from './acao-confirmada';
+import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
 
 // Formulário de cadastro (UC02.12) e alteração (UC02.13) de usuário. Componente cliente: recebe as
 // ações e os dados por props da página (não importa o index do módulo, que tem servidor).
@@ -30,9 +29,9 @@ export type UsuarioFormulario = {
 export type PropsFormUsuario = {
   usuario?: UsuarioFormulario; // ausente: cadastro
   opcoes: { perfis: readonly OpcaoPerfil[]; unidades: readonly OpcaoUnidade[] };
-  salvar: AcaoComId;
-  resetarSenha?: AcaoComId;
-  desbloquear?: AcaoComId;
+  salvar: AcaoFormulario;
+  resetarSenha?: AcaoFormulario;
+  desbloquear?: AcaoFormulario;
 };
 
 // Inativo só aparece se já está vinculado (a página manda só esses); fica identificado.
@@ -111,13 +110,13 @@ export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear
           rotulo="Resetar Senha"
           pergunta="Deseja realmente resetar a senha deste usuário?"
           acao={resetarSenha}
-          id={usuario.id}
+          campos={{ id: usuario.id }}
           mensagemSucesso={MENSAGEM_SENHA_RESETADA}
         />
       )}
       {/* RN0063: Desbloquear só para usuário bloqueado e ativo. */}
       {alteracao && desbloquear && usuario.bloqueado && usuario.ativo && (
-        <AcaoConfirmada rotulo="Desbloquear" pergunta="Deseja realmente desbloquear este usuário?" acao={desbloquear} id={usuario.id} />
+        <AcaoConfirmada rotulo="Desbloquear" pergunta="Deseja realmente desbloquear este usuário?" acao={desbloquear} campos={{ id: usuario.id }} />
       )}
     </>
   );

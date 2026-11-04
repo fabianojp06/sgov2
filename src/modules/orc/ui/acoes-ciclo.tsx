@@ -1,5 +1,5 @@
 import { MENSAGENS_ORC } from '../domain/mensagens';
-import { AcaoConfirmada, type AcaoFormulario } from './acao-confirmada';
+import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 import { FormRejeicao } from './form-rejeicao';
 
 // Envio e aprovação do orçamento da Adm. Central (US-061; C36). A GFIN envia (Em Elaboração); a

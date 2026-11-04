@@ -1,7 +1,7 @@
 'use client';
 
 import { ErroDoCampo, Formulario } from '@/modules/ger';
-import type { AcaoFormulario } from './acao-confirmada';
+import type { AcaoFormulario } from '@/modules/ger';
 
 // Teto manual do exercício (US-059; D-P6-2). Vazio volta ao teto padrão. Valor no formato
 // brasileiro. Componente cliente: a ação e os dados vêm por props da página.
