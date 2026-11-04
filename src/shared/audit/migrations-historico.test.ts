@@ -7,28 +7,48 @@ import { describe, expect, it } from 'vitest';
 const PASTA = join(process.cwd(), 'prisma', 'migrations');
 const CRIACAO = '202610260100_nucleo_historico';
 
-const SEM_COMENTARIOS = (sql: string) => sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-const HIST = String.raw`(?:"historico_operacao"|historico_operacao\b)`;
-const TRAVA = String.raw`(?:"historico_somente_insercao"|historico_somente_insercao\b)`;
-// Cada comando (até o `;`) é conferido sozinho. Gatilhos: nenhuma migration desliga, troca ou apaga
-// gatilho de tabela nenhuma (o Histórico é a única tabela com gatilho e a regra fica simples).
-const VEDADOS: readonly [string, RegExp][] = [
+// Texto entre aspas simples sai antes dos comentários: um '--' dentro dele não esconde o resto.
+const LIMPAR = (sql: string) =>
+  sql
+    .replace(/'(?:[^']|'')*'/g, "''")
+    .replace(/--[^\n]*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+const ESQUEMA = String.raw`(?:"?public"?\.)?`;
+const HIST = String.raw`${ESQUEMA}(?:"historico_operacao"|historico_operacao\b)`;
+const TRAVA = String.raw`${ESQUEMA}(?:"historico_somente_insercao"|historico_somente_insercao\b)`;
+
+// ALTER TABLE no Histórico só com ADD COLUMN, em todas as ações do comando: renomear, mudar tipo,
+// apagar coluna, trocar dono ou schema, não. Parênteses saem antes de separar as ações pela vírgula.
+const ALTER_HIST = new RegExp(String.raw`^\s*ALTER\s+TABLE\s+(?:(?:ONLY|IF\s+EXISTS)\s+)*${HIST}([\s\S]*)$`, 'i');
+function alterTableVedado(comando: string): boolean {
+  const m = ALTER_HIST.exec(comando);
+  if (!m) return false;
+  let acoes = m[1]!;
+  while (/\([^()]*\)/.test(acoes)) acoes = acoes.replace(/\([^()]*\)/g, '');
+  return acoes.split(',').some((a) => !/^\s*ADD\s+(COLUMN\s+)?(IF\s+NOT\s+EXISTS\s+)?"?\w/i.test(a) || /^\s*ADD\s+(CONSTRAINT|PRIMARY|UNIQUE|FOREIGN|CHECK)\b/i.test(a));
+}
+
+// Cada comando (até o `;`) é conferido sozinho. Nenhuma migration desliga, troca ou apaga gatilho de
+// tabela nenhuma: os gatilhos do projeto são todos travas (do Histórico e do cad).
+const VEDADOS: readonly [string, RegExp | ((comando: string) => boolean)][] = [
   ['gatilho desligado', /\b(DISABLE|ENABLE\s+(REPLICA|ALWAYS))\s+TRIGGER\b/i],
   ['session_replication_role', /\bsession_replication_role\b/i],
   ['DROP TRIGGER', /\bDROP\s+TRIGGER\b/i],
   ['troca de gatilho', /\bCREATE\s+OR\s+REPLACE\s+TRIGGER\b/i],
-  ['DROP TABLE do Histórico', new RegExp(String.raw`\bDROP\s+TABLE\b.*${HIST}`, 'is')],
-  ['DROP FUNCTION da trava', new RegExp(String.raw`\bDROP\s+FUNCTION\b.*${TRAVA}`, 'is')],
-  ['troca da função da trava', new RegExp(String.raw`\b(CREATE\s+OR\s+REPLACE|ALTER)\s+FUNCTION\b.*${TRAVA}`, 'is')],
-  // Só ADD COLUMN é aceito no Histórico: renomear, mudar tipo, apagar coluna, trocar dono ou schema não.
-  ['ALTER TABLE do Histórico', new RegExp(String.raw`^\s*ALTER\s+TABLE\b(\s+ONLY)?(\s+IF\s+EXISTS)?\s+(public\.)?${HIST}(?!\s+ADD\s+COLUMN\b)`, 'is')],
-  ['GRANT de alteração no Histórico', new RegExp(String.raw`\bGRANT\b.*\b(UPDATE|DELETE|TRUNCATE|ALL)\b.*\bON\b.*${HIST}`, 'is')],
-  ['GRANT em todas as tabelas', /\bGRANT\b.*\b(UPDATE|DELETE|TRUNCATE|ALL)\b.*\bON\s+ALL\s+TABLES\b/is],
+  // Gatilho ou regra novos no Histórico podem descartar a inserção em silêncio (RETURN NULL, DO INSTEAD).
+  ['gatilho novo no Histórico', new RegExp(String.raw`\bCREATE\s+(CONSTRAINT\s+)?TRIGGER\b[\s\S]*\bON\s+${HIST}`, 'i')],
+  ['regra no Histórico', new RegExp(String.raw`\bCREATE\s+(OR\s+REPLACE\s+)?RULE\b[\s\S]*\bTO\s+${HIST}`, 'i')],
+  ['DROP TABLE do Histórico', new RegExp(String.raw`\bDROP\s+TABLE\b[\s\S]*${HIST}`, 'i')],
+  ['DROP FUNCTION da trava', new RegExp(String.raw`\bDROP\s+FUNCTION\b[\s\S]*${TRAVA}`, 'i')],
+  ['troca da função da trava', new RegExp(String.raw`\b(CREATE\s+OR\s+REPLACE|ALTER)\s+FUNCTION\b[\s\S]*${TRAVA}`, 'i')],
+  ['ALTER TABLE do Histórico', alterTableVedado],
+  ['GRANT de alteração no Histórico', new RegExp(String.raw`\bGRANT\b[\s\S]*\b(UPDATE|DELETE|TRUNCATE|ALL)\b[\s\S]*\bON\b[\s\S]*${HIST}`, 'i')],
+  ['GRANT em todas as tabelas', /\bGRANT\b[\s\S]*\b(UPDATE|DELETE|TRUNCATE|ALL)\b[\s\S]*\bON\s+ALL\s+TABLES\b/i],
 ];
 
 function violacoesHistorico(sql: string): string[] {
-  const comandos = SEM_COMENTARIOS(sql).split(';');
-  return VEDADOS.filter(([, re]) => comandos.some((c) => re.test(c))).map(([nome]) => nome);
+  const comandos = LIMPAR(sql).split(';');
+  return VEDADOS.filter(([, regra]) => comandos.some((c) => (typeof regra === 'function' ? regra(c) : regra.test(c)))).map(([nome]) => nome);
 }
 
 describe('migrations não mexem na trava do Histórico', () => {
@@ -50,7 +70,14 @@ describe('migrations não mexem na trava do Histórico', () => {
     expect(violacoesHistorico('ALTER TABLE "historico_operacao" DROP COLUMN "ip";')).toEqual(['ALTER TABLE do Histórico']);
     expect(violacoesHistorico('ALTER TABLE "historico_operacao" SET SCHEMA arquivo;')).toEqual(['ALTER TABLE do Histórico']);
     expect(violacoesHistorico('ALTER FUNCTION historico_somente_insercao() OWNER TO x;')).toEqual(['troca da função da trava']);
-    // Aceitos: coluna nova no Histórico e tabela de nome parecido.
+    expect(violacoesHistorico('ALTER TABLE "historico_operacao" ADD COLUMN x text, DROP COLUMN ip;')).toEqual(['ALTER TABLE do Histórico']);
+    expect(violacoesHistorico('ALTER TABLE "public"."historico_operacao" DROP COLUMN ip;')).toEqual(['ALTER TABLE do Histórico']);
+    expect(violacoesHistorico('ALTER TABLE IF EXISTS ONLY historico_operacao RENAME TO h;')).toEqual(['ALTER TABLE do Histórico']);
+    expect(violacoesHistorico('CREATE TRIGGER t BEFORE INSERT ON "historico_operacao" FOR EACH ROW EXECUTE FUNCTION nada();')).toEqual(['gatilho novo no Histórico']);
+    expect(violacoesHistorico('CREATE RULE r AS ON INSERT TO "historico_operacao" DO INSTEAD NOTHING;')).toEqual(['regra no Histórico']);
+    expect(violacoesHistorico("SELECT 'a--b'; DROP TRIGGER t ON x;")).toEqual(['DROP TRIGGER']);
+    // Aceitos: coluna nova no Histórico (com tipo de vários argumentos) e tabela de nome parecido.
+    expect(violacoesHistorico('ALTER TABLE "historico_operacao" ADD COLUMN "valor" numeric(15,2), ADD COLUMN "ia" text;')).toEqual([]);
     expect(violacoesHistorico('ALTER TABLE "historico_operacao" ADD COLUMN "origem_ia" text;')).toEqual([]);
     expect(violacoesHistorico('DROP TABLE "historico_operacao_arquivo"; ALTER TABLE "historico_operacao_arquivo" DROP COLUMN x;')).toEqual([]);
   });

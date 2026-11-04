@@ -16,10 +16,11 @@ import { ErroAuditoria } from './erros';
 // O nome é quebrado em palavras (camelCase, siglas, `_`, `-` ou `.`). É credencial quando alguma
 // palavra é uma credencial (senhaHash, tokenRecuperacao, SMTPSenha) ou quando uma chave vem com um
 // qualificador de segredo (privateKey, chaveAcesso, apiKey). A exceção é fechada: a última palavra
-// é um sufixo de negócio (senhaMinimo, senhaExpiraEm, trocaSenhaPendente, hashArquivo). Nome novo de
-// campo de negócio que caia na regra entra em SUFIXOS_NEGOCIO; credencial nova, em CREDENCIAIS.
+// é um sufixo de negócio que nunca caberia num segredo (senhaMinimo, senhaExpiraEm) ou o nome inteiro
+// está em NOMES_NEGOCIO (hashArquivo, trocaSenhaPendente). Campo de negócio novo que caia na regra
+// entra numa das duas listas; credencial nova, em CREDENCIAIS.
 const CREDENCIAIS = new Set([
-  ...['senha', 'password', 'passwd', 'hash', 'token', 'segredo', 'secret', 'credencial', 'jwt', 'salt', 'digest', 'apikey'].flatMap((p) => [p, `${p}s`]),
+  ...['senha', 'password', 'passwd', 'passphrase', 'hash', 'token', 'segredo', 'secret', 'credencial', 'credential', 'jwt', 'salt', 'digest', 'apikey', 'bearer'].flatMap((p) => [p, `${p}s`]),
   'credenciais',
   'hashes',
   'totp',
@@ -31,8 +32,12 @@ const CHAVES = new Set(['key', 'keys', 'chave', 'chaves']);
 const SEGREDO_DA_CHAVE = new Set(['privada', 'private', 'secreta', 'secret', 'acesso', 'access', 'api', 'cifra', 'assinatura', 'signing']);
 const SUFIXOS_NEGOCIO = new Set([
   'minimo', 'maximo', 'exige', 'letra', 'digito', 'maiuscula', 'minuscula', 'simbolo', 'em', 'horas', 'dias', 'minutos',
-  'obrigatoria', 'obrigatorio', 'pendente', 'tentativas', 'arquivo',
+  'obrigatoria', 'obrigatorio', 'tentativas',
 ]);
+// Nomes inteiros de negócio cujo sufixo também caberia num segredo (tokenArquivo, novaSenhaPendente).
+const NOMES_NEGOCIO = new Set(['hash arquivo', 'troca senha pendente']);
+// Duas palavras que, juntas, são credencial, mas separadas não (dataVerificacao, codigoCc).
+const PARES = [['codigo', 'verificacao']] as const;
 
 export function chaveSensivel(chave: string): boolean {
   const palavras = chave
@@ -41,8 +46,11 @@ export function chaveSensivel(chave: string): boolean {
     .toLowerCase()
     .split(/[\s_.-]+/)
     .filter(Boolean);
-  const credencial = palavras.some((p) => CREDENCIAIS.has(p)) || (palavras.some((p) => CHAVES.has(p)) && palavras.some((p) => SEGREDO_DA_CHAVE.has(p)));
-  return credencial && !SUFIXOS_NEGOCIO.has(palavras.at(-1) ?? '');
+  const credencial =
+    palavras.some((p) => CREDENCIAIS.has(p)) ||
+    (palavras.some((p) => CHAVES.has(p)) && palavras.some((p) => SEGREDO_DA_CHAVE.has(p))) ||
+    PARES.some((par) => par.every((p) => palavras.includes(p)));
+  return credencial && !SUFIXOS_NEGOCIO.has(palavras.at(-1) ?? '') && !NOMES_NEGOCIO.has(palavras.join(' '));
 }
 
 export const OMITIDO = '[omitido]';
