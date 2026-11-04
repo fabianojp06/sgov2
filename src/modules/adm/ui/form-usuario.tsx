@@ -1,7 +1,6 @@
 'use client';
 
-import { ErroDoCampo, Formulario } from '@/modules/ger';
-import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
+import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
 
 // Formulário de cadastro (UC02.12) e alteração (UC02.13) de usuário. Componente cliente: recebe as
 // ações e os dados por props da página (não importa o index do módulo, que tem servidor).
