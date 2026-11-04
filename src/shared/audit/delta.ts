@@ -1,5 +1,7 @@
 // Campos que mudaram entre o antes e o depois (valores já serializados para auditoria).
-// Valor que não é objeto é tratado como um campo único chamado "valor".
+// Valor que não é objeto é tratado como um campo único chamado "valor". Se um lado é primitivo e o
+// outro é objeto (#172), o delta mistura esse "valor" com os campos reais do outro lado: é de
+// propósito, para nada se perder; quem audita usa sempre objeto nos dois lados.
 export function calcularDelta(antes: unknown, depois: unknown): Record<string, { de: unknown; para: unknown }> {
   const a = comoRegistro(antes);
   const d = comoRegistro(depois);

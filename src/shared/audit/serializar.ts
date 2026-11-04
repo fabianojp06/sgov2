@@ -5,7 +5,7 @@ import { ErroAuditoria } from './erros';
 
 // Converte o valor para algo que JSON.stringify grava sem erro e sem perder precisão
 // (Review Focus 5): Decimal e os tipos do kernel viram texto exato, Date vira ISO 8601,
-// BigInt vira texto. Campos undefined somem; referência circular vira "[circular]".
+// BigInt vira texto. Campos undefined somem; referência circular vira "[circular]", com aviso no log.
 // Só objetos simples e listas são percorridos: Map, Set, instâncias de classe, Buffer,
 // funções, symbol e números não finitos são recusados, para nada sumir em silêncio.
 // Credenciais são omitidas em qualquer nível (LGPD): a tabela é imutável.
@@ -41,7 +41,12 @@ function serializar(v: unknown, caminho: string, vistos: WeakSet<object>, saltos
   if (Decimal.isDecimal(v)) return (v as Decimal).toFixed();
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? recusar(caminho, 'data inválida') : v.toISOString();
   if (ArrayBuffer.isView(v) || v instanceof ArrayBuffer) return recusar(caminho, 'dado binário');
-  if (vistos.has(v)) return '[circular]';
+  if (vistos.has(v)) {
+    // Gravado como "[circular]" para a operação não falhar por causa da auditoria; o log diz onde
+    // (#172). Só na serialização que vai para o banco, não na comparação das credenciais.
+    if (omitir) console.warn('[AUDITORIA_CIRCULAR]', { caminho });
+    return '[circular]';
+  }
   const prototipo = Object.getPrototypeOf(v) as unknown;
   const simples = Array.isArray(v) || prototipo === Object.prototype || prototipo === null;
   if (!simples) {
