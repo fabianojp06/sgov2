@@ -7,10 +7,10 @@ export default async function Cargos() {
   const cargos = await listarCargos(ctx);
   const executar = ctx.permissoes.has('cad.cargos:executar');
   return (
-    <main>
+    <div>
       <h1>Cargos e Salários</h1>
       {executar && <a href="/cad/cargos/importar">Importar arquivo do Rubi</a>}
       <ListaCargos cargos={cargos} escopoSessao={escopoDaSessao(ctx)} podeRegravar={executar} regravar={acaoRegravarSalarios} />
-    </main>
+    </div>
   );
 }

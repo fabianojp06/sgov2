@@ -6,7 +6,7 @@ import { exigirPagina } from '@/shared/authz';
 export default async function ImportarCentrosCusto() {
   await exigirPagina('cad.centros_custo', 'executar');
   return (
-    <main>
+    <div>
       <h1>Importar os centros de custo</h1>
       <p>
         Envie a planilha .xlsx do plano de centros de custo, de até 1 MB. Qualquer erro reprova o arquivo inteiro, e nada é gravado até a
@@ -15,6 +15,6 @@ export default async function ImportarCentrosCusto() {
       <ImportarEstrutura rotulo="Planilha dos centros de custo (.xlsx)" importar={acaoImportarCentrosCusto} consultar={acaoConsultarCargaCc}>
         <CamposAprovacaoDirex provisoriaPermitida={cargaProvisoriaPermitida(process.env, { registrar: false })} />
       </ImportarEstrutura>
-    </main>
+    </div>
   );
 }

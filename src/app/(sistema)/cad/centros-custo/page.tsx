@@ -6,10 +6,10 @@ export default async function CentrosCusto() {
   const ctx = await exigirPagina('cad.centros_custo', 'consultar');
   const nos = await consultarArvoreCentrosCusto(ctx);
   return (
-    <main>
+    <div>
       <h1>Centros de Custo</h1>
       {ctx.permissoes.has('cad.centros_custo:executar') && <a href="/cad/centros-custo/importar">Importar arquivo</a>}
       <ArvoreCc nos={nos} escopoSessao={escopoDaSessao(ctx)} />
-    </main>
+    </div>
   );
 }

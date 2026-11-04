@@ -6,13 +6,13 @@ import { exigirPagina } from '@/shared/authz';
 export default async function ImportarPlanoContas() {
   await exigirPagina('cad.plano_contas', 'executar');
   return (
-    <main>
+    <div>
       <h1>Importar o plano de contas</h1>
       <p>
         Envie a planilha .xlsx com a aba &quot;Plano de Contas&quot;, de até 1 MB. Qualquer erro reprova o arquivo inteiro, e nada é
         gravado até a importação terminar sem erros.
       </p>
       <ImportarEstrutura rotulo="Planilha do plano de contas (.xlsx)" importar={acaoImportarPlanoContas} consultar={acaoConsultarCargaPlano} />
-    </main>
+    </div>
   );
 }

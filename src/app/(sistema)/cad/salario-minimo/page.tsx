@@ -8,7 +8,7 @@ export default async function SalarioMinimo({ searchParams }: { searchParams: Pr
   const tela = await obterTelaSalarioMinimo(ctx, /^\d{4}$/.test(anoTexto ?? '') ? Number(anoTexto) : null);
   const d = tela.dados;
   return (
-    <main>
+    <div>
       <h1>Salário mínimo nacional {tela.ano ?? ''}</h1>
       <SeletorAno acao="/cad/salario-minimo" anos={tela.anos} ano={tela.ano} />
       {d ? (
@@ -24,6 +24,6 @@ export default async function SalarioMinimo({ searchParams }: { searchParams: Pr
       ) : (
         <p>{tela.ano === null ? 'Nenhum exercício tem parâmetros ainda.' : `O exercício ${tela.ano} não tem parâmetros.`}</p>
       )}
-    </main>
+    </div>
   );
 }
