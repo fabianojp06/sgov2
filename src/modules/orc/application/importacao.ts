@@ -77,8 +77,10 @@ export async function importarPlanilha(
     ...ABAS.map(({ aba, colunas }) => ({ aba, colunas, linhaCabecalhoMax: 4 })),
   ]);
   if (!r.ok) {
-    if (r.indiceAba === 0) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
-    const pedido = r.indiceAba === null ? undefined : ABAS[r.indiceAba - 1];
+    // Sem a aba Instruções: fora do layout. Outro erro nela (prazo, limite, arquivo malformado) vem
+    // como o leitor disse.
+    if (r.indiceAba === 0 && r.erros.every((e) => e.mensagem.startsWith('A aba "'))) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
+    const pedido = r.indiceAba === null || r.indiceAba === 0 ? undefined : ABAS[r.indiceAba - 1];
     return falha(r.erros.map((e) => ({ campo: 'arquivo', mensagem: pedido ? erroDeArquivo(pedido.aba, pedido.colunas, e.mensagem) : e.mensagem })));
   }
   const [instrucoes, ...abas] = r.valor;

@@ -198,6 +198,10 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
       campo: 'arquivo',
       mensagem: expect.stringMatching(/^Planilha fora do layout ADMC-ORC v1\.0: a aba Pessoal precisa do cabeçalho, até a linha 4, com as colunas CC analítico, Cargo,/),
     });
+    // Cabeçalho faltando na última aba (índice 3 do pedido): a mensagem diz a aba certa.
+    const semTp = await montarPlanilha({ pessoal: [linhaPessoal('4.4')], semColuna: { aba: 'Receitas', coluna: 'TP / versão' } });
+    const rr = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: semTp }, e.deps());
+    expect(rr.ok ? '' : rr.erros[0]?.mensagem).toMatch(/^Planilha fora do layout ADMC-ORC v1\.0: a aba Receitas precisa do cabeçalho/);
     const lixo = await importarPlanilha(ctx(), { exercicioId: e.id, arquivo: { nome: 'x.xlsx', conteudo: new TextEncoder().encode('não sou zip') } }, e.deps());
     expect(lixo.ok).toBe(false);
     expect(await contagem(e.id)).toEqual({ posicoes: 0, pacotes: 0, receitas: 0, linhas: 0 });
@@ -206,7 +210,7 @@ describe('importarPlanilha: erros (tudo ou nada)', () => {
   it('versão do layout (R6, Instruções!E1): outra versão ou sem a aba Instruções → erro de arquivo e nada gravado', async () => {
     const e = await exercicio();
     const mensagem = 'Planilha fora do layout ADMC-ORC v1.0: a célula E1 da aba Instruções precisa trazer ADMC-ORC v1.0.';
-    for (const versaoLayout of ['ADMC-ORC v0.9', null]) {
+    for (const versaoLayout of ['ADMC-ORC v0.9', '', null]) {
       const arquivo = await montarPlanilha({ pessoal: [linhaPessoal('4.4')], versaoLayout });
       expect(await importarPlanilha(ctx(), { exercicioId: e.id, arquivo }, e.deps())).toEqual({ ok: false, erros: [{ campo: 'arquivo', mensagem }] });
     }
