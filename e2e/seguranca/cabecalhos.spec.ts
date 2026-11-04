@@ -48,9 +48,11 @@ test('cookie de sessão: HttpOnly, SameSite=Lax, path / e sessão; página logad
 
 test('página do sistema não abre dentro de um iframe de outro site', async ({ page }) => {
   // frame-ancestors 'none': o navegador recusa o enquadramento, e o login não aparece no iframe.
-  await page.setContent('<iframe id="alvo" src="http://127.0.0.1:3190/login" width="600" height="400"></iframe>');
-  const quadro = page.frameLocator('#alvo');
-  await expect(quadro.getByLabel('Login')).toHaveCount(0, { timeout: 5_000 });
+  // O setContent espera o load do documento, que só acontece depois do load do iframe (inclusive o
+  // recusado): a conferência logo em seguida não passa por o iframe ainda estar carregando.
+  await page.setContent('<iframe id="alvo" src="http://127.0.0.1:3190/login" width="600" height="400"></iframe>', { waitUntil: 'load' });
+  expect(page.frames()).toHaveLength(2);
+  await expect(page.frameLocator('#alvo').getByLabel('Login')).toHaveCount(0, { timeout: 1_000 });
 });
 
 test.fixme('sem X-Powered-By (o servidor não revela o framework)', async ({ request }) => {
