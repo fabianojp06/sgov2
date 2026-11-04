@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { conferirSenha, hashSenha, resetarSenha, seedAdm } from '@/modules/adm';
+import { alterarUsuario, conferirSenha, hashSenha, resetarSenha, seedAdm } from '@/modules/adm';
 import { emailFalso } from '@/modules/ger';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
@@ -8,7 +8,7 @@ import { MENSAGENS } from '../domain/mensagens';
 import { autenticar } from './autenticar';
 import { criarLimitadorLogin } from './limite-login';
 import { criarProvedorContexto } from './provedor-contexto';
-import { solicitarRecuperacaoSenha } from './recuperar-senha';
+import { LIMITES_RECUPERACAO, solicitarRecuperacaoSenha } from './recuperar-senha';
 import { trocarSenha } from './trocar-senha';
 
 // Recuperação de senha pela tela de login (US-029, Task 3 do plano P8; EP084 UC01.01 A1; RN0516,
@@ -36,7 +36,7 @@ function ambiente() {
     cliente: app,
     agora: relogio,
     enviarEmail: email.enviarEmail,
-    limitador: criarLimitadorLogin({ porIp: 100, porLogin: 20 }),
+    limitador: criarLimitadorLogin(LIMITES_RECUPERACAO),
     hashSenha: async (s: string) => (hashes.chamadas++, hashSenha(s)),
   };
   const temporaria = () => {
@@ -94,6 +94,16 @@ describe('solicitarRecuperacaoSenha', () => {
     expect(a.email.enviados.map((e) => e.modelo)).toEqual(['usuario.recuperacao_senha']);
   });
 
+  it('sem e-mail válido ou com erro inesperado no caminho do elegível → a mesma resposta (E7.4)', async () => {
+    const a = ambiente();
+    await usuario('rec.semmail', { email: 'invalido' });
+    expect(await solicitarRecuperacaoSenha({ login: 'rec.semmail' }, { ip: null }, a.deps)).toEqual(ok);
+    await usuario('rec.falha');
+    const falhando = { ...a.deps, enviarEmail: async () => { throw new Error('SMTP fora'); } };
+    expect(await solicitarRecuperacaoSenha({ login: 'rec.falha' }, { ip: null }, falhando)).toEqual(ok);
+    expect(await migrator.usuario.count({ where: { login: { in: ['rec.semmail', 'rec.falha'] }, recuperacaoHash: { not: null } } })).toBe(0);
+  });
+
   it('o Argon2 roda uma vez no elegível e uma no inexistente (tempo igual)', async () => {
     await usuario('rec.tempo');
     const elegivel = ambiente();
@@ -103,10 +113,10 @@ describe('solicitarRecuperacaoSenha', () => {
     expect([elegivel.hashes.chamadas, inexistente.hashes.chamadas]).toEqual([1, 1]);
   });
 
-  it('acima do limite por login → a mesma resposta, e nada é gerado no 21º', async () => {
+  it('acima do limite por login (3 por hora) → a mesma resposta, e nada é gerado no 4º', async () => {
     await usuario('rec.limite');
     const a = ambiente();
-    for (let i = 0; i < 20; i++) await solicitarRecuperacaoSenha({ login: 'rec.limite' }, { ip: null }, a.deps);
+    for (let i = 0; i < 3; i++) await solicitarRecuperacaoSenha({ login: 'rec.limite' }, { ip: null }, a.deps);
     const enviados = a.email.enviados.length;
     expect(await solicitarRecuperacaoSenha({ login: 'rec.limite' }, { ip: null }, a.deps)).toEqual(ok);
     expect(a.email.enviados.length).toBe(enviados);
@@ -161,6 +171,11 @@ describe('login e troca com a temporária (D-P8-3, D-P8-3a)', () => {
       contagens.push(n);
     }
     expect(contagens).toEqual([2, 2, 2]);
+    // Bloqueado e em manutenção também pagam as duas (o tempo não revela quem é Administrador).
+    await usuario('rec.bloqueado2', { bloqueado: true });
+    let n = 0;
+    await entrar('rec.bloqueado2', 'errada-123', (h, s) => (n++, conferirSenha(h, s)));
+    expect(n).toBe(2);
   });
 
   it('dois logins paralelos com a mesma temporária: só um entra', async () => {
@@ -180,6 +195,13 @@ describe('login e troca com a temporária (D-P8-3, D-P8-3a)', () => {
     await solicitarRecuperacaoSenha({ login: 'rec.borda' }, { ip: null }, a.deps);
     await resetarSenha(ctxAdmin, u.id, { cliente: app, agora: relogio, enviarEmail: a.email.enviarEmail });
     expect((await migrator.usuario.findUniqueOrThrow({ where: { id: u.id } })).recuperacaoHash).toBeNull();
+
+    const inativo = await usuario('rec.inativa');
+    await solicitarRecuperacaoSenha({ login: 'rec.inativa' }, { ip: null }, a.deps);
+    const ctxAlterar = { ...ctxAdmin, permissoes: new Set(['adm.usuarios:alterar']) };
+    const dados = { nome: inativo.nome, email: inativo.email, ativo: false, perfis: ['ORCAMENTISTA'], unidades: [], ccEscopo: null };
+    expect((await alterarUsuario(ctxAlterar, inativo.id, inativo.versao, dados, { cliente: app, agora: relogio })).ok).toBe(true);
+    expect((await migrator.usuario.findUniqueOrThrow({ where: { id: inativo.id } })).recuperacaoHash).toBeNull();
 
     const b = await usuario('rec.bloq');
     await solicitarRecuperacaoSenha({ login: 'rec.bloq' }, { ip: null }, a.deps);

@@ -28,9 +28,11 @@ export type DepsRecuperacao = {
 const FUNCIONALIDADE = 'aut.recuperacao';
 const LOGIN_MAXIMO = 60;
 
-// Por login, o valor do login (20 em 5 min, §11.2a); por IP, um teto alto [PROVISÓRIO]: na recuperação
-// não há "falha" para contar, e o NAT da instituição junta muitos usuários num IP (D-P8-4).
-export const limitadorRecuperacao = criarLimitadorLogin({ porIp: 100, porLogin: 20 });
+// Por login, 3 pedidos por hora [PROVISÓRIO]: cada pedido manda um e-mail à pessoa e troca a
+// temporária pendente, então um limite largo viraria inundação da caixa dela. Por IP, um teto alto
+// [PROVISÓRIO]: na recuperação não há "falha" para contar, e o NAT junta muitos usuários num IP (D-P8-4).
+export const LIMITES_RECUPERACAO = { porIp: 100, porLogin: 3, janelaMs: 60 * 60 * 1000 } as const;
+export const limitadorRecuperacao = criarLimitadorLogin(LIMITES_RECUPERACAO);
 
 const contexto = (rotulo: string, usuarioId: string | null, ip: string | null) => ({ usuarioId, usuarioRotulo: rotulo, sessaoUid: null, ip });
 
@@ -68,8 +70,18 @@ export async function solicitarRecuperacaoSenha(
     return resposta;
   }
 
-  // Fase 2: transação curta; o estado é conferido de novo sob a trava.
-  await cliente.$transaction(async (tx) => {
+  // Fase 2: transação curta; o estado é conferido de novo sob a trava. Qualquer erro aqui vai ao log e
+  // a resposta continua a A1.5 (E7.4): uma mensagem de erro só no caminho do elegível revelaria o login.
+  try {
+    await fase2();
+  } catch (erro) {
+    console.error('[RECUPERACAO_FALHA]', { nome: erro instanceof Error ? erro.name : typeof erro, codigo: (erro as { code?: unknown } | null)?.code ?? null });
+  }
+  return resposta;
+
+  async function fase2() {
+    if (fase1 === 'OCUPADO') return;
+    await cliente.$transaction(async (tx) => {
     const u = normalizado ? await travarUsuarioParaLogin(tx, normalizado) : null;
     const elegivel = fase1.senha !== null && u !== null && u.id === fase1.lido?.id && u.ativo && !u.bloqueado;
     if (elegivel) {
@@ -100,6 +112,6 @@ export async function solicitarRecuperacaoSenha(
       tipo: 'SISTEMA',
       descricao: 'Pedido de nova senha não atendido: login não elegível',
     });
-  });
-  return resposta;
+    });
+  }
 }

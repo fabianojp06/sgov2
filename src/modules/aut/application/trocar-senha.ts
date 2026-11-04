@@ -123,7 +123,11 @@ export async function trocarSenha(
         funcionalidade: 'aut.senha',
         tipo: 'ALTERACAO',
         registroId: u.id,
-        descricao: voluntaria ? 'Senha alterada pelo usuário' : 'Senha alterada no primeiro acesso',
+        descricao: voluntaria
+          ? 'Senha alterada pelo usuário'
+          : u.trocaSenhaObrigatoria
+            ? 'Senha alterada no primeiro acesso'
+            : 'Senha alterada depois da recuperação pela tela de login',
         antes: { primeiroAcessoPendente: u.trocaSenhaObrigatoria || !voluntaria },
         depois: { primeiroAcessoPendente: false },
       });

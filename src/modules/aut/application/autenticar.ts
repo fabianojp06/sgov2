@@ -140,7 +140,9 @@ export async function autenticar(
     let conferido: { hash: string; confere: boolean } | null = null;
     let temporaria: { hash: string; confere: boolean } | null = null;
     const decisao = avaliarAntesDaSenha({ manutencao: previa.manutencao, usuario: lido });
-    if (decisao === 'INEXISTENTE' || decisao === 'INATIVO') {
+    // Manutenção e bloqueio também pagam as duas conferências: sem isso, o tempo em manutenção
+    // revelaria quais logins são de Administrador (os únicos que conferem a senha).
+    if (decisao === 'INEXISTENTE' || decisao === 'INATIVO' || decisao === 'MANUTENCAO' || decisao === 'BLOQUEADO') {
       const ficticio = await obterHashFicticio();
       await Promise.all([conferir(ficticio, senha), conferir(ficticio, senha)]);
     } else if (decisao === 'CONFERIR' && lido) {
