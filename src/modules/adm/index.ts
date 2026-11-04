@@ -15,7 +15,19 @@ export {
 } from './application/login';
 export { gravarNovaSenha } from './application/senhas';
 export { alterar, cadastrar, desbloquear, gerarNovaSenha } from './application/acoes-usuarios';
-export { alterarAlcada, cadastrarAlcada, inativarAlcada, listarAlcadas, type DepsAlcadas, type LinhaAlcada } from './application/alcadas';
+export { excluirAlcada, incluirAlcada, trocarAprovadores } from './application/acoes-alcadas';
+export {
+  alterarAlcada,
+  cadastrarAlcada,
+  inativarAlcada,
+  listarAlcadas,
+  listarAprovadoresPossiveis,
+  obterAlcada,
+  type DepsAlcadas,
+  type LinhaAlcada,
+} from './application/alcadas';
+export { FormAlcada } from './ui/form-alcada';
+export { ListaAlcadas } from './ui/lista-alcadas';
 export { FLUXOS_APROVACAO, MENSAGENS_ALCADA, ROTULO_FLUXO, type FluxoAprovacao } from './domain/alcada';
 export {
   alterarUsuario,

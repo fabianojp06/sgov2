@@ -151,12 +151,25 @@ export async function inativarAlcada(ctx: ContextoRequisicao, id: string, versao
   });
 }
 
+export async function obterAlcada(ctx: ContextoRequisicao, id: string, deps: Partial<DepsAlcadas> = {}): Promise<LinhaAlcada | null> {
+  exigir(ctx, FUNCIONALIDADE, 'consultar');
+  if (!idValido(id)) return null;
+  return (await listarAlcadas(ctx, deps, { id })).at(0) ?? null;
+}
+
+// Opções do formulário: só usuários ativos (§11.4), por nome.
+export async function listarAprovadoresPossiveis(ctx: ContextoRequisicao, deps: Partial<DepsAlcadas> = {}): Promise<{ id: string; nome: string }[]> {
+  exigir(ctx, FUNCIONALIDADE, 'consultar');
+  return resolver(deps).cliente.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: 'asc' } });
+}
+
 // Ativas primeiro, por fluxo; depois as inativas, da mais recente para a mais antiga.
-export async function listarAlcadas(ctx: ContextoRequisicao, deps: Partial<DepsAlcadas> = {}): Promise<LinhaAlcada[]> {
+export async function listarAlcadas(ctx: ContextoRequisicao, deps: Partial<DepsAlcadas> = {}, filtro: { id?: string } = {}): Promise<LinhaAlcada[]> {
   exigir(ctx, FUNCIONALIDADE, 'consultar');
   const { cliente } = resolver(deps);
   const usuario = { select: { id: true, nome: true, ativo: true } } as const;
   const linhas = await cliente.alcadaAprovacao.findMany({
+    where: filtro.id ? { id: filtro.id } : {},
     include: { titular: usuario, substituto: usuario },
     orderBy: [{ ativa: 'desc' }, { fluxo: 'asc' }, { criadaEm: 'desc' }],
   });
