@@ -1,7 +1,7 @@
 'use client';
 
 import { ErroDoCampo, Formulario } from '@/modules/ger';
-import type { AcaoFormulario } from './acao-confirmada';
+import type { AcaoFormulario } from '@/modules/ger';
 
 // Novo exercício (US-055, §6.6): ano (padrão: o seguinte ao último) e a forma de início, em branco
 // ou copiando o exercício anterior. Componente cliente: a ação vem por props da página.

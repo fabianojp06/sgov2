@@ -1,7 +1,6 @@
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AcaoConfirmada } from './acao-confirmada';
 import { FormExercicio } from './form-exercicio';
 import { ListaExercicios, textoAviso } from './lista-exercicios';
 import { SeletorExercicio } from './seletor-exercicio';
@@ -62,15 +61,5 @@ describe('FormExercicio', () => {
     expect(tag(/<input id="exercicio-ano"[^>]*>/)).toMatch(/value="2028"/);
     expect(tag(/<input[^>]*value="EM_BRANCO"[^>]*>/)).toContain('checked=""');
     expect(tag(/<input[^>]*value="COPIA"[^>]*>/)).not.toContain('checked');
-  });
-});
-
-describe('AcaoConfirmada', () => {
-  it('aberta: pergunta como alertdialog com Sim e Não', () => {
-    const h = renderToString(createElement(AcaoConfirmada, { rotulo: 'Avançar', pergunta: 'Deseja realmente avançar?', acao, campos: { id: 'e2' }, aberto: true }));
-    expect(h).toContain('role="alertdialog"');
-    expect(h).toContain('Deseja realmente avançar?');
-    expect(h).toMatch(/>Sim<\/button>/);
-    expect(h).toMatch(/>Não<\/button>/);
   });
 });

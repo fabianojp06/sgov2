@@ -1,7 +1,7 @@
 'use client';
 
 import { ErroDoCampo, Formulario } from '@/modules/ger';
-import type { AcaoFormulario } from './acao-confirmada';
+import type { AcaoFormulario } from '@/modules/ger';
 
 // Receita do rateio de um TP, digitada pela GFIN na transição (US-060; C35). Valores no formato
 // brasileiro (1.234,56). Componente cliente: a ação e os dados vêm por props da página.
