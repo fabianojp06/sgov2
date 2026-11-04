@@ -12,6 +12,10 @@ export type UsuarioParaLogin = {
   senhaHash: string;
   trocaSenhaObrigatoria: boolean;
   senhaExpiraEm: Date | null;
+  // Recuperação pela tela de login (US-029): a temporária pendente, que convive com a senha vigente.
+  email: string;
+  recuperacaoHash: string | null;
+  recuperacaoExpiraEm: Date | null;
   ehAdministrador: boolean;
   acessoVersao: number;
 };
@@ -36,7 +40,8 @@ async function buscar(tx: TxCliente, condicao: Prisma.Sql, travar: boolean): Pro
     SELECT u.id, u.nome, u.login_normalizado AS login, u.ativo, u.bloqueado,
       u.tentativas_falhas AS "tentativasFalhas", u.senha_hash AS "senhaHash",
       u.troca_senha_obrigatoria AS "trocaSenhaObrigatoria", u.senha_expira_em AS "senhaExpiraEm",
-      u.acesso_versao AS "acessoVersao",
+      u.acesso_versao AS "acessoVersao", u.email, u.recuperacao_hash AS "recuperacaoHash",
+      u.recuperacao_expira_em AS "recuperacaoExpiraEm",
       EXISTS (
         SELECT 1 FROM usuario_perfil up JOIN perfil p ON p.id = up.perfil_id
         WHERE up.usuario_id = u.id AND p.codigo = 'ADMINISTRADOR' AND p.ativo
@@ -55,8 +60,22 @@ export async function registrarFalhaLogin(tx: TxCliente, usuarioId: string, novo
     where: { id: usuarioId },
     // O bloqueio também muda a versão de acesso: as sessões abertas caem e não voltam a valer num
     // desbloqueio futuro.
-    data: { tentativasFalhas: novoContador, ...(bloquear ? { bloqueado: true, acessoVersao: { increment: 1 } } : {}) },
+    // O bloqueio também apaga a temporária pendente da recuperação (US-029).
+    data: {
+      tentativasFalhas: novoContador,
+      ...(bloquear ? { bloqueado: true, acessoVersao: { increment: 1 }, recuperacaoHash: null, recuperacaoExpiraEm: null } : {}),
+    },
   });
+}
+
+// Recuperação pela tela de login (US-029): grava a temporária pendente; a senha vigente não muda.
+export async function gravarRecuperacao(tx: TxCliente, usuarioId: string, hash: string, expiraEm: Date): Promise<void> {
+  await tx.usuario.update({ where: { id: usuarioId }, data: { recuperacaoHash: hash, recuperacaoExpiraEm: expiraEm } });
+}
+
+// Uso único (D-P8-3): o login com a temporária, o login com a vigente e a troca a apagam.
+export async function limparRecuperacao(tx: TxCliente, usuarioId: string): Promise<void> {
+  await tx.usuario.updateMany({ where: { id: usuarioId, recuperacaoHash: { not: null } }, data: { recuperacaoHash: null, recuperacaoExpiraEm: null } });
 }
 
 // Login bem-sucedido zera o contador (RN0025).

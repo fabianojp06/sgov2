@@ -15,6 +15,8 @@ export const PERFIL_SEM_PERMISSAO = 'E2E_SEM_PERMISSAO';
 export const USUARIOS = {
   admin: { login: 'adm.menu', nome: 'E2E Administrador Menu', perfil: 'ADMINISTRADOR' },
   sair: { login: 'adm.sair', nome: 'E2E Administrador Sair', perfil: 'ADMINISTRADOR' },
+  // Recuperar a senha pela tela de login (e2e/aut/recuperar-senha.spec.ts, US-029).
+  recuperacao: { login: 'orc.recupera', nome: 'E2E Orçamentista Recuperação', perfil: 'ORCAMENTISTA' },
   senhaErrada: { login: 'orc.senha', nome: 'E2E Orçamentista Senha', perfil: 'ORCAMENTISTA' },
   orcamentista: { login: 'orc.menu', nome: 'E2E Orçamentista Menu', perfil: 'ORCAMENTISTA' },
   bloqueio: { login: 'orc.bloqueio', nome: 'E2E Orçamentista Bloqueio', perfil: 'ORCAMENTISTA' },

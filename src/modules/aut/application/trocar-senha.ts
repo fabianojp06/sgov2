@@ -3,6 +3,7 @@ import {
   conferirSenha,
   gravarNovaSenha,
   hashSenha,
+  limparRecuperacao,
   obterConfiguracaoAcesso,
   registrarFalhaLogin,
   travarUsuarioPorId,
@@ -51,7 +52,10 @@ export async function trocarSenha(
   const encontrado = await travarUsuarioPorId(cliente, ctx.usuarioId, false);
   if (!encontrado) throw new ErroDominio('aut.usuario_ausente', 'Sessão expirada. Entre novamente.');
   const lido = encontrado;
-  const voluntaria = !lido.trocaSenhaObrigatoria;
+  // Obrigatória também pela sessão: quem entrou com a temporária da recuperação (US-029) troca sem a
+  // senha atual (§11.2a), que esqueceu, e a nova não é comparada com ela (não vira oráculo da antiga).
+  const voluntaria = !lido.trocaSenhaObrigatoria && !ctx.trocaSenhaPendente;
+  const compararComAtual = voluntaria || lido.trocaSenhaObrigatoria;
   if (voluntaria && !entrada.senhaAtual) return falha([{ campo: 'senhaAtual', mensagem: MSG.ATUAL_INCORRETA }]);
   if (voluntaria && !limitador.permitir(ctx.ip, lido.login)) return falha([{ campo: '_', mensagem: MSG.LIMITE }]);
   // A vaga reservada no limite por IP só fica quando a senha atual estava errada (contaFalhaPorIp).
@@ -73,7 +77,7 @@ export async function trocarSenha(
     const fase1 = await limitador.executar(async () => {
       const atualConfere = voluntaria ? await conferirSenha(lido.senhaHash, entrada.senhaAtual ?? '') : true;
       if (!atualConfere) return { atualConfere, igualAtual: false, novoHash: null };
-      const igualAtual = await conferirSenha(lido.senhaHash, entrada.novaSenha);
+      const igualAtual = compararComAtual ? await conferirSenha(lido.senhaHash, entrada.novaSenha) : false;
       return { atualConfere, igualAtual, novoHash: igualAtual ? null : await hashSenha(entrada.novaSenha) };
     });
     if (fase1 === 'OCUPADO') return { resultado: falha([{ campo: '_', mensagem: MSG.LIMITE }]), contaFalha: false };
@@ -105,6 +109,7 @@ export async function trocarSenha(
         return { resultado: falha([{ campo: 'senhaAtual', mensagem: MSG.ATUAL_INCORRETA }]), contaFalha: true };
       }
       await gravarNovaSenha(tx, u.id, novoHash);
+      await limparRecuperacao(tx, u.id);
       const sessao = await emitirSessao(tx, {
         usuarioId: u.id,
         acessoVersao: u.acessoVersao,
@@ -119,7 +124,7 @@ export async function trocarSenha(
         tipo: 'ALTERACAO',
         registroId: u.id,
         descricao: voluntaria ? 'Senha alterada pelo usuário' : 'Senha alterada no primeiro acesso',
-        antes: { primeiroAcessoPendente: u.trocaSenhaObrigatoria },
+        antes: { primeiroAcessoPendente: u.trocaSenhaObrigatoria || !voluntaria },
         depois: { primeiroAcessoPendente: false },
       });
       return { resultado: ok({ token: sessao.token, expiraEm: sessao.expiraEm }), contaFalha: false };

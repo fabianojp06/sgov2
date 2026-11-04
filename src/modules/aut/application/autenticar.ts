@@ -4,6 +4,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import {
   conferirSenha,
   hashSenha,
+  limparRecuperacao,
   normalizarLogin,
   obterConfiguracaoAcesso,
   registrarFalhaLogin,
@@ -23,7 +24,8 @@ export type ResultadoLogin =
   | { ok: true; token: string; expiraEm: Date; trocaSenhaObrigatoria: boolean }
   | { ok: false; motivo: MotivoNegacao; mensagem: string; avisoUltimaTentativa: boolean; contaFalha: boolean };
 
-export type DepsAut = { cliente: PrismaClient; agora: () => Date };
+// conferirSenha injetável: os testes contam as conferências (tempo constante, D-P8-3a).
+export type DepsAut = { cliente: PrismaClient; agora: () => Date; conferirSenha: typeof conferirSenha };
 
 export { MENSAGENS };
 
@@ -37,7 +39,7 @@ const ROTULO_INVALIDO = '[inválido]';
 // Se o cálculo falhar, o cache é limpo: uma falha guardada viraria FALHA_SESSAO só para logins
 // inexistentes, um oráculo de enumeração.
 let hashFicticio: Promise<string> | undefined;
-function obterHashFicticio(): Promise<string> {
+export function obterHashFicticio(): Promise<string> {
   hashFicticio ??= hashSenha(randomBytes(24).toString('base64url')).catch((erro: unknown) => {
     hashFicticio = undefined;
     throw erro;
@@ -78,11 +80,12 @@ async function criarSessao(
   usuario: UsuarioParaLogin,
   t: Tentativa,
   maximoHoras: number,
+  trocaSenhaPendente = usuario.trocaSenhaObrigatoria,
 ): Promise<{ token: string; expiraEm: Date }> {
   const { token, expiraEm, sessaoUid, anteriores } = await emitirSessao(tx, {
     usuarioId: usuario.id,
     acessoVersao: usuario.acessoVersao,
-    trocaSenhaPendente: usuario.trocaSenhaObrigatoria,
+    trocaSenhaPendente,
     ip: t.ip,
     agora: t.agora,
     maximoHoras,
@@ -103,7 +106,11 @@ async function criarSessao(
 
 type Alerta = { usuarioId: string; tentativas: number; bloqueado: boolean };
 
-// Autenticação (UC01.02) em duas fases:
+// Autenticação (UC01.02) em duas fases. Com a recuperação pela tela de login (US-029), a temporária
+// convive com a senha vigente (D-P8-2): a fase 1 confere sempre as duas, completando com o hash
+// fictício, para ter ou não uma temporária pendente (ou existir ou não o login) não mudar o tempo
+// (D-P8-3a). Entrar com a temporária a consome e abre a sessão só para a troca (D-P8-3).
+// Duas fases:
 // 1. fora da transação: lê o usuário sem trava e paga o Argon2 (real ou fictício). Assim o hash não
 //    prende conexão nem a linha, e duas tentativas no mesmo login não fazem fila (oráculo de tempo);
 // 2. na transação (RNF0013): trava a linha (RNF0011), reavalia o estado atual e grava contador,
@@ -115,6 +122,7 @@ export async function autenticar(
 ): Promise<ResultadoLogin> {
   const cliente = deps.cliente ?? prisma;
   const agora = (deps.agora ?? (() => new Date()))();
+  const conferir = deps.conferirSenha ?? conferirSenha;
   const { login, senha } = entrada;
   // RN0012/RN0013/RN0016/RN0014: vazio, só espaços ou não texto não vai ao banco nem conta tentativa.
   if (typeof login !== 'string' || typeof senha !== 'string' || login.trim() === '' || senha.trim() === '') {
@@ -130,11 +138,16 @@ export async function autenticar(
     const previa = await obterConfiguracaoAcesso(cliente);
     const lido = normalizado ? await travarUsuarioParaLogin(cliente, normalizado, false) : null;
     let conferido: { hash: string; confere: boolean } | null = null;
+    let temporaria: { hash: string; confere: boolean } | null = null;
     const decisao = avaliarAntesDaSenha({ manutencao: previa.manutencao, usuario: lido });
     if (decisao === 'INEXISTENTE' || decisao === 'INATIVO') {
-      await conferirSenha(await obterHashFicticio(), senha);
+      const ficticio = await obterHashFicticio();
+      await Promise.all([conferir(ficticio, senha), conferir(ficticio, senha)]);
     } else if (decisao === 'CONFERIR' && lido) {
-      conferido = { hash: lido.senhaHash, confere: await conferirSenha(lido.senhaHash, senha) };
+      const hashTemporaria = lido.recuperacaoHash ?? (await obterHashFicticio());
+      const [vigente, temp] = await Promise.all([conferir(lido.senhaHash, senha), conferir(hashTemporaria, senha)]);
+      conferido = { hash: lido.senhaHash, confere: vigente };
+      if (lido.recuperacaoHash) temporaria = { hash: lido.recuperacaoHash, confere: temp };
     }
 
     // Fase 2.
@@ -161,7 +174,20 @@ export async function autenticar(
       }
       // Aqui o usuário existe (CONFERIR).
       const u = usuario as UsuarioParaLogin;
-      const confere = conferido?.hash === u.senhaHash ? conferido.confere : await conferirSenha(u.senhaHash, senha);
+      const confere = conferido?.hash === u.senhaHash ? conferido.confere : await conferir(u.senhaHash, senha);
+      // A temporária só vale se for a mesma da fase 1 (sob a trava): dois logins paralelos não a usam
+      // duas vezes. Com a vigente certa, a temporária pendente sai (D-P8-3).
+      const temporariaConfere =
+        !confere && u.recuperacaoHash !== null && (temporaria?.hash === u.recuperacaoHash ? temporaria.confere : await conferir(u.recuperacaoHash, senha));
+      if (temporariaConfere) {
+        if (!u.recuperacaoExpiraEm || u.recuperacaoExpiraEm.getTime() <= agora.getTime()) {
+          await auditarTentativa(tx, t, 'Tentativa de login com senha temporária da recuperação expirada');
+          return { resultado: negar('SENHA_EXPIRADA', MENSAGENS.SENHA_EXPIRADA) };
+        }
+        await limparRecuperacao(tx, u.id);
+        const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras, true);
+        return { resultado: { ok: true, ...sessao, trocaSenhaObrigatoria: true } };
+      }
       if (!confere) {
         const f = avaliarFalha({ contador: u.tentativasFalhas, limite: config.limiteTentativas, limiar: config.limiarAlerta });
         await registrarFalhaLogin(tx, u.id, f.novoContador, f.bloquear);
@@ -176,6 +202,7 @@ export async function autenticar(
         await auditarTentativa(tx, t, 'Tentativa de login com senha temporária expirada');
         return { resultado: negar('SENHA_EXPIRADA', MENSAGENS.SENHA_EXPIRADA) };
       }
+      if (u.recuperacaoHash) await limparRecuperacao(tx, u.id);
       const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras);
       return { resultado: { ok: true, ...sessao, trocaSenhaObrigatoria: u.trocaSenhaObrigatoria } };
     });

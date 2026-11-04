@@ -9,6 +9,7 @@ import { falha, type ErroCampo } from '@/shared/kernel';
 import { MENSAGENS } from '../domain/mensagens';
 import { nomeCookieSessao, opcoesCookieSessao } from '../infrastructure/cookies';
 import { autenticar } from './autenticar';
+import { solicitarRecuperacaoSenha as solicitar } from './recuperar-senha';
 import { contaFalhaPorIp } from './limite-login';
 import { limitadorLogin as limitador } from './limitador';
 
@@ -38,4 +39,12 @@ export const entrar = definirAcaoPublica(
     (await cookies()).set(nomeCookieSessao(), r.token, opcoesCookieSessao(r.expiraEm));
     redirect(r.trocaSenhaObrigatoria ? '/troca-senha' : '/inicio');
   },
+);
+
+// Esqueci minha senha (UC01.01 A1, US-029): a segunda ação pública. Usa o login digitado na tela e
+// responde sempre a mesma mensagem (RN0516), menos com o login vazio (E5). O limite de taxa e o
+// tempo igual ficam no caso de uso.
+export const solicitarRecuperacaoSenha = definirAcaoPublica(
+  { nome: 'aut.recuperacao', entrada: z.object({ login: z.string().max(200, MENSAGENS.RECUPERACAO_ENVIADA) }) },
+  (e, ctx) => solicitar({ login: e.login }, { ip: ctx.ip }),
 );

@@ -7,7 +7,7 @@ export { avaliarAntesDaSenha, avaliarFalha } from './domain/autenticacao';
 export { MENSAGENS } from './domain/mensagens';
 export { gerarSessaoUid } from './domain/sessao';
 export { nomeCookieSessao, nomeCookieUnidade } from './infrastructure/cookies';
-export { entrar } from './application/acoes-login';
+export { entrar, solicitarRecuperacaoSenha } from './application/acoes-login';
 export { FormLogin } from './ui/form-login';
 export { responderSair, sair } from './application/sair';
 export { BotaoSair } from './ui/botao-sair';

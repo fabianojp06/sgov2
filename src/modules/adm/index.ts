@@ -6,6 +6,8 @@ export { obterEscopoCentroCusto } from './application/escopo-cc';
 export { instalarFuncionalidades } from './application/instalar-funcionalidades';
 export {
   carregarPermissoes,
+  gravarRecuperacao,
+  limparRecuperacao,
   obterUsuarioParaSessao,
   registrarFalhaLogin,
   travarUsuarioParaLogin,
@@ -23,6 +25,7 @@ export {
   listarUsuarios,
   obterUsuario,
   resetarSenha,
+  senhaTemporaria,
   type DepsAdm,
   type DetalheUsuario,
   type ItemListaUsuario,

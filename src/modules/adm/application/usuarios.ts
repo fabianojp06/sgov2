@@ -98,10 +98,11 @@ async function resolverVinculos(
   return ok({ perfis: u.perfis.map((codigo) => perfis.find((p) => p.codigo === codigo)!) });
 }
 
-async function senhaTemporaria(cliente: PrismaClient, agora: Date) {
+// Também a recuperação pela tela de login (US-029), pelo servidor.ts; hash injetável para os testes.
+export async function senhaTemporaria(cliente: PrismaClient, agora: Date, hash: (senha: string) => Promise<string> = hashSenha) {
   const config = await obterConfiguracaoAcesso(cliente);
   const senha = gerarSenhaTemporaria(config.politica);
-  return { senha, hash: await hashSenha(senha), expiraEm: new Date(agora.getTime() + config.senhaTemporariaHoras * 3600_000) };
+  return { senha, hash: await hash(senha), expiraEm: new Date(agora.getTime() + config.senhaTemporariaHoras * 3600_000) };
 }
 
 const urlAcesso = () => `${lerEnvAcesso().urlPublica}/login`;
@@ -220,6 +221,8 @@ export async function alterarUsuario(
         atualizadoEm: agora(),
         versao: { increment: 1 },
         ...(mudouAcesso ? { acessoVersao: { increment: 1 } } : {}),
+        // Inativar apaga a temporária pendente da recuperação (US-029).
+        ...(!u.ativo ? { recuperacaoHash: null, recuperacaoExpiraEm: null } : {}),
       },
     });
     if (count === 0) return alterado();
@@ -283,6 +286,9 @@ export async function resetarSenha(ctx: ContextoRequisicao, id: string, deps: Pa
         senhaExpiraEm: senha.expiraEm,
         atualizadoEm: agora(),
         acessoVersao: { increment: 1 },
+        // A temporária da recuperação pela tela de login (US-029) sai: só uma senha temporária vale.
+        recuperacaoHash: null,
+        recuperacaoExpiraEm: null,
       },
     });
     if (count === 0) return alterado();
