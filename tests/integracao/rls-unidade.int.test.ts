@@ -35,7 +35,7 @@ beforeAll(async () => {
   await migrator.$executeRawUnsafe(`CREATE TABLE teste_dado_tp (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), unidade_id uuid NOT NULL, texto text NOT NULL)`);
   await migrator.$executeRawUnsafe(`ALTER TABLE teste_dado_tp ENABLE ROW LEVEL SECURITY`);
   await migrator.$executeRawUnsafe(
-    `CREATE POLICY teste_dado_tp_unidade ON teste_dado_tp USING (unidade_id = ANY (app_unidades())) WITH CHECK (unidade_id = ANY (app_unidades()))`,
+    `CREATE POLICY teste_dado_tp_unidade ON teste_dado_tp USING (unidade_id = ANY ((SELECT app_unidades())::uuid[])) WITH CHECK (unidade_id = ANY ((SELECT app_unidades())::uuid[]))`,
   );
   await migrator.$executeRawUnsafe(`INSERT INTO teste_dado_tp (unidade_id, texto) VALUES ('${A}', 'a1'), ('${A}', 'a2'), ('${B}', 'b1')`);
   linhaB = (await migrator.$queryRaw<{ id: string }[]>`SELECT id::text FROM teste_dado_tp WHERE texto = 'b1'`)[0]!.id;
@@ -73,9 +73,18 @@ describe('RLS por unidade (app.unidades)', () => {
     expect((await emUnidade(ctx(['nao-e-uuid', A]), ler, { cliente: app })).map((l) => l.texto)).toEqual(['a1', 'a2']);
   });
 
-  it('set_config local não vaza para a próxima transação do pool', async () => {
-    await emUnidade(ctx([A, B]), ler, { cliente: app });
-    for (let i = 0; i < 5; i++) expect(await app.$transaction((tx) => ler(tx))).toEqual([]);
+  it('set_config local não vaza para a próxima transação da mesma conexão, nem depois de rollback', async () => {
+    const pid = await emUnidade(ctx([A, B]), async (tx) => (await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]!.pid, { cliente: app });
+    const vistas: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const [linhas, p] = await app.$transaction(async (tx) => [await ler(tx), (await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]!.pid] as const);
+      expect(linhas).toEqual([]);
+      vistas.push(p);
+    }
+    // Com o pool, ao menos uma das transações seguintes reusa a conexão que teve o set_config.
+    expect(vistas).toContain(pid);
+    await expect(emUnidade(ctx([A, B]), async () => { throw new Error('rollback'); }, { cliente: app })).rejects.toThrow('rollback');
+    expect(await app.$transaction((tx) => ler(tx))).toEqual([]);
   });
 
   it('aplicarUnidades dentro de um tx que já existe', async () => {
@@ -103,9 +112,26 @@ describe('invasão via API e guarda da unidade ativa', () => {
 
   it('filtroUnidadeAtiva: com A e B e A ativa, recorta para A; sem ativa ou com ativa fora da lista → ErroPermissao', async () => {
     const c = ctx([A, B], A);
-    const linhas = await emUnidade(c, (tx) => tx.$queryRaw<Linha[]>`SELECT id::text, unidade_id::text, texto FROM teste_dado_tp WHERE unidade_id = ${filtroUnidadeAtiva(c).unidadeId}::uuid ORDER BY texto`, { cliente: app });
+    const linhas = await emUnidade(c, (tx) => tx.$queryRaw<Linha[]>`SELECT id::text, unidade_id::text, texto FROM teste_dado_tp WHERE unidade_id = ${filtroUnidadeAtiva(c, 'tst.dado', 'consultar').unidadeId}::uuid ORDER BY texto`, { cliente: app });
     expect(linhas.map((l) => l.texto)).toEqual(['a1', 'a2']);
-    expect(() => filtroUnidadeAtiva(ctx([A, B], null))).toThrow(ErroPermissao);
-    expect(() => filtroUnidadeAtiva(ctx([A], B))).toThrow(ErroPermissao);
+    expect(() => filtroUnidadeAtiva(ctx([A, B], null), 'tst.dado', 'consultar')).toThrow(ErroPermissao);
+    expect(() => filtroUnidadeAtiva(ctx([A], B), 'tst.dado', 'consultar')).toThrow(ErroPermissao);
+  });
+});
+
+describe('catálogo do banco', () => {
+  // Exceções explícitas: tabelas de acesso, não de dado de TP. usuario_unidade é a lista de onde vem o
+  // próprio app.unidades (o provedor a lê sem RLS). O Histórico tem unidade nula e fica fora pela regra.
+  const GLOBAIS = ['usuario_unidade'];
+
+  it('toda tabela com unidade_id NOT NULL tem RLS e política, fora as globais explícitas', async () => {
+    const semRls = await migrator.$queryRaw<{ tabela: string }[]>`
+      SELECT c.relname AS tabela FROM pg_attribute a
+      JOIN pg_class c ON c.oid = a.attrelid AND c.relkind = 'r'
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+      WHERE a.attname = 'unidade_id' AND a.attnotnull AND NOT a.attisdropped
+        AND (NOT c.relrowsecurity OR NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid))
+        AND c.relname <> ALL (${GLOBAIS}::text[])`;
+    expect(semRls).toEqual([]);
   });
 });
