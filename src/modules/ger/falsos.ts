@@ -9,6 +9,7 @@ import {
   type ModeloEmail,
 } from './domain/modelos-email';
 import type { PlanilhaExportacao } from './infrastructure/exportacao';
+import type { exportarCsv } from './infrastructure/exportar-csv';
 import type { exportarXlsx } from './infrastructure/exportar-xlsx';
 
 // Adaptadores falsos dos contratos do ger, só para testes dos módulos consumidores (spec §12.6).
@@ -22,6 +23,20 @@ export function exportarXlsxFalso(): {
     chamadas,
     exportar: async (planilhas) => {
       chamadas.push(planilhas);
+      return ok(new Uint8Array());
+    },
+  };
+}
+
+export function exportarCsvFalso(): {
+  exportar: typeof exportarCsv;
+  chamadas: PlanilhaExportacao[];
+} {
+  const chamadas: PlanilhaExportacao[] = [];
+  return {
+    chamadas,
+    exportar: (planilha) => {
+      chamadas.push(planilha);
       return ok(new Uint8Array());
     },
   };
