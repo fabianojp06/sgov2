@@ -36,7 +36,7 @@ export function TelaHistorico({
   const ultima = pagina ? Math.max(1, Math.ceil(pagina.total / pagina.porPagina)) : 1;
   return (
     <div>
-      <style>{'@media print { nav, header, .sem-impressao { display: none !important; } }'}</style>
+      <style>{'@media print { nav, header, footer, .sgo-status, .sem-impressao { display: none !important; } }'}</style>
       <h1>Histórico de Operações</h1>
       <form method="get" className="sem-impressao" aria-label="Filtros do Histórico">
         <label htmlFor="historico-usuario">Usuário</label>

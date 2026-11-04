@@ -142,9 +142,21 @@ describe('exportarHistorico e registrarImpressao (UC0.05, RN_LOG_EXP)', () => {
     expect(ultimo.descricao).toMatch(/^Exportou 1 registro\(s\) do Histórico: .*funcionalidade orc\.exercicios/);
   });
 
+  it('a data final é o dia em Brasília, não o dia seguinte em UTC (revisão do #330)', async () => {
+    const r = await exportarHistorico(exportador(), { de: new Date('2026-10-01T03:00:00Z'), ate: new Date('2026-11-01T02:59:59.999Z') }, deps());
+    expect(r.ok && r.valor.nome).toBe('historico-2026-10-01-a-2026-10-31.xlsx');
+    const ultimo = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'adm.historico', tipoOperacao: 'EXPORTACAO' }, orderBy: { id: 'desc' } });
+    expect(ultimo.descricao).toContain('período 2026-10-01 a 2026-10-31');
+  });
+
   it('acima de 5.000 linhas → recusa sem gerar nem registrar; sem a permissão → ErroPermissao', async () => {
     await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
-      SELECT '2026-08-10T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa ' || g FROM generate_series(1, 5001) g`;
+      SELECT '2026-08-10T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa ' || g FROM generate_series(1, 4999) g`;
+    // 4.999 registros + a linha dos filtros = 5.000: cabe. Com mais um, passa do limite.
+    const cabe = await exportarHistorico(exportador(), { de: new Date('2026-08-01T03:00:00Z'), ate: new Date('2026-08-31T03:00:00Z') }, deps());
+    expect(cabe.ok).toBe(true);
+    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
+      VALUES ('2026-08-11T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa 5000')`;
     const antes = await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } });
     expect(await exportarHistorico(exportador(), { de: new Date('2026-08-01T03:00:00Z'), ate: new Date('2026-08-31T03:00:00Z') }, deps())).toEqual({
       ok: false,

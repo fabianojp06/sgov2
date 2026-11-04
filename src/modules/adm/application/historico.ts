@@ -56,9 +56,13 @@ export function periodoValido(f: Pick<FiltroHistorico, 'de' | 'ate'>): boolean {
   return f.de.getTime() <= f.ate.getTime() && f.ate.getTime() - f.de.getTime() <= PERIODO_MAXIMO_MS;
 }
 
+// Dia civil em Brasília (en-CA formata como AAAA-MM-DD): o fim do dia de 04/11 é 05/11 em UTC.
+const DIA_BRASILIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+export const diaBrasilia = (d: Date) => DIA_BRASILIA.format(d);
+
 export const descreverFiltros = (f: Omit<FiltroHistorico, 'pagina'>) =>
   [
-    `período ${f.de.toISOString().slice(0, 10)} a ${f.ate.toISOString().slice(0, 10)}`,
+    `período ${diaBrasilia(f.de)} a ${diaBrasilia(f.ate)}`,
     ...(f.usuario ? [`usuário "${f.usuario}"`] : []),
     ...(f.funcionalidade ? [`funcionalidade ${f.funcionalidade}`] : []),
     ...(f.tipo ? [`tipo ${f.tipo}`] : []),
@@ -117,7 +121,8 @@ export async function exportarHistorico(
   const where = await filtroDoHistorico(ctx, { ...f, pagina: 1 }, cliente);
   return cliente.$transaction(async (tx) => {
     const total = await tx.historicoOperacao.count({ where });
-    if (total > LIMITE_EXPORTACAO_SINCRONA) return falha([{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }]);
+    // A linha dos filtros conta no limite do ger: cabem LIMITE − 1 registros.
+    if (total > LIMITE_EXPORTACAO_SINCRONA - 1) return falha([{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }]);
     const linhas = await tx.historicoOperacao.findMany({
       where,
       orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }],
@@ -147,7 +152,7 @@ export async function exportarHistorico(
       tipo: 'EXPORTACAO',
       descricao: `Exportou ${linhas.length} registro(s) do Histórico: ${filtros}`,
     });
-    return ok({ bytes: arquivo.valor, nome: `historico-${f.de.toISOString().slice(0, 10)}-a-${f.ate.toISOString().slice(0, 10)}.xlsx` });
+    return ok({ bytes: arquivo.valor, nome: `historico-${diaBrasilia(f.de)}-a-${diaBrasilia(f.ate)}.xlsx` });
   });
 }
 
