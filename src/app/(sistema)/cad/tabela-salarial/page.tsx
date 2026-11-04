@@ -18,7 +18,7 @@ export default async function TabelaSalarialPagina({ searchParams }: { searchPar
   const cargos = await listarOpcoesCargos(ctx);
   const pode = (a: string) => ctx.permissoes.has(`cad.tabela_salarial:${a}`);
   return (
-    <main>
+    <div>
       <h1>Tabela Salarial</h1>
       <p>Referência de mercado (pesquisa externa) por cargo e senioridade, sem vínculo com a tabela, a faixa e o nível do Rubi.</p>
       <TabelaSalarial
@@ -34,6 +34,6 @@ export default async function TabelaSalarialPagina({ searchParams }: { searchPar
         incluirSenioridade={acaoIncluirSenioridade}
         inativarSenioridade={acaoInativarSenioridade}
       />
-    </main>
+    </div>
   );
 }

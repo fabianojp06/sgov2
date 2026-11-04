@@ -9,7 +9,7 @@ export default async function Parametros({ searchParams }: { searchParams: Promi
   const tela = await obterTelaParametros(ctx, /^\d{4}$/.test(anoTexto ?? '') ? Number(anoTexto) : null);
   const p = tela.parametros;
   return (
-    <main>
+    <div>
       <h1>
         Parâmetros do exercício {tela.ano ?? ''}
         {p?.provisorio && <strong> Provisório</strong>}
@@ -28,6 +28,6 @@ export default async function Parametros({ searchParams }: { searchParams: Promi
       ) : (
         <p>{tela.ano === null ? 'Nenhum exercício tem parâmetros ainda.' : `O exercício ${tela.ano} não tem parâmetros.`}</p>
       )}
-    </main>
+    </div>
   );
 }

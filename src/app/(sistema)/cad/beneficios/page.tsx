@@ -10,17 +10,17 @@ export default async function Beneficios({ searchParams }: { searchParams: Promi
   const ano = /^\d{4}$/.test(anoTexto ?? '') ? Number(anoTexto) : (anos[0] ?? null);
   if (ano === null) {
     return (
-      <main>
+      <div>
         <h1>Tabela Mestre de Benefícios</h1>
         <p>Nenhum exercício tem parâmetros ainda.</p>
-      </main>
+      </div>
     );
   }
   const itens = await listarBeneficiosMestre(ctx, ano);
   // Sem os parâmetros do ano, não há onde gravar: a inclusão fica escondida.
   const temParametros = anos.includes(ano);
   return (
-    <main>
+    <div>
       <h1>Tabela Mestre de Benefícios {ano}</h1>
       <SeletorAno acao="/cad/beneficios" anos={anos} ano={ano} />
       {!temParametros && <p>O exercício {ano} não tem parâmetros.</p>}
@@ -44,6 +44,6 @@ export default async function Beneficios({ searchParams }: { searchParams: Promi
           versao: i.versao,
         }))}
       />
-    </main>
+    </div>
   );
 }

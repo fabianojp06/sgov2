@@ -41,7 +41,7 @@ export default async function Cargo({
       ? null
       : paraTelaCusto(await calcularCustoCargo(ctx, cargo.id, b.ano));
   return (
-    <main>
+    <div>
       <h1>
         Cargo {cargo.codigo}: {cargo.nomeOficial}
       </h1>
@@ -57,6 +57,6 @@ export default async function Cargo({
         alterarBeneficios={acaoAlterarBeneficiosCargo}
       />
       {custo && b.ano !== null && <BlocoEncargo custo={custo} ano={b.ano} />}
-    </main>
+    </div>
   );
 }
