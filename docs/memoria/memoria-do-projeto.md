@@ -301,6 +301,24 @@
 - [ ] Criação de issue e comentário em issue pelo agente: o classificador nega sem autorização explícita do PO. A #280 foi aberta com a autorização dele. Comentário de coordenação entre as frentes não precisa de autorização a cada vez (o PO autorizou em 04/11; seção 6, aviso direto). Criar ou fechar issue e mudar label continuam com o PO.
 - [ ] D12: em 03/11, duas rodadas de E2E da frente A coincidiram com o `vitest` da frente B (o `flock` do #257 só vale para quem usa `npm run test:int`/`test:e2e`; rodar o vitest direto escapa do lock).
 
+**Frente A (04/11)**
+- [x] Na `main`, pela manhã: R10 com comparação do conteúdo das premissas (#309); semáforo real do teto (#310); importação com o leitor seguro e a versão do layout em `Instruções!E1` (#311); `AcaoConfirmada` do `ger` no `adm` e no `orc` (#312); Playwright com nova tentativa no CI (#314, compartilhado); credencial no Histórico pelo nome inteiro e trava do Histórico nas migrations (#315); aviso de referência circular (#316); memória de 03/11 (#304).
+- [x] PO, 04/11: comentários de coordenação entre as frentes não precisam de autorização a cada vez (seção 6). O próximo bloco da frente A é o **P8, base de R0/R1** (plano no #325).
+- [ ] **P8 implementado, merges travados pelo CI.** Desde 10:22 o GitHub Actions recusa os jobs por cobrança ("recent account payments have failed"); o PO precisa regularizar em Settings › Billing & plans. PRs com revisão 12.12 e ressalvas corrigidas, na ordem de merge:
+  1. #325 (plano);
+  2. #326 (US-028, aviso de sessão encerrada);
+  3. #327 e depois #328 (US-042, alçadas; o #328 tem base no #327);
+  4. #329 e depois #330 (US-040, Histórico; o #330 tem base no #329);
+  5. #331 (US-007, RLS por unidade);
+  6. #332 (compartilhado) e #333 (`toca-outra-frente`);
+  7. #334 (US-029, recuperar a senha);
+  8. #335 (pedidos da frente B: `contarUsuariosPorPerfil`, `seedRel` no E2E, `<main>` único no `cad`).
+  Revisão de bloco no #325. Os conflitos entre as branches (`adm.prisma`, `apoio.ts`, `index.ts`/`servidor.ts`/seed do `adm`, `bundle-cliente`, `autenticar.ts`, `login/page.tsx`) já foram resolvidos numa branch local de integração, com unidade, integração e E2E verdes.
+- [ ] PO, decisões do P8 (recomendação no plano): D-P8-2 (a temporária da recuperação convive com a senha vigente, desvio do UC02.18); D-P8-5 e D-P8-6 (alçada por fluxo, sem escopo e sem exigir perfil GFIN); D-P8-8 e D-P8-9 (Auditor no Histórico, só nas funcionalidades do perfil); limite de 3 pedidos de recuperação por hora; tirar a label `bloqueada-por-gap` da #64 (WA01/WA02/WA05 não dependem do GAP-APR-001).
+- [ ] Textos [PROVISÓRIOS] novos: versão do layout da planilha (`Instruções!E1`); mensagens das alçadas (cadastro, exclusão, avisos, "mesmo usuário" fora de WA02); período e exportação do Histórico ("A exportação passa de 5.000 linhas…"); e-mail `usuario.recuperacao_senha`; temporária da recuperação vencida.
+- [ ] Pendências do P8 para a R4: o worker e o Consolidado dos TPs precisam de caminho próprio na RLS; toda tabela de TP nasce com a política `ANY ((SELECT app_unidades())::uuid[])` (teste de catálogo no `rls-unidade.int.test.ts`); o Histórico ainda não recorta por TP nem mostra antes/depois (falta o contrato de máscara com o `cad`).
+- [ ] PO: CSP completa e HSTS (#318), no `proxy.ts` ou no Traefik.
+
 **Frente B (03/11)**
 - [ ] PO:
   - incluir o check **E2E** nos obrigatórios da `main` depois de algumas rodadas verdes (#292);
@@ -354,6 +372,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 04/11/2026 | A | Manhã: R10, semáforo real, leitor seguro, AcaoConfirmada do ger, Playwright no CI, credenciais e trava do Histórico (#309 a #316); GitHub instável e, desde 10:22, CI parado por cobrança; P8 (base de R0/R1) planejado (#325, duas rodadas de revisão) e implementado: US-028 (#326), US-042 (#327, #328), US-040 (#329, #330), US-007 (#331), US-029 (#332 a #334) e pedidos da frente B (#335), cada um com revisão 12.12 e ressalvas corrigidas; revisão de bloco; integração local verde; merges esperando o CI |
 | 04/11/2026 | B | P7 planejado e iniciado: plano (#307, D-P7-1 a 8); roteiro de homologação (#313, Task 1); relatório de conferência da carga, o primeiro do `rel` (#317, Task 2) e a seed no orquestrador (#319); testes de segurança de cabeçalhos e cookie (#318) e a matriz de autorização pelo catálogo (#322, Task 4); ferramentas de carga com o k6, sem rodar (#321, Task 3); CSV seguro no `ger` (#306, fecha a #233); pendências da VPS (#308, fecha a #153); páginas do `cad` sem `<main>` (#320); teste dos hooks numa sessão nova (#145); GitHub com incidente na manhã (push por HTTPS, merge pela API REST); revisão 12.12 por agente independente em cada PR |
 | 03/11/2026 | B | P4 completo na `main`: #249, #254, cargos 12a a 12c (#261, #267, #270), benefícios do cargo (#272) e custo do cargo (#274); correções do `cad` pedidas pela frente A (#276) e log das cargas sem valores (#288); C3 para a frente A (#278, #279, #284, #287) e C2 (#295); E2E no CI (#292), Argon2 na imagem (#297) e seed no deploy (#299); #221 atualizado com a `main`; revisão 12.12 por agente independente em cada PR, com os bloqueantes corrigidos antes do merge; merges com a autorização do PO para seguir as recomendações; à noite, benefícios do cargo no exercício novo (#302, decisão do PO) e #221 na `main` depois da #223 |
 | 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão de bloco do P6 com 3 lentes e correções (#273, #275); à tarde, dívida técnica: issue #280 e ressalva 4 do P5 com medição (#293), fronteiras de erro da raiz (#290), diálogos e `<main>` único (#281, #291), auditoria (#282, #294), config e prisma (#283, #286), kernel (#285), testes das filas (#289); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações; noite: aprovação do PO na #223 publicada, regra do aviso direto entre frentes (#303) e #223 fechada |
