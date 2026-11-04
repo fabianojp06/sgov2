@@ -6,8 +6,8 @@ setup() {
   cat > "$T/docker" <<'SH'
 #!/bin/sh
 case "$1" in
-  ps)  printf 'z0 sgo-a-sumiu-1\na1 sgo-prod_db.1.x\nb2 sgo-hml_app.1.y\nc3 sgo-a-db-1\nd4 sgo-b-app-1\ne5 easypanel.1.z\nf6 easypanel-traefik.1.w\ng7 outro-servico\nh8 sgo-ab-x\ni9 sgo-api_app.1.z\nj10 sgo-backup_job.1.q\nk11 sgo-production_x.1.a\nl12 sgo-hmlx_app.1\nm13 sgo-prod_vazio.1\n' ;;
-  top) case "$2" in z0) exit 1;; a1) printf 'PID\n101\n102\n';; b2) printf 'PID\n201\n';; c3) printf 'PID\n301\n';; d4) printf 'PID\n401\n';; e5) printf 'PID\n501\n';; f6) printf 'PID\n601\n';; g7) printf 'PID\n701\n';; h8) printf 'PID\n801\n';; i9) printf 'PID\n901\n';; j10) printf 'PID\n1001\n';; k11) printf 'PID\n1101\n';; l12) printf 'PID\n1201\n';; m13) printf 'PID\n\n  \nabc\n';; esac ;;
+  ps)  printf 'z0 sgo-a-sumiu-1\na1 sgo-prod_db.1.x\nb2 sgo-hml_app.1.y\nc3 sgo-a-db-1\nd4 sgo-b-app-1\ne5 easypanel.1.z\nf6 easypanel-traefik.1.w\ng7 outro-servico\nh8 sgo-ab-x\ni9 sgo-api_app.1.z\nj10 sgo-backup_job.1.q\nk11 sgo-production_x.1.a\nl12 sgo-hmlx_app.1\nm13 sgo-prod_vazio.1\nn14 sgo-b-sem-processo-1\n' ;;
+  top) case "$2" in z0) exit 1;; a1) printf 'PID\n101\n102\n';; b2) printf 'PID\n201\n';; c3) printf 'PID\n301\n';; d4) printf 'PID\n401\n';; e5) printf 'PID\n501\n';; f6) printf 'PID\n601\n';; g7) printf 'PID\n701\n';; h8) printf 'PID\n801\n';; i9) printf 'PID\n901\n';; j10) printf 'PID\n1001\n';; k11) printf 'PID\n1101\n';; l12) printf 'PID\n1201\n';; m13) printf 'PID\n\n  \nabc\n';; n14) printf 'PID\n';; esac ;;
 esac
 SH
   chmod +x "$T/docker"
@@ -66,6 +66,13 @@ teardown() { rm -rf "$T"; }
   [[ "$output" != *"sgo-prod_vazio"* ]]
   run "$SCRIPT"
   for p in 801 901 1001 1101 1201; do [ "$(cat "$PROC/$p/oom_score_adj")" = "0" ]; done
+}
+
+@test "contêiner sem processo (docker top só com o cabeçalho) não gera linha nem erro" {
+  run "$SCRIPT" --simular
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"sgo-b-sem-processo-1"* ]]
+  [[ "$output" == *"sgo-b-app-1 401 500"* ]]
 }
 
 @test "docker indisponível: sai com 0 sem escrever nada" {

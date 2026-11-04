@@ -45,7 +45,15 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
   grep -q 'memória disponível baixa' "$T/curl.out"
   # A URL vai pelo stdin (-K -), nunca nos argumentos, que o ps mostra.
   grep -qx 'url = "https://exemplo.invalid/t?token=segredo"' "$T/curl.in"
-  ! grep -q 'segredo' "$T/curl.out"
+  run ! grep -q 'segredo' "$T/curl.out"
+}
+
+@test "URL com caractere de controle: não chama o curl e avisa no journal" {
+  meminfo 900000
+  ALERTA_WEBHOOK_URL=$'https://exemplo.invalid/a\nb' run "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [ ! -e "$T/curl.out" ]
+  grep -q 'ALERTA_WEBHOOK_URL inválida' "$T/logger.out"
 }
 
 @test "aspas e barra invertida na URL são escapadas no config do curl" {
@@ -64,7 +72,9 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
 
 @test "um episódio longo conta uma vez só (contador de episódios, não de minutos)" {
   meminfo 900000
-  run "$SCRIPT"; run "$SCRIPT"; run "$SCRIPT"
+  run "$SCRIPT"; [ "$status" -eq 0 ]
+  run "$SCRIPT"; [ "$status" -eq 0 ]
+  run "$SCRIPT"; [ "$status" -eq 0 ]
   [ "$(wc -l < "$LOG_ALERTAS")" -eq 1 ]
 }
 
@@ -100,8 +110,8 @@ meminfo() { printf 'MemTotal: 8130000 kB\nMemAvailable: %s kB\n' "$1" > "$T/memi
 
 @test "estado sem permissão de escrita: sai com 0 e não conta o episódio" {
   meminfo 900000
-  mkdir -p "$T/ro"; chmod 555 "$T/ro"; export ESTADO_ALERTA="$T/ro/estado"
-  if [ "$(id -u)" -eq 0 ]; then skip "root ignora permissão de diretório"; fi
+  # Um diretório no lugar do arquivo de estado: a escrita falha até para root (o chmod não bastaria).
+  mkdir -p "$T/estado.d"; export ESTADO_ALERTA="$T/estado.d"
   run "$SCRIPT"
   [ "$status" -eq 0 ]
   [ ! -s "$LOG_ALERTAS" ]
