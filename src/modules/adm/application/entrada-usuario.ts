@@ -11,16 +11,39 @@ const texto = (f: FormData, campo: string): string => {
 
 const textos = (f: FormData, campo: string): string[] => f.getAll(campo).filter((v): v is string => typeof v === 'string');
 
+// Painel "Funcionalidade(s) do Perfil" (US-039, REQ0080): cada funcionalidade exibida vem no campo
+// oculto "funcionalidadesExibidas" ("<perfil>:<funcionalidade>"); a marcada vem também em
+// "funcionalidades". A exibida e desmarcada de um perfil marcado é a exceção; o caso de uso confere
+// se ela pertence ao perfil.
+// As exibidas seguem para o caso de uso: só uma exceção exibida pode ser removida (ajuste M1).
+const exibidasDeFormulario = (f: FormData, perfis: readonly string[]) =>
+  [...new Set(textos(f, 'funcionalidadesExibidas'))].filter((chave) => perfis.includes(chave.slice(0, Math.max(0, chave.indexOf(':')))));
+
+function excecoesDeFormulario(f: FormData, perfis: readonly string[]): { perfil: string; funcionalidade: string }[] {
+  const marcadas = new Set(textos(f, 'funcionalidades'));
+  return exibidasDeFormulario(f, perfis)
+    .filter((chave) => !marcadas.has(chave))
+    .map((chave) => {
+      const i = chave.indexOf(':');
+      return { perfil: chave.slice(0, i), funcionalidade: chave.slice(i + 1), valida: i > 0 };
+    })
+    .filter((e) => e.valida && perfis.includes(e.perfil))
+    .map(({ perfil, funcionalidade }) => ({ perfil, funcionalidade }));
+}
+
 function usuarioDeFormulario(f: FormData): Record<string, unknown> {
   const cc = texto(f, 'ccEscopo');
+  const perfis = textos(f, 'perfis');
   return {
     nome: texto(f, 'nome'),
     email: texto(f, 'email'),
     login: texto(f, 'login'),
     ativo: f.has('ativo'), // checkbox: só vem marcado
-    perfis: textos(f, 'perfis'),
+    perfis,
     unidades: textos(f, 'unidades'),
     ccEscopo: cc === '' ? null : cc,
+    excecoes: excecoesDeFormulario(f, perfis),
+    exibidas: exibidasDeFormulario(f, perfis),
   };
 }
 

@@ -89,6 +89,18 @@ describe('privilégios do adm', () => {
     await expect(sync.query('SELECT * FROM perfil_permissao')).rejects.toEqual(negado);
   });
 
+  // US-039 (migration 202611101100_adm_usuario_excecao): a aplicação só lê, inclui e apaga exceções.
+  it('adm_usuario_excecao: sgo_app só SELECT, INSERT e DELETE; sgo_sync nada', async () => {
+    const privilegio = async (papel: string, p: string) =>
+      (await migrator.query<{ tem: boolean }>(`SELECT has_table_privilege($1, 'adm_usuario_excecao', $2) AS tem`, [papel, p])).rows[0]!.tem;
+    const tipos = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+    const doApp = await Promise.all(tipos.map((t) => privilegio('sgo_app', t)));
+    expect(tipos.filter((_t, i) => doApp[i])).toEqual(['SELECT', 'INSERT', 'DELETE']);
+    expect(await Promise.all(tipos.map((t) => privilegio('sgo_sync', t)))).toEqual(tipos.map(() => false));
+    await expect(sync.query('SELECT * FROM adm_usuario_excecao')).rejects.toEqual(negado);
+    await expect(app.query(`UPDATE adm_usuario_excecao SET funcionalidade_codigo = funcionalidade_codigo`)).rejects.toEqual(negado);
+  });
+
   it('linha única e ação válida', async () => {
     await expect(migrator.query('INSERT INTO configuracao_acesso (id) VALUES (2)')).rejects.toEqual(
       expect.objectContaining({ code: '23514' }),
