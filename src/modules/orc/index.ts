@@ -17,6 +17,7 @@ export { MENSAGENS_ORC } from './domain/mensagens';
 export { FUNCIONALIDADES_ORC, seedOrc } from './infrastructure/seed';
 export { FormReceita, type ReceitaFormulario } from './ui/form-receita';
 export { TelaPacotes, textoAvisoPacote } from './ui/tela-pacotes';
+export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';
 export { FormExercicio } from './ui/form-exercicio';
 export { FormImportacao } from './ui/form-importacao';
