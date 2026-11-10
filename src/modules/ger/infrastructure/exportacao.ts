@@ -7,7 +7,66 @@ export type PlanilhaExportacao = {
   nome: string; // nome da aba: 1 a 31 caracteres, sem : \ / ? * [ ], sem apóstrofo nas pontas, único
   colunas: readonly { titulo: string; tipo: TipoColuna; largura?: number }[];
   linhas: readonly (readonly ValorCelula[])[]; // cada linha com um valor por coluna
+  // US-024: cabeçalho com os filtros (RN0011) e a marca do operador e do rastreio (RN_WATERMARK).
+  // Opcional: sem ele, o arquivo sai como antes. Monte com criarIdentificacao.
+  identificacao?: IdentificacaoExportacao;
 };
+
+export type FiltroExportacao = { rotulo: string; valor: string };
+export type IdentificacaoExportacao = {
+  titulo: string;
+  filtros: readonly FiltroExportacao[];
+  operador: string; // o usuário logado (usuarioRotulo da sessão)
+  rastreio: string; // o Traceability ID da exportação, o mesmo gravado no Histórico
+  geradoEm: string; // ISO 8601
+};
+
+const HORA_BRASILIA = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/**
+ * Identificação de uma exportação, com um rastreio novo (UUID) e a hora do servidor. Chamar no
+ * servidor: no navegador, o crypto.randomUUID só existe em contexto seguro (HTTPS ou localhost).
+ */
+export function criarIdentificacao(
+  d: { titulo: string; filtros: readonly FiltroExportacao[]; operador: string },
+  agora: Date = new Date(),
+  rastreio: string = globalThis.crypto.randomUUID(),
+): IdentificacaoExportacao {
+  return { titulo: d.titulo, filtros: d.filtros, operador: d.operador, rastreio, geradoEm: agora.toISOString() };
+}
+
+/** O cabeçalho legível, uma linha por item: o mesmo texto no XLSX e no CSV. */
+export function linhasIdentificacao(i: IdentificacaoExportacao): string[] {
+  const filtros = i.filtros.length > 0 ? i.filtros.map((f) => `${f.rotulo}: ${f.valor}`).join('; ') : 'nenhum';
+  return [
+    i.titulo,
+    `Filtros: ${filtros}`,
+    `Exportado por ${i.operador} em ${HORA_BRASILIA.format(new Date(i.geradoEm))} (horário de Brasília)`,
+    `Rastreio: ${i.rastreio}`,
+  ];
+}
+
+const RASTREIO = /^[A-Za-z0-9-]{8,64}$/;
+const texto = (t: string, max: number) => t.trim().length > 0 && t.length <= max;
+
+function validarIdentificacao(i: IdentificacaoExportacao, prefixo: string): ErroCampo[] {
+  const erros: ErroCampo[] = [];
+  const e = (campo: string, mensagem: string) => erros.push({ campo: `${prefixo}.identificacao.${campo}`, mensagem });
+  if (!texto(i.titulo, 200)) e('titulo', 'O título da exportação deve ter de 1 a 200 caracteres.');
+  if (!texto(i.operador, 200)) e('operador', 'O operador da exportação é obrigatório (até 200 caracteres).');
+  if (!RASTREIO.test(i.rastreio)) e('rastreio', 'O rastreio da exportação é inválido.');
+  if (Number.isNaN(Date.parse(i.geradoEm))) e('geradoEm', 'A data da exportação é inválida.');
+  if (i.filtros.length > 30) e('filtros', 'No máximo 30 filtros no cabeçalho.');
+  if (i.filtros.some((f) => !texto(f.rotulo, 200) || f.valor.length > 200)) e('filtros', 'Cada filtro precisa de rótulo e valor com até 200 caracteres.');
+  return erros;
+}
 
 export const LIMITE_EXPORTACAO_SINCRONA = 5000; // RF_IMP_003, total de linhas somando as abas
 
@@ -48,6 +107,9 @@ export function validarPlanilhas(planilhas: readonly PlanilhaExportacao[]): Resu
         mensagem: `A linha ${linhaErrada + 1} da aba "${p.nome}" não tem um valor por coluna (${p.colunas.length}).`,
       });
     }
+  });
+  planilhas.forEach((p, i) => {
+    if (p.identificacao) erros.push(...validarIdentificacao(p.identificacao, `planilhas.${i}`));
   });
   const total = planilhas.reduce((soma, p) => soma + p.linhas.length, 0);
   if (total > LIMITE_EXPORTACAO_SINCRONA) {

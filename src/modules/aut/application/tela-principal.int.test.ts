@@ -77,7 +77,8 @@ describe('carregarTelaPrincipal', () => {
     const ctx = await logado('caio', 'ADMINISTRADOR', []);
     await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: false } });
     try {
-      expect((await carregarTelaPrincipal(ctx, { cliente: app })).menu).toEqual([]);
+      // O adm tem outras funcionalidades (alçadas, Histórico): só a desativada some.
+      expect((await carregarTelaPrincipal(ctx, { cliente: app })).menu.flatMap((m) => m.grupos.flatMap((g) => g.itens.map((i) => i.codigo)))).not.toContain('adm.usuarios');
     } finally {
       await migrator.funcionalidade.update({ where: { codigo: 'adm.usuarios' }, data: { ativo: true } });
     }
@@ -104,10 +105,12 @@ describe('exibirNoMenu', () => {
     await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', false)]));
     const ctx = await logado('duda', 'AUDITOR', []);
     expect(ctx.permissoes.has('cad.oculta:consultar')).toBe(true);
-    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app }))).toEqual(['cad.visivel']);
+    // O Auditor também tem adm.historico (US-040): o teste olha só as funcionalidades daqui.
+    const doTeste = (t: Awaited<ReturnType<typeof carregarTelaPrincipal>>) => codigosDoMenu(t).filter((c) => c.startsWith('cad.'));
+    expect(doTeste(await carregarTelaPrincipal(ctx, { cliente: app }))).toEqual(['cad.visivel']);
 
     await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', true)]));
-    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).sort()).toEqual(['cad.oculta', 'cad.visivel']);
+    expect(doTeste(await carregarTelaPrincipal(ctx, { cliente: app })).sort()).toEqual(['cad.oculta', 'cad.visivel']);
   });
 });
 
@@ -119,6 +122,10 @@ describe('unidade ativa no contexto', () => {
     expect((await logado('fabi', 'ORCAMENTISTA', [unidades.a, unidades.b], unidades.inativa)).unidadeId).toBeNull());
   it('cookie com unidade inativa do próprio usuário → ignorado (sobra a única ativa)', async () =>
     expect((await logado('ivo', 'ORCAMENTISTA', [unidades.a, unidades.inativa], unidades.inativa)).unidadeId).toBe(unidades.a));
+  it('unidades do contexto (US-007): só as ativas do usuário; vazia com a troca de senha pendente', async () => {
+    expect([...((await logado('kaka', 'ORCAMENTISTA', [unidades.a, unidades.inativa])).unidades ?? [])]).toEqual([unidades.a]);
+    expect((await logado('lulu', 'ORCAMENTISTA', [unidades.a], undefined, true)).unidades).toEqual([]);
+  });
   it('troca de senha pendente → sem unidade ativa, mesmo com uma só', async () =>
     expect((await logado('juca', 'ORCAMENTISTA', [unidades.a], undefined, true)).unidadeId).toBeNull());
 });

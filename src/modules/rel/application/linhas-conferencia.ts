@@ -1,5 +1,5 @@
 import type { ResumoCadastros } from '@/modules/cad';
-import type { PlanilhaExportacao } from '@/modules/ger';
+import type { IdentificacaoExportacao, PlanilhaExportacao } from '@/modules/ger';
 
 // Linhas do relatório de conferência da carga (plano do P7, Task 2; US-115): as mesmas na tela e
 // na exportação, para a GFIN conferir o que vê com o que assina. Quantidades como texto inteiro;
@@ -58,9 +58,10 @@ export function linhasConferencia(r: ResumoCadastros): LinhaConferencia[] {
 
 const MOTIVO = { oculta: 'oculto: sem permissão de consultar salários', indisponivel: 'indisponível: chave de cifra não configurada' } as const;
 
-export function planilhaConferencia(r: ResumoCadastros, ano: number): PlanilhaExportacao {
+export function planilhaConferencia(r: ResumoCadastros, ano: number, identificacao?: IdentificacaoExportacao): PlanilhaExportacao {
   return {
     nome: `Conferência ${ano}`,
+    ...(identificacao ? { identificacao } : {}),
     colunas: [
       { titulo: 'Seção', tipo: 'texto', largura: 160 },
       { titulo: 'Item', tipo: 'texto', largura: 320 },
