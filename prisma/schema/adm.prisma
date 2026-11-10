@@ -32,6 +32,7 @@ model Funcionalidade {
   ativo        Boolean           @default(true)
   exibirNoMenu Boolean           @default(true) @map("exibir_no_menu")
   permissoes   PerfilPermissao[]
+  excecoes     UsuarioExcecao[]
 
   @@map("funcionalidade")
 }
@@ -95,13 +96,28 @@ model Usuario {
 }
 
 model UsuarioPerfil {
-  usuarioId String  @map("usuario_id") @db.Uuid
-  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  perfilId  String  @map("perfil_id") @db.Uuid
-  perfil    Perfil  @relation(fields: [perfilId], references: [id], onDelete: Restrict)
+  usuarioId String           @map("usuario_id") @db.Uuid
+  usuario   Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  perfilId  String           @map("perfil_id") @db.Uuid
+  perfil    Perfil           @relation(fields: [perfilId], references: [id], onDelete: Restrict)
+  excecoes  UsuarioExcecao[]
 
   @@id([usuarioId, perfilId])
   @@map("usuario_perfil")
+}
+
+// Exceção de permissão por usuário (US-039, REQ0080, D-P10-2): retira do usuário uma funcionalidade
+// que vem de um perfil associado a ele (só retirada, D-P10-1). Retirar o perfil apaga as exceções dele.
+model UsuarioExcecao {
+  usuarioId            String         @map("usuario_id") @db.Uuid
+  perfilId             String         @map("perfil_id") @db.Uuid
+  usuarioPerfil        UsuarioPerfil  @relation(fields: [usuarioId, perfilId], references: [usuarioId, perfilId], onDelete: Cascade)
+  funcionalidadeCodigo String         @map("funcionalidade_codigo")
+  funcionalidade       Funcionalidade @relation(fields: [funcionalidadeCodigo], references: [codigo], onDelete: Restrict)
+
+  @@id([usuarioId, perfilId, funcionalidadeCodigo])
+  @@index([funcionalidadeCodigo])
+  @@map("adm_usuario_excecao")
 }
 
 // Parâmetros de acesso (linha única, id = 1). Valores [PROVISÓRIOS] da GAP-AUT-002 (spec §11.2a).

@@ -93,3 +93,75 @@ test('usuário bloqueado: mensagem do RN0052 e desbloqueio com confirmação', a
   await expect(page.getByRole('status')).toHaveText('Usuário desbloqueado com sucesso');
   await expect(grade(page).getByRole('row', { name: new RegExp(USUARIOS.desbloqueio.nome) })).not.toContainText('bloqueado)');
 });
+
+// US-039 (UC02.13 A4–A6, REQ0080): o Administrador retira de um usuário uma funcionalidade do perfil
+// dele; o usuário entra sem ela no menu e recebe 404 na rota; devolver a traz de volta.
+test('exceção de permissão: retirar e devolver uma funcionalidade do perfil', async ({ browser }) => {
+  const funcionalidade = 'Centros de Custo';
+  const painel = (page: Page) =>
+    page.getByRole('group', { name: 'Funcionalidade(s) do Perfil' }).getByRole('group', { name: 'Orçamentista', exact: true });
+
+  async function editar(marcar: boolean): Promise<void> {
+    const contexto = await browser.newContext();
+    const page = await contexto.newPage();
+    try {
+      await entrarNaTelaPrincipal(page, USUARIOS.excecoes.login);
+      await page.getByRole('navigation').getByRole('link', { name: 'Usuários' }).click();
+      await grade(page).getByRole('link', { name: USUARIOS.orcExcecoes.nome }).click();
+      const caixa = painel(page).getByRole('checkbox', { name: funcionalidade });
+      await expect(caixa).toBeChecked({ checked: !marcar });
+      // Pelo teclado (acessibilidade): foco na caixa e espaço.
+      await caixa.focus();
+      await page.keyboard.press('Space');
+      await expect(caixa).toBeChecked({ checked: marcar });
+      await expect(page.getByLabel('Orçamentista', { exact: true })).toBeChecked();
+      await page.getByRole('button', { name: 'Salvar' }).click();
+      await expect(page.getByRole('status')).toHaveText('Alteração no cadastro do usuário realizada com sucesso');
+    } finally {
+      await contexto.close();
+    }
+  }
+
+  async function conferirAcesso(tem: boolean): Promise<void> {
+    const contexto = await browser.newContext();
+    const page = await contexto.newPage();
+    try {
+      await entrarNaTelaPrincipal(page, USUARIOS.orcExcecoes.login);
+      const menu = page.getByRole('navigation');
+      await expect(menu.getByRole('link', { name: 'Plano de Contas' })).toBeVisible();
+      await expect(menu.getByRole('link', { name: funcionalidade })).toHaveCount(tem ? 1 : 0);
+      expect((await page.goto('/cad/centros-custo'))?.status()).toBe(tem ? 200 : 404);
+    } finally {
+      await contexto.close();
+    }
+  }
+
+  await conferirAcesso(true);
+  await editar(false);
+  await conferirAcesso(false);
+  await editar(true);
+  await conferirAcesso(true);
+});
+
+// REQ0081 no formulário (ajustes B1 e B2 da revisão 12.12): desmarcar todas as funcionalidades do
+// perfil desmarca o perfil, com o foco na caixa dele e o aviso anunciado; remarcado, volta tudo marcado.
+test('exceção de permissão: desmarcar todas as funcionalidades desmarca o perfil (REQ0081)', async ({ page }) => {
+  await entrarNaTelaPrincipal(page, USUARIOS.excecoes.login);
+  await page.goto('/adm/usuarios/novo');
+  const perfil = page.getByLabel('Orçamentista', { exact: true });
+  await perfil.check();
+  const grupo = page.getByRole('group', { name: 'Funcionalidade(s) do Perfil' }).getByRole('group', { name: 'Orçamentista', exact: true });
+  const caixas = await grupo.getByRole('checkbox').all();
+  expect(caixas.length).toBeGreaterThan(1);
+  for (const caixa of caixas.slice(0, -1)) await caixa.uncheck();
+  await expect(perfil).toBeChecked();
+  await caixas.at(-1)!.click();
+  await expect(perfil).not.toBeChecked();
+  await expect(perfil).toBeFocused();
+  await expect(page.getByText('Perfil Orçamentista desmarcado: todas as funcionalidades foram retiradas.')).toBeVisible();
+  await expect(grupo).toHaveCount(0);
+
+  await perfil.check();
+  await expect(grupo.getByRole('checkbox')).toHaveCount(caixas.length);
+  for (const caixa of await grupo.getByRole('checkbox').all()) await expect(caixa).toBeChecked();
+});

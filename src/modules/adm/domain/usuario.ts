@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { falha, MENSAGEM_CONFLITO, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { chaveExcecao, MENSAGENS_EXCECAO } from './excecao-usuario';
 import { normalizarLogin } from './login';
 import { CODIGOS_PERFIL } from './perfis';
 
@@ -67,6 +68,22 @@ export const esquemaUsuario = z.object({
     .array(z.uuid(MENSAGENS_USUARIO.UNIDADE_INVALIDA))
     .max(200, MENSAGENS_USUARIO.UNIDADES_DEMAIS)
     .transform((u) => [...new Set(u)]),
+  // Exceções de permissão (US-039, REQ0080): funcionalidades de um perfil retiradas do usuário. As
+  // regras que dependem do banco (perfil associado, funcionalidade do perfil, REQ0081) ficam no caso
+  // de uso (aplicarExcecoes). Ausente: nenhuma exceção.
+  excecoes: z
+    .array(
+      z.object({
+        perfil: z.enum(CODIGOS_PERFIL, { error: MENSAGENS_EXCECAO.PERFIL_NAO_ASSOCIADO }),
+        funcionalidade: z.string().trim().min(1, MENSAGENS_EXCECAO.FUNCIONALIDADE_FORA_DO_PERFIL).max(100, MENSAGENS_EXCECAO.FUNCIONALIDADE_FORA_DO_PERFIL),
+      }),
+    )
+    .max(1000, MENSAGENS_EXCECAO.DEMAIS)
+    .default([])
+    .transform((lista) => [...new Map(lista.map((e) => [chaveExcecao(e), e])).values()]),
+  // Chaves "<perfil>:<funcionalidade>" que o painel mostrou (ajuste M1 da revisão 12.12): só uma
+  // exceção exibida pode ser removida. Ausente (chamada sem o painel): nenhuma exceção sai.
+  exibidas: z.array(z.string().max(200, MENSAGENS_EXCECAO.DEMAIS)).max(2000, MENSAGENS_EXCECAO.DEMAIS).optional(),
   // Classificação do CC raiz, validada contra o cadastro de CC no P6 (R8 do plano).
   ccEscopo: texto(60, MENSAGENS_USUARIO.CC_INVALIDO)
     .nullable()

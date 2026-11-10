@@ -85,7 +85,10 @@ export async function zerarFalhasLogin(tx: TxCliente, usuarioId: string): Promis
 
 // Permissões efetivas (RN0030/RN0031): perfis ativos × funcionalidades ativas × módulos ativos,
 // no formato "<funcionalidade>:<acao>" do C5. Com `modulo`, só as funcionalidades desse módulo (com
-// o sistema inativo, o Administrador fica só com a Administração, RN0060).
+// o sistema inativo, o Administrador fica só com a Administração, RN0060). A exceção de permissão do
+// usuário (US-039, REQ0080, D-P10-3) tira a funcionalidade que vem daquele perfil; outro perfil do
+// usuário que a dê sem exceção a mantém (o DISTINCT junta os perfis). Daqui saem o menu, a guarda e
+// o Histórico visível (RN0099).
 export async function carregarPermissoes(tx: TxCliente, usuarioId: string, filtro: { modulo?: string } = {}): Promise<ReadonlySet<string>> {
   const doModulo = filtro.modulo === undefined ? Prisma.empty : Prisma.sql`AND m.codigo = ${filtro.modulo}`;
   const linhas = await tx.$queryRaw<{ p: string }[]>`
@@ -95,7 +98,11 @@ export async function carregarPermissoes(tx: TxCliente, usuarioId: string, filtr
     JOIN perfil_permissao pp ON pp.perfil_id = pe.id
     JOIN funcionalidade f ON f.codigo = pp.funcionalidade_codigo AND f.ativo
     JOIN modulo m ON m.codigo = f.modulo_codigo AND m.ativo
-    WHERE up.usuario_id = ${usuarioId}::uuid ${doModulo}`;
+    WHERE up.usuario_id = ${usuarioId}::uuid ${doModulo}
+      AND NOT EXISTS (
+        SELECT 1 FROM adm_usuario_excecao ex
+        WHERE ex.usuario_id = up.usuario_id AND ex.perfil_id = up.perfil_id AND ex.funcionalidade_codigo = pp.funcionalidade_codigo
+      )`;
   return new Set(linhas.map((l) => l.p));
 }
 
