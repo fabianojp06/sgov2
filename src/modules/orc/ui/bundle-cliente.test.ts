@@ -6,9 +6,9 @@ import { describe, expect, it } from 'vitest';
 const PROIBIDOS = /node_modules\/(pg|pg-boss|pg-pool|@prisma|prisma|nodemailer|exceljs|argon2|@node-rs|server-only)\//;
 
 describe('bundle do navegador dos componentes cliente do orc', () => {
-  it('form-exercicio, form-receita e form-importacao não alcançam código de servidor', async () => {
+  it('form-exercicio, form-receita, form-importacao e form-pacote não alcançam código de servidor', async () => {
     const r = await build({
-      entryPoints: ['src/modules/orc/ui/form-exercicio.tsx', 'src/modules/orc/ui/form-receita.tsx', 'src/modules/orc/ui/form-importacao.tsx'],
+      entryPoints: ['src/modules/orc/ui/form-exercicio.tsx', 'src/modules/orc/ui/form-receita.tsx', 'src/modules/orc/ui/form-importacao.tsx', 'src/modules/orc/ui/form-pacote.tsx'],
       bundle: true,
       splitting: true,
       format: 'esm',

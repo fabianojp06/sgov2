@@ -4,7 +4,7 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedOrc } from './seed';
 
-// Seed do orc (contrato C6; plano do P6, Task 1): 5 funcionalidades no menu Administração Central.
+// Seed do orc (contrato C6; plano do P6, Task 1; P11): 6 funcionalidades no menu Administração Central.
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let cliente: ReturnType<typeof criarPrisma>;
 
@@ -28,9 +28,9 @@ afterAll(async () => {
 });
 
 describe('seedOrc', () => {
-  it('5 funcionalidades no módulo ADM_CENTRAL, com ajuda', async () => {
+  it('6 funcionalidades no módulo ADM_CENTRAL, com ajuda', async () => {
     const fs = await cliente.funcionalidade.findMany({ where: { codigo: { startsWith: 'orc.' } }, orderBy: { ordem: 'asc' } });
-    expect(fs.map((f) => f.codigo)).toEqual(['orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.aprovacao']);
+    expect(fs.map((f) => f.codigo)).toEqual(['orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.pacotes', 'orc.aprovacao']);
     expect(fs.every((f) => f.moduloCodigo === 'ADM_CENTRAL' && f.grupo === 'Orçamento da Adm. Central')).toBe(true);
     expect(fs.every((f) => (f.ajuda ?? '').trim().length > 0)).toBe(true);
   });
@@ -41,15 +41,18 @@ describe('seedOrc', () => {
       'orc.exercicios:alterar', 'orc.exercicios:consultar', 'orc.exercicios:incluir',
       'orc.importacao:consultar', 'orc.importacao:executar',
       'orc.orcamento:alterar', 'orc.orcamento:consultar',
+      'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.receitas:alterar', 'orc.receitas:consultar', 'orc.receitas:excluir', 'orc.receitas:incluir',
     ]);
     expect(await permissoes('DIREX')).toEqual([
-      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.receitas:consultar',
+      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.receitas:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
-      'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.receitas:consultar',
+      'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.receitas:consultar',
     ]);
-    expect(await permissoes('GESTOR_DIRETORIA')).toEqual(['orc.orcamento:consultar']);
+    expect(await permissoes('GESTOR_DIRETORIA')).toEqual([
+      'orc.orcamento:consultar', 'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
+    ]);
     for (const perfil of ['ADMINISTRADOR', 'ORCAMENTISTA', 'ANALISTA_GRH', 'OPERADOR_VIAGENS']) {
       expect(await permissoes(perfil)).toEqual([]);
     }
