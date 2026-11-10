@@ -12,6 +12,18 @@ export type DadosModeloEmail = {
   'usuario.recuperacao_senha': { nome: string; login: string; senhaTemporaria: string; urlAcesso: string };
   // Aviso de exportação em segundo plano concluída (US-024, frente B): pronta ou com falha.
   'exportacao.concluida': { nome: string; titulo: string; resultado: 'pronta' | 'falhou'; urlAcesso: string };
+  // Alerta ao Administrador de tentativas de acesso malsucedidas (US-027, REQ0040, pedido da frente A
+  // na #49): no limiar ou no bloqueio. dataHora já vem formatada (pt-BR, America/Sao_Paulo); sem IP,
+  // que fica no Histórico.
+  'usuario.alerta_tentativas': {
+    nomeAdministrador: string;
+    nomeUsuario: string;
+    login: string;
+    tentativas: number;
+    bloqueado: boolean;
+    dataHora: string;
+    urlAcesso: string;
+  };
 };
 export type ModeloEmail = keyof DadosModeloEmail;
 
@@ -26,6 +38,7 @@ export const SENSIBILIDADE_MODELO = {
   'usuario.senha_redefinida': true,
   'usuario.recuperacao_senha': true,
   'exportacao.concluida': false,
+  'usuario.alerta_tentativas': false,
 } as const satisfies Record<ModeloEmail, boolean>;
 
 export const MODELOS_SENSIVEIS: ReadonlySet<ModeloEmail> = new Set(
@@ -60,6 +73,7 @@ export const VERSAO_ATUAL = {
   'usuario.senha_redefinida': 1,
   'usuario.recuperacao_senha': 1,
   'exportacao.concluida': 1,
+  'usuario.alerta_tentativas': 1,
 } as const satisfies Record<ModeloEmail, number>;
 
 // Os campos de cada modelo: a mensagem leva só estes, nunca chaves a mais do objeto recebido.
@@ -68,6 +82,7 @@ const CAMPOS_MODELO = {
   'usuario.senha_redefinida': ['nome', 'login', 'senhaTemporaria', 'urlAcesso'],
   'usuario.recuperacao_senha': ['nome', 'login', 'senhaTemporaria', 'urlAcesso'],
   'exportacao.concluida': ['nome', 'titulo', 'resultado', 'urlAcesso'],
+  'usuario.alerta_tentativas': ['nomeAdministrador', 'nomeUsuario', 'login', 'tentativas', 'bloqueado', 'dataHora', 'urlAcesso'],
 } as const satisfies { [M in ModeloEmail]: readonly (keyof DadosModeloEmail[M])[] };
 
 /** Copia só os campos do modelo (dados já validados por validarDadosModelo). */
@@ -82,6 +97,7 @@ const CAMINHO_LINK: Record<ModeloEmail, string> = {
   'usuario.senha_redefinida': '/login',
   'usuario.recuperacao_senha': '/login',
   'exportacao.concluida': '/rel/exportacoes',
+  'usuario.alerta_tentativas': '/adm/usuarios',
 };
 
 // O que vai ao outbox e ao job (payload de email.enviar).
@@ -100,7 +116,9 @@ export const VALIDADE_MENSAGEM_SENSIVEL_MS = 24 * 60 * 60 * 1000;
 
 export type EmailRenderizado = { assunto: string; texto: string; html: string };
 
-const TAMANHO_MAXIMO = { nome: 120, login: 100, senhaTemporaria: 128, titulo: 120 } as const;
+const TAMANHO_MAXIMO = { nome: 120, login: 100, senhaTemporaria: 128, titulo: 120, nomeAdministrador: 120, nomeUsuario: 120, dataHora: 40 } as const;
+// Teto de sanidade do número de tentativas no alerta (o limiar real vem da configuração do aut).
+const MAXIMO_TENTATIVAS_ALERTA = 1000;
 
 function invalido(campo: string): never {
   throw new ErroDominio('email.dados_invalidos', 'Dados do e-mail inválidos.', { campo });
@@ -115,7 +133,7 @@ function textoCurto(dados: Record<string, unknown>, campo: keyof typeof TAMANHO_
 
 /**
  * Valida os dados do modelo antes do outbox e de novo no trabalhador, antes de renderizar.
- * O link é exatamente a URL pública mais o caminho do modelo (`/login` nos de acesso): sem query,
+ * O link é exatamente a URL pública mais o caminho do modelo (`/login` nos de senha): sem query,
  * fragmento, credencial nem outra origem, para o e-mail não levar a senha a outro endereço nem
  * carregar dado na URL.
  * O detalhe do erro tem só o nome do campo, nunca o valor.
@@ -127,11 +145,20 @@ export function validarDadosModelo(modelo: ModeloEmail, dados: unknown, urlPubli
   }
   if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) invalido('dados');
   const d = dados as Record<string, unknown>;
-  textoCurto(d, 'nome');
   if (modelo === 'exportacao.concluida') {
+    textoCurto(d, 'nome');
     textoCurto(d, 'titulo');
     if (d.resultado !== 'pronta' && d.resultado !== 'falhou') invalido('resultado');
+  } else if (modelo === 'usuario.alerta_tentativas') {
+    textoCurto(d, 'nomeAdministrador');
+    textoCurto(d, 'nomeUsuario');
+    textoCurto(d, 'login');
+    const t = d.tentativas;
+    if (typeof t !== 'number' || !Number.isInteger(t) || t < 1 || t > MAXIMO_TENTATIVAS_ALERTA) invalido('tentativas');
+    if (typeof d.bloqueado !== 'boolean') invalido('bloqueado');
+    textoCurto(d, 'dataHora');
   } else {
+    textoCurto(d, 'nome');
     textoCurto(d, 'login');
     textoCurto(d, 'senhaTemporaria');
   }

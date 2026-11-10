@@ -27,9 +27,13 @@ import {
  *   - `destinatario.email` até 254 caracteres; `destinatario.nome` sem `< > , ; "`;
  *   - `dados.nome` até 120, `dados.login` até 100, `dados.senhaTemporaria` até 128 caracteres, não
  *     vazios; no de exportação, `dados.titulo` até 120 e `dados.resultado` `pronta` ou `falhou`;
+ *   - no alerta de tentativas: `dados.nomeAdministrador` e `dados.nomeUsuario` até 120, `dados.login`
+ *     até 100 e `dados.dataHora` até 40 caracteres, não vazios; `dados.tentativas` inteiro de 1 a
+ *     1000; `dados.bloqueado` booleano;
  *   - nenhum texto com caractere de controle (quebra de linha, tabulação, C1, bidi);
  *   - `dados.urlAcesso` exatamente `${lerEnvAcesso().urlPublica}` mais o caminho do modelo (`/login`
- *     nos de acesso, `/rel/exportacoes` no de exportação; use o `lerEnvAcesso`, que
+ *     nos de senha, `/rel/exportacoes` no de exportação, `/adm/usuarios` no alerta de tentativas;
+ *     use o `lerEnvAcesso`, que
  *     normaliza a origem; não monte a partir do `process.env` cru);
  * - registra com `registrarNoOutbox(tx, 'email.enviar', mensagem)`, do `outbox.ts` de
  *   `@/shared/filas`: o index.ts do ger também é importado por componentes cliente, e Prisma, pg e

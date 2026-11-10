@@ -5,7 +5,23 @@ import { renderizarEmail, VERSOES_MODELO } from '../domain/renderizar-email';
 
 // Marca neutra (spec §6.7): nenhuma saída de nenhuma versão de modelo traz o nome vedado. Fica em
 // application/ porque o domain/ não importa o @/shared/config (lint, spec §4.1).
-const dados = { nome: 'Maria', login: 'maria.silva', senhaTemporaria: 'Tmp-123456', urlAcesso: 'https://sgo.exemplo/login' };
+const ACESSO = { nome: 'Maria', login: 'maria.silva', senhaTemporaria: 'Tmp-123456', urlAcesso: 'https://sgo.exemplo/login' };
+// Dados de exemplo de cada modelo (sem a chave do modelo, não compila).
+const DADOS: Record<ModeloEmail, object> = {
+  'usuario.senha_inicial': ACESSO,
+  'usuario.senha_redefinida': ACESSO,
+  'usuario.recuperacao_senha': ACESSO,
+  'exportacao.concluida': { nome: 'Maria', titulo: 'Plano de contas', resultado: 'pronta', urlAcesso: 'https://sgo.exemplo/rel/exportacoes' },
+  'usuario.alerta_tentativas': {
+    nomeAdministrador: 'Maria',
+    nomeUsuario: 'João',
+    login: 'joao',
+    tentativas: 5,
+    bloqueado: true,
+    dataHora: '10/11/2026 18:30',
+    urlAcesso: 'https://sgo.exemplo/adm/usuarios',
+  },
+};
 
 describe('marca neutra nos e-mails', () => {
   const versoes = (Object.keys(VERSOES_MODELO) as ModeloEmail[]).flatMap((modelo) =>
@@ -17,7 +33,7 @@ describe('marca neutra nos e-mails', () => {
   });
 
   it.each(versoes)('%s v%i não tem a marca vedada no assunto, no texto nem no HTML', (modelo, versao) => {
-    const m = { modelo, versao, destinatario: { email: 'a@b.org' }, dados, criadoEm: '2026-10-26T00:00:00Z' } as MensagemEmail;
+    const m = { modelo, versao, destinatario: { email: 'a@b.org' }, dados: DADOS[modelo], criadoEm: '2026-10-26T00:00:00Z' } as MensagemEmail;
     for (const nomeExibicao of ['', 'Instituição Exemplo']) {
       const r = renderizarEmail(m, { nomeExibicao });
       expect(encontrarMarcaVedada(`${r.assunto}\n${r.texto}\n${r.html}`)).toEqual([]);
