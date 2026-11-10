@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { connection } from 'next/server';
-import { obterContexto } from './contexto';
+import { obterContexto, obterMotivoAusencia } from './contexto';
 import { exigir } from './exigir';
 import { registrarNegacao } from './guarda';
 import { ErroPermissao, type Acao, type ContextoRequisicao } from './tipos';
@@ -13,7 +13,7 @@ export async function exigirPagina(funcionalidade: string, acao: Acao): Promise<
   // um redirect para /login como página estática).
   await connection();
   const ctx = await obterContexto();
-  if (!ctx) redirect('/login');
+  if (!ctx) redirect((await obterMotivoAusencia()) === 'NOVO_ACESSO' ? '/login?motivo=novo-acesso' : '/login');
   if (ctx.trocaSenhaPendente && funcionalidade !== 'aut.senha') redirect('/troca-senha');
   try {
     exigir(ctx, funcionalidade, acao);

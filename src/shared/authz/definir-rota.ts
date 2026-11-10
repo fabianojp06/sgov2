@@ -5,7 +5,6 @@ import {
   erroGeral,
   MENSAGEM_INESPERADA,
   MENSAGEM_PERMISSAO,
-  MENSAGEM_SESSAO,
   registrarErroInesperado,
   registrarNegacao,
 } from './guarda';
@@ -56,7 +55,7 @@ export function definirRota(
     try {
       const autorizacao = await autorizar(cfg.funcionalidade, cfg.acao);
       if (!autorizacao.ok) {
-        return json(autorizacao.status, autorizacao.status === 401 ? MENSAGEM_SESSAO : MENSAGEM_PERMISSAO);
+        return json(autorizacao.status, autorizacao.mensagem);
       }
       ctx = autorizacao.ctx;
       return await executar(req, ctx, rota);

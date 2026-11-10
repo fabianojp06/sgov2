@@ -6,7 +6,6 @@ import {
   erroGeral,
   MENSAGEM_INESPERADA,
   MENSAGEM_PERMISSAO,
-  MENSAGEM_SESSAO,
   registrarErroInesperado,
   registrarNegacao,
 } from './guarda';
@@ -31,8 +30,7 @@ export function definirAcao<I, O>(
     try {
       const autorizacao = await autorizar(cfg.funcionalidade, cfg.acao);
       if (!autorizacao.ok) {
-        const mensagem = autorizacao.status === 401 ? MENSAGEM_SESSAO : MENSAGEM_PERMISSAO;
-        return { ok: false, status: autorizacao.status, erros: erroGeral(mensagem) };
+        return { ok: false, status: autorizacao.status, erros: erroGeral(autorizacao.mensagem) };
       }
       ctx = autorizacao.ctx;
 

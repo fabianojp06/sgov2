@@ -49,6 +49,17 @@ describe('definirAcao', () => {
     expect(negacoes).toEqual([]);
   });
 
+  it('sem contexto e com a sessão encerrada por novo acesso → 401 com o texto da RN0519 (US-028)', async () => {
+    contexto = null;
+    configurarProvedorContexto({ obter: async () => null, motivoAusencia: async () => 'NOVO_ACESSO' });
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, vi.fn());
+    expect(await acao({ nome: 'x' })).toEqual({
+      ok: false,
+      status: 401,
+      erros: [{ campo: '_', mensagem: 'Sua sessão foi encerrada porque um novo acesso foi realizado com suas credenciais.' }],
+    });
+  });
+
   it('sem a permissão e com entrada inválida → 403 sem erros de campo, auditado', async () => {
     const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, vi.fn());
     expect(await acao({ nome: '' })).toEqual({
