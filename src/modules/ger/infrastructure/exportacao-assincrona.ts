@@ -30,8 +30,12 @@ export const MENSAGEM_MUITOS_PENDENTES = `Você já tem ${MAX_PENDENTES_POR_PESS
 
 /** O conteúdo do arquivo: as colunas e as linhas da tela e os filtros legíveis para o cabeçalho. */
 export type ConteudoExportacao = { planilha: Omit<PlanilhaExportacao, 'identificacao'>; filtros: FiltroExportacao[] };
-/** Monta o conteúdo a partir das opções gravadas no pedido (revalidadas: vêm do banco). */
-export type GeradorExportacao = (tx: TxCliente, parametros: unknown) => Promise<Resultado<ConteudoExportacao>>;
+/**
+ * Monta o conteúdo a partir das opções gravadas no pedido (revalidadas: vêm do banco). O dono do
+ * pedido vem da linha do pedido (`usuario_id`), não dos parâmetros: o gerador que refaz permissão
+ * ou alcance usa este, e não um id gravado nos parâmetros (pedido da frente A na #138, #372).
+ */
+export type GeradorExportacao = (tx: TxCliente, parametros: unknown, pedido: { usuarioId: string }) => Promise<Resultado<ConteudoExportacao>>;
 
 export type PedidoExportacao = {
   contexto: Omit<ContextoAuditoria, 'usuarioId' | 'sessaoUid'> & { usuarioId: string; sessaoUid: string };
@@ -144,7 +148,7 @@ export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
         };
         const gerador = Object.hasOwn(deps.geradores, p.funcionalidade) ? deps.geradores[p.funcionalidade] : undefined;
         if (!gerador) return falhar([{ campo: '_', mensagem: 'Esta listagem não tem exportação assíncrona.' }]);
-        const c = await gerador(tx, p.parametros);
+        const c = await gerador(tx, p.parametros, { usuarioId: p.usuarioId });
         if (!c.ok) return falhar(c.erros);
         const identificacao = criarIdentificacao({ titulo: p.titulo, filtros: c.valor.filtros, operador: p.usuarioRotulo }, deps.agora(), p.id);
         const planilha = { ...c.valor.planilha, identificacao };
