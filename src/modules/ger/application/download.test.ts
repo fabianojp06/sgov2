@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ehFormatoArquivo, origemDeExportacaoValida, respostaDeArquivo, respostaDeErro, TIPOS_ARQUIVO } from './download';
+import { ehFormatoArquivo, origemDeExportacaoValida, respostaDeAgendamento, respostaDeArquivo, respostaDeErro, TIPOS_ARQUIVO } from './download';
 
 // Download das exportações (US-024): origem, formato e a resposta.
 const pedido = (site?: string) => new Request('http://127.0.0.1:3200/x', site ? { headers: { 'sec-fetch-site': site } } : {});
@@ -31,5 +31,12 @@ describe('download das exportações', () => {
     const r = respostaDeErro(403, '_', 'Recusado.');
     expect(r.status).toBe(403);
     expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Recusado.' }] });
+  });
+
+  it('agendamento: 303 para Minhas exportações, Location relativo e sem cache', () => {
+    const r = respostaDeAgendamento('0b8f6c1e-1d2a-4c3b-9e8f-7a6b5c4d3e2f');
+    expect(r.status).toBe(303);
+    expect(r.headers.get('Location')).toBe('/rel/exportacoes?pedido=0b8f6c1e-1d2a-4c3b-9e8f-7a6b5c4d3e2f');
+    expect(r.headers.get('Cache-Control')).toBe('no-store');
   });
 });

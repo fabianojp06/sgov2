@@ -87,7 +87,10 @@ export { exportarCsv } from './infrastructure/exportar-csv';
 export {
   agendarExportacao,
   criarTrabalhadorExportacao,
+  DIAS_EXPORTACAO_DISPONIVEL,
   FILA_EXPORTACAO,
+  limparExportacoes,
+  MENSAGEM_MUITOS_PENDENTES,
   type ConteudoExportacao,
   type GeradorExportacao,
   type PedidoExportacao,

@@ -1,7 +1,7 @@
 import 'server-only';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { criarIdentificacao, type FormatoArquivo } from '@/modules/ger';
-import { agendarExportacao, exportarCsv, exportarXlsx, LIMITE_EXPORTACAO_SINCRONA } from '@/modules/ger/servidor';
+import { agendarExportacao, exportarCsv, exportarXlsx, LIMITE_EXPORTACAO_ASSINCRONA, LIMITE_EXPORTACAO_SINCRONA } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
@@ -35,8 +35,13 @@ async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvo
       const c = await montarConteudo(tx, a, { incluirInativos: o.incluirInativos, filtros: v.valor });
       if (!c.ok) throw new FalhaGeracao([...c.erros]);
       const nome = `${a.arquivo}.${o.formato}`;
-      if (c.valor.planilha.linhas.length > (deps.limiteSincrono ?? LIMITE_EXPORTACAO_SINCRONA)) {
-        const pedidoId = await agendarExportacao(tx, {
+      const total = c.valor.planilha.linhas.length;
+      // Acima do teto assíncrono, o worker também recusaria: avisa já, sem pedido.
+      if (total > LIMITE_EXPORTACAO_ASSINCRONA) {
+        throw new FalhaGeracao([{ campo: 'linhas', mensagem: `A exportação tem ${total} linhas; o máximo é ${LIMITE_EXPORTACAO_ASSINCRONA}. Use filtros para reduzir.` }]);
+      }
+      if (total > (deps.limiteSincrono ?? LIMITE_EXPORTACAO_SINCRONA)) {
+        const pedido = await agendarExportacao(tx, {
           contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip },
           funcionalidade: a.funcionalidade,
           titulo: a.titulo,
@@ -44,7 +49,8 @@ async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvo
           nomeArquivo: nome,
           parametros: { incluirInativos: o.incluirInativos, filtros: v.valor },
         });
-        return { tipo: 'agendada', pedidoId };
+        if (!pedido.ok) throw new FalhaGeracao([...pedido.erros]);
+        return { tipo: 'agendada', pedidoId: pedido.valor };
       }
       const identificacao = criarIdentificacao({ titulo: a.titulo, filtros: c.valor.filtros, operador: ctx.usuarioRotulo });
       const planilha = { ...c.valor.planilha, identificacao };

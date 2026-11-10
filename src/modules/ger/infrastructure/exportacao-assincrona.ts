@@ -2,7 +2,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
 import { registrarNoOutbox } from '@/shared/filas/outbox';
-import { ErroDominio, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import type { FormatoArquivo } from '../application/download';
 import { criarIdentificacao, LIMITE_EXPORTACAO_ASSINCRONA, type FiltroExportacao, type PlanilhaExportacao } from './exportacao';
 import { exportarCsv } from './exportar-csv';
@@ -17,6 +17,14 @@ export const FILA_EXPORTACAO = 'exportacao.gerar' as const;
 // Geração de até 100.000 linhas numa transação: bem acima dos 5 s padrão do Prisma.
 const TEMPO_GERACAO_MS = 5 * 60_000;
 const MAX_ERRO = 500;
+// Retenção e limites [PROVISÓRIOS, decisão da frente B em 10/11]: o arquivo fica 7 dias; pendente há
+// mais de 2 h (a fila já esgotou as tentativas: 6, com backoff a partir de 30 s) vira falha; cada
+// pessoa tem no máximo 3 pedidos pendentes.
+export const DIAS_EXPORTACAO_DISPONIVEL = 7;
+export const HORAS_PENDENTE_SEM_RESPOSTA = 2;
+export const MAX_PENDENTES_POR_PESSOA = 3;
+export const MENSAGEM_SEM_RESPOSTA = 'A geração não terminou. Peça a exportação de novo.';
+export const MENSAGEM_MUITOS_PENDENTES = `Você já tem ${MAX_PENDENTES_POR_PESSOA} exportações em geração. Aguarde uma terminar em Minhas exportações.`;
 
 /** O conteúdo do arquivo: as colunas e as linhas da tela e os filtros legíveis para o cabeçalho. */
 export type ConteudoExportacao = { planilha: Omit<PlanilhaExportacao, 'identificacao'>; filtros: FiltroExportacao[] };
@@ -34,9 +42,13 @@ export type PedidoExportacao = {
 
 /**
  * Grava o pedido e a mensagem da fila na transação da tela: o job só existe se o pedido commitar.
- * Devolve o id, que é o rastreio do arquivo e do Histórico.
+ * Devolve o id, que é o rastreio do arquivo e do Histórico. Recusa com MAX_PENDENTES_POR_PESSOA
+ * pedidos da pessoa ainda em geração (cliques repetidos não enchem o banco).
  */
-export async function agendarExportacao(tx: TxCliente, p: PedidoExportacao): Promise<string> {
+export async function agendarExportacao(tx: TxCliente, p: PedidoExportacao): Promise<Resultado<string>> {
+  // Trava as linhas pendentes da pessoa: dois pedidos simultâneos não passam juntos do limite.
+  const pendentes = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM exportacao_pedido WHERE usuario_id = ${p.contexto.usuarioId}::uuid AND situacao = 'PENDENTE' FOR UPDATE`;
+  if (pendentes.length >= MAX_PENDENTES_POR_PESSOA) return falha([{ campo: '_', mensagem: MENSAGEM_MUITOS_PENDENTES }]);
   const { id } = await tx.exportacaoPedido.create({
     data: {
       usuarioId: p.contexto.usuarioId,
@@ -52,15 +64,29 @@ export async function agendarExportacao(tx: TxCliente, p: PedidoExportacao): Pro
     select: { id: true },
   });
   await registrarNoOutbox(tx, FILA_EXPORTACAO, { pedidoId: id });
-  return id;
+  return ok(id);
+}
+
+/**
+ * Limpeza periódica (worker): pendente há mais de HORAS_PENDENTE_SEM_RESPOSTA vira FALHOU (a fila
+ * desistiu, ou o job se perdeu) e pedido com mais de DIAS_EXPORTACAO_DISPONIVEL é apagado, com o arquivo.
+ */
+export async function limparExportacoes(cliente: PrismaClient, agora: Date): Promise<{ semResposta: number; apagados: number }> {
+  const limitePendente = new Date(agora.getTime() - HORAS_PENDENTE_SEM_RESPOSTA * 3600_000);
+  const vencimento = new Date(agora.getTime() - DIAS_EXPORTACAO_DISPONIVEL * 24 * 3600_000);
+  const semResposta = await cliente.exportacaoPedido.updateMany({
+    where: { situacao: 'PENDENTE', criadoEm: { lt: limitePendente } },
+    data: { situacao: 'FALHOU', erro: MENSAGEM_SEM_RESPOSTA, concluidoEm: agora },
+  });
+  const apagados = await cliente.exportacaoPedido.deleteMany({ where: { criadoEm: { lt: vencimento } } });
+  return { semResposta: semResposta.count, apagados: apagados.count };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function lerPedidoId(dados: unknown): string {
+function lerPedidoId(dados: unknown): string | null {
   const id = (dados as { pedidoId?: unknown } | null)?.pedidoId;
-  if (typeof id !== 'string' || !UUID.test(id)) throw new ErroDominio('exportacao.dados_invalidos', 'Job de exportação sem pedido válido.');
-  return id;
+  return typeof id === 'string' && UUID.test(id) ? id : null;
 }
 
 const textoDosErros = (erros: readonly ErroCampo[]) => erros.map((e) => e.mensagem).join(' ').slice(0, MAX_ERRO);
@@ -80,6 +106,11 @@ export type DepsTrabalhadorExportacao = {
 export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
   return async (dados: unknown): Promise<void> => {
     const pedidoId = lerPedidoId(dados);
+    // Sem pedido válido, tentar de novo não adianta: registra e encerra o job.
+    if (pedidoId === null) {
+      console.error('[EXPORTACAO_JOB_INVALIDO]');
+      return;
+    }
     const resultado = await deps.cliente.$transaction(
       async (tx) => {
         // Trava a linha: dois jobs do mesmo pedido (reenvio) não geram duas vezes.
@@ -87,7 +118,7 @@ export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
         if (travado.length === 0) return 'ignorado' as const;
         const p = await tx.exportacaoPedido.findUniqueOrThrow({ where: { id: pedidoId }, omit: { conteudo: true } });
         const falhar = async (erros: readonly ErroCampo[]) => {
-          await tx.exportacaoPedido.update({ where: { id: p.id }, data: { situacao: 'FALHOU', erro: textoDosErros(erros) || 'Falha na geração.', concluidoEm: deps.agora() } });
+          await tx.exportacaoPedido.update({ where: { id: p.id }, data: { situacao: 'FALHOU', erro: textoDosErros(erros) || 'Falha na geração.', concluidoEm: deps.agora() }, select: { id: true } });
           return 'falhou' as const;
         };
         const gerador = Object.hasOwn(deps.geradores, p.funcionalidade) ? deps.geradores[p.funcionalidade] : undefined;
@@ -103,6 +134,7 @@ export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
         await tx.exportacaoPedido.update({
           where: { id: p.id },
           data: { situacao: 'PRONTA', conteudo: new Uint8Array(arquivo.valor), registros, concluidoEm: deps.agora() },
+          select: { id: true }, // sem RETURNING do arquivo
         });
         await auditar(tx, {
           contexto: { usuarioId: p.usuarioId, usuarioRotulo: p.usuarioRotulo, sessaoUid: p.sessaoUid, ip: p.ip, unidadeId: null },

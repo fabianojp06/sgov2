@@ -9,7 +9,7 @@ import ccMinuta from '../infrastructure/dados/cc-minuta-rev23102026.json';
 import planoOficial from '../infrastructure/dados/plano-contas-oficial.json';
 import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
-import { criarTrabalhadorExportacao } from '@/modules/ger/servidor';
+import { criarTrabalhadorExportacao, limparExportacoes, MENSAGEM_MUITOS_PENDENTES } from '@/modules/ger/servidor';
 import { exportarCentrosCusto, exportarPlanoContas, type ExportacaoEstrutura } from './exportar-estrutura';
 import { GERADORES_EXPORTACAO_CAD } from './planilha-estrutura';
 
@@ -226,7 +226,44 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     expect(n).toBe(0);
   });
 
-  it('job sem pedido válido: erro, para a fila registrar', async () => {
-    await expect(trabalhar()({ pedidoId: 'x' })).rejects.toThrow('Job de exportação sem pedido válido.');
+  it('job sem pedido válido: registra e encerra, sem nova tentativa', async () => {
+    const erros = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(trabalhar()({ pedidoId: 'x' })).resolves.toBeUndefined();
+    expect(erros).toHaveBeenCalledWith('[EXPORTACAO_JOB_INVALIDO]');
+    erros.mockRestore();
+  });
+
+  it('no máximo 3 pedidos em geração por pessoa; dois workers no mesmo pedido geram uma vez só', async () => {
+    const agendar = () => exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false }, { cliente: app, limiteSincrono: 10 });
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const r = await agendar();
+      if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
+      ids.push(r.valor.pedidoId);
+    }
+    const quarto = await agendar();
+    expect(!quarto.ok && quarto.erros).toEqual([{ campo: '_', mensagem: MENSAGEM_MUITOS_PENDENTES }]);
+
+    await Promise.all([trabalhar()({ pedidoId: ids[0] }), trabalhar()({ pedidoId: ids[0] })]);
+    expect((await pedido(ids[0]!)).situacao).toBe('PRONTA');
+    expect(Number((await migrator.query(`SELECT count(*) FROM historico_operacao WHERE registro_id = $1`, [ids[0]])).rows[0].count)).toBe(1);
+    // Com um pronto, abre vaga para outro pedido.
+    expect((await agendar()).ok).toBe(true);
+  });
+
+  it('limpeza: pendente há mais de 2 h vira FALHOU; com mais de 7 dias, o pedido é apagado', async () => {
+    const pendentes = (await migrator.query(`SELECT id FROM exportacao_pedido WHERE situacao = 'PENDENTE' ORDER BY criado_em`)).rows.map((r) => r.id as string);
+    expect(pendentes.length).toBeGreaterThanOrEqual(2);
+    const [velho, novo] = pendentes as [string, string];
+    await migrator.query(`UPDATE exportacao_pedido SET criado_em = $2 WHERE id = $1`, [velho, new Date(AGORA.getTime() - 3 * 3600_000)]);
+    await migrator.query(`UPDATE exportacao_pedido SET criado_em = $2 WHERE id = $1`, [novo, new Date(AGORA.getTime() - 3600_000)]);
+    const pronto = (await migrator.query(`SELECT id FROM exportacao_pedido WHERE situacao = 'PRONTA' LIMIT 1`)).rows[0].id;
+    await migrator.query(`UPDATE exportacao_pedido SET criado_em = $2 WHERE id = $1`, [pronto, new Date(AGORA.getTime() - 8 * 24 * 3600_000)]);
+
+    const r = await limparExportacoes(app, AGORA);
+    expect(r.apagados).toBe(1);
+    expect(await pedido(velho)).toMatchObject({ situacao: 'FALHOU', erro: 'A geração não terminou. Peça a exportação de novo.' });
+    expect((await pedido(novo)).situacao).toBe('PENDENTE');
+    expect(await pedido(pronto)).toBeUndefined();
   });
 });

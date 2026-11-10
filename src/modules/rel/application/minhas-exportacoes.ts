@@ -1,6 +1,7 @@
 import 'server-only';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { ehFormatoArquivo, type FormatoArquivo } from '@/modules/ger';
+import { DIAS_EXPORTACAO_DISPONIVEL } from '@/modules/ger/servidor';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 
@@ -9,7 +10,8 @@ import { prisma } from '@/shared/db';
 // Baixar exige, além de ser o dono, o exportar da listagem de origem ainda valer: permissão retirada
 // depois do pedido corta o download. O Histórico já registrou a exportação quando o worker gerou o
 // arquivo, com o mesmo rastreio.
-export const DIAS_DISPONIVEL = 7;
+// O worker apaga os vencidos (limparExportacoes); o filtro aqui cobre o intervalo até a limpeza.
+export const DIAS_DISPONIVEL = DIAS_EXPORTACAO_DISPONIVEL;
 const FUNCIONALIDADE = 'rel.exportacoes';
 type Deps = { cliente?: PrismaClient; agora?: Date };
 
@@ -43,11 +45,13 @@ export async function listarMinhasExportacoes(ctx: ContextoRequisicao, deps: Dep
 export async function baixarExportacao(ctx: ContextoRequisicao, id: string, deps: Deps = {}): Promise<ArquivoPedido | null> {
   exigir(ctx, FUNCIONALIDADE, 'consultar');
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
-  const p = await (deps.cliente ?? prisma).exportacaoPedido.findFirst({
-    where: { id, usuarioId: ctx.usuarioId, situacao: 'PRONTA', criadoEm: { gte: desde(deps.agora ?? new Date()) } },
-    select: { funcionalidade: true, formato: true, nomeArquivo: true, conteudo: true },
-  });
-  if (!p || !p.conteudo || !p.nomeArquivo || !ehFormatoArquivo(p.formato)) return null;
+  const cliente = deps.cliente ?? prisma;
+  const where = { id, usuarioId: ctx.usuarioId, situacao: 'PRONTA' as const, criadoEm: { gte: desde(deps.agora ?? new Date()) } };
+  const p = await cliente.exportacaoPedido.findFirst({ where, select: { funcionalidade: true, formato: true, nomeArquivo: true } });
+  if (!p || !p.nomeArquivo || !ehFormatoArquivo(p.formato)) return null;
+  // A permissão antes de ler o arquivo.
   exigir(ctx, p.funcionalidade, 'exportar');
-  return { nome: p.nomeArquivo, formato: p.formato, bytes: new Uint8Array(p.conteudo) };
+  const a = await cliente.exportacaoPedido.findFirst({ where, select: { conteudo: true } });
+  if (!a?.conteudo) return null;
+  return { nome: p.nomeArquivo, formato: p.formato, bytes: new Uint8Array(a.conteudo) };
 }
