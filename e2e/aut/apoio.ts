@@ -24,6 +24,8 @@ export const USUARIOS = {
   // Cadastro de usuários (e2e/adm/usuarios.spec.ts, US-038).
   cadastro: { login: 'adm.usuarios', nome: 'E2E Administrador Usuários', perfil: 'ADMINISTRADOR' },
   desbloqueio: { login: 'orc.desbloq', nome: 'E2E Orçamentista Desbloqueio', perfil: 'ORCAMENTISTA' },
+  // Alçadas de aprovação (e2e/adm/alcadas.spec.ts, US-042).
+  alcadas: { login: 'adm.alcadas', nome: 'E2E Administrador Alçadas', perfil: 'ADMINISTRADOR' },
   // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do
   // orc, todos os perfis padrão, menos o Administrador, recebem alguma funcionalidade.
   semPermissao: { login: 'sem.permissao', nome: 'E2E Sem Permissão', perfil: PERFIL_SEM_PERMISSAO },
