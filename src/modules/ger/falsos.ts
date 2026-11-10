@@ -57,7 +57,7 @@ export type EnvioFalso<T extends ModeloEmail = ModeloAcesso> = {
 // integração da US-025.
 type EmailFalso<T extends ModeloEmail> = { enviarEmail: typeof enviarEmail; enviados: EnvioFalso<T>[] };
 // A assinatura sem parâmetro de tipo fica por último: é a que o ReturnType<typeof emailFalso> usa.
-export function emailFalso<T extends ModeloEmail>(opcoes?: { urlPublica?: string }): EmailFalso<T>;
+export function emailFalso<T extends ModeloEmail = ModeloAcesso>(opcoes?: { urlPublica?: string }): EmailFalso<T>;
 export function emailFalso(opcoes?: { urlPublica?: string }): EmailFalso<ModeloAcesso>;
 export function emailFalso(opcoes: { urlPublica?: string } = {}): EmailFalso<ModeloEmail> {
   const enviados: EnvioFalso<ModeloEmail>[] = [];

@@ -11,12 +11,13 @@ vi.mock('@/shared/audit', () => ({ auditar: vi.fn(async () => {}) }));
 
 const PEDIDO = '0a1b2c3d-0000-4000-8000-000000000001';
 
-function clienteFalso() {
+function clienteFalso(usuario: () => Promise<unknown> = async () => null) {
   const updates: Record<string, unknown>[] = [];
   const opcoes: unknown[] = [];
   const tx = {
     $queryRaw: async () => [{ id: PEDIDO }],
-    usuario: { findUnique: async () => null }, // sem aviso: o aviso é testado no cad, com banco
+    // Por padrão, sem aviso: o aviso com o outbox é testado no cad, com banco.
+    usuario: { findUnique: usuario },
     exportacaoPedido: {
       findUniqueOrThrow: async () => ({
         id: PEDIDO,
@@ -77,5 +78,22 @@ describe('criarTrabalhadorExportacao', () => {
       }),
     ]);
     expect(auditar).not.toHaveBeenCalled();
+  });
+
+  it('destinatário inválido no cadastro: o pedido fica PRONTA, sem aviso, e o log registra só o código', async () => {
+    const avisos: unknown[][] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => void avisos.push(a));
+    // O tx falso não tem $executeRaw nem outbox: se o aviso tentasse gravar, o teste quebraria.
+    const { cliente, updates } = clienteFalso(async () => ({ nome: 'Nome <ruim>', email: 'maria@ex.org', ativo: true }));
+    await criarTrabalhadorExportacao({ cliente, geradores: { 'cad.teste': gerador(1) }, agora: () => new Date() })({ pedidoId: PEDIDO });
+    expect(updates).toEqual([expect.objectContaining({ situacao: 'PRONTA' })]);
+    expect(avisos).toEqual([['[EXPORTACAO_AVISO_NAO_ENVIADO]', { pedido: PEDIDO, codigo: 'email.destinatario_invalido' }]]);
+    expect(JSON.stringify(avisos)).not.toContain('maria@ex.org');
+  });
+
+  it('erro de banco ao buscar o destinatário: relança (a fila tenta de novo e a transação desfaz o resultado)', async () => {
+    const falha = new Error('conexão perdida');
+    const { cliente } = clienteFalso(async () => Promise.reject(falha));
+    await expect(criarTrabalhadorExportacao({ cliente, geradores: { 'cad.teste': gerador(1) }, agora: () => new Date() })({ pedidoId: PEDIDO })).rejects.toBe(falha);
   });
 });
