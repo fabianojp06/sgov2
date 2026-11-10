@@ -25,7 +25,9 @@ const entrada = z.preprocess(
 export const alternarModulo = definirAcao({ funcionalidade: FUNCIONALIDADE, acao: 'alterar', entrada }, async (e, ctx) => {
   const r = await alterarModulo(ctx, e);
   if (!r.ok) return r;
-  redirect(`/adm/modulos?modulo=${encodeURIComponent(e.codigo)}&aviso=${e.ativo ? 'modulo-ativado' : 'modulo-desativado'}`);
+  // Nada mudou (tela desatualizada): volta sem aviso de sucesso.
+  const aviso = r.valor.alterado ? `&aviso=${e.ativo ? 'modulo-ativado' : 'modulo-desativado'}` : '';
+  redirect(`/adm/modulos?modulo=${encodeURIComponent(e.codigo)}${aviso}`);
 });
 
 // O módulo da funcionalidade vem no formulário só para a volta ao detalhamento; a regra relê o
@@ -42,5 +44,6 @@ const entradaFuncionalidade = z.preprocess(
 export const alternarFuncionalidade = definirAcao({ funcionalidade: FUNCIONALIDADE, acao: 'alterar', entrada: entradaFuncionalidade }, async (e, ctx) => {
   const r = await alterarFuncionalidade(ctx, { codigo: e.codigo, ativo: e.ativo });
   if (!r.ok) return r;
-  redirect(`/adm/modulos?modulo=${encodeURIComponent(e.modulo)}&aviso=${e.ativo ? 'funcionalidade-ativada' : 'funcionalidade-desativada'}`);
+  const aviso = r.valor.alterado ? `&aviso=${e.ativo ? 'funcionalidade-ativada' : 'funcionalidade-desativada'}` : '';
+  redirect(`/adm/modulos?modulo=${encodeURIComponent(e.modulo)}${aviso}`);
 });

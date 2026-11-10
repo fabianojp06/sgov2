@@ -107,7 +107,7 @@ describe('listarModulos', () => {
 describe('módulo (UC02.05)', () => {
   it('desativar desativa as funcionalidades na mesma transação (RN0034), com o Histórico, e desconecta só os outros (D-P9-8)', async () => {
     const antes = await versoes();
-    expect(await alterarModulo(ctx, { codigo: 'CADASTROS', ativo: false }, deps())).toEqual({ ok: true, valor: undefined });
+    expect(await alterarModulo(ctx, { codigo: 'CADASTROS', ativo: false }, deps())).toEqual({ ok: true, valor: { alterado: true } });
     expect(await ativo.modulo('CADASTROS')).toBe(false);
     expect([await ativo.funcionalidade('cad.um'), await ativo.funcionalidade('cad.dois')]).toEqual([false, false]);
     expect(await historico('CADASTROS')).toEqual([{ tipoOperacao: 'ALTERACAO', descricao: 'Desativou o módulo Cadastros', usuarioId: ctx.usuarioId }]);
@@ -121,13 +121,13 @@ describe('módulo (UC02.05)', () => {
 
   it('ativar não ativa as funcionalidades (RN0033) nem desconecta ninguém (RN0041); repetir não grava', async () => {
     const antes = await versoes();
-    expect(await alterarModulo(ctx, { codigo: 'CADASTROS', ativo: true }, deps())).toEqual({ ok: true, valor: undefined });
+    expect(await alterarModulo(ctx, { codigo: 'CADASTROS', ativo: true }, deps())).toEqual({ ok: true, valor: { alterado: true } });
     expect(await ativo.modulo('CADASTROS')).toBe(true);
     expect([await ativo.funcionalidade('cad.um'), await ativo.funcionalidade('cad.dois')]).toEqual([false, false]);
     expect((await historico('CADASTROS')).map((h) => h.descricao)).toEqual(['Desativou o módulo Cadastros', 'Ativou o módulo Cadastros']);
     expect(await versoes()).toEqual(antes);
     // Já ativo: nada a gravar.
-    expect(await alterarModulo(ctx, { codigo: 'CADASTROS', ativo: true }, deps())).toEqual({ ok: true, valor: undefined });
+    expect(await alterarModulo(ctx, { codigo: 'CADASTROS', ativo: true }, deps())).toEqual({ ok: true, valor: { alterado: false } });
     expect(await historico('CADASTROS')).toHaveLength(2);
   });
 
@@ -147,7 +147,7 @@ describe('funcionalidade (UC02.06)', () => {
 
     await alterarModulo(ctx, { codigo: 'RELATORIOS', ativo: true }, deps());
     const antes = await versoes();
-    expect(await alterarFuncionalidade(ctx, { codigo: 'rel.um', ativo: true }, deps())).toEqual({ ok: true, valor: undefined });
+    expect(await alterarFuncionalidade(ctx, { codigo: 'rel.um', ativo: true }, deps())).toEqual({ ok: true, valor: { alterado: true } });
     expect(await ativo.funcionalidade('rel.um')).toBe(true);
     expect(await historico('rel.um')).toEqual([{ tipoOperacao: 'ALTERACAO', descricao: 'Ativou a funcionalidade Tela rel.um', usuarioId: ctx.usuarioId }]);
     expect(await versoes()).toEqual(antes);
@@ -162,7 +162,7 @@ describe('funcionalidade (UC02.06)', () => {
     expect(await temPermissao()).toBe(true);
 
     const antes = await versoes();
-    expect(await alterarFuncionalidade(ctx, { codigo: 'cad.um', ativo: false }, deps())).toEqual({ ok: true, valor: undefined });
+    expect(await alterarFuncionalidade(ctx, { codigo: 'cad.um', ativo: false }, deps())).toEqual({ ok: true, valor: { alterado: true } });
     expect(await menu()).not.toContain('cad.um');
     expect(await temPermissao()).toBe(false);
     expect((await historico('cad.um')).at(-1)?.descricao).toBe('Desativou a funcionalidade Tela cad.um');

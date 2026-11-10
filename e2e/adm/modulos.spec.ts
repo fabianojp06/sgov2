@@ -78,7 +78,9 @@ test('desativar a Adm. Central derruba o GFIN e tira o módulo do menu; reativar
     await confirmar(adm, adm.getByRole('button', { name: 'Ativar' }), 'Deseja realmente ativar o módulo?');
     await expect(adm).toHaveURL(/aviso=modulo-ativado$/);
     await expect(linhaModulo(adm, MODULO)).toContainText('Ativo');
-    await expect(funcionalidades(adm).getByRole('row').filter({ hasText: 'Inativa' })).toHaveCount(5);
+    // Nenhuma funcionalidade volta ativa, qualquer que seja o número delas na seed.
+    await expect(funcionalidades(adm).getByRole('cell', { name: 'Inativa', exact: true }).first()).toBeVisible();
+    await expect(funcionalidades(adm).getByRole('cell', { name: 'Ativa', exact: true })).toHaveCount(0);
     await gfin.goto('/inicio');
     await expect(gfin).toHaveURL(/\/inicio$/);
     await expect(gfin.getByRole('heading', { name: MODULO, exact: true })).toHaveCount(0);

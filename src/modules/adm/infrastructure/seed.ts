@@ -58,6 +58,7 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     nome: 'Módulos e Funcionalidades',
     rota: '/adm/modulos',
     ordem: 4,
+    // Texto de ajuda [PROVISÓRIO]: sem fonte no EP085.
     ajuda:
       'Ative ou desative os módulos do sistema e, num módulo ativo, as funcionalidades dele. ' +
       'Desativar um módulo desativa as funcionalidades dele e desconecta os usuários; ativar o módulo não reativa as funcionalidades.',

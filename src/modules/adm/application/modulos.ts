@@ -49,7 +49,7 @@ export async function listarModulos(ctx: ContextoRequisicao, deps: Partial<DepsM
 
 // UC02.05. Ativar não ativa as funcionalidades (RN0033) nem desconecta ninguém (RN0041); desativar
 // desativa as funcionalidades do módulo na mesma transação (RN0034) e desconecta os outros (RN0043).
-export async function alterarModulo(ctx: ContextoRequisicao, entrada: Alternancia, deps: Partial<DepsModulos> = {}): Promise<Resultado<void>> {
+export async function alterarModulo(ctx: ContextoRequisicao, entrada: Alternancia, deps: Partial<DepsModulos> = {}): Promise<Resultado<{ alterado: boolean }>> {
   exigir(ctx, FUNCIONALIDADE, 'alterar');
   const cliente = deps.cliente ?? prisma;
   if (!entrada.ativo && !podeDesativarModulo(entrada.codigo)) return recusa(MENSAGENS_MODULOS.MODULO_PROTEGIDO);
@@ -58,7 +58,7 @@ export async function alterarModulo(ctx: ContextoRequisicao, entrada: Alternanci
     const modulo = await tx.modulo.findUnique({ where: { codigo: entrada.codigo } });
     if (!modulo) throw new ErroDominio('adm.modulo_inexistente', MENSAGENS_MODULOS.MODULO_INEXISTENTE);
     // Já no estado pedido (tela desatualizada ou clique repetido): nada a gravar.
-    if (modulo.ativo === entrada.ativo) return ok(undefined);
+    if (modulo.ativo === entrada.ativo) return ok({ alterado: false });
     await tx.modulo.update({ where: { codigo: modulo.codigo }, data: { ativo: entrada.ativo } });
     let desativadas: string[] = [];
     if (!entrada.ativo) {
@@ -76,13 +76,13 @@ export async function alterarModulo(ctx: ContextoRequisicao, entrada: Alternanci
       antes: { ativo: modulo.ativo },
       depois: entrada.ativo ? { ativo: true } : { ativo: false, funcionalidadesDesativadas: desativadas },
     });
-    return ok(undefined);
+    return ok({ alterado: true });
   });
 }
 
 // UC02.06. Só com o módulo ativo (pré-condição do UC02.06); desativar desconecta os outros (RN0044,
 // D-P9-8); ativar não desconecta ninguém (RN0042).
-export async function alterarFuncionalidade(ctx: ContextoRequisicao, entrada: Alternancia, deps: Partial<DepsModulos> = {}): Promise<Resultado<void>> {
+export async function alterarFuncionalidade(ctx: ContextoRequisicao, entrada: Alternancia, deps: Partial<DepsModulos> = {}): Promise<Resultado<{ alterado: boolean }>> {
   exigir(ctx, FUNCIONALIDADE, 'alterar');
   const cliente = deps.cliente ?? prisma;
   return cliente.$transaction(async (tx) => {
@@ -91,7 +91,7 @@ export async function alterarFuncionalidade(ctx: ContextoRequisicao, entrada: Al
     if (!funcionalidade) throw new ErroDominio('adm.funcionalidade_inexistente', MENSAGENS_MODULOS.FUNCIONALIDADE_INEXISTENTE);
     if (!entrada.ativo && !podeDesativarModulo(funcionalidade.moduloCodigo)) return recusa(MENSAGENS_MODULOS.FUNCIONALIDADE_PROTEGIDA);
     if (entrada.ativo && !funcionalidade.modulo.ativo) return recusa(MENSAGENS_MODULOS.MODULO_INATIVO);
-    if (funcionalidade.ativo === entrada.ativo) return ok(undefined);
+    if (funcionalidade.ativo === entrada.ativo) return ok({ alterado: false });
     await tx.funcionalidade.update({ where: { codigo: funcionalidade.codigo }, data: { ativo: entrada.ativo } });
     if (!entrada.ativo) await desconectarOutros(tx, ctx);
     await auditar(tx, {
@@ -103,6 +103,6 @@ export async function alterarFuncionalidade(ctx: ContextoRequisicao, entrada: Al
       antes: { ativo: funcionalidade.ativo },
       depois: { ativo: entrada.ativo },
     });
-    return ok(undefined);
+    return ok({ alterado: true });
   });
 }

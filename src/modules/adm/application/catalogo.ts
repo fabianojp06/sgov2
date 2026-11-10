@@ -1,5 +1,6 @@
 import type { Acao } from '@/shared/authz';
 import { ErroDominio } from '@/shared/kernel';
+import { MODULO_PROTEGIDO } from '../domain/modulos';
 import { ehCodigoPerfil, type CodigoPerfil } from '../domain/perfis';
 
 // Contrato C6 (spec §12.6): cada módulo declara as próprias funcionalidades na sua seed. O menu
@@ -32,7 +33,8 @@ export type DeclaracaoFuncionalidade = {
   perfisPadrao: Partial<Record<CodigoPerfil, readonly Acao[]>>; // subconjunto de acoes
 };
 
-export const MODULO_EXCLUSIVO_ADMIN: CodigoModuloMenu = 'ADMINISTRACAO';
+// O mesmo módulo que não pode ser desativado (D-P9-7): uma constante só para as duas regras.
+export const MODULO_EXCLUSIVO_ADMIN: CodigoModuloMenu = MODULO_PROTEGIDO;
 // Única exceção à RN_SEED_003 (D-P8-8): o Auditor consulta o Histórico de Operações (spec §11.3).
 const EXCECOES_ADMIN: Readonly<Record<string, readonly string[]>> = { 'adm.historico': ['AUDITOR'] };
 // Código de 3 letras do módulo de código (spec §4.1) + nome: 'adm.usuarios', 'cad.cargos'.
