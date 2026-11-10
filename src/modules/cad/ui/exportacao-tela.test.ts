@@ -9,4 +9,8 @@ describe('hrefExportacao', () => {
       '/cad/plano-contas/exportar?formato=xlsx&inativos=1&busca=pessoal+%26+encargos&tipo=Anal%C3%ADtica',
     );
   });
+
+  it('um filtro com id reservado (formato, inativos) não sobrescreve o formato', () => {
+    expect(hrefExportacao('/x', 'csv', false, { formato: 'xlsx', inativos: '1', busca: 'a' })).toBe('/x?formato=csv&busca=a');
+  });
 });

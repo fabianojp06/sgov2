@@ -38,9 +38,9 @@ beforeAll(async () => {
   migrator = new pg.Client({ connectionString: banco.urlMigrator });
   await migrator.connect();
   usuarioId = (await migrator.query(`INSERT INTO usuario (nome, email, login, login_normalizado, senha_hash) VALUES ('GFIN', 'g@exemplo.org', 'g', 'g', 'x') RETURNING id`)).rows[0].id;
-  // Uma conta analítica inativada: sai da exportação padrão e entra com "inativos".
-  await migrator.query(`UPDATE conta_contabil SET ativa = false, inativada_em = now() WHERE classificacao = (
-    SELECT c.classificacao FROM conta_contabil c WHERE c.tipo = 'ANALITICA' AND (SELECT count(*) FROM conta_contabil i WHERE i.pai_id = c.pai_id AND i.ativa) > 1 LIMIT 1)`);
+  // Uma conta analítica inativada, fixa: "Treinamento de pessoal" (4.1.1.6.011), que casa com a busca
+  // "pessoal" por conta própria; a 4.1.1.6 tem outras 30 filhas ativas.
+  await migrator.query(`UPDATE conta_contabil SET ativa = false, inativada_em = now() WHERE classificacao = '4.1.1.6.011'`);
 }, 180_000);
 
 afterAll(async () => {
@@ -103,25 +103,35 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     });
   });
 
-  it('os filtros da tela (busca e tipo): a mesma regra da grade, no cabeçalho e no Histórico', async () => {
-    const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false, filtros: { tipo: 'Analítica', busca: 'salário', outro: 'ignorado' } }, { cliente: app });
+  // A regra da grade (aplicarFiltros, M5 do #222): quem casa pela busca leva a subárvore, que passa pelo
+  // tipo; os ancestrais ficam como caminho. "pessoal" casa com a sintética "DESPESAS DE PESSOAL"
+  // (4.1.1.1, as 25 analíticas abaixo dela entram por herança) e com a analítica 4.1.1.6.011, inativa.
+  const contas = (planoOficial as { celulas: Record<string, string | null> }[]).map((l) => l.celulas);
+  const debaixoDePessoal = contas.filter((c) => c['Classificação']!.startsWith('4.1.1.1.') && c['Tipo'] === 'A').map((c) => c['Classificação']!);
+  const classificacoesDe = (bytes: Uint8Array) => linhasCsv(bytes).slice(6).filter(Boolean).map((d) => d.split(';')[0]!.replace(/"/g, ''));
+
+  it('busca "pessoal" com tipo Analítica: a subárvore inteira, os caminhos, e os filtros no cabeçalho e no Histórico', async () => {
+    const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false, filtros: { busca: 'pessoal', tipo: 'Analítica', outro: 'ignorado' } }, { cliente: app });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
-    const l = linhasCsv(r.valor);
-    expect(l[1]).toBe('"Filtros: Inativos: não incluídos; Buscar por classificação, reduzido ou descrição: salário; Tipo: Analítica"');
-    const dados = l.slice(6).filter(Boolean);
-    // A regra da grade (aplicarFiltros, M5 do #222): quem casa pela busca leva a subárvore, que passa
-    // pelo tipo; os ancestrais sintéticos ficam como caminho até as analíticas.
-    const linhas = dados.map((d) => {
-      const [classificacao, , descricao, , tipo] = d.split('";"').map((c) => c.replace(/"/g, ''));
-      return { classificacao: classificacao!, descricao: descricao!, tipo: tipo! };
+    expect(linhasCsv(r.valor)[1]).toBe('"Filtros: Inativos: não incluídos; Buscar por classificação, reduzido ou descrição: pessoal; Tipo: Analítica"');
+    // Sem os inativos, a 4.1.1.6.011 sai e, com ela, o caminho 4.1.1.6: "mostrar inativos" vem antes do
+    // filtro, como na tela (com a ordem invertida, a 4.1.1.6 ficaria sem filhas no arquivo).
+    const classificacoes = classificacoesDe(r.valor);
+    expect(classificacoes).toEqual(['4', '4.1', '4.1.1', '4.1.1.1', ...debaixoDePessoal]);
+    expect((await ultimaExportacao('cad.plano_contas')).depois).toMatchObject({
+      registros: classificacoes.length,
+      filtros: [
+        { rotulo: 'Inativos', valor: 'não incluídos' },
+        { rotulo: 'Buscar por classificação, reduzido ou descrição', valor: 'pessoal' },
+        { rotulo: 'Tipo', valor: 'Analítica' },
+      ],
     });
-    const analiticas = linhas.filter((x) => x.tipo === 'Analítica');
-    const casa = (x: { descricao: string }) => /salário/i.test(x.descricao);
-    const ancestrais = (c: string) => linhas.filter((x) => c.startsWith(`${x.classificacao}.`));
-    expect(analiticas.length).toBeGreaterThan(0);
-    expect(analiticas.every((x) => casa(x) || ancestrais(x.classificacao).some(casa))).toBe(true);
-    expect(linhas.filter((x) => x.tipo !== 'Analítica').every((x) => x.tipo === 'Sintética' && analiticas.some((y) => y.classificacao.startsWith(`${x.classificacao}.`)))).toBe(true);
-    expect((await ultimaExportacao('cad.plano_contas')).depois.registros).toBe(dados.length);
+  });
+
+  it('a mesma busca com os inativos: entram a 4.1.1.6.011 e o caminho 4.1.1.6', async () => {
+    const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: true, filtros: { busca: 'pessoal', tipo: 'Analítica' } }, { cliente: app });
+    if (!r.ok) throw new Error('falhou');
+    expect(classificacoesDe(r.valor)).toEqual(['4', '4.1', '4.1.1', '4.1.1.1', ...debaixoDePessoal, '4.1.1.6', '4.1.1.6.011']);
   });
 
   it('filtro com valor inválido: recusado antes de gerar, sem Histórico', async () => {

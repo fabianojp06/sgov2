@@ -16,7 +16,7 @@ import { prisma, type TxCliente } from '@/shared/db';
 import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { nosVisiveis, paraNoTela, paraNoTelaCc, type ColunaCc, type ColunaConta, type NoTela } from '../domain/arvore-tela';
 import { listarArvoreCentrosCusto, listarArvoreContas } from '../infrastructure/estrutura-financeira';
-import { FILTROS_CC, FILTROS_CONTAS } from '../ui/arvore-contas-logica';
+import { COLUNAS_CC, COLUNAS_CONTAS, FILTROS_CC, FILTROS_CONTAS } from './filtros-estrutura';
 
 // Exportação das listagens do plano de contas e dos centros de custo (US-024, partes 2 e 3; RN0011 e
 // RN_WATERMARK pelo C3). O arquivo é o que a tela mostra: as mesmas linhas (paraNoTela), o mesmo
@@ -91,14 +91,7 @@ async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvo
 const PLANO: Arvore<ColunaConta> = {
   funcionalidade: 'cad.plano_contas',
   titulo: 'Plano de contas',
-  colunas: [
-    { campo: 'classificacao', titulo: 'Classificação', largura: 110 },
-    { campo: 'reduzido', titulo: 'Reduzido', largura: 70 },
-    { campo: 'descricao', titulo: 'Descrição', largura: 320 },
-    { campo: 'nivel', titulo: 'Nível', largura: 50 },
-    { campo: 'tipo', titulo: 'Tipo', largura: 80 },
-    { campo: 'situacao', titulo: 'Situação', largura: 70 },
-  ],
+  colunas: COLUNAS_CONTAS,
   filtros: FILTROS_CONTAS,
   nos: async (tx) => (await listarArvoreContas(tx, { incluirInativos: true })).map(paraNoTela),
 };
@@ -106,15 +99,7 @@ const PLANO: Arvore<ColunaConta> = {
 const CENTROS: Arvore<ColunaCc> = {
   funcionalidade: 'cad.centros_custo',
   titulo: 'Centros de custo',
-  colunas: [
-    { campo: 'classificacao', titulo: 'Classificação', largura: 100 },
-    { campo: 'reduzido', titulo: 'Reduzido', largura: 70 },
-    { campo: 'descricao', titulo: 'Descrição', largura: 320 },
-    { campo: 'nivel', titulo: 'Nível', largura: 50 },
-    { campo: 'tipo', titulo: 'Tipo', largura: 80 },
-    { campo: 'selos', titulo: 'Selos', largura: 120 },
-    { campo: 'situacao', titulo: 'Situação', largura: 70 },
-  ],
+  colunas: COLUNAS_CC,
   filtros: FILTROS_CC,
   nos: async (tx) => (await listarArvoreCentrosCusto(tx, { incluirInativos: true })).map(paraNoTelaCc),
 };
