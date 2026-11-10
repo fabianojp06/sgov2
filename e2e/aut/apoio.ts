@@ -10,8 +10,9 @@ export const NOVA_SENHA = 'NovaSenhaE2E2027y';
 
 export const PERFIL_SEM_PERMISSAO = 'E2E_SEM_PERMISSAO';
 
-// Um usuário por cenário: bloqueio, senha errada e logoff mudam o estado dele. Só a manutenção é
-// global, e o spec a desliga no finally; com mais de um worker, isso deixaria de bastar.
+// Um usuário por cenário: bloqueio, senha errada e logoff mudam o estado dele. Só a manutenção (o
+// estado do sistema) é global, e os specs que a ligam a desligam no finally; com mais de um worker,
+// isso deixaria de bastar.
 export const USUARIOS = {
   admin: { login: 'adm.menu', nome: 'E2E Administrador Menu', perfil: 'ADMINISTRADOR' },
   sair: { login: 'adm.sair', nome: 'E2E Administrador Sair', perfil: 'ADMINISTRADOR' },
@@ -31,6 +32,9 @@ export const USUARIOS = {
   // Histórico de Operações (e2e/adm/historico.spec.ts, US-040).
   historico: { login: 'adm.historico', nome: 'E2E Administrador Histórico', perfil: 'ADMINISTRADOR' },
   auditor: { login: 'aud.historico', nome: 'E2E Auditor Histórico', perfil: 'AUDITOR' },
+  // Ativar e desativar o sistema (e2e/adm/sistema.spec.ts, US-036/US-033).
+  sistema: { login: 'adm.sistema', nome: 'E2E Administrador Sistema', perfil: 'ADMINISTRADOR' },
+  sistemaOrc: { login: 'orc.sistema', nome: 'E2E Orçamentista Sistema', perfil: 'ORCAMENTISTA' },
   // CSP completa nas telas (e2e/aut/csp.spec.ts, #318).
   csp: { login: 'adm.csp', nome: 'E2E Administrador CSP', perfil: 'ADMINISTRADOR' },
   // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do

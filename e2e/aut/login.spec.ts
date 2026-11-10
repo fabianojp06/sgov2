@@ -45,7 +45,9 @@ test('manutenção ligada: "Sistema está em manutenção" para quem não é Adm
     await entrar(page, USUARIOS.manutencao.login, SENHA);
     await expect(mensagem(page)).toHaveText('Sistema está em manutenção');
   } finally {
-    await migrator.query('UPDATE configuracao_acesso SET manutencao = false');
+    // Desliga também o que a efetivação da desativação grava (o instante, US-036): o CHECK da
+    // configuração exige os campos da desativação nulos com o indicador desligado.
+    await migrator.query('UPDATE configuracao_acesso SET manutencao = false, manutencao_a_partir = NULL, manutencao_motivo = NULL, manutencao_por = NULL');
     await migrator.end();
   }
 });
