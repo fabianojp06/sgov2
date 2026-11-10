@@ -32,8 +32,13 @@ export type OpcoesAnthropic = {
 type Mensagem = Anthropic.Beta.Messages.BetaMessage;
 
 export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
+  if (!o.apiKey.trim()) throw new ErroIA('ia.desabilitada');
   const cliente = new Anthropic({
     apiKey: o.apiKey,
+    // Fixos, e não do ambiente: ANTHROPIC_BASE_URL mandaria a chave a outro host, e ANTHROPIC_LOG=debug
+    // gravaria no log o corpo dos pedidos, com dado do usuário (LGPD).
+    baseURL: 'https://api.anthropic.com',
+    logLevel: 'warn',
     maxRetries: o.novasTentativas ?? 3,
     timeout: o.tempoLimiteMs ?? 120_000,
     ...(o.fetch ? { fetch: o.fetch } : {}),
@@ -95,6 +100,8 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
         const stream = cliente.beta.messages.stream({ ...parametros(p), output_config: { effort: p.esforco ?? ESFORCO_PADRAO } }, opcoes(p));
         for await (const ev of stream) {
           if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') yield { tipo: 'texto', texto: ev.delta.text };
+          // O modelo principal recusou no meio e o de fallback continua: a tela descarta o que já mostrou.
+          if (ev.type === 'content_block_start' && ev.content_block.type === 'fallback') yield { tipo: 'reinicio' };
         }
         const m = await stream.finalMessage();
         conferir(m);
@@ -120,7 +127,14 @@ function jsonOuNada(t: string): unknown {
   }
 }
 
-const texto = (m: Mensagem) => m.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
+/** O texto da resposta: só o que veio depois do último bloco de fallback (o modelo que recusou fica de fora). */
+function texto(m: Mensagem): string {
+  const ultimoFallback = m.content.findLastIndex((b) => b.type === 'fallback');
+  return m.content
+    .slice(ultimoFallback + 1)
+    .flatMap((b) => (b.type === 'text' ? [b.text] : []))
+    .join('');
+}
 
 const uso = (u: Mensagem['usage']): UsoIA => ({
   entrada: u.input_tokens,
@@ -139,8 +153,11 @@ function traduzir(e: unknown): never {
   if (e instanceof Anthropic.APIConnectionError) throw new ErroIA('ia.indisponivel');
   if (e instanceof Anthropic.APIError) {
     const status = typeof e.status === 'number' ? e.status : undefined;
-    if (status !== undefined && (status >= 500 || status === 408 || status === 409)) throw new ErroIA('ia.indisponivel', { status });
-    throw new ErroIA('ia.requisicao_invalida', status === undefined ? {} : { status });
+    // Sem status: erro enviado no meio do stream (overloaded_error, api_error), temporário.
+    if (status === undefined || status >= 500 || status === 408 || status === 409) throw new ErroIA('ia.indisponivel', status === undefined ? {} : { status });
+    throw new ErroIA('ia.requisicao_invalida', { status });
   }
-  throw e;
+  // Qualquer outra falha (resposta ilegível, erro do SDK): sem copiar a mensagem, que pode trazer
+  // trecho da resposta do provedor.
+  throw new ErroIA('ia.indisponivel');
 }

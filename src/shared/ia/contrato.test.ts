@@ -88,8 +88,9 @@ describe.each(IMPLEMENTACOES)('contrato da porta ProvedorIA (%s)', (_nome, criar
     expect(await codigo(criar({ cortada: true }).gerarTexto(pedido))).toBe('ia.limite_tokens');
   });
 
-  it('pedido já cancelado: ia.cancelada', async () => {
+  it('pedido já cancelado: ia.cancelada, também no stream', async () => {
     const sinal = AbortSignal.abort();
     expect(await codigo(criar({ texto: 'x' }).gerarTexto({ ...pedido, sinal }))).toBe('ia.cancelada');
+    expect(await codigo(eventos(criar({ texto: 'x' }).gerarStream({ ...pedido, sinal })))).toBe('ia.cancelada');
   });
 });

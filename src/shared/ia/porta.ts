@@ -34,7 +34,11 @@ export type RespostaIA<T> = {
   latenciaMs: number;
 };
 
-export type EventoStreamIA = { tipo: 'texto'; texto: string } | { tipo: 'fim'; resposta: RespostaIA<string> };
+/**
+ * 'reinicio': o modelo principal recusou no meio e o de fallback recomeçou; a tela descarta o texto
+ * já mostrado. O 'fim' traz sempre a resposta final, só com o texto válido.
+ */
+export type EventoStreamIA = { tipo: 'texto'; texto: string } | { tipo: 'reinicio' } | { tipo: 'fim'; resposta: RespostaIA<string> };
 
 export interface ProvedorIA {
   gerarTexto(pedido: PedidoIA): Promise<RespostaIA<string>>;

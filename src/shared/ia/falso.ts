@@ -49,7 +49,10 @@ export function criarProvedorIAFalso(roteiro: RoteiroIAFalso = {}): ProvedorIAFa
       entrar(p);
       const texto = textoDe(p);
       const n = provedor.roteiro.pedaco ?? 8;
-      for (let i = 0; i < texto.length; i += n) yield { tipo: 'texto', texto: texto.slice(i, i + n) };
+      for (let i = 0; i < texto.length; i += n) {
+        if (p.sinal?.aborted) throw new ErroIA('ia.cancelada');
+        yield { tipo: 'texto', texto: texto.slice(i, i + n) };
+      }
       yield { tipo: 'fim', resposta: responder(p, texto) };
     },
   };

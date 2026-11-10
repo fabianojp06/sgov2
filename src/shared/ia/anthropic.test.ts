@@ -95,12 +95,60 @@ describe('criarProvedorAnthropic', () => {
     expect((await erro(ia.gerarEstruturado(pedido, z.object({ conta: z.string() })))).codigo).toBe('ia.limite_tokens');
   });
 
-  it('stream: pede stream e respeita o cancelamento', async () => {
+  it('stream: pede stream e entrega os pedaços', async () => {
     const { api, ia } = provedor([{ texto: 'abcdefghij' }]);
     const pedacos: string[] = [];
     for await (const e of ia.gerarStream(pedido)) if (e.tipo === 'texto') pedacos.push(e.texto);
     expect(pedacos).toEqual(['abcde', 'fghij']);
     expect(api.requisicoes[0]!.corpo.stream).toBe(true);
+  });
+
+  it('stream cancelado no meio: ia.cancelada', async () => {
+    const { ia } = provedor([{ texto: 'abcdefghijklmno' }]);
+    const controle = new AbortController();
+    const consumir = (async () => {
+      for await (const e of ia.gerarStream({ ...pedido, sinal: controle.signal })) if (e.tipo === 'texto') controle.abort();
+    })();
+    expect((await erro(consumir)).codigo).toBe('ia.cancelada');
+  });
+
+  it('erro no meio do stream (overloaded_error): ia.indisponivel, temporário', async () => {
+    const { ia } = provedor([{ texto: 'abcdefghij', erroNoStream: 'overloaded_error' }]);
+    const consumir = (async () => {
+      for await (const _ of ia.gerarStream(pedido)) void _;
+    })();
+    const e = await erro(consumir);
+    expect([e.codigo, e.temporario]).toEqual(['ia.indisponivel', true]);
+  });
+
+  it('resposta ilegível: ia.indisponivel, sem copiar o corpo na mensagem', async () => {
+    const { ia } = provedor([{ texto: '', corpoInvalido: true }]);
+    const e = await erro(ia.gerarTexto(pedido));
+    expect(e.codigo).toBe('ia.indisponivel');
+    expect(e.message).not.toContain('trecho');
+  });
+
+  it('fallback no meio: o texto do modelo que recusou fica fora; no stream, um "reinicio" antes do texto novo', async () => {
+    const antes = [
+      { type: 'text', text: 'parcial do primeiro ' },
+      { type: 'fallback', from: { model: 'claude-opus-5-5' }, to: { model: 'claude-opus-4-8' } },
+    ];
+    const a = provedor([{ texto: 'resposta final', modelo: 'claude-opus-4-8', antes }]);
+    expect((await a.ia.gerarTexto(pedido)).valor).toBe('resposta final');
+    const b = provedor([{ texto: 'resposta final', modelo: 'claude-opus-4-8', antes }]);
+    const tipos: string[] = [];
+    let fim = '';
+    for await (const e of b.ia.gerarStream(pedido)) {
+      tipos.push(e.tipo === 'texto' ? `texto:${e.texto}` : e.tipo);
+      if (e.tipo === 'fim') fim = e.resposta.valor;
+    }
+    expect(tipos.indexOf('reinicio')).toBeGreaterThan(0);
+    expect(tipos.slice(tipos.indexOf('reinicio') + 1, -1).map((t) => t.slice(6)).join('')).toBe('resposta final');
+    expect(fim).toBe('resposta final');
+  });
+
+  it('chave vazia: ia.desabilitada, sem criar o cliente', () => {
+    expect(() => criarProvedorAnthropic({ apiKey: '  ' })).toThrow(ErroIA);
   });
 });
 
