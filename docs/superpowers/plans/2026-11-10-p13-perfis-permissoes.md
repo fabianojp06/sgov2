@@ -121,3 +121,20 @@ excluirPerfil(ctx, id: string, versao: number): Promise<Resultado<void>>;
 - [ ] **Step 2:** páginas com `exigirPagina('adm.perfis', 'consultar' | 'incluir' | 'alterar')`, no molde de `/adm/usuarios`; `notFound()` para id inexistente; botões conforme as permissões; caixa do módulo com `aria-checked="mixed"` no indeterminado; `fieldset`/`legend` por módulo, cabeçalhos de tabela com `scope`, navegável por teclado; confirmação do E3 antes de enviar.
 - [ ] **Step 3:** E2E: o Administrador cria o perfil "Consulta Orçamento" marcando o módulo Orçamentário (todas as ações marcadas), tira uma ação, salva e vê "Perfil cadastrado com sucesso."; tenta criar "consulta orçamento" e recebe o erro de nome; associa um usuário ao perfil, entra com ele e vê o menu; tenta excluir o perfil e não consegue; desassocia o usuário e exclui. Deixar o banco como encontrou.
 - [ ] **Step 4:** verificações completas (typecheck, lint, unidade, arquitetura, `test:int` de adm/aut, build, E2E de `e2e/adm`, `e2e/aut`, `e2e/seguranca`, um por vez); commit; PR `Closes #59`, labels `frente:A` e `migration`; avisar a frente B sobre a D-P13-2 (`contarUsuariosPorPerfil` não muda; códigos `P_…` aparecem em `usuario_perfil`).
+
+---
+
+## Ajustes da revisão 12.12 do plano (prevalecem sobre o texto acima)
+
+- **A1 (D-P13-6):** o servidor monta, dentro da transação, o conjunto de funcionalidades ativas de módulos ativos e usa só ele no diff; se a lista `exibidas` enviada pela tela for diferente, devolve `MENSAGEM_CONFLITO` (tela desatualizada). Teste com requisição forjada (omitindo e incluindo funcionalidade).
+- **A2 (D-P13-4):** as `adm.*` do ADMINISTRADOR ficam **fora do diff** (o banco não é tocado nelas), em vez de recusar diferenças; a concessão de `adm.*` a qualquer outro perfil (menos `adm.historico` ao AUDITOR) é recusada.
+- **A3 (C25):** perfil criado pela tela não tem CC de escopo (o escopo por CC depende do código GESTOR_DIRETORIA): quem o recebe com permissões de `orc.pacotes`/`orc.posicoes` lança em toda a Adm. Central. A grade avisa **[PROVISÓRIO]** "Usuários deste perfil não têm CC de escopo: lançam em toda a Administração Central. Para limitar a uma diretoria, use o perfil Gestor de Diretoria." quando o perfil não padrão recebe incluir/alterar/excluir dessas funcionalidades; teste do comportamento.
+- **A4 (contrato com a frente B, #137):** `contarUsuariosPorPerfil` mantém a interface; corrigir o comentário ("perfis de teste" passa a ser "perfis criados pela tela, não contados") e avisar a frente B na #137 (opções: item "outros perfis" ou `codigo: string`).
+- **A5 (defesa no banco):** trigger `BEFORE DELETE` em `perfil` que recusa apagar perfil cujo código não comece com `P_`; o prefixo `P_` fica reservado aos perfis da tela (teste de catálogo: nenhum código padrão começa com `P_`).
+- **A6:** `usuarios.ts` trata o P2003 (perfil excluído durante a associação) com mensagem própria, coberto pelo teste do Review Focus 3.
+- **A7 (RN0082):** a regra de "ao menos uma funcionalidade" só se aplica quando as permissões mudam (renomear um perfil cujas funcionalidades estão em módulo inativo continua possível).
+- **A8 (D-P13-11):** a seed usa sufixo numérico (" (padrão)", " (padrão 2)", …) até achar nome livre, dentro dos 100 caracteres.
+- **A9:** registrado: a associação simultânea à inativação de um perfil é inofensiva (perfil inativo não dá permissão).
+- **A10:** "sem espaços" lido como "não pode ser vazio nem só espaços, com `trim`" (os nomes padrão têm espaço interno); o PO confirma.
+- **A11:** a caixa do módulo usa a propriedade `indeterminate` do checkbox nativo, não `aria-checked="mixed"`.
+- **A12:** tipos `Excecao<CodigoPerfil>` e comentários sobre a ordem do catálogo em `usuarios.ts` acompanham a D-P13-2.
