@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ErroDoCampo, Formulario, LegendaComErro, type AcaoFormulario } from '@/modules/ger';
-import { AVISO_SEM_ESCOPO, MENSAGEM_CONFIRMAR_INATIVACAO, precisaAvisoSemEscopo } from '../domain/perfil-textos';
+import {
+  AVISO_SEM_ESCOPO,
+  MENSAGEM_CONFIRMAR_INATIVACAO,
+  MENSAGEM_CONFIRMAR_INATIVACAO_SEM_USUARIOS,
+  NOTA_ADMINISTRADOR_ATIVO,
+  precisaAvisoSemEscopo,
+} from '../domain/perfil-textos';
 import {
   alternarAcao,
   alternarFuncionalidade,
@@ -28,6 +34,7 @@ export type PerfilFormulario = {
   descricao: string;
   ativo: boolean;
   padrao: boolean;
+  administrador: boolean;
   usuariosAtivos: number;
   versao: number;
   permissoes: readonly { funcionalidade: string; acoes: readonly string[] }[];
@@ -136,7 +143,10 @@ export function FormPerfil({ perfil, grade, salvar }: PropsFormPerfil) {
     }
   }, [confirmando]);
 
-  const pedeConfirmacao = perfil !== undefined && perfil.ativo && perfil.usuariosAtivos > 0;
+  // Toda inativação de perfil ativo confirma: com zero usuários ativos na abertura, alguém pode ter
+  // associado um depois, e o E3 do servidor voltaria sem caminho para confirmar (revisão do #369).
+  const pedeConfirmacao = perfil !== undefined && perfil.ativo;
+  const textoConfirmacao = perfil && perfil.usuariosAtivos > 0 ? MENSAGEM_CONFIRMAR_INATIVACAO : MENSAGEM_CONFIRMAR_INATIVACAO_SEM_USUARIOS;
   const escolherStatus = (novo: boolean) => {
     if (!novo && pedeConfirmacao && !confirmado) {
       setConfirmando(true);
@@ -172,8 +182,9 @@ export function FormPerfil({ perfil, grade, salvar }: PropsFormPerfil) {
             <input type="radio" name="ativo" value="true" checked={ativo} onChange={() => escolherStatus(true)} /> Ativo
           </label>
           <label>
-            <input ref={radioInativo} type="radio" name="ativo" value="false" checked={!ativo} onChange={() => escolherStatus(false)} /> Inativo
+            <input ref={radioInativo} type="radio" name="ativo" value="false" checked={!ativo} disabled={perfil?.administrador === true} aria-describedby={perfil?.administrador ? 'perfil-nota-administrador' : undefined} onChange={() => escolherStatus(false)} /> Inativo
           </label>
+          {perfil?.administrador && <p id="perfil-nota-administrador">{NOTA_ADMINISTRADOR_ATIVO}</p>}
         </fieldset>
         {confirmando && (
           <div
@@ -183,7 +194,7 @@ export function FormPerfil({ perfil, grade, salvar }: PropsFormPerfil) {
               if (e.key === 'Escape') setConfirmando(false);
             }}
           >
-            <p id="perfil-confirmar-inativacao">{MENSAGEM_CONFIRMAR_INATIVACAO}</p>
+            <p id="perfil-confirmar-inativacao">{textoConfirmacao}</p>
             <button
               type="button"
               onClick={() => {

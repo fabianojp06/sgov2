@@ -12,6 +12,12 @@ export const AVISOS_PERFIL = {
 export const MENSAGEM_CONFIRMAR_INATIVACAO =
   'Este perfil possui usuários ativos associados. Ao inativá-lo, esses usuários perderão o acesso às funcionalidades deste perfil. Deseja continuar?';
 
+// [PROVISÓRIO] Inativar perfil sem usuários ativos na abertura da tela (revisão 12.12 do #369): a tela
+// confirma também, porque alguém pode ter associado um usuário depois; o servidor confere de novo.
+export const MENSAGEM_CONFIRMAR_INATIVACAO_SEM_USUARIOS =
+  'Ao inativar o perfil, os usuários associados a ele perdem o acesso às funcionalidades dele. Deseja continuar?';
+export const NOTA_ADMINISTRADOR_ATIVO = 'O perfil Administrador não pode ser inativado.';
+
 // [PROVISÓRIO] (ajuste A3 da revisão do plano): o escopo por CC (C25) depende do código GESTOR_DIRETORIA.
 export const AVISO_SEM_ESCOPO =
   'Usuários deste perfil não têm CC de escopo: lançam em toda a Administração Central. Para limitar a uma diretoria, use o perfil Gestor de Diretoria.';

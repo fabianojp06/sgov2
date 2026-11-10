@@ -102,7 +102,7 @@ describe('páginas de perfis', () => {
 
   it('alteração do Administrador: as adm.* fixas desabilitadas, sem name e fora das exibidas', async () => {
     contexto = ctx(TODAS);
-    dados.perfil = { id: ID, codigo: 'ADMINISTRADOR', nome: 'Administrador', descricao: '', ativo: true, padrao: true, usuariosAtivos: 1, versao: 3, permissoes: [{ funcionalidade: 'orc.orcamento', acoes: ['consultar'] }] };
+    dados.perfil = { id: ID, codigo: 'ADMINISTRADOR', nome: 'Administrador', descricao: '', ativo: true, padrao: true, administrador: true, usuariosAtivos: 1, versao: 3, permissoes: [{ funcionalidade: 'orc.orcamento', acoes: ['consultar'] }] };
     const h = await html(Alterar({ params }));
     expect(dados.codigoDaGrade).toBe('ADMINISTRADOR');
     expect(h).not.toContain('value="adm.perfis"');
@@ -110,5 +110,8 @@ describe('páginas de perfis', () => {
     expect(h).toContain('<input type="checkbox" aria-label="Consultar em Perfis de Usuário" disabled="" checked=""/>');
     expect(h).toContain('<input type="checkbox" aria-label="Consultar em Orçamento" name="permissao" checked="" value="orc.orcamento:consultar"/>');
     expect(h).toContain('<input type="hidden" name="versao" value="3"/>');
+    // Revisão 12.12 do #369: o Administrador não pode ser inativado, e a tela já não oferece.
+    expect(h).toContain('<input type="radio" disabled="" aria-describedby="perfil-nota-administrador" name="ativo" value="false"/>');
+    expect(h).toContain('O perfil Administrador não pode ser inativado.');
   });
 });

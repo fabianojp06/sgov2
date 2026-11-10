@@ -178,6 +178,7 @@ export type DetalhePerfil = {
   descricao: string;
   ativo: boolean;
   padrao: boolean;
+  administrador: boolean;
   usuariosAtivos: number;
   versao: number;
   permissoes: { funcionalidade: string; acoes: AcaoPerfil[] }[];
@@ -198,6 +199,7 @@ export async function obterPerfil(ctx: ContextoRequisicao, id: string, deps: Par
   return {
     ...dados,
     padrao: !ehPerfilDaTela(p.codigo),
+    administrador: p.codigo === 'ADMINISTRADOR',
     usuariosAtivos: usuarios.length,
     permissoes: Object.entries(ordenarMapa(mapa)).map(([funcionalidade, acoes]) => ({ funcionalidade, acoes: [...acoes] })),
   };
