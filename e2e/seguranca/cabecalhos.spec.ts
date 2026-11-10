@@ -60,6 +60,7 @@ test('sem X-Powered-By (o servidor não revela o framework)', async ({ request }
   // Achado baixo do P7 (Task 4), corrigido no #337 (poweredByHeader: false). O Next só envia o
   // cabeçalho em respostas HTML: por isso o teste usa uma página (/login), não uma rota de API.
   const r = await request.get('/login');
+  expect(r.status()).toBe(200);
   expect(r.headers()['content-type']).toContain('text/html');
   expect(r.headers()['x-powered-by']).toBeUndefined();
 });
