@@ -1,3 +1,5 @@
+import { MENSAGEM_CONFLITO } from '@/shared/kernel';
+
 // Mensagens do orçamento da Adm. Central [PROVISÓRIAS]: o UC04.17 ainda não é EP (GAP-ORC-004).
 // Textos das Global Constraints do plano do P6; cada tarefa acrescenta os que usa, e os com
 // parâmetro viram função.
@@ -13,7 +15,7 @@ export const MENSAGENS_ORC = {
   RECALCULADO: 'O orçamento foi recalculado.',
   FORA_DO_ESCOPO_TOTAL: 'Esta operação é só para quem vê toda a Adm. Central.',
   RECEITAS_SO_ESCOPO_TOTAL: 'Receitas só podem ser importadas por quem vê toda a Adm. Central.',
-  ALTERADO_POR_OUTRO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
+  ALTERADO_POR_OUTRO: MENSAGEM_CONFLITO,
   // Planilha (Task 4a)
   CC_OBRIGATORIO: 'CC analítico obrigatório.',
   CC_NAO_ANALITICO: 'CC não é analítico ativo.',

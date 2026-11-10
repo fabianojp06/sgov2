@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { falha, MENSAGEM_CONFLITO, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 
 // Alçadas de aprovação (US-042, spec §6.5 e §11.4; UC02.28 a redigir, GAP-ADM-002). Por fluxo, sem
 // escopo (D-P8-5). WA03 e WA04 ficam fora até o GAP-APR-001 (D-P8-6).
@@ -30,7 +30,7 @@ export const MENSAGENS_ALCADA = {
   DUPLICADA: 'Já existe alçada ativa para este fluxo.',
   INATIVA: 'Esta alçada já está inativa.',
   INEXISTENTE: 'Alçada não encontrada',
-  ALTERADO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
+  ALTERADO: MENSAGEM_CONFLITO,
 } as const;
 
 export type AprovadoresAlcada = { titularId: string; substitutoId: string };

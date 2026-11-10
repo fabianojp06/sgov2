@@ -5,7 +5,7 @@ import { enviarEmail } from '@/modules/ger';
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { lerEnvAcesso } from '@/shared/config';
-import { prisma, type TxCliente } from '@/shared/db';
+import { prisma, travarRecurso, type TxCliente } from '@/shared/db';
 import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
 import { MENSAGENS_USUARIO, perdeUltimoAdministrador, validarUsuario, type UsuarioValidado } from '../domain/usuario';
 import { gerarSenhaTemporaria } from '../infrastructure/gerar-senha';
@@ -61,7 +61,7 @@ const alterado = () => falha([{ campo: '_', mensagem: MENSAGENS_USUARIO.ALTERADO
 // Serializa as mudanças que podem tirar o último Administrador ativo. Depende do READ COMMITTED
 // (padrão do projeto): cada comando depois da trava enxerga o que a transação anterior gravou. Sob
 // REPEATABLE READ ou SERIALIZABLE, o snapshot seria o de antes da espera e a contagem erraria.
-const travarAdministradores = (tx: TxCliente) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('adm:administradores'))`;
+const travarAdministradores = (tx: TxCliente) => travarRecurso(tx, 'adm:administradores');
 
 type Perfil = { id: string; codigo: string; nome: string };
 

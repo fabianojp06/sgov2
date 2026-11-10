@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { falha, MENSAGEM_CONFLITO, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { normalizarLogin } from './login';
 import { CODIGOS_PERFIL } from './perfis';
 
@@ -18,7 +18,7 @@ export const MENSAGENS_USUARIO = {
   CC_FORA_ESTRUTURA: 'CC de escopo sem centro de custo analítico ativo.',
   CC_SEM_PERFIL: 'O centro de custo de escopo só se aplica ao perfil Gestor de Diretoria',
   ULTIMO_ADMINISTRADOR: 'O sistema precisa de pelo menos um Administrador ativo',
-  ALTERADO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
+  ALTERADO: MENSAGEM_CONFLITO,
   DESBLOQUEIO_INATIVO: 'O desbloqueio só é possível para usuário bloqueado e ativo',
   RESET_INATIVO: 'Só é possível gerar nova senha para um usuário ativo',
   RESET_BLOQUEADO: 'Desbloqueie o usuário antes de gerar nova senha',

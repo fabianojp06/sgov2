@@ -13,7 +13,7 @@ import {
 import { auditar } from '@/shared/audit';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
-import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
+import { ErroDominio, falha, MENSAGEM_CONFLITO, ok, type Resultado } from '@/shared/kernel';
 import { avaliarFalha } from '../domain/autenticacao';
 import type { LimitadorLogin } from './limite-login';
 import { limitadorLogin } from './limitador';
@@ -29,7 +29,7 @@ const MSG = {
   IGUAL_ATUAL: 'A nova senha deve ser diferente da atual',
   ATUAL_INCORRETA: 'Senha atual incorreta',
   LIMITE: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
-  ALTERADO: 'Este registro foi alterado por outro usuário. Recarregue a tela.',
+  ALTERADO: MENSAGEM_CONFLITO,
 } as const;
 
 // Troca de senha (UC02.19, REQ0039). A voluntária exige a senha atual (D-P5-3), conferida pelo
