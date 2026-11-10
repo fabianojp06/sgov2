@@ -29,6 +29,20 @@ export {
 export { FormAlcada } from './ui/form-alcada';
 export { ListaAlcadas } from './ui/lista-alcadas';
 export { FLUXOS_APROVACAO, MENSAGENS_ALCADA, ROTULO_FLUXO, type FluxoAprovacao } from './domain/alcada';
+export { registrarImpressaoHistorico } from './application/acoes-historico';
+export { consultaDaUrl, lerFiltroHistorico, type ValoresFiltro } from './application/filtro-historico';
+export {
+  consultarHistorico,
+  exportarHistorico,
+  MENSAGEM_EXPORTACAO_LIMITE,
+  registrarImpressao,
+  FUNCIONALIDADE_HISTORICO,
+  MENSAGEM_PERIODO,
+  POR_PAGINA,
+  type FiltroHistorico,
+  type LinhaHistorico,
+  type PaginaHistorico,
+} from './application/historico';
 export {
   alterarUsuario,
   cadastrarUsuario,
@@ -47,6 +61,8 @@ export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { esquemaUsuario, MENSAGENS_USUARIO, type EntradaUsuario } from './domain/usuario';
 export { validarSenha, type PoliticaSenha } from './domain/politica-senha';
 export { FormUsuario } from './ui/form-usuario';
+export { BotaoImprimir } from './ui/botao-imprimir';
+export { TelaHistorico } from './ui/tela-historico';
 export { ListaUsuarios } from './ui/lista-usuarios';
 export { seedAdministradorInicial } from './infrastructure/admin-inicial';
 export { gerarSenhaTemporaria } from './infrastructure/gerar-senha';

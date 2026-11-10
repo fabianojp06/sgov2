@@ -105,10 +105,12 @@ describe('exibirNoMenu', () => {
     await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', false)]));
     const ctx = await logado('duda', 'AUDITOR', []);
     expect(ctx.permissoes.has('cad.oculta:consultar')).toBe(true);
-    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app }))).toEqual(['cad.visivel']);
+    // O Auditor também tem adm.historico (US-040): o teste olha só as funcionalidades daqui.
+    const doTeste = (t: Awaited<ReturnType<typeof carregarTelaPrincipal>>) => codigosDoMenu(t).filter((c) => c.startsWith('cad.'));
+    expect(doTeste(await carregarTelaPrincipal(ctx, { cliente: app }))).toEqual(['cad.visivel']);
 
     await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', true)]));
-    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).sort()).toEqual(['cad.oculta', 'cad.visivel']);
+    expect(doTeste(await carregarTelaPrincipal(ctx, { cliente: app })).sort()).toEqual(['cad.oculta', 'cad.visivel']);
   });
 });
 
