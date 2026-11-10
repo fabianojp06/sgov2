@@ -44,6 +44,9 @@ export type PropsGradeArvore<C extends string = string> = {
   // Hash do sessaoUid (R18), calculado no servidor; nunca o sessaoUid cru, que leva o IP para o HTML
   // e para o storage. Sem ele, os filtros não são retidos.
   escopoSessao?: string;
+  // Avisa os filtros em uso (inclusive os restaurados da sessão): a exportação da tela leva os mesmos
+  // filtros (US-024). Opcional.
+  aoMudarFiltros?: (valores: ValoresFiltro) => void;
 };
 
 // Constante: sem ela, o padrão [] seria um array novo a cada render.
@@ -61,6 +64,7 @@ export function GradeArvore<C extends string = string>({
   alturaVisivel = ALTURA_VISIVEL_PADRAO,
   filtros = SEM_FILTROS as readonly DefinicaoFiltro<C>[],
   escopoSessao,
+  aoMudarFiltros,
 }: PropsGradeArvore<C>) {
   const [abertos, setAbertos] = useState(() => expansaoInicial(nos, expandidos));
   const [, iniciarTransicao] = useTransition();
@@ -68,6 +72,7 @@ export function GradeArvore<C extends string = string>({
   const [erroFiltro, setErroFiltro] = useState<string | null>(null);
   // Filtro inválido mostra a mensagem e mantém o resultado anterior (UC0.01 A3).
   const filtrado = useMemo(() => aplicarFiltros(nos, filtros, valores), [nos, filtros, valores]);
+  useEffect(() => aoMudarFiltros?.(valores), [valores, aoMudarFiltros]);
   // Uma fonte de verdade para a expansão: o que a busca abre entra em `abertos` (sem ir para o
   // storage), e o usuário recolhe normalmente; aria-expanded, botão e teclado leem o mesmo conjunto.
   const linhas = useMemo(() => visiveis(filtrado.nos, abertos), [filtrado.nos, abertos]);
