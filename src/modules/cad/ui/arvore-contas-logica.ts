@@ -1,5 +1,5 @@
 // Filtros das consultas em árvore do plano de contas e dos centros de custo (US-044 e US-046).
-import type { DefinicaoFiltro } from '@/modules/ger';
+import type { DefinicaoFiltro, FormatoArquivo, ValoresFiltro } from '@/modules/ger';
 import type { ColunaCc, ColunaConta } from '../domain/arvore-tela';
 
 // Busca por código (classificação), reduzido e descrição (US-044).
@@ -31,3 +31,11 @@ export const FILTROS_CC: readonly DefinicaoFiltro<ColunaCc>[] = [
     ],
   },
 ];
+
+/** Link da exportação com o que a tela mostra: formato, "mostrar inativos" e os filtros com valor (US-024). */
+export function hrefExportacao(base: string, formato: FormatoArquivo, inativos: boolean, valores: ValoresFiltro): string {
+  const q = new URLSearchParams({ formato });
+  if (inativos) q.set('inativos', '1');
+  for (const [id, v] of Object.entries(valores)) if (typeof v === 'string' && v.trim() !== '') q.set(id, v);
+  return `${base}?${q.toString()}`;
+}

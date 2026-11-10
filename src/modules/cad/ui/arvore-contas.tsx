@@ -5,7 +5,7 @@ import { FILTROS_CONTAS } from './arvore-contas-logica';
 import { ArvoreEstrutura } from './arvore-estrutura';
 
 // Consulta do plano de contas em árvore, só leitura (US-044).
-export function ArvoreContas({ nos, escopoSessao }: { nos: readonly NoContaTela[]; escopoSessao: string }) {
+export function ArvoreContas({ nos, escopoSessao, exportar }: { nos: readonly NoContaTela[]; escopoSessao: string; exportar?: string }) {
   return (
     <ArvoreEstrutura<ColunaConta>
       idGrade="cad.plano_contas"
@@ -23,6 +23,7 @@ export function ArvoreContas({ nos, escopoSessao }: { nos: readonly NoContaTela[
       filtros={FILTROS_CONTAS}
       escopoSessao={escopoSessao}
       textoVazio={textoVazioContas(nos)}
+      {...(exportar ? { exportar } : {})}
     />
   );
 }

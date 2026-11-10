@@ -6,7 +6,7 @@ import { ArvoreEstrutura } from './arvore-estrutura';
 
 // Consulta dos centros de custo em árvore, só leitura (US-046 parte 2): o reduzido ao lado da
 // classificação e os selos de gestão (R17) e de provisório (GAP-CC-001).
-export function ArvoreCc({ nos, escopoSessao }: { nos: readonly NoCcTela[]; escopoSessao: string }) {
+export function ArvoreCc({ nos, escopoSessao, exportar }: { nos: readonly NoCcTela[]; escopoSessao: string; exportar?: string }) {
   return (
     <ArvoreEstrutura<ColunaCc>
       idGrade="cad.centros_custo"
@@ -25,6 +25,7 @@ export function ArvoreCc({ nos, escopoSessao }: { nos: readonly NoCcTela[]; esco
       filtros={FILTROS_CC}
       escopoSessao={escopoSessao}
       textoVazio={textoVazioCc(nos)}
+      {...(exportar ? { exportar } : {})}
     />
   );
 }

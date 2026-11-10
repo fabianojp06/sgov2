@@ -9,13 +9,11 @@ export default async function PlanoContas() {
     <div>
       <h1>Plano de Contas</h1>
       {ctx.permissoes.has('cad.plano_contas:executar') && <a href="/cad/plano-contas/importar">Importar arquivo</a>}
-      {ctx.permissoes.has('cad.plano_contas:exportar') && (
-        <p>
-          Exportar: <a href="/cad/plano-contas/exportar?formato=xlsx">XLSX</a> · <a href="/cad/plano-contas/exportar?formato=csv">CSV</a> (com os inativos: <a href="/cad/plano-contas/exportar?formato=xlsx&inativos=1">XLSX</a> ·{' '}
-          <a href="/cad/plano-contas/exportar?formato=csv&inativos=1">CSV</a>)
-        </p>
-      )}
-      <ArvoreContas nos={nos} escopoSessao={escopoDaSessao(ctx)} />
+      <ArvoreContas
+        nos={nos}
+        escopoSessao={escopoDaSessao(ctx)}
+        {...(ctx.permissoes.has('cad.plano_contas:exportar') ? { exportar: '/cad/plano-contas/exportar' } : {})}
+      />
     </div>
   );
 }

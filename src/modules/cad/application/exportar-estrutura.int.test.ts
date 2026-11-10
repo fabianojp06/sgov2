@@ -92,7 +92,8 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     await wb.xlsx.load(Buffer.from(r.valor) as unknown as ArrayBuffer);
     const ws = wb.getWorksheet('Centros de custo')!;
     expect(ws.getRow(1).getCell(1).value).toBe('Centros de custo');
-    expect(ws.getRow(6).values).toEqual([undefined, 'Classificação', 'Reduzido', 'Descrição', 'Nível', 'Tipo', 'De gestão', 'Provisório', 'Situação']);
+    // As colunas da tela (com os selos de gestão e de provisório numa coluna só).
+    expect(ws.getRow(6).values).toEqual([undefined, 'Classificação', 'Reduzido', 'Descrição', 'Nível', 'Tipo', 'Selos', 'Situação']);
     expect(ws.rowCount).toBe(6 + ccMinuta.length);
     expect(ws.headerFooter.oddFooter).toMatch(/^&Lgfin&RRastreio [0-9a-f-]{36}$/);
     const rastreio = /^&Lgfin&RRastreio ([0-9a-f-]{36})$/.exec(ws.headerFooter.oddFooter!)![1];
@@ -100,6 +101,34 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
       registro_id: rastreio,
       depois: { formato: 'xlsx', registros: ccMinuta.length, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
     });
+  });
+
+  it('os filtros da tela (busca e tipo): a mesma regra da grade, no cabeçalho e no Histórico', async () => {
+    const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false, filtros: { tipo: 'Analítica', busca: 'salário', outro: 'ignorado' } }, { cliente: app });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    const l = linhasCsv(r.valor);
+    expect(l[1]).toBe('"Filtros: Inativos: não incluídos; Buscar por classificação, reduzido ou descrição: salário; Tipo: Analítica"');
+    const dados = l.slice(6).filter(Boolean);
+    // A regra da grade (aplicarFiltros, M5 do #222): quem casa pela busca leva a subárvore, que passa
+    // pelo tipo; os ancestrais sintéticos ficam como caminho até as analíticas.
+    const linhas = dados.map((d) => {
+      const [classificacao, , descricao, , tipo] = d.split('";"').map((c) => c.replace(/"/g, ''));
+      return { classificacao: classificacao!, descricao: descricao!, tipo: tipo! };
+    });
+    const analiticas = linhas.filter((x) => x.tipo === 'Analítica');
+    const casa = (x: { descricao: string }) => /salário/i.test(x.descricao);
+    const ancestrais = (c: string) => linhas.filter((x) => c.startsWith(`${x.classificacao}.`));
+    expect(analiticas.length).toBeGreaterThan(0);
+    expect(analiticas.every((x) => casa(x) || ancestrais(x.classificacao).some(casa))).toBe(true);
+    expect(linhas.filter((x) => x.tipo !== 'Analítica').every((x) => x.tipo === 'Sintética' && analiticas.some((y) => y.classificacao.startsWith(`${x.classificacao}.`)))).toBe(true);
+    expect((await ultimaExportacao('cad.plano_contas')).depois.registros).toBe(dados.length);
+  });
+
+  it('filtro com valor inválido: recusado antes de gerar, sem Histórico', async () => {
+    const antes = await ultimaExportacao('cad.plano_contas');
+    const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false, filtros: { tipo: 'Qualquer' } }, { cliente: app });
+    expect(!r.ok && r.erros.map((e) => e.campo)).toEqual(['tipo']);
+    expect(await ultimaExportacao('cad.plano_contas')).toEqual(antes);
   });
 
   it('sem a permissão de exportar: ErroPermissao, sem arquivo nem Histórico', async () => {
