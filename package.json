@@ -25,6 +25,7 @@
     "worker:start": "node --import tsx worker/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
     "@node-rs/argon2": "2.2.2",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
@@ -33,6 +34,7 @@
     "exceljs": "4.4.0",
     "next": "16.4.3",
     "nodemailer": "10.1.7",
+    "pdf-lib": "1.17.1",
     "pg-boss": "12.38.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
