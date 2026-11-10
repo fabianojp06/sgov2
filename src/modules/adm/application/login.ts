@@ -135,3 +135,21 @@ export async function obterUsuarioParaSessao(
     }
   );
 }
+
+// Destinatários do alerta de tentativas de acesso (US-027, REQ0040): usuários ativos, sem bloqueio e
+// com e-mail cadastrado que tenham o perfil ADMINISTRADOR ativo. Ordem por nome, para o envio ser
+// estável.
+export type AdministradorParaAlerta = { id: string; nome: string; email: string };
+
+export function listarAdministradoresParaAlerta(tx: TxCliente): Promise<AdministradorParaAlerta[]> {
+  return tx.usuario.findMany({
+    where: {
+      ativo: true,
+      bloqueado: false,
+      email: { not: '' },
+      perfis: { some: { perfil: { codigo: 'ADMINISTRADOR', ativo: true } } },
+    },
+    select: { id: true, nome: true, email: true },
+    orderBy: [{ nome: 'asc' }, { id: 'asc' }],
+  });
+}

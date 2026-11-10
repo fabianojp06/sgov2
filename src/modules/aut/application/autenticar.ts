@@ -14,10 +14,12 @@ import {
   zerarFalhasLogin,
   type UsuarioParaLogin,
 } from '@/modules/adm';
+import { enviarEmail } from '@/modules/ger';
 import { auditar } from '@/shared/audit';
 import { prisma, type TxCliente } from '@/shared/db';
 import { avaliarAntesDaSenha, avaliarFalha } from '../domain/autenticacao';
 import { MENSAGENS } from '../domain/mensagens';
+import { notificarAlertaTentativas, type AlertaTentativas } from './alerta-tentativas';
 import { emitirSessao } from './sessao';
 
 export type MotivoNegacao = 'ENTRADA' | 'MANUTENCAO' | 'CREDENCIAIS' | 'BLOQUEADO' | 'SENHA_EXPIRADA' | 'FALHA_SESSAO';
@@ -27,7 +29,8 @@ export type ResultadoLogin =
   | { ok: false; motivo: MotivoNegacao; mensagem: string; avisoUltimaTentativa: boolean; contaFalha: boolean };
 
 // conferirSenha injetável: os testes contam as conferências (tempo constante, D-P8-3a).
-export type DepsAut = { cliente: PrismaClient; agora: () => Date; conferirSenha: typeof conferirSenha };
+// enviarEmail injetável: o alerta de tentativas aos administradores (US-027).
+export type DepsAut = { cliente: PrismaClient; agora: () => Date; conferirSenha: typeof conferirSenha; enviarEmail: typeof enviarEmail };
 
 export { MENSAGENS };
 
@@ -109,8 +112,6 @@ async function criarSessao(
   return { token, expiraEm };
 }
 
-type Alerta = { usuarioId: string; tentativas: number; bloqueado: boolean };
-
 // Autenticação (UC01.02) em duas fases. Com a recuperação pela tela de login (US-029), a temporária
 // convive com a senha vigente (D-P8-2): a fase 1 confere sempre as duas, completando com o hash
 // fictício, para ter ou não uma temporária pendente (ou existir ou não o login) não mudar o tempo
@@ -159,7 +160,7 @@ export async function autenticar(
     }
 
     // Fase 2.
-    const { resultado, alerta } = await cliente.$transaction(async (tx): Promise<{ resultado: ResultadoLogin; alerta?: Alerta }> => {
+    const { resultado, alerta } = await cliente.$transaction(async (tx): Promise<{ resultado: ResultadoLogin; alerta?: AlertaTentativas }> => {
       let config = await obterConfiguracaoAcesso(tx);
       // Manutenção ligada direto no banco (sem instante): fixa o instante antes de emitir a sessão, para
       // a do Administrador (criada agora) não cair na efetivação da requisição seguinte (US-036).
@@ -209,7 +210,7 @@ export async function autenticar(
         if (f.bloquear) {
           await auditarTentativa(tx, t, `Usuário ${u.login} bloqueado após ${f.novoContador} tentativas malsucedidas`);
         }
-        const alerta = f.alertar || f.bloquear ? { usuarioId: u.id, tentativas: f.novoContador, bloqueado: f.bloquear } : undefined;
+        const alerta = f.alertar || f.bloquear ? { usuarioId: u.id, nome: u.nome, login: u.login, tentativas: f.novoContador, bloqueado: f.bloquear } : undefined;
         return { resultado: negar('CREDENCIAIS', MENSAGENS.CREDENCIAIS, f.ultimaTentativa, true), ...(alerta ? { alerta } : {}) };
       }
       if (u.senhaExpiraEm && u.senhaExpiraEm.getTime() <= agora.getTime()) {
@@ -220,9 +221,12 @@ export async function autenticar(
       const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras, config.inatividadeMin);
       return { resultado: { ok: true, ...sessao, trocaSenhaObrigatoria: u.trocaSenhaObrigatoria } };
     });
-    // Só depois do commit: o alerta ao Administrador por e-mail (REQ0040) está fora da trilha
-    // (D-P5-1) e fica no log.
-    if (alerta) console.warn('[LOGIN_TENTATIVAS]', alerta);
+    // Só depois do commit (REQ0040, US-027): o log e o e-mail aos administradores, pelo outbox, numa
+    // transação própria. O e-mail nunca lança: uma falha nele não desfaz a tentativa nem muda a resposta.
+    if (alerta) {
+      console.warn('[LOGIN_TENTATIVAS]', { usuarioId: alerta.usuarioId, tentativas: alerta.tentativas, bloqueado: alerta.bloqueado });
+      await notificarAlertaTentativas(alerta, agora, { cliente, enviarEmail: deps.enviarEmail ?? enviarEmail });
+    }
     return resultado;
   } catch (erro) {
     // E5: nada foi gravado. Só o nome e o código do erro vão ao log: a mensagem do Prisma pode

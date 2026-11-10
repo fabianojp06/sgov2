@@ -12,11 +12,13 @@ export {
   carregarPermissoes,
   gravarRecuperacao,
   limparRecuperacao,
+  listarAdministradoresParaAlerta,
   obterUsuarioParaSessao,
   registrarFalhaLogin,
   travarUsuarioParaLogin,
   travarUsuarioPorId,
   zerarFalhasLogin,
+  type AdministradorParaAlerta,
   type UsuarioParaLogin,
 } from './application/login';
 export { gravarNovaSenha } from './application/senhas';
