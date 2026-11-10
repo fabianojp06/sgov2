@@ -125,7 +125,8 @@ describe('autenticar: entrada e credenciais', () => {
   it('inexistente: CREDENCIAIS, hash fictício, Histórico LOGIN com usuário nulo e o login normalizado', async () => {
     conferencias.total = 0;
     expect(await entrar('Ninguem')).toMatchObject({ ok: false, motivo: 'CREDENCIAIS', contaFalha: true });
-    expect(conferencias.total).toBe(1);
+    // Duas conferências em todo caminho que confere (vigente e temporária, ou o fictício duas vezes, D-P8-3a).
+    expect(conferencias.total).toBe(2);
     const [h] = await historico({ usuarioRotulo: 'ninguem' });
     expect(h).toMatchObject({ tipoOperacao: 'LOGIN', usuarioId: null, funcionalidade: 'aut.login' });
   });

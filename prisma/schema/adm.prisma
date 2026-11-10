@@ -72,6 +72,9 @@ model Usuario {
   senhaHash             String            @map("senha_hash")
   trocaSenhaObrigatoria Boolean           @default(true) @map("troca_senha_obrigatoria")
   senhaExpiraEm         DateTime?         @map("senha_expira_em") @db.Timestamptz(6)
+  // Recuperação pela tela de login (US-029, D-P8-2): convive com a senha vigente até ser usada.
+  recuperacaoHash       String?           @map("recuperacao_hash")
+  recuperacaoExpiraEm   DateTime?         @map("recuperacao_expira_em") @db.Timestamptz(6)
   // CC raiz de escopo do Gestor de Diretoria (C25, R8): classificação do CC, validada no P6.
   ccEscopo              String?           @map("cc_escopo")
   // Incrementado quando o acesso muda (perfis, inativação, reset, desbloqueio): derruba as sessões.

@@ -1,15 +1,42 @@
 'use client';
 
 import { useState, useTransition, type FormEvent } from 'react';
-import { aoCancelar, enviarLogin, validarCampos, type CamposLogin, type RespostaLogin } from './validar-login';
+import { aoCancelar, enviarLogin, MENSAGEM_REDE, validarCampos, type CamposLogin, type RespostaLogin } from './validar-login';
 
 // Tela de login (UC01.01). Os campos ficam só na memória do componente (RNF0002); a senha é
 // mascarada (RN0515). A ação vem do servidor por props, para a tela não importar código de servidor.
-export function FormLogin({ entrar }: { entrar: (dados: CamposLogin) => Promise<RespostaLogin> }) {
+// Esqueci minha senha (US-029): usa o login digitado; a resposta (sempre a mesma, RN0516) aparece
+// em role="status".
+export function FormLogin({
+  entrar,
+  recuperar,
+}: {
+  entrar: (dados: CamposLogin) => Promise<RespostaLogin>;
+  recuperar?: (dados: { login: string }) => Promise<{ ok: true; valor: { mensagem: string } } | { ok: false; erros: readonly { mensagem: string }[] }>;
+}) {
   const [campos, setCampos] = useState<CamposLogin>({ login: '', senha: '' });
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, iniciar] = useTransition();
+  const [recuperacao, setRecuperacao] = useState<string | null>(null);
+
+  function pedirNovaSenha() {
+    setRecuperacao(null);
+    if (!recuperar) return;
+    if (campos.login.trim() === '') {
+      setMensagem('O campo Login é obrigatório para redefinir a senha');
+      return;
+    }
+    iniciar(async () => {
+      try {
+        const r = await recuperar({ login: campos.login });
+        setMensagem(null);
+        setRecuperacao(r.ok ? r.valor.mensagem : (r.erros[0]?.mensagem ?? null));
+      } catch {
+        setMensagem(MENSAGEM_REDE);
+      }
+    });
+  }
 
   function enviar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -62,6 +89,12 @@ export function FormLogin({ entrar }: { entrar: (dados: CamposLogin) => Promise<
       >
         Cancelar
       </button>
+      {recuperar && (
+        <button type="button" onClick={pedirNovaSenha} disabled={enviando}>
+          Esqueci minha senha
+        </button>
+      )}
+      <p role="status">{recuperacao}</p>
     </form>
   );
 }
