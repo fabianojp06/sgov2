@@ -19,6 +19,36 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'incluir', 'alterar'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar'] },
   },
+  {
+    // US-042 (§11.4, §6.4: Administração › Parâmetros › Alçadas de Aprovação), exclusivo do Administrador.
+    codigo: 'adm.alcadas',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Parâmetros',
+    nome: 'Alçadas de Aprovação',
+    rota: '/adm/alcadas',
+    ordem: 2,
+    ajuda:
+      'Cadastre o titular e o substituto de cada fluxo de aprovação. O substituto assume quando o titular está inativo; ' +
+      'trocar um aprovador ou excluir mantém o registro de quem aprovava em cada período.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar', 'excluir'] },
+  },
+  {
+    // US-040 (UC02.24; spec §6.4: Administração › Histórico). Nível Avançado: a consulta é registrada.
+    // O Auditor também consulta (§11.3), na única exceção da RN_SEED_003 (D-P8-8).
+    codigo: 'adm.historico',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Histórico',
+    nome: 'Histórico de Operações',
+    rota: '/adm/historico',
+    ordem: 3,
+    nivelLog: 'AVANCADO',
+    ajuda:
+      'Consulte as operações registradas no sistema, por usuário, funcionalidade, tipo e período. ' +
+      'A consulta é só de leitura; dá para imprimir e exportar o resultado.',
+    acoes: ['consultar', 'exportar', 'imprimir'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'exportar', 'imprimir'], AUDITOR: ['consultar', 'exportar', 'imprimir'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {

@@ -35,7 +35,9 @@ export function SeletorUnidade({
             iniciar(async () => {
               const r = await trocar({ unidadeId });
               if (r.ok) return;
-              if (r.status === 401) window.location.replace('/login');
+              // Sem sessão: recarrega, e a guarda da página manda para o login (com o aviso da RN0519
+              // quando a sessão foi encerrada por novo acesso, US-028).
+              if (r.status === 401) window.location.reload();
               else setErro(r.erros[0]?.mensagem ?? 'Não foi possível trocar o TP.');
             });
           }}
