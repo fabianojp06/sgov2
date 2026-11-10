@@ -384,7 +384,7 @@
   - **P7, Task 3:** o gerador dos 5 exercícios (depois da resposta da frente A) e a medição da Tree Grid sobre o plano de 5.000 linhas (`ops/carga/gerar-plano.ts`, #341). Atenção: a seed com `CARGA_DADOS_REFERENCIA=1` inativa o ramo `9` (README da carga);
   - **P7, Task 4:** o ZAP (ativo no dev local, com o ok do PO, porque pesa na VPS; *baseline* em hml, depois da Tarefa 6 do P3);
   - **US-024 (#46), o que falta:**
-    - depois do #354: o aviso por e-mail de "arquivo pronto" e o PDF (ISO 32000-1);
+    - depois do #354: o aviso de "arquivo pronto" fora da tela (e-mail, recomendação da frente B: a US-024 só diz "aviso", e a tela já avisa) e o PDF (ISO 32000-1);
     - testes pendentes da revisão: o log do handler `exportacao.gerar` no `servidor.test.ts`, o teto de 100.000 linhas e o timeout;
     - decisões provisórias do #354: teto de 100.000 linhas, 7 dias de disponibilidade, pendente há mais de 2 h vira falha, no máximo 3 pedidos em geração por pessoa, limpeza no worker a cada 15 min e a tela `/rel/exportacoes` com `consultar` para todos os perfis;
   - Tasks 5 a 7 do P7: dependem da Tarefa 6 do P3 (GAP-INF-001).
