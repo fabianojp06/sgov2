@@ -23,10 +23,11 @@ const exportado = (s: ts.Statement) =>
 const chamada = (e: ts.Expression | undefined, nome: string) =>
   e !== undefined && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && e.expression.text === nome;
 
-// Ação pública (sem sessão, R4 do plano do P5): só o login pode ter, e só a ação `entrar`.
+// Ação pública (sem sessão, R4 do plano do P5): só o login pode ter, e só as ações `entrar` e
+// `solicitarRecuperacaoSenha` (US-029, Task 2 do plano P8).
 const ACAO_PUBLICA = 'definirAcaoPublica';
 const ARQUIVO_ACAO_PUBLICA = 'src/modules/aut/application/acoes-login.ts';
-const NOME_ACAO_PUBLICA = 'entrar';
+const NOMES_ACAO_PUBLICA: ReadonlySet<string> = new Set(['entrar', 'solicitarRecuperacaoSenha']);
 // Onde o identificador pode aparecer: a ação do login e a própria definição em @/shared/authz.
 const PODE_CITAR_ACAO_PUBLICA = new Set([
   ARQUIVO_ACAO_PUBLICA,
@@ -88,13 +89,13 @@ function citaIdentificador(arquivo: ts.SourceFile, nome: string): boolean {
   return achou;
 }
 
-// Ações públicas exportadas com outro nome além de `entrar`.
+// Ações públicas exportadas com outro nome além dos permitidos.
 function acoesPublicasExtras(arquivo: ts.SourceFile): string[] {
   return arquivo.statements.flatMap((s) =>
     ts.isVariableStatement(s) && exportado(s)
       ? s.declarationList.declarations
-          .filter((d) => chamada(d.initializer, ACAO_PUBLICA) && !(ts.isIdentifier(d.name) && d.name.text === NOME_ACAO_PUBLICA))
-          .map((d) => `${d.name.getText(arquivo)}: a única ação pública é ${NOME_ACAO_PUBLICA}`)
+          .filter((d) => chamada(d.initializer, ACAO_PUBLICA) && !(ts.isIdentifier(d.name) && NOMES_ACAO_PUBLICA.has(d.name.text)))
+          .map((d) => `${d.name.getText(arquivo)}: as únicas ações públicas são ${[...NOMES_ACAO_PUBLICA].join(' e ')}`)
       : [],
   );
 }
@@ -227,10 +228,10 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
       'definirAcaoPublica só em src/modules/aut/application/acoes-login.ts',
     ]);
   });
-  it('acoes-login.ts só exporta entrar como ação pública', () => {
-    const texto = `'use server';\nexport const entrar = definirAcaoPublica(1);\nexport const resetar = definirAcaoPublica(2);`;
+  it('acoes-login.ts só exporta entrar e solicitarRecuperacaoSenha como ações públicas', () => {
+    const texto = `'use server';\nexport const entrar = definirAcaoPublica(1);\nexport const solicitarRecuperacaoSenha = definirAcaoPublica(2);\nexport const resetar = definirAcaoPublica(3);`;
     expect(problemasDeAcao(texto, 'src/modules/aut/application/acoes-login.ts')).toEqual([
-      'resetar: a única ação pública é entrar',
+      'resetar: as únicas ações públicas são entrar e solicitarRecuperacaoSenha',
     ]);
   });
   it('definirAcaoPublica citado fora do lugar, mesmo sem use server', () => {
