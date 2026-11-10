@@ -45,12 +45,15 @@ describe('seedCad', () => {
     expect(perms.map((x) => `${x.perfil}:${x.acao}`)).toEqual([
       'ANALISTA_GRH:consultar',
       'AUDITOR:consultar',
+      'AUDITOR:exportar',
       'DIREX:consultar',
       'GESTOR_DIRETORIA:consultar',
       'GFIN:consultar',
       'GFIN:executar',
+      'GFIN:exportar',
       'OPERADOR_VIAGENS:consultar',
       'ORCAMENTISTA:consultar',
+      'ORCAMENTISTA:exportar',
     ]);
   });
 });

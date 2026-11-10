@@ -21,13 +21,13 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     ajuda:
       'Consulte o plano de contas de 5 níveis. A estrutura só muda pela importação da planilha .xlsx (não há inclusão nem ' +
       'alteração manual): o arquivo é validado inteiro, e qualquer erro o reprova sem gravar nada.',
-    acoes: ['consultar', 'executar'],
+    acoes: ['consultar', 'exportar', 'executar'],
     perfisPadrao: {
-      GFIN: ['consultar', 'executar'],
-      ORCAMENTISTA: ['consultar'],
+      GFIN: ['consultar', 'exportar', 'executar'],
+      ORCAMENTISTA: ['consultar', 'exportar'],
       ANALISTA_GRH: ['consultar'],
       OPERADOR_VIAGENS: ['consultar'],
-      AUDITOR: ['consultar'],
+      AUDITOR: ['consultar', 'exportar'],
       GESTOR_DIRETORIA: ['consultar'],
       DIREX: ['consultar'],
     },
@@ -43,13 +43,13 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     ajuda:
       'Consulte os centros de custo de 5 níveis, com o reduzido e os selos de gestão e de provisório. A estrutura só muda pela ' +
       'importação da planilha .xlsx, e a carga só entra com a data e o documento da aprovação da DIREX.',
-    acoes: ['consultar', 'executar'],
+    acoes: ['consultar', 'exportar', 'executar'],
     perfisPadrao: {
-      GFIN: ['consultar', 'executar'],
-      ORCAMENTISTA: ['consultar'],
+      GFIN: ['consultar', 'exportar', 'executar'],
+      ORCAMENTISTA: ['consultar', 'exportar'],
       ANALISTA_GRH: ['consultar'],
       OPERADOR_VIAGENS: ['consultar'],
-      AUDITOR: ['consultar'],
+      AUDITOR: ['consultar', 'exportar'],
       GESTOR_DIRETORIA: ['consultar'],
       DIREX: ['consultar'],
     },
@@ -71,7 +71,7 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
       GFIN: ['consultar', 'exportar'],
       ORCAMENTISTA: ['consultar', 'exportar'],
       AUDITOR: ['consultar', 'exportar'],
-      DIREX: ['consultar', 'exportar'],
+      DIREX: ['consultar'],
     },
   },
   {
