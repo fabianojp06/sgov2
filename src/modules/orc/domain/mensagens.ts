@@ -86,4 +86,13 @@ export const MENSAGENS_ORC = {
   RECALCULO_BARROU_PACOTE: 'O pacote não foi gravado: o recálculo do orçamento encontrou erro em outro lançamento do exercício.',
   PACOTES_DA_TELA_MANTIDOS: (cc: string, n: number) => `O CC ${cc} mantém ${n} pacote(s) lançado(s) pela tela.`,
   CONFIRMA_EXCLUSAO_PACOTE: (conta: string, cc: string) => `Deseja realmente excluir o pacote da conta ${conta} do CC ${cc}?`,
+  // Posições de pessoal pela tela (US-056; plano do P12) [PROVISÓRIOS]. Premissas mudadas: a mesma
+  // PREMISSAS_DESATUALIZADAS_PACOTE (D-P12-5), que não cita o pacote.
+  POSICAO_DA_IMPORTACAO: 'Esta posição não foi lançada pela tela: uma nova importação deste CC a substitui.',
+  CC_POSICAO_FORA_DAS_OPCOES: (cc: string) => `O CC ${cc} não está mais disponível para posição; escolha outro.`,
+  POSICAO_INEXISTENTE: 'Posição não encontrada.',
+  RECALCULO_BARROU_POSICAO: 'A posição não foi gravada: o recálculo do orçamento encontrou erro em outro lançamento do exercício.',
+  POSICOES_DA_TELA_MANTIDAS: (cc: string, n: number) => `O CC ${cc} mantém ${n} posição(ões) lançada(s) pela tela.`,
+  CONFIRMA_EXCLUSAO_POSICAO: (cargo: string, cc: string) => `Deseja realmente excluir a posição ${cargo} do CC ${cc}?`,
+  PREVIA_POSICAO_INCOMPLETA: 'Preencha a quantidade, o salário mensal e os meses de início e de saída para ver a prévia.',
 } as const;

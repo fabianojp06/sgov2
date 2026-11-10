@@ -5,6 +5,7 @@ import {
   COLUNAS_PESSOAL,
   COLUNAS_RECEITAS,
   lerValor,
+  validarLinhaPosicao,
   validarPlanilha,
   validarReceita,
   type ConsultaEstrutura,
@@ -264,5 +265,32 @@ describe('validarPlanilha: acúmulo', () => {
   it('erros de abas diferentes, ordenados por aba e linha', () => {
     const r = validar({ receitas: [receita(7, { Situação: null })], pessoal: [pessoal(9, { Cargo: null })], pacotes: [pacote(3, { Prioridade: null })] });
     expect(erros(r).map((e) => e.split(':').slice(0, 2).join(':'))).toEqual(['Pessoal:9', 'Pacotes base zero:3', 'Receitas:7']);
+  });
+});
+
+describe('validarLinhaPosicao (tela, US-056)', () => {
+  it('posição válida: os dados sem o número da linha; observação vazia vira null', () => {
+    expect(validarLinhaPosicao(pessoal(0).celulas, estrutura, LIMITES)).toEqual({
+      ok: true,
+      valor: { cc: '4.4', cargo: 'Analista de orçamento', quantidade: 2, salarioMensal: Dinheiro.de('7500'), mesInicio: 1, mesSaida: 12, observacao: null },
+    });
+  });
+
+  it('erros com o nome da coluna como campo, nas regras da aba Pessoal', () => {
+    const r = validarLinhaPosicao(
+      pessoal(0, { 'CC analítico': '4.3.2.10', Cargo: '', Quantidade: '0', 'Salário mensal (R$)': '1000000', 'Mês de início (1–12)': '9', 'Mês de saída (1–12)': '3' }).celulas,
+      estrutura,
+      LIMITES,
+    );
+    expect(r).toEqual({
+      ok: false,
+      erros: [
+        { campo: 'CC analítico', mensagem: 'CC fora do seu escopo.' },
+        { campo: 'Cargo', mensagem: 'Cargo obrigatório.' },
+        { campo: 'Quantidade', mensagem: 'Quantidade inteira, de 1 a 9.999.' },
+        { campo: 'Salário mensal (R$)', mensagem: 'Salário mensal precisa ser menor que R$ 1.000.000,00.' },
+        { campo: 'Mês de início (1–12)', mensagem: 'Mês de início depois do mês de saída.' },
+      ],
+    });
   });
 });

@@ -4,12 +4,15 @@ export { aprovarAcao, enviarAcao, rejeitarAcao } from './application/acoes-aprov
 export { importarPlanilhaAcao } from './application/acoes-importacao';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
+export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
 export { obterVisaoExercicio, type VisaoExercicio } from './application/consolidacao';
 export { listarExercicios, sugerirAno, type ResumoExercicio } from './application/exercicios';
 export { listarPacotes, opcoesPacote, type ListaPacotes, type OpcoesPacote, type PacoteTela } from './application/pacotes';
+export { listarPosicoes, opcoesPosicao, type ListaPosicoes, type OpcoesPosicao, type PosicaoTela } from './application/posicoes';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
+export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
 export { MENSAGENS_ORC } from './domain/mensagens';
 export { FUNCIONALIDADES_ORC, seedOrc } from './infrastructure/seed';
 export { FormReceita, type ReceitaFormulario } from './ui/form-receita';

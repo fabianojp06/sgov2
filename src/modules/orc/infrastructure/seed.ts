@@ -51,13 +51,30 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { GFIN: ['consultar', 'incluir', 'alterar', 'excluir'], DIREX: ['consultar'], AUDITOR: ['consultar'] },
   },
   {
+    // D-P12-2 [PROVISÓRIO]: como os pacotes; o salário só para quem inclui ou altera (D-P12-3).
+    codigo: 'orc.posicoes',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'Posições de pessoal',
+    rota: '/orc/posicoes',
+    ordem: 5,
+    ajuda: 'Lança, altera e exclui as posições de pessoal do orçamento por centro de custo, com a prévia do custo (massa, férias e 13º, encargos, benefícios e anual).',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      GESTOR_DIRETORIA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar', 'incluir', 'alterar', 'excluir'],
+      DIREX: ['consultar'],
+      AUDITOR: ['consultar'],
+    },
+  },
+  {
     // D-P11-1 [PROVISÓRIO]: o Gestor de Diretoria lança nos CCs do escopo; a GFIN, em qualquer CC.
     codigo: 'orc.pacotes',
     modulo: 'ADM_CENTRAL',
     grupo: GRUPO,
     nome: 'Pacotes base zero',
     rota: '/orc/pacotes',
-    ordem: 5,
+    ordem: 6,
     ajuda: 'Lança, altera e exclui os pacotes base zero do orçamento por centro de custo, com a prévia do anual e das 12 parcelas.',
     acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
     perfisPadrao: {
@@ -73,7 +90,7 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     grupo: GRUPO,
     nome: 'Envio e aprovação',
     rota: '/orc/aprovacao',
-    ordem: 6,
+    ordem: 7,
     ajuda: 'A GFIN envia o orçamento para aprovação; a Diretoria Executiva aprova, e oficializa, ou rejeita com justificativa.',
     acoes: ['consultar', 'executar', 'aprovar'],
     perfisPadrao: { GFIN: ['consultar', 'executar'], DIREX: ['consultar', 'aprovar'], AUDITOR: ['consultar'] },

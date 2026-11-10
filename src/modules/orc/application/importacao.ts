@@ -4,6 +4,7 @@ import { QUANTIDADE_MAXIMA } from '@/modules/cad/servidor';
 import { lerPlanilhasSegura, type LinhaPlanilha } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
+import type { TxCliente } from '@/shared/db';
 import { Dinheiro, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { editavel } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
@@ -52,6 +53,20 @@ function errosNoEscopo(erro: ErroRecalculo, ccs: ReadonlySet<string>): ErroCampo
 // Erro de arquivo do leitor: cabeçalho ausente vira a mensagem do layout (R6); o resto, como veio.
 const erroDeArquivo = (aba: Aba, colunas: readonly string[], mensagem: string) =>
   mensagem.startsWith('Cabeçalho não encontrado') ? MENSAGENS_ORC.FORA_DO_LAYOUT(aba, colunas) : mensagem;
+
+// Pacotes e posições da tela que ficaram em cada CC do arquivo, em ordem de CC (só os CCs com algum).
+// Só contagens: nenhum valor nem salário.
+async function mantidosDaTela(tx: TxCliente, exercicioId: string, ccs: readonly string[]): Promise<{ cc: string; pacotes: number; posicoes: number }[]> {
+  const where = { exercicioId, cc: { in: [...ccs] }, origem: 'TELA' };
+  const [pacotes, posicoes] = await Promise.all([
+    tx.pacoteBaseZero.groupBy({ by: ['cc'], where, _count: { _all: true }, orderBy: { cc: 'asc' } }),
+    tx.posicaoOrcada.groupBy({ by: ['cc'], where, _count: { _all: true }, orderBy: { cc: 'asc' } }),
+  ]);
+  const contar = (gs: readonly { cc: string; _count: { _all: number } }[], cc: string) => gs.find((g) => g.cc === cc)?._count._all ?? 0;
+  return ccs
+    .map((cc) => ({ cc, pacotes: contar(pacotes, cc), posicoes: contar(posicoes, cc) }))
+    .filter((g) => g.pacotes + g.posicoes > 0);
+}
 
 export async function importarPlanilha(
   ctx: ContextoRequisicao,
@@ -134,8 +149,9 @@ export async function importarPlanilha(
         data: { exercicioId: e.id, arquivoNome: nomeArquivo, arquivoSha256: sha256, criadoPor: ctx.usuarioId, resumo: { porCc: resumoContagem, receitas: receitas.map((r) => r.tp) } },
       });
       // R7: substitui só os CCs do arquivo (as linhas saem em cascata) e as receitas dos TPs do arquivo.
-      // Os pacotes lançados pela tela (origem TELA) sobrevivem à reimportação (plano do P11).
-      await tx.posicaoOrcada.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs } } });
+      // Os pacotes e as posições lançados pela tela (origem TELA) sobrevivem à reimportação (planos do
+      // P11 e do P12).
+      await tx.posicaoOrcada.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs }, origem: { not: 'TELA' } } });
       await tx.pacoteBaseZero.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs }, origem: { not: 'TELA' } } });
       await tx.posicaoOrcada.createMany({
         data: posicoes.map((p) => ({
@@ -157,8 +173,8 @@ export async function importarPlanilha(
           total: Dinheiro.somarTodos(r.meses).paraString(), importacaoId: importacao.id,
         })),
       });
-      // [PROVISÓRIO] Aviso dos pacotes da tela que ficaram nos CCs do arquivo (D-P11-7).
-      const daTela = await tx.pacoteBaseZero.groupBy({ by: ['cc'], where: { exercicioId: e.id, cc: { in: ccs }, origem: 'TELA' }, _count: { _all: true }, orderBy: { cc: 'asc' } });
+      // [PROVISÓRIO] Aviso dos pacotes e das posições da tela que ficaram nos CCs do arquivo (D-P11-7, D-P12-7).
+      const daTela = await mantidosDaTela(tx, e.id, ccs);
       const recalculo = await recalcularExercicio(tx, e.id, deps);
       // As premissas são relidas no recálculo: uma versão nova gravada entre as duas leituras também desfaz.
       if (escopo.tipo !== 'TOTAL' && e.versaoPremissas !== null && recalculo.versaoPremissas !== e.versaoPremissas) {
@@ -186,7 +202,7 @@ export async function importarPlanilha(
           receitas: receitas.map((r) => r.tp),
           versaoPremissas: recalculo.versaoPremissas,
           linhas: recalculo.linhas,
-          mantidosDaTela: daTela.map((g) => ({ cc: g.cc, pacotes: g._count._all })),
+          mantidosDaTela: daTela,
         },
       });
       return ok({
@@ -195,7 +211,13 @@ export async function importarPlanilha(
         ccs: ccs.length,
         receitas: receitas.length,
         resumoPorCc,
-        mensagem: [MENSAGENS_ORC.IMPORTADA(posicoes.length, pacotes.length, ccs.length, receitas.length), ...daTela.map((g) => MENSAGENS_ORC.PACOTES_DA_TELA_MANTIDOS(g.cc, g._count._all))].join(' '),
+        mensagem: [
+          MENSAGENS_ORC.IMPORTADA(posicoes.length, pacotes.length, ccs.length, receitas.length),
+          ...daTela.flatMap((g) => [
+            ...(g.posicoes > 0 ? [MENSAGENS_ORC.POSICOES_DA_TELA_MANTIDAS(g.cc, g.posicoes)] : []),
+            ...(g.pacotes > 0 ? [MENSAGENS_ORC.PACOTES_DA_TELA_MANTIDOS(g.cc, g.pacotes)] : []),
+          ]),
+        ].join(' '),
       });
     });
   } catch (erro) {
