@@ -16,12 +16,20 @@ const campos = (r: ReturnType<typeof validarUsuario>) => (r.ok ? [] : r.erros.ma
 describe('validarUsuario (UC02.12, UC02.13)', () => {
   it('dados válidos: login aparado, perfis sem repetição e CC vazio vira null', () => {
     const r = validarUsuario({ ...base, login: '  ana.maria ', perfis: ['ORCAMENTISTA', 'ORCAMENTISTA'], ccEscopo: '' });
-    expect(r).toEqual({ ok: true, valor: { ...base, login: 'ana.maria', loginNormalizado: 'ana.maria' } });
+    expect(r).toEqual({ ok: true, valor: { ...base, login: 'ana.maria', loginNormalizado: 'ana.maria', excecoes: [] } });
   });
 
   it('login com maiúsculas é normalizado (RN0518)', () => {
     const r = validarUsuario({ ...base, login: 'Ana.Maria' });
     expect(r.ok && r.valor).toMatchObject({ login: 'Ana.Maria', loginNormalizado: 'ana.maria' });
+  });
+
+  it('exceções: repetidas saem; perfil fora do catálogo ou funcionalidade vazia é recusado (US-039)', () => {
+    const e = { perfil: 'ORCAMENTISTA', funcionalidade: 'cad.centros_custo' };
+    const r = validarUsuario({ ...base, excecoes: [e, { ...e, funcionalidade: ' cad.centros_custo ' }] });
+    expect(r.ok && r.valor.excecoes).toEqual([e]);
+    expect(campos(validarUsuario({ ...base, excecoes: [{ perfil: 'X', funcionalidade: 'cad.um' }] }))).toEqual(['excecoes']);
+    expect(campos(validarUsuario({ ...base, excecoes: [{ perfil: 'GFIN', funcionalidade: ' ' }] }))).toEqual(['excecoes']);
   });
 
   it('sem perfil: erro em perfis (RN0079)', () => {

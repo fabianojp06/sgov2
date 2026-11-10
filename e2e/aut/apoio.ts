@@ -27,6 +27,9 @@ export const USUARIOS = {
   // Cadastro de usuários (e2e/adm/usuarios.spec.ts, US-038).
   cadastro: { login: 'adm.usuarios', nome: 'E2E Administrador Usuários', perfil: 'ADMINISTRADOR' },
   desbloqueio: { login: 'orc.desbloq', nome: 'E2E Orçamentista Desbloqueio', perfil: 'ORCAMENTISTA' },
+  // Exceções de permissão por usuário (e2e/adm/usuarios.spec.ts, US-039).
+  excecoes: { login: 'adm.excecoes', nome: 'E2E Administrador Exceções', perfil: 'ADMINISTRADOR' },
+  orcExcecoes: { login: 'orc.excecoes', nome: 'E2E Orçamentista Exceções', perfil: 'ORCAMENTISTA' },
   // Alçadas de aprovação (e2e/adm/alcadas.spec.ts, US-042).
   alcadas: { login: 'adm.alcadas', nome: 'E2E Administrador Alçadas', perfil: 'ADMINISTRADOR' },
   // Histórico de Operações (e2e/adm/historico.spec.ts, US-040).

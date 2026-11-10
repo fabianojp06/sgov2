@@ -31,7 +31,26 @@ describe('entradaCadastro', () => {
       perfis: ['ORCAMENTISTA', 'GFIN'],
       unidades: [UNIDADE],
       ccEscopo: null,
+      excecoes: [],
     });
+  });
+
+  // Painel "Funcionalidade(s) do Perfil" (US-039): cada funcionalidade exibida vai num campo oculto;
+  // a marcada vai também em "funcionalidades". A exibida e desmarcada é a exceção (REQ0080).
+  it('exceção = funcionalidade exibida e desmarcada, só dos perfis marcados', () => {
+    const r = entradaCadastro.parse(
+      formulario([
+        ...completo(),
+        ['funcionalidadesExibidas', 'ORCAMENTISTA:cad.plano_contas'],
+        ['funcionalidadesExibidas', 'ORCAMENTISTA:cad.centros_custo'],
+        ['funcionalidadesExibidas', 'GFIN:orc.orcamento'],
+        ['funcionalidadesExibidas', 'AUDITOR:cad.plano_contas'],
+        ['funcionalidadesExibidas', 'sem-separador'],
+        ['funcionalidades', 'ORCAMENTISTA:cad.plano_contas'],
+        ['funcionalidades', 'GFIN:orc.orcamento'],
+      ]),
+    );
+    expect(r).toMatchObject({ excecoes: [{ perfil: 'ORCAMENTISTA', funcionalidade: 'cad.centros_custo' }] });
   });
 
   it('checkbox desmarcado (ausente) vira false; sem perfil nem unidade, listas vazias', () => {

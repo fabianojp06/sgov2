@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
 
 // Formulário de cadastro (UC02.12) e alteração (UC02.13) de usuário. Componente cliente: recebe as
@@ -10,7 +11,15 @@ import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/
 export const MENSAGEM_BLOQUEADO = 'Este usuário está bloqueado por excesso de tentativas de acesso sem sucesso.';
 const MENSAGEM_SENHA_RESETADA = 'Nova senha gerada e enviada para o e-mail do usuário.';
 
-type OpcaoPerfil = { codigo: string; nome: string; ativo: boolean };
+type FuncionalidadePerfil = { codigo: string; nome: string };
+// funcionalidades: as que aceitam exceção (checkbox); fixas: as da Administração, sem checkbox.
+type OpcaoPerfil = {
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+  funcionalidades?: readonly FuncionalidadePerfil[];
+  fixas?: readonly FuncionalidadePerfil[];
+};
 type OpcaoUnidade = { id: string; nome: string; ativo: boolean };
 
 export type UsuarioFormulario = {
@@ -23,6 +32,7 @@ export type UsuarioFormulario = {
   perfis: readonly string[];
   unidades: readonly string[];
   ccEscopo: string | null;
+  excecoes?: readonly { perfil: string; funcionalidade: string }[];
   versao: number;
 };
 
@@ -37,12 +47,37 @@ export type PropsFormUsuario = {
 // Inativo só aparece se já está vinculado (a página manda só esses); fica identificado.
 const rotuloOpcao = (nome: string, ativo: boolean) => (ativo ? nome : `${nome} (inativo)`);
 const descrito = (campo: string) => ({ 'aria-describedby': `erro-${campo}` });
+const chave = (perfil: string, funcionalidade: string) => `${perfil}:${funcionalidade}`;
+const semPerfil = (retiradas: ReadonlySet<string>, perfil: string) => new Set([...retiradas].filter((k) => !k.startsWith(`${perfil}:`)));
 
 export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear }: PropsFormUsuario) {
   const alteracao = usuario !== undefined;
-  const perfis = new Set(usuario?.perfis ?? []);
+  const iniciais = new Set(usuario?.perfis ?? []);
   const unidades = new Set(usuario?.unidades ?? []);
-  const perfisVisiveis = opcoes.perfis.filter((p) => p.ativo || perfis.has(p.codigo));
+  const perfisVisiveis = opcoes.perfis.filter((p) => p.ativo || iniciais.has(p.codigo));
+  // Painel "Funcionalidade(s) do Perfil" (US-039; UC02.12 A2, UC02.13 A4–A6): por perfil marcado, as
+  // funcionalidades dele, marcadas menos as retiradas do usuário. Desmarcar cria a exceção (REQ0080).
+  const [perfis, setPerfis] = useState<ReadonlySet<string>>(iniciais);
+  const [retiradas, setRetiradas] = useState<ReadonlySet<string>>(
+    () => new Set((usuario?.excecoes ?? []).map((e) => chave(e.perfil, e.funcionalidade))),
+  );
+  const alternarPerfil = (codigo: string, marcado: boolean) => {
+    setPerfis((atual) => (marcado ? new Set([...atual, codigo]) : new Set([...atual].filter((c) => c !== codigo))));
+    // Perfil desmarcado perde as exceções (a cascata do banco); marcado de novo, volta todo marcado (A4).
+    setRetiradas((atual) => semPerfil(atual, codigo));
+  };
+  const alternarFuncionalidade = (perfil: OpcaoPerfil, funcionalidade: string, marcada: boolean) => {
+    const k = chave(perfil.codigo, funcionalidade);
+    const novas = marcada ? new Set([...retiradas].filter((x) => x !== k)) : new Set([...retiradas, k]);
+    const todas = perfil.funcionalidades ?? [];
+    // REQ0081: todas as funcionalidades desmarcadas desmarcam o perfil (se ele não tiver fixa).
+    if (!marcada && (perfil.fixas ?? []).length === 0 && todas.every((f) => novas.has(chave(perfil.codigo, f.codigo)))) {
+      alternarPerfil(perfil.codigo, false);
+      return;
+    }
+    setRetiradas(novas);
+  };
+  const perfisDoPainel = perfisVisiveis.filter((p) => perfis.has(p.codigo));
   const unidadesVisiveis = opcoes.unidades.filter((u) => u.ativo || unidades.has(u.id));
 
   return (
@@ -81,10 +116,48 @@ export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear
           <legend>Perfil de acesso do usuário</legend>
           {perfisVisiveis.map((p) => (
             <label key={p.codigo}>
-              <input type="checkbox" name="perfis" value={p.codigo} defaultChecked={perfis.has(p.codigo)} /> {rotuloOpcao(p.nome, p.ativo)}
+              <input
+                type="checkbox"
+                name="perfis"
+                value={p.codigo}
+                checked={perfis.has(p.codigo)}
+                onChange={(e) => alternarPerfil(p.codigo, e.target.checked)}
+              />{' '}
+              {rotuloOpcao(p.nome, p.ativo)}
             </label>
           ))}
           <ErroDoCampo campo="perfis" />
+        </fieldset>
+        <fieldset {...descrito('excecoes')}>
+          <legend>Funcionalidade(s) do Perfil</legend>
+          {perfisDoPainel.length === 0 && <span>Selecione um perfil de acesso para ver as funcionalidades dele.</span>}
+          {perfisDoPainel.map((p) => (
+            <fieldset key={p.codigo}>
+              <legend>{rotuloOpcao(p.nome, p.ativo)}</legend>
+              {(p.funcionalidades ?? []).length === 0 && (p.fixas ?? []).length === 0 && <span>Nenhuma funcionalidade neste perfil.</span>}
+              {(p.funcionalidades ?? []).map((f) => (
+                <label key={f.codigo}>
+                  <input type="hidden" name="funcionalidadesExibidas" value={chave(p.codigo, f.codigo)} />
+                  <input
+                    type="checkbox"
+                    name="funcionalidades"
+                    value={chave(p.codigo, f.codigo)}
+                    checked={!retiradas.has(chave(p.codigo, f.codigo))}
+                    onChange={(e) => alternarFuncionalidade(p, f.codigo, e.target.checked)}
+                  />{' '}
+                  {f.nome}
+                </label>
+              ))}
+              {(p.fixas ?? []).length > 0 && (
+                <ul aria-label={`Funcionalidades da Administração do perfil ${p.nome}, que não podem ser retiradas`}>
+                  {(p.fixas ?? []).map((f) => (
+                    <li key={f.codigo}>{`${f.nome} (Administração, não pode ser retirada)`}</li>
+                  ))}
+                </ul>
+              )}
+            </fieldset>
+          ))}
+          <ErroDoCampo campo="excecoes" />
         </fieldset>
         <fieldset {...descrito('unidades')}>
           <legend>Termos de Parceria</legend>

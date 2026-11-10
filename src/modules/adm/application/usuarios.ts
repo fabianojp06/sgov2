@@ -7,10 +7,12 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { lerEnvAcesso } from '@/shared/config';
 import { prisma, travarRecurso, type TxCliente } from '@/shared/db';
 import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
+import { aplicarExcecoes, chaveExcecao, type Excecao } from '../domain/excecao-usuario';
 import { MENSAGENS_USUARIO, perdeUltimoAdministrador, validarUsuario, type UsuarioValidado } from '../domain/usuario';
 import { gerarSenhaTemporaria } from '../infrastructure/gerar-senha';
 import { hashSenha } from '../infrastructure/senha-argon2';
 import { obterConfiguracaoAcesso } from './configuracao';
+import { carregarCatalogoExcecoes, type CatalogoExcecoes, type FuncionalidadePainel } from './excecoes-usuario';
 
 // Casos de uso de usuário (UC02.11 a UC02.14, UC02.18; US-038). Cada um chama exigir primeiro e
 // roda numa transação só, com o Histórico e o e-mail (contrato C4) no mesmo tx: se a auditoria ou
@@ -43,7 +45,8 @@ const contextoAuditoria = (ctx: ContextoRequisicao): ContextoAuditoria => ({
   unidadeId: null,
 });
 
-// O que vai ao Histórico: os dados do formulário, nunca senha ou hash.
+// O que vai ao Histórico: os dados do formulário, nunca senha ou hash. As exceções (US-039) entram
+// como "<perfil>:<funcionalidade>".
 const retrato = (u: Omit<UsuarioValidado, 'loginNormalizado'>) => ({
   nome: u.nome,
   email: u.email,
@@ -52,6 +55,7 @@ const retrato = (u: Omit<UsuarioValidado, 'loginNormalizado'>) => ({
   perfis: [...u.perfis].sort(),
   unidades: [...u.unidades].sort(),
   ccEscopo: u.ccEscopo,
+  excecoes: u.excecoes.map(chaveExcecao).sort(),
 });
 
 const ehLoginDuplicado = (erro: unknown) => erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2002';
@@ -98,6 +102,56 @@ async function resolverVinculos(
   return ok({ perfis: u.perfis.map((codigo) => perfis.find((p) => p.codigo === codigo)!) });
 }
 
+// Exceções de permissão (US-039): confere as pedidas contra o catálogo dos perfis e aplica a REQ0081
+// (o perfil com todas as funcionalidades retiradas sai) ANTES das checagens de RN0079, do CC de
+// escopo e do último Administrador, que veem os perfis já convertidos. Devolve o usuário revalidado.
+async function aplicarExcecoesDoUsuario(
+  tx: TxCliente,
+  u: UsuarioValidado,
+  codigosAntes: readonly string[] = [],
+): Promise<Resultado<{ usuario: UsuarioValidado; catalogo: CatalogoExcecoes }>> {
+  const catalogo = await carregarCatalogoExcecoes(tx, [...new Set([...u.perfis, ...codigosAntes])]);
+  const aplicadas = aplicarExcecoes(u.perfis, u.excecoes, catalogo.funcionalidades, catalogo.ehAdministracao);
+  if (!aplicadas.ok) return aplicadas;
+  if (aplicadas.valor.perfisDesmarcados.length === 0) return ok({ usuario: u, catalogo });
+  const v = validarUsuario({ ...u, perfis: aplicadas.valor.perfis, excecoes: aplicadas.valor.excecoes });
+  return v.ok ? ok({ usuario: v.valor, catalogo }) : v;
+}
+
+// Histórico por exceção criada ou removida (D-P10-5). [PROVISÓRIO]: o EP085 não dá o texto; o
+// análogo é a RN0056 (perfil associado ao usuário).
+async function auditarExcecoes(
+  tx: TxCliente,
+  contexto: ContextoAuditoria,
+  registroId: string,
+  nomeUsuario: string,
+  nomePerfil: (codigo: string) => string,
+  nomeFuncionalidade: (codigo: string) => string,
+  criadas: readonly Excecao[],
+  removidas: readonly Excecao[],
+): Promise<void> {
+  for (const e of criadas) {
+    await auditar(tx, {
+      contexto,
+      funcionalidade: FUNCIONALIDADE,
+      tipo: 'INSERCAO',
+      registroId,
+      descricao: `Funcionalidade ${nomeFuncionalidade(e.funcionalidade)} do perfil ${nomePerfil(e.perfil)} retirada do usuário ${nomeUsuario}`,
+      depois: { perfil: e.perfil, funcionalidade: e.funcionalidade },
+    });
+  }
+  for (const e of removidas) {
+    await auditar(tx, {
+      contexto,
+      funcionalidade: FUNCIONALIDADE,
+      tipo: 'EXCLUSAO',
+      registroId,
+      descricao: `Funcionalidade ${nomeFuncionalidade(e.funcionalidade)} do perfil ${nomePerfil(e.perfil)} devolvida ao usuário ${nomeUsuario}`,
+      antes: { perfil: e.perfil, funcionalidade: e.funcionalidade },
+    });
+  }
+}
+
 // Também a recuperação pela tela de login (US-029), pelo servidor.ts; hash injetável para os testes.
 export async function senhaTemporaria(cliente: PrismaClient, agora: Date, hash: (senha: string) => Promise<string> = hashSenha) {
   const config = await obterConfiguracaoAcesso(cliente);
@@ -113,12 +167,14 @@ export async function cadastrarUsuario(ctx: ContextoRequisicao, entrada: unknown
   const { cliente, agora, enviarEmail: enviar, estrutura } = resolver(deps);
   const v = validarUsuario(entrada);
   if (!v.ok) return v;
-  const u = v.valor;
   const senha = await senhaTemporaria(cliente, agora());
   const contexto = contextoAuditoria(ctx);
   try {
     return await cliente.$transaction(async (tx) => {
-      if (await tx.usuario.findUnique({ where: { loginNormalizado: u.loginNormalizado }, select: { id: true } })) return loginDuplicado();
+      if (await tx.usuario.findUnique({ where: { loginNormalizado: v.valor.loginNormalizado }, select: { id: true } })) return loginDuplicado();
+      const comExcecoes = await aplicarExcecoesDoUsuario(tx, v.valor);
+      if (!comExcecoes.ok) return comExcecoes;
+      const { usuario: u, catalogo } = comExcecoes.valor;
       const vinculos = await resolverVinculos(tx, u, estrutura);
       if (!vinculos.ok) return vinculos;
       const { id } = await tx.usuario.create({
@@ -137,6 +193,13 @@ export async function cadastrarUsuario(ctx: ContextoRequisicao, entrada: unknown
         },
         select: { id: true },
       });
+      // UC02.12 A2: as exceções entram depois do vínculo com o perfil (FK para usuario_perfil).
+      const idPerfil = (codigo: string) => vinculos.valor.perfis.find((p) => p.codigo === codigo)!.id;
+      if (u.excecoes.length > 0) {
+        await tx.usuarioExcecao.createMany({
+          data: u.excecoes.map((e) => ({ usuarioId: id, perfilId: idPerfil(e.perfil), funcionalidadeCodigo: e.funcionalidade })),
+        });
+      }
       await auditar(tx, { contexto, funcionalidade: FUNCIONALIDADE, tipo: 'INSERCAO', registroId: id, descricao: `Cadastrou o usuário ${u.nome}`, depois: retrato(u) });
       for (const p of vinculos.valor.perfis) {
         await auditar(tx, {
@@ -148,6 +211,8 @@ export async function cadastrarUsuario(ctx: ContextoRequisicao, entrada: unknown
           depois: { perfil: p.codigo },
         });
       }
+      const nomePerfil = (codigo: string) => vinculos.valor.perfis.find((p) => p.codigo === codigo)!.nome;
+      await auditarExcecoes(tx, contexto, id, u.nome, nomePerfil, catalogo.nome, u.excecoes, []);
       await enviar(tx, 'usuario.senha_inicial', { email: u.email, nome: u.nome }, { nome: u.nome, login: u.login, senhaTemporaria: senha.senha, urlAcesso: urlAcesso() });
       return ok({ id });
     });
@@ -175,17 +240,29 @@ export async function alterarUsuario(
     await travarAdministradores(tx);
     const atual = await tx.usuario.findUnique({
       where: { id },
-      include: { perfis: { include: { perfil: { select: { codigo: true, nome: true } } } }, unidades: { select: { unidadeId: true } } },
+      include: {
+        perfis: { include: { perfil: { select: { codigo: true, nome: true } }, excecoes: { select: { funcionalidadeCodigo: true } } } },
+        unidades: { select: { unidadeId: true } },
+      },
     });
     if (!atual) throw inexistente();
     if (atual.versao !== versao) return alterado();
     const v = validarUsuario({ ...entrada, login: atual.login });
     if (!v.ok) return v;
-    const u = v.valor;
     const perfisAntes = atual.perfis.map((p) => p.perfil);
     const codigosAntes = perfisAntes.map((p) => p.codigo);
     const unidadesAntes = atual.unidades.map((x) => x.unidadeId);
-    const antes = retrato({ ...atual, perfis: codigosAntes as UsuarioValidado['perfis'], unidades: unidadesAntes });
+    const excecoesAntes = atual.perfis.flatMap((p) =>
+      p.excecoes.map((e) => ({ perfil: p.perfil.codigo as UsuarioValidado['perfis'][number], funcionalidade: e.funcionalidadeCodigo })),
+    );
+    const comExcecoes = await aplicarExcecoesDoUsuario(tx, v.valor, codigosAntes);
+    if (!comExcecoes.ok) return comExcecoes;
+    const { catalogo } = comExcecoes.valor;
+    // O painel só mostra as funcionalidades retiráveis: a exceção já gravada numa que não aparece
+    // (inativa, de módulo inativo) é mantida (ajuste M2). A de perfil retirado cai com ele (cascata).
+    const preservadas = excecoesAntes.filter((e) => comExcecoes.valor.usuario.perfis.includes(e.perfil) && !catalogo.retiravel(e.perfil, e.funcionalidade));
+    const u = { ...comExcecoes.valor.usuario, excecoes: [...comExcecoes.valor.usuario.excecoes, ...preservadas] };
+    const antes = retrato({ ...atual, perfis: codigosAntes as UsuarioValidado['perfis'], unidades: unidadesAntes, excecoes: excecoesAntes });
     // Salvar sem mudança nenhuma não grava nem audita.
     if (JSON.stringify(antes) === JSON.stringify(retrato(u))) return ok(undefined);
     const vinculos = await resolverVinculos(tx, u, estrutura, { perfis: codigosAntes, unidades: unidadesAntes, ccEscopo: atual.ccEscopo });
@@ -209,7 +286,19 @@ export async function alterarUsuario(
 
     const incluidos = vinculos.valor.perfis.filter((p) => !codigosAntes.includes(p.codigo));
     const retirados = perfisAntes.filter((p) => !u.perfis.includes(p.codigo as (typeof u.perfis)[number]));
-    const mudouAcesso = incluidos.length > 0 || retirados.length > 0 || atual.ativo !== u.ativo || atual.ccEscopo !== u.ccEscopo;
+    const chavesAntes = new Set(excecoesAntes.map(chaveExcecao));
+    const chavesDepois = new Set(u.excecoes.map(chaveExcecao));
+    const excecoesCriadas = u.excecoes.filter((e) => !chavesAntes.has(chaveExcecao(e)));
+    // Só as de perfis que continuam: as do perfil retirado caem em cascata com o vínculo e não geram
+    // Histórico próprio (basta a entrada "Perfil ... desassociado", ajuste B3).
+    const excecoesRemovidas = excecoesAntes.filter((e) => u.perfis.includes(e.perfil) && !chavesDepois.has(chaveExcecao(e)));
+    const mudouAcesso =
+      incluidos.length > 0 ||
+      retirados.length > 0 ||
+      excecoesCriadas.length > 0 ||
+      excecoesRemovidas.length > 0 ||
+      atual.ativo !== u.ativo ||
+      atual.ccEscopo !== u.ccEscopo;
 
     const { count } = await tx.usuario.updateMany({
       where: { id, versao },
@@ -231,6 +320,17 @@ export async function alterarUsuario(
       await tx.usuarioPerfil.deleteMany({ where: { usuarioId: id, perfilId: { notIn: ids } } });
     }
     if (incluidos.length > 0) await tx.usuarioPerfil.createMany({ data: incluidos.map((p) => ({ usuarioId: id, perfilId: p.id })) });
+    const perfil = (codigo: string) => vinculos.valor.perfis.find((p) => p.codigo === codigo)!;
+    for (const e of excecoesRemovidas) {
+      await tx.usuarioExcecao.delete({
+        where: { usuarioId_perfilId_funcionalidadeCodigo: { usuarioId: id, perfilId: perfil(e.perfil).id, funcionalidadeCodigo: e.funcionalidade } },
+      });
+    }
+    if (excecoesCriadas.length > 0) {
+      await tx.usuarioExcecao.createMany({
+        data: excecoesCriadas.map((e) => ({ usuarioId: id, perfilId: perfil(e.perfil).id, funcionalidadeCodigo: e.funcionalidade })),
+      });
+    }
     await tx.usuarioUnidade.deleteMany({ where: { usuarioId: id, unidadeId: { notIn: [...u.unidades] } } });
     const novasUnidades = u.unidades.filter((x) => !unidadesAntes.includes(x));
     if (novasUnidades.length > 0) await tx.usuarioUnidade.createMany({ data: novasUnidades.map((unidadeId) => ({ usuarioId: id, unidadeId })) });
@@ -256,6 +356,7 @@ export async function alterarUsuario(
         antes: { perfil: p.codigo },
       });
     }
+    await auditarExcecoes(tx, contexto, id, u.nome, (codigo) => perfil(codigo).nome, catalogo.nome, excecoesCriadas, excecoesRemovidas);
     return ok(undefined);
   });
 }
@@ -356,6 +457,8 @@ export type DetalheUsuario = {
   perfis: readonly string[];
   unidades: readonly string[];
   ccEscopo: string | null;
+  // Exceções de permissão (US-039): funcionalidades retiradas, por perfil.
+  excecoes: readonly { perfil: string; funcionalidade: string }[];
   versao: number;
 };
 
@@ -374,16 +477,30 @@ export async function obterUsuario(ctx: ContextoRequisicao, id: string, deps: Pa
       bloqueado: true,
       ccEscopo: true,
       versao: true,
-      perfis: { select: { perfil: { select: { codigo: true } } } },
+      perfis: { select: { perfil: { select: { codigo: true } }, excecoes: { select: { funcionalidadeCodigo: true } } } },
       unidades: { select: { unidadeId: true } },
     },
   });
   if (!u) return null;
-  return { ...u, perfis: u.perfis.map((p) => p.perfil.codigo).sort(), unidades: u.unidades.map((x) => x.unidadeId).sort() };
+  return {
+    ...u,
+    perfis: u.perfis.map((p) => p.perfil.codigo).sort(),
+    unidades: u.unidades.map((x) => x.unidadeId).sort(),
+    excecoes: u.perfis
+      .flatMap((p) => p.excecoes.map((e) => ({ perfil: p.perfil.codigo, funcionalidade: e.funcionalidadeCodigo })))
+      .sort((a, b) => chaveExcecao(a).localeCompare(chaveExcecao(b))),
+  };
 }
 
 export type OpcoesUsuario = {
-  perfis: readonly { codigo: string; nome: string; ativo: boolean }[];
+  // Por perfil, o painel "Funcionalidade(s) do Perfil" (US-039): retiráveis com checkbox, fixas sem.
+  perfis: readonly {
+    codigo: string;
+    nome: string;
+    ativo: boolean;
+    funcionalidades: readonly FuncionalidadePainel[];
+    fixas: readonly FuncionalidadePainel[];
+  }[];
   unidades: readonly { id: string; nome: string; ativo: boolean }[];
 };
 
@@ -398,5 +515,9 @@ export async function listarOpcoesUsuario(ctx: ContextoRequisicao, usuarioId?: s
     cliente.perfil.findMany({ where: filtro, select: { codigo: true, nome: true, ativo: true }, orderBy: { nome: 'asc' } }),
     cliente.unidade.findMany({ where: filtro, select: { id: true, nome: true, ativo: true }, orderBy: { nome: 'asc' } }),
   ]);
-  return { perfis, unidades };
+  const catalogo = await carregarCatalogoExcecoes(cliente, perfis.map((p) => p.codigo));
+  return {
+    perfis: perfis.map((p) => ({ ...p, funcionalidades: catalogo.painel(p.codigo).retiraveis, fixas: catalogo.painel(p.codigo).fixas })),
+    unidades,
+  };
 }
