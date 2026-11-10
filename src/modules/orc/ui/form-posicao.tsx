@@ -33,8 +33,15 @@ export type AcaoPrevia = (entrada: Record<string, string>) => Promise<{ ok: true
 type Campos = { cc: string; quantidade: string; salarioMensal: string; mesInicio: string; mesSaida: string };
 type EstadoPrevia = { tipo: 'MOTIVO'; texto: string } | { tipo: 'CALCULANDO' } | { tipo: 'PRONTA'; previa: PreviaTexto };
 
-const camposIniciais = (ccAtual: string, p?: PosicaoEmEdicao): Campos => ({
-  cc: p?.cc ?? ccAtual,
+// CC fora das opções (saiu da estrutura ativa): o seletor começa vazio, para a posição não mudar de
+// CC sem o usuário escolher (o navegador mandaria a primeira opção).
+const ccInicial = (ccAtual: string, ccs: readonly OpcaoPosicao[], p?: PosicaoEmEdicao) => {
+  const cc = p?.cc ?? ccAtual;
+  return ccs.some((c) => c.classificacao === cc) ? cc : '';
+};
+
+const camposIniciais = (cc: string, p?: PosicaoEmEdicao): Campos => ({
+  cc,
   quantidade: p?.quantidade ?? '',
   salarioMensal: p?.salarioMensal ?? '',
   mesInicio: p?.mesInicio ?? '1',
@@ -66,7 +73,7 @@ export function FormPosicao({
   previa: AcaoPrevia;
   cancelarPara: string;
 }) {
-  const [campos, setCampos] = useState<Campos>(() => camposIniciais(ccAtual, posicao));
+  const [campos, setCampos] = useState<Campos>(() => camposIniciais(ccInicial(ccAtual, ccs, posicao), posicao));
   const [estado, setEstado] = useState<EstadoPrevia>({ tipo: 'MOTIVO', texto: MENSAGENS_ORC.PREVIA_POSICAO_INCOMPLETA });
   // Só a resposta do último pedido vale: uma resposta atrasada de um pedido anterior é descartada.
   const ultimo = useRef(0);
@@ -115,7 +122,8 @@ export function FormPosicao({
         <div onChange={aoMudar}>
           <p>
             <label htmlFor={`${prefixo}-cc`}>Centro de custo</label>
-            <select id={`${prefixo}-cc`} name="cc" defaultValue={posicao?.cc ?? ccAtual} aria-describedby="erro-cc">
+            <select id={`${prefixo}-cc`} name="cc" defaultValue={ccInicial(ccAtual, ccs, posicao)} aria-required="true" aria-describedby="erro-cc">
+              {ccInicial(ccAtual, ccs, posicao) === '' && <option value="" disabled>Escolha o centro de custo</option>}
               {ccs.map((c) => (
                 <option key={c.classificacao} value={c.classificacao}>{`${c.classificacao} – ${c.descricao}`}</option>
               ))}
@@ -124,17 +132,17 @@ export function FormPosicao({
           </p>
           <p>
             <label htmlFor={`${prefixo}-cargo`}>Cargo</label>
-            <input id={`${prefixo}-cargo`} name="cargo" maxLength={120} defaultValue={posicao?.cargo ?? ''} aria-describedby="erro-cargo" />
+            <input id={`${prefixo}-cargo`} name="cargo" maxLength={120} defaultValue={posicao?.cargo ?? ''} aria-required="true" aria-describedby="erro-cargo" />
             <ErroDoCampo campo="cargo" />
           </p>
           <p>
             <label htmlFor={`${prefixo}-quantidade`}>{`Quantidade (1 a ${new Intl.NumberFormat('pt-BR').format(quantidadeMaxima)})`}</label>
-            <input id={`${prefixo}-quantidade`} name="quantidade" inputMode="numeric" defaultValue={posicao?.quantidade ?? ''} aria-describedby="erro-quantidade" />
+            <input id={`${prefixo}-quantidade`} name="quantidade" inputMode="numeric" defaultValue={posicao?.quantidade ?? ''} aria-required="true" aria-describedby="erro-quantidade" />
             <ErroDoCampo campo="quantidade" />
           </p>
           <p>
             <label htmlFor={`${prefixo}-salario`}>Salário mensal (R$)</label>
-            <input id={`${prefixo}-salario`} name="salarioMensal" inputMode="decimal" placeholder="0,00" defaultValue={posicao?.salarioMensal ?? ''} aria-describedby="erro-salarioMensal" />
+            <input id={`${prefixo}-salario`} name="salarioMensal" inputMode="decimal" placeholder="0,00" defaultValue={posicao?.salarioMensal ?? ''} aria-required="true" aria-describedby="erro-salarioMensal" />
             <ErroDoCampo campo="salarioMensal" />
           </p>
           <p>
