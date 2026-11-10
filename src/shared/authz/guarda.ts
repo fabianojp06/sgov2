@@ -1,7 +1,7 @@
 import type { ErroCampo } from '@/shared/kernel';
 import { auditarNegacao, obterContexto, obterMotivoAusencia } from './contexto';
 import { exigir } from './exigir';
-import { ErroPermissao, MENSAGEM_PERMISSAO, MENSAGEM_SESSAO_NOVO_ACESSO, type Acao, type ContextoRequisicao } from './tipos';
+import { AUSENCIA_SESSAO, ErroPermissao, MENSAGEM_PERMISSAO, type Acao, type ContextoRequisicao } from './tipos';
 
 export { MENSAGEM_PERMISSAO };
 export const MENSAGEM_SESSAO = 'Sessão expirada. Entre novamente.';
@@ -99,7 +99,10 @@ export type Autorizacao = { ok: true; ctx: ContextoRequisicao } | { ok: false; s
 // Passos comuns de definirAcao e definirRota: sessão e permissão da funcionalidade.
 export async function autorizar(funcionalidade: string, acao: Acao): Promise<Autorizacao> {
   const ctx = await obterContexto();
-  if (!ctx) return { ok: false, status: 401, mensagem: (await obterMotivoAusencia()) === 'NOVO_ACESSO' ? MENSAGEM_SESSAO_NOVO_ACESSO : MENSAGEM_SESSAO };
+  if (!ctx) {
+    const motivo = await obterMotivoAusencia();
+    return { ok: false, status: 401, mensagem: motivo ? AUSENCIA_SESSAO[motivo].mensagem : MENSAGEM_SESSAO };
+  }
   try {
     exigir(ctx, funcionalidade, acao);
   } catch (erro) {

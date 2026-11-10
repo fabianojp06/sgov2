@@ -1,6 +1,6 @@
 import { unstable_rethrow } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { carregarTelaPrincipal, ErroCarregamento, TelaPrincipal, trocarUnidade, type DadosTelaPrincipal } from '@/modules/aut';
+import { AvisoDesativacao, carregarTelaPrincipal, ErroCarregamento, obterAvisoDesativacao, TelaPrincipal, trocarUnidade, type DadosTelaPrincipal } from '@/modules/aut';
 import { exigirPagina } from '@/shared/authz';
 import type { ContextoRequisicao } from '@/shared/authz';
 
@@ -22,8 +22,17 @@ export default async function LayoutSistema({ children }: { children: ReactNode 
     console.error('[TELA_PRINCIPAL_MODULOS]', { nome: erro instanceof Error ? erro.name : typeof erro });
     return <ErroCarregamento tipo="modulos" />;
   }
+  // Aviso da desativação do sistema (US-036, D-P9-4). Uma falha aqui não derruba a tela: o componente
+  // consulta de novo a cada 30 s.
+  let segundos: number | null = null;
+  try {
+    segundos = (await obterAvisoDesativacao(ctx)).segundos;
+  } catch (erro) {
+    console.error('[AVISO_DESATIVACAO]', { nome: erro instanceof Error ? erro.name : typeof erro });
+  }
   return (
     <TelaPrincipal {...dados} trocarUnidade={trocarUnidade}>
+      <AvisoDesativacao segundos={segundos} />
       {children}
     </TelaPrincipal>
   );

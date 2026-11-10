@@ -1,12 +1,13 @@
 import type { PrismaClient } from '@/generated/prisma/client';
-import { carregarPermissoes, listarUnidadesDoUsuario, obterConfiguracaoAcesso, obterUsuarioParaSessao } from '@/modules/adm';
+import { carregarPermissoes, listarUnidadesDoUsuario, manutencaoEfetiva, obterConfiguracaoAcesso, obterUsuarioParaSessao } from '@/modules/adm';
 import { auditar } from '@/shared/audit';
 import type { ContextoRequisicao, MotivoAusenciaSessao, ProvedorContexto } from '@/shared/authz';
-import { CABECALHO_IP } from '@/shared/authz';
+import { CABECALHO_IP, CABECALHO_SEM_RENOVACAO } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { resolverUnidadeAtiva } from '@/shared/unidade';
 import { nomeCookieSessao, nomeCookieUnidade } from '../infrastructure/cookies';
 import { hashDoToken } from './autenticar';
+import { efetivarDesativacao } from './efetivar-desativacao';
 
 // Permissões de toda sessão válida (R5), fora do menu e dos perfis.
 export const PERMISSOES_BASICAS: readonly string[] = [
@@ -19,6 +20,11 @@ export const PERMISSOES_BASICAS: readonly string[] = [
 export const PERMISSOES_TROCA_OBRIGATORIA: readonly string[] = ['aut.senha:alterar', 'aut.sessao:excluir'];
 
 const RENOVACAO_MS = 60 * 1000;
+
+// Com o sistema inativo, todo Administrador conectado fica só com a Administração (RN0060, D-P9-5).
+const MODULO_SISTEMA_INATIVO = 'ADMINISTRACAO';
+
+const MOTIVOS_AUSENCIA: ReadonlySet<string> = new Set<MotivoAusenciaSessao>(['NOVO_ACESSO', 'SISTEMA_INATIVO']);
 
 type DepsProvedor = {
   cliente: PrismaClient;
@@ -69,17 +75,27 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
         await cliente.sessaoUsuario.deleteMany({ where: { id: sessao.id } });
         return null;
       }
+      // Sistema desativado (US-036/US-033): a primeira requisição depois do instante desconecta todos
+      // os que entraram antes, menos quem desativou; esta sessão pode ter caído com eles.
+      const efetivada = manutencaoEfetiva(config, agora) ? await efetivarDesativacao(cliente, agora, config) : null;
+      if (efetivada && sessao.criadaEm.getTime() < efetivada.corte.getTime() && sessao.usuarioId !== efetivada.por) return null;
+      const inativo = efetivada !== null;
       const usuario = await obterUsuarioParaSessao(cliente, sessao.usuarioId);
       if (!usuario || !usuario.ativo || usuario.bloqueado || usuario.acessoVersao !== sessao.acessoVersao) {
         await encerrar(sessao.id, sessao.usuarioId, usuario?.login ?? 'Sistema', sessao.sessaoUid, ip);
         return null;
       }
-      if (agora.getTime() - sessao.ultimoAcessoEm.getTime() >= RENOVACAO_MS) {
+      // A consulta periódica do aviso de desativação (cabeçalho posto pelo proxy, D-P9-4) não renova.
+      const renovar = (await lerCabecalho(CABECALHO_SEM_RENOVACAO)) === null;
+      if (renovar && agora.getTime() - sessao.ultimoAcessoEm.getTime() >= RENOVACAO_MS) {
         await cliente.sessaoUsuario.updateMany({ where: { id: sessao.id }, data: { ultimoAcessoEm: agora } });
       }
       const permissoes = sessao.trocaSenhaPendente
         ? new Set(PERMISSOES_TROCA_OBRIGATORIA)
-        : new Set([...(await carregarPermissoes(cliente, sessao.usuarioId)), ...PERMISSOES_BASICAS]);
+        : new Set([
+            ...(await carregarPermissoes(cliente, sessao.usuarioId, inativo ? { modulo: MODULO_SISTEMA_INATIVO } : {})),
+            ...PERMISSOES_BASICAS,
+          ]);
       // Unidade ativa: o cookie só escolhe dentro da lista do usuário (nunca é confiado). A lista vai
       // inteira para a RLS (US-007); com a troca de senha pendente, nenhuma.
       const unidades = sessao.trocaSenhaPendente ? [] : await listarUnidadesDoUsuario(cliente, sessao.usuarioId);
@@ -95,14 +111,15 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
         trocaSenhaPendente: sessao.trocaSenhaPendente,
       };
     },
-    // US-028: a sessão deste cookie foi encerrada por um login em outra estação? Não apaga a marca
-    // (o layout e a página perguntam na mesma requisição); ela vale até o prazo e sai depois de vencida.
+    // A sessão deste cookie foi encerrada por um login em outra estação (US-028) ou pela desativação
+    // do sistema (US-033)? Não apaga a marca (o layout e a página perguntam na mesma requisição); ela
+    // vale até o prazo e sai depois de vencida.
     async motivoAusencia(): Promise<MotivoAusenciaSessao | null> {
       const token = await lerCookie(nomeCookieSessao());
       if (!token) return null;
       const marca = await cliente.sessaoEncerrada.findUnique({ where: { tokenHash: hashDoToken(token) } });
       if (!marca || marca.expiraEm.getTime() <= relogio().getTime()) return null;
-      return marca.motivo === 'NOVO_ACESSO' ? 'NOVO_ACESSO' : null;
+      return MOTIVOS_AUSENCIA.has(marca.motivo) ? (marca.motivo as MotivoAusenciaSessao) : null;
     },
   };
 }

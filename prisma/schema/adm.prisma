@@ -61,33 +61,34 @@ model PerfilPermissao {
 
 // Usuário (UC02.11–UC02.14). Status e bloqueio são independentes (RN0063, RN0524).
 model Usuario {
-  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nome                  String
   email                 String
   login                 String
-  loginNormalizado      String            @unique @map("login_normalizado")
-  ativo                 Boolean           @default(true)
-  bloqueado             Boolean           @default(false)
-  tentativasFalhas      Int               @default(0) @map("tentativas_falhas")
-  senhaHash             String            @map("senha_hash")
-  trocaSenhaObrigatoria Boolean           @default(true) @map("troca_senha_obrigatoria")
-  senhaExpiraEm         DateTime?         @map("senha_expira_em") @db.Timestamptz(6)
+  loginNormalizado      String               @unique @map("login_normalizado")
+  ativo                 Boolean              @default(true)
+  bloqueado             Boolean              @default(false)
+  tentativasFalhas      Int                  @default(0) @map("tentativas_falhas")
+  senhaHash             String               @map("senha_hash")
+  trocaSenhaObrigatoria Boolean              @default(true) @map("troca_senha_obrigatoria")
+  senhaExpiraEm         DateTime?            @map("senha_expira_em") @db.Timestamptz(6)
   // Recuperação pela tela de login (US-029, D-P8-2): convive com a senha vigente até ser usada.
-  recuperacaoHash       String?           @map("recuperacao_hash")
-  recuperacaoExpiraEm   DateTime?         @map("recuperacao_expira_em") @db.Timestamptz(6)
+  recuperacaoHash       String?              @map("recuperacao_hash")
+  recuperacaoExpiraEm   DateTime?            @map("recuperacao_expira_em") @db.Timestamptz(6)
   // CC raiz de escopo do Gestor de Diretoria (C25, R8): classificação do CC, validada no P6.
-  ccEscopo              String?           @map("cc_escopo")
+  ccEscopo              String?              @map("cc_escopo")
   // Incrementado quando o acesso muda (perfis, inativação, reset, desbloqueio): derruba as sessões.
-  acessoVersao          Int               @default(0) @map("acesso_versao")
-  versao                Int               @default(0)
-  criadoEm              DateTime          @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  atualizadoEm          DateTime          @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  acessoVersao          Int                  @default(0) @map("acesso_versao")
+  versao                Int                  @default(0)
+  criadoEm              DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm          DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
   perfis                UsuarioPerfil[]
   sessoes               SessaoUsuario[]
-  alcadasTitular        AlcadaAprovacao[] @relation("AlcadaTitular")
-  alcadasSubstituto     AlcadaAprovacao[] @relation("AlcadaSubstituto")
+  alcadasTitular        AlcadaAprovacao[]    @relation("AlcadaTitular")
+  alcadasSubstituto     AlcadaAprovacao[]    @relation("AlcadaSubstituto")
   sessoesEncerradas     SessaoEncerrada[]
   unidades              UsuarioUnidade[]
+  desativacoesSistema   ConfiguracaoAcesso[] @relation("ManutencaoPor")
 
   @@map("usuario")
 }
@@ -104,16 +105,26 @@ model UsuarioPerfil {
 
 // Parâmetros de acesso (linha única, id = 1). Valores [PROVISÓRIOS] da GAP-AUT-002 (spec §11.2a).
 model ConfiguracaoAcesso {
-  id                   Int     @id @default(1)
-  limiteTentativas     Int     @default(5) @map("limite_tentativas")
-  limiarAlerta         Int     @default(3) @map("limiar_alerta")
-  inatividadeMin       Int     @default(30) @map("inatividade_min")
-  sessaoMaximaHoras    Int     @default(12) @map("sessao_maxima_horas")
-  senhaTemporariaHoras Int     @default(24) @map("senha_temporaria_horas")
-  senhaMinimo          Int     @default(10) @map("senha_minimo")
-  senhaExigeLetra      Boolean @default(true) @map("senha_exige_letra")
-  senhaExigeDigito     Boolean @default(true) @map("senha_exige_digito")
-  manutencao           Boolean @default(false)
+  id                   Int       @id @default(1)
+  limiteTentativas     Int       @default(5) @map("limite_tentativas")
+  limiarAlerta         Int       @default(3) @map("limiar_alerta")
+  inatividadeMin       Int       @default(30) @map("inatividade_min")
+  sessaoMaximaHoras    Int       @default(12) @map("sessao_maxima_horas")
+  senhaTemporariaHoras Int       @default(24) @map("senha_temporaria_horas")
+  senhaMinimo          Int       @default(10) @map("senha_minimo")
+  senhaExigeLetra      Boolean   @default(true) @map("senha_exige_letra")
+  senhaExigeDigito     Boolean   @default(true) @map("senha_exige_digito")
+  // Sistema inativo e manutenção são o mesmo indicador (US-036, D-P9-1). Desativar pela tela grava o
+  // instante em que a desativação vale (agora + espera, D-P9-2), o motivo e quem desativou; nulo no
+  // instante com o indicador ligado é a manutenção ligada direto no banco, que vale na hora. O CHECK
+  // da migration exige os três nulos com o indicador desligado.
+  manutencao           Boolean   @default(false)
+  manutencaoAPartir    DateTime? @map("manutencao_a_partir") @db.Timestamptz(6)
+  manutencaoMotivo     String?   @map("manutencao_motivo")
+  manutencaoPorId      String?   @map("manutencao_por") @db.Uuid
+  manutencaoPor        Usuario?  @relation("ManutencaoPor", fields: [manutencaoPorId], references: [id], onDelete: Restrict)
+  // Espera entre o aviso e a desconexão (REQ0089, D-P9-3): 0 a 60 minutos [PROVISÓRIO].
+  desconexaoEsperaMin  Int       @default(5) @map("desconexao_espera_min")
 
   @@map("configuracao_acesso")
 }

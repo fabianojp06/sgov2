@@ -36,6 +36,10 @@ describe('obterConfiguracaoAcesso', () => {
       senhaTemporariaHoras: 24,
       politica: { minimo: 10, exigeLetra: true, exigeDigito: true },
       manutencao: false,
+      manutencaoAPartir: null,
+      manutencaoMotivo: null,
+      manutencaoPor: null,
+      desconexaoEsperaMin: 5,
     });
   });
 
@@ -48,6 +52,10 @@ describe('obterConfiguracaoAcesso', () => {
     ['inatividade_min = 0'],
     ['sessao_maxima_horas = 0'],
     ['senha_temporaria_horas = -1'],
+    ['desconexao_espera_min = -1'],
+    ['desconexao_espera_min = 61'],
+    ["manutencao_motivo = 'sem o indicador'"],
+    ["manutencao_a_partir = now()"],
   ])('o banco recusa %s', async (atribuicao) =>
     expect(app.$executeRawUnsafe(`UPDATE configuracao_acesso SET ${atribuicao}`)).rejects.toThrow(/check/i));
 });

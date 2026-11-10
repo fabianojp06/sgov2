@@ -18,10 +18,22 @@ export type ContextoRequisicao = Omit<ContextoAuditoria, 'usuarioId' | 'sessaoUi
   unidades?: readonly string[];
 };
 
-// Por que não há sessão (US-028): a sessão única foi encerrada por um login em outra estação.
-export type MotivoAusenciaSessao = 'NOVO_ACESSO';
+// Por que não há sessão: a sessão única foi encerrada por um login em outra estação (US-028), ou o
+// sistema foi desativado e a sessão caiu com os outros usuários (US-033/US-036, UC02.15).
+export type MotivoAusenciaSessao = 'NOVO_ACESSO' | 'SISTEMA_INATIVO';
 // EP084 UC01.02 A2.2 (RN0519), exibida na próxima interação da estação anterior.
 export const MENSAGEM_SESSAO_NOVO_ACESSO = 'Sua sessão foi encerrada porque um novo acesso foi realizado com suas credenciais.';
+// RN0023 (EP084): o mesmo texto do login do aut, aqui porque o shared não importa o aut.
+export const MENSAGEM_SISTEMA_INATIVO = 'Sistema está em manutenção';
+// Destino do login e texto de cada motivo (a página de login e a guarda usam os dois).
+export const AUSENCIA_SESSAO: Readonly<Record<MotivoAusenciaSessao, { motivoUrl: string; mensagem: string }>> = {
+  NOVO_ACESSO: { motivoUrl: 'novo-acesso', mensagem: MENSAGEM_SESSAO_NOVO_ACESSO },
+  SISTEMA_INATIVO: { motivoUrl: 'sistema-inativo', mensagem: MENSAGEM_SISTEMA_INATIVO },
+};
+
+// Cabeçalho interno posto pelo proxy só na rota do aviso de desativação (D-P9-4): a consulta
+// periódica não renova a sessão. O proxy o descarta quando vem do cliente.
+export const CABECALHO_SEM_RENOVACAO = 'x-sgo-sem-renovacao';
 
 export interface ProvedorContexto {
   // Marca estável do provedor: o módulo aut pode ser avaliado em mais de uma camada do Next e

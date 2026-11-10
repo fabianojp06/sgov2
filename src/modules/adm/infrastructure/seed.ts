@@ -49,6 +49,20 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'exportar', 'imprimir'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'exportar', 'imprimir'], AUDITOR: ['consultar', 'exportar', 'imprimir'] },
   },
+  {
+    // US-036 (UC02.01: menu Ativar/Desativar Sistema em Administração › Operadores e Permissões).
+    codigo: 'adm.sistema',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Operadores e Permissões',
+    nome: 'Ativar/Desativar Sistema',
+    rota: '/adm/sistema',
+    ordem: 4,
+    ajuda:
+      'Ative o sistema ou desative-o informando o motivo. Os usuários conectados são avisados e desconectados ' +
+      'depois do tempo de espera; com o sistema inativo, só os Administradores entram, e só na Administração.',
+    acoes: ['consultar', 'alterar'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'alterar'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {

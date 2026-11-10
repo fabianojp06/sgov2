@@ -5,8 +5,11 @@ export { definirRota } from './definir-rota';
 export { exigir } from './exigir';
 export { exigirPagina, negarNaPagina } from './exigir-pagina';
 export {
+  AUSENCIA_SESSAO,
+  CABECALHO_SEM_RENOVACAO,
   ErroPermissao,
   MENSAGEM_SESSAO_NOVO_ACESSO,
+  MENSAGEM_SISTEMA_INATIVO,
   type Acao,
   type ContextoRequisicao,
   type MotivoAusenciaSessao,
