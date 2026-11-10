@@ -49,6 +49,22 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'exportar', 'imprimir'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'exportar', 'imprimir'], AUDITOR: ['consultar', 'exportar', 'imprimir'] },
   },
+  {
+    // US-035 (EP085 UC02.05 e UC02.06): ativar e desativar módulos e funcionalidades do catálogo,
+    // que só nasce pela seed (C14). Exclusivo do Administrador.
+    codigo: 'adm.modulos',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Operadores e Permissões',
+    nome: 'Módulos e Funcionalidades',
+    rota: '/adm/modulos',
+    ordem: 4,
+    // Texto de ajuda [PROVISÓRIO]: sem fonte no EP085.
+    ajuda:
+      'Ative ou desative os módulos do sistema e, num módulo ativo, as funcionalidades dele. ' +
+      'Desativar um módulo desativa as funcionalidades dele e desconecta os usuários; ativar o módulo não reativa as funcionalidades.',
+    acoes: ['consultar', 'alterar'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'alterar'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {

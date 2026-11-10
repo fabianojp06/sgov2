@@ -63,6 +63,8 @@ describe('carregarTelaPrincipal', () => {
     const ctx = await logado('ana', 'ADMINISTRADOR', [unidades.a, unidades.b, unidades.inativa]);
     const t = await carregarTelaPrincipal(ctx, { cliente: app });
     expect(t.menu.map((m) => m.codigo)).toEqual(['ADMINISTRACAO']);
+    // Módulos e Funcionalidades (US-035) entra em Operadores e Permissões, depois de Usuários.
+    expect(t.menu[0]?.grupos.find((g) => g.nome === 'Operadores e Permissões')?.itens.map((i) => i.codigo)).toEqual(['adm.usuarios', 'adm.modulos']);
     expect(t.usuario).toEqual({ nome: 'Nome ana', acessoEm: AGORA.toISOString() });
     expect(t.unidades.map((u) => u.codigo)).toEqual(['TP-A', 'TP-B']);
     expect(t.unidadeAtiva).toBeNull();
