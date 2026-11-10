@@ -42,6 +42,20 @@ beforeAll(async () => {
   migrator = new pg.Client({ connectionString: banco.urlMigrator });
   await migrator.connect();
   usuarioId = (await migrator.query(`INSERT INTO usuario (nome, email, login, login_normalizado, senha_hash) VALUES ('GFIN', 'g@exemplo.org', 'g', 'g', 'x') RETURNING id`)).rows[0].id;
+  // Usuários da seção "Usuários": um GFIN bloqueado com a troca de senha pendente, um com GFIN e
+  // Auditor (conta nos dois) e um inativo (fora das contagens).
+  const perfil = async (codigo: string) => (await migrator.query(`SELECT id FROM perfil WHERE codigo = $1`, [codigo])).rows[0].id;
+  const usuario = async (login: string, extra: string) =>
+    (await migrator.query(`INSERT INTO usuario (nome, email, login, login_normalizado, senha_hash${extra ? `, ${extra.split('=')[0]}` : ''}) VALUES ($1, $2, $1, $1, 'x'${extra ? `, ${extra.split('=')[1]}` : ''}) RETURNING id`, [login, `${login}@exemplo.org`])).rows[0].id;
+  const vincular = async (u: string, p: string) => migrator.query(`INSERT INTO usuario_perfil (usuario_id, perfil_id) VALUES ($1, $2)`, [u, await perfil(p)]);
+  await vincular(await usuario('gfin.bloq', 'bloqueado=true'), 'GFIN');
+
+  const dois = await usuario('dois.perfis', '');
+  await vincular(dois, 'GFIN');
+  await vincular(dois, 'AUDITOR');
+  await vincular(await usuario('inativo', 'ativo=false'), 'GFIN');
+  // A troca de senha nasce obrigatória (padrão do banco): só o gfin.bloq fica pendente.
+  await migrator.query(`UPDATE usuario SET troca_senha_obrigatoria = (login = 'gfin.bloq')`);
   await migrator.query(`INSERT INTO cargo (codigo, nome_oficial, salario_real_cifrado) VALUES ('CONF1', 'C1', $1)`, [
     // Envelope no formato do CHECK (cargo_envelopes_check); o conteúdo não importa sem a chave.
     `v1:teste1:${'A'.repeat(16)}:${'B'.repeat(22)}:C`,
@@ -59,7 +73,16 @@ describe('conferência da carga (P7, Task 2)', () => {
     const t = await obterConferenciaCarga(gfin(), null, { cliente: app });
     expect(t.ano).toBe(2027);
     expect(t.anos).toContain(2027);
-    expect(new Set(t.linhas.map((l) => l.secao))).toEqual(new Set(['Plano de contas', 'Centros de custo', 'Cargos', 'Tabela salarial', 'Exercício 2027']));
+    expect(new Set(t.linhas.map((l) => l.secao))).toEqual(new Set(['Plano de contas', 'Centros de custo', 'Cargos', 'Tabela salarial', 'Exercício 2027', 'Usuários']));
+    // Usuários: só contagens, sem nome nem login; o inativo fica fora; dois perfis contam nos dois.
+    const usuarios = t.linhas.filter((l) => l.secao === 'Usuários');
+    expect(linha(usuarios, 'Gestor Financeiro (GFIN): ativos')?.quantidade).toBe('2');
+    expect(linha(usuarios, 'Gestor Financeiro (GFIN): bloqueados')?.quantidade).toBe('1');
+    expect(linha(usuarios, 'Auditor: ativos')?.quantidade).toBe('1');
+    expect(linha(usuarios, 'Auditor: bloqueados')).toBeUndefined();
+    expect(linha(usuarios, 'Administrador: ativos')?.quantidade).toBe('0');
+    expect(linha(usuarios, 'Aguardando a troca da senha inicial')?.quantidade).toBe('1');
+    expect(usuarios.some((l) => /gfin\.bloq|dois\.perfis|inativo/.test(l.item))).toBe(false);
     expect(linha(t.linhas, 'Analíticas ativas')?.quantidade).toBe('162');
     expect(linha(t.linhas, SOMA)).toMatchObject({ valor: null, oculto: 'oculta' });
   });

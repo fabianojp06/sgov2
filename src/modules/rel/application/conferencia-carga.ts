@@ -1,5 +1,6 @@
 import 'server-only';
 import type { PrismaClient } from '@/generated/prisma/client';
+import { contarUsuariosPorPerfil } from '@/modules/adm/servidor';
 import { listarAnosExercicio, resumirCadastrosParaConferencia } from '@/modules/cad';
 import { criarIdentificacao, TIPOS_ARQUIVO, type FormatoArquivo } from '@/modules/ger';
 import { exportarCsv, exportarXlsx } from '@/modules/ger/servidor';
@@ -27,7 +28,7 @@ export async function obterConferenciaCarga(ctx: ContextoRequisicao, anoPedido: 
       const anos = await listarAnosExercicio(tx);
       const ano = anoValido(anoPedido) ? anoPedido : (anos[0] ?? null);
       const resumo = await resumirCadastrosParaConferencia(ctx, tx, ano ?? 0);
-      return { anos, ano, linhas: linhasConferencia(resumo) };
+      return { anos, ano, linhas: linhasConferencia(resumo, await contarUsuariosPorPerfil(tx)) };
     },
     { isolationLevel: 'RepeatableRead' },
   );
@@ -62,7 +63,7 @@ export async function exportarConferenciaCarga(
         // US-024: filtros, operador e rastreio no cabeçalho do arquivo; o mesmo rastreio no Histórico.
         const filtros = [{ rotulo: 'Exercício', valor: String(ano) }];
         const identificacao = criarIdentificacao({ titulo: `Conferência da carga ${ano}`, filtros, operador: ctx.usuarioRotulo });
-        const p = planilhaConferencia(resumo, ano, identificacao);
+        const p = planilhaConferencia(resumo, await contarUsuariosPorPerfil(tx), ano, identificacao);
         const comSoma = resumo.cargos.somaSalarioReal.situacao === 'calculada';
         const r = formato === 'xlsx' ? await exportarXlsx([p]) : exportarCsv(p);
         if (!r.ok) throw new FalhaGeracao([...r.erros]);

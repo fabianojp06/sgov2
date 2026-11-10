@@ -1,3 +1,4 @@
+import type { ContagemUsuarios } from '@/modules/adm/servidor';
 import type { ResumoCadastros } from '@/modules/cad';
 import type { IdentificacaoExportacao, PlanilhaExportacao } from '@/modules/ger';
 
@@ -10,7 +11,7 @@ export type LinhaConferencia = { secao: string; item: string; quantidade: string
 
 const SIM_NAO = (b: boolean) => (b ? 'sim' : 'não');
 
-export function linhasConferencia(r: ResumoCadastros): LinhaConferencia[] {
+export function linhasConferencia(r: ResumoCadastros, usuarios: ContagemUsuarios): LinhaConferencia[] {
   const linhas: LinhaConferencia[] = [];
   const add = (secao: string, item: string, quantidade: number | string | null, valor: string | null = null) =>
     linhas.push({ secao, item, quantidade: quantidade === null ? null : String(quantidade), valor });
@@ -53,12 +54,20 @@ export function linhasConferencia(r: ResumoCadastros): LinhaConferencia[] {
     add(s, 'Benefícios ativos na Tabela Mestre', e.beneficiosAtivos);
     add(s, 'Benefícios ativos em cargos ativos', e.beneficiosCargoAtivos);
   }
+  // Usuários por perfil (contrato do adm, #335): só contagens, sem nome nem login. Um usuário com
+  // dois perfis conta nos dois; o perfil inativo não dá acesso, mas os vínculos aparecem.
+  for (const p of usuarios.perfis) {
+    const nome = p.ativo ? p.nome : `${p.nome} (perfil inativo)`;
+    add('Usuários', `${nome}: ativos`, p.ativos);
+    if (p.bloqueados > 0) add('Usuários', `${nome}: bloqueados`, p.bloqueados);
+  }
+  add('Usuários', 'Aguardando a troca da senha inicial', usuarios.trocaSenhaPendente);
   return linhas;
 }
 
 const MOTIVO = { oculta: 'oculto: sem permissão de consultar salários', indisponivel: 'indisponível: chave de cifra não configurada' } as const;
 
-export function planilhaConferencia(r: ResumoCadastros, ano: number, identificacao?: IdentificacaoExportacao): PlanilhaExportacao {
+export function planilhaConferencia(r: ResumoCadastros, usuarios: ContagemUsuarios, ano: number, identificacao?: IdentificacaoExportacao): PlanilhaExportacao {
   return {
     nome: `Conferência ${ano}`,
     ...(identificacao ? { identificacao } : {}),
@@ -68,6 +77,6 @@ export function planilhaConferencia(r: ResumoCadastros, ano: number, identificac
       { titulo: 'Quantidade', tipo: 'texto', largura: 90 },
       { titulo: 'Valor', tipo: 'dinheiro', largura: 120 },
     ],
-    linhas: linhasConferencia(r).map((l) => [l.secao, l.oculto ? `${l.item} (${MOTIVO[l.oculto]})` : l.item, l.quantidade, l.valor]),
+    linhas: linhasConferencia(r, usuarios).map((l) => [l.secao, l.oculto ? `${l.item} (${MOTIVO[l.oculto]})` : l.item, l.quantidade, l.valor]),
   };
 }
