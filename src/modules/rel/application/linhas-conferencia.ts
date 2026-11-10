@@ -58,10 +58,11 @@ export function linhasConferencia(r: ResumoCadastros, usuarios: ContagemUsuarios
   // dois perfis conta nos dois; o perfil inativo não dá acesso, mas os vínculos aparecem.
   for (const p of usuarios.perfis) {
     const nome = p.ativo ? p.nome : `${p.nome} (perfil inativo)`;
-    add('Usuários', `${nome}: ativos`, p.ativos);
+    add('Usuários', `${nome}: ativos (inclusive os bloqueados)`, p.ativos);
     if (p.bloqueados > 0) add('Usuários', `${nome}: bloqueados`, p.bloqueados);
   }
-  add('Usuários', 'Aguardando a troca da senha inicial', usuarios.trocaSenhaPendente);
+  // A senha temporária vem do cadastro ou da redefinição: as duas pedem a troca no primeiro acesso.
+  add('Usuários', 'Aguardando a troca da senha temporária', usuarios.trocaSenhaPendente);
   return linhas;
 }
 
