@@ -57,7 +57,7 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     grupo: 'Operadores e Permissões',
     nome: 'Módulos e Funcionalidades',
     rota: '/adm/modulos',
-    ordem: 4,
+    ordem: 5,
     // Texto de ajuda [PROVISÓRIO]: sem fonte no EP085.
     ajuda:
       'Ative ou desative os módulos do sistema e, num módulo ativo, as funcionalidades dele. ' +
@@ -72,7 +72,7 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     grupo: 'Operadores e Permissões',
     nome: 'Ativar/Desativar Sistema',
     rota: '/adm/sistema',
-    ordem: 5,
+    ordem: 4,
     ajuda:
       'Ative o sistema ou desative-o informando o motivo. Os usuários conectados são avisados e desconectados ' +
       'depois do tempo de espera; com o sistema inativo, só os Administradores entram, e só na Administração.',
