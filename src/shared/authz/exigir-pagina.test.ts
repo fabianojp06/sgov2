@@ -17,7 +17,7 @@ const base: ContextoRequisicao = {
   permissoes: new Set(['adm.usuarios:consultar']),
 };
 let contexto: ContextoRequisicao | null;
-let motivo: 'NOVO_ACESSO' | null;
+let motivo: 'NOVO_ACESSO' | 'SISTEMA_INATIVO' | null;
 let negacoes: EventoAuditoria[];
 
 beforeEach(() => {
@@ -44,6 +44,12 @@ describe('exigirPagina', () => {
     contexto = null;
     motivo = 'NOVO_ACESSO';
     expect(await digest(exigirPagina('adm.usuarios', 'consultar'))).toMatch(/^NEXT_REDIRECT;.*;\/login\?motivo=novo-acesso;/);
+  });
+
+  it('sem sessão porque o sistema foi desativado → redirect para /login?motivo=sistema-inativo (US-033)', async () => {
+    contexto = null;
+    motivo = 'SISTEMA_INATIVO';
+    expect(await digest(exigirPagina('adm.usuarios', 'consultar'))).toMatch(/^NEXT_REDIRECT;.*;\/login\?motivo=sistema-inativo;/);
   });
 
   it('troca de senha pendente → redirect para /troca-senha', async () => {

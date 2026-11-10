@@ -8,13 +8,15 @@ import { MENSAGENS_CARREGAMENTO } from './erro-carregamento';
 vi.mock('@/shared/authz', () => ({ exigirPagina: vi.fn() }));
 vi.mock('@/modules/aut', async () => ({
   carregarTelaPrincipal: vi.fn(),
+  obterAvisoDesativacao: vi.fn(),
+  AvisoDesativacao: (await import('./aviso-desativacao')).AvisoDesativacao,
   trocarUnidade: vi.fn(),
   ErroCarregamento: (await import('./erro-carregamento')).ErroCarregamento,
   TelaPrincipal: (await import('./tela-principal')).TelaPrincipal,
 }));
 
 const { exigirPagina } = await import('@/shared/authz');
-const { carregarTelaPrincipal } = await import('@/modules/aut');
+const { carregarTelaPrincipal, obterAvisoDesativacao } = await import('@/modules/aut');
 const { notFound } = await import('next/navigation');
 const { default: LayoutSistema } = await import('../../../app/(sistema)/layout');
 
@@ -53,8 +55,29 @@ describe('layout de (sistema) (UC01.03 E1, E2)', () => {
       unidadeAtiva: null,
       usuario: { nome: 'Ana', acessoEm: '2026-11-11T12:00:00.000Z' },
     });
+    vi.mocked(obterAvisoDesativacao).mockResolvedValue({ segundos: null });
     const html = await render();
     expect(html).toContain('página');
     expect(html).toContain('Ana');
+    expect(html).not.toContain('será desativado');
+  });
+
+  const carregado = () => {
+    vi.mocked(exigirPagina).mockResolvedValue(ctx);
+    vi.mocked(carregarTelaPrincipal).mockResolvedValue({ menu: [], unidades: [], unidadeAtiva: null, usuario: { nome: 'Ana', acessoEm: '2026-11-11T12:00:00.000Z' } });
+  };
+
+  it('com a desativação agendada, o aviso do UC02.01 2.7 na casca (US-036)', async () => {
+    carregado();
+    vi.mocked(obterAvisoDesativacao).mockResolvedValue({ segundos: 300 });
+    expect(await render()).toContain('O sistema será desativado em 5 minutos. Por favor, salve seus trabalhos correntes.');
+  });
+
+  it('falha ao ler o aviso não derruba a tela', async () => {
+    carregado();
+    vi.mocked(obterAvisoDesativacao).mockRejectedValue(new Error('banco'));
+    const html = await render();
+    expect(html).toContain('página');
+    expect(html).not.toContain('será desativado');
   });
 });

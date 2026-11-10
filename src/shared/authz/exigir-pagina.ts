@@ -3,7 +3,7 @@ import { connection } from 'next/server';
 import { obterContexto, obterMotivoAusencia } from './contexto';
 import { exigir } from './exigir';
 import { registrarNegacao } from './guarda';
-import { ErroPermissao, type Acao, type ContextoRequisicao } from './tipos';
+import { AUSENCIA_SESSAO, ErroPermissao, type Acao, type ContextoRequisicao } from './tipos';
 
 // Guarda de página (Server Component): toda page.tsx de (sistema) começa com ela, o que o teste de
 // arquitetura impõe. A guarda do layout não basta: o App Router não renderiza o layout de novo na
@@ -13,7 +13,10 @@ export async function exigirPagina(funcionalidade: string, acao: Acao): Promise<
   // um redirect para /login como página estática).
   await connection();
   const ctx = await obterContexto();
-  if (!ctx) redirect((await obterMotivoAusencia()) === 'NOVO_ACESSO' ? '/login?motivo=novo-acesso' : '/login');
+  if (!ctx) {
+    const motivo = await obterMotivoAusencia();
+    redirect(motivo ? `/login?motivo=${AUSENCIA_SESSAO[motivo].motivoUrl}` : '/login');
+  }
   if (ctx.trocaSenhaPendente && funcionalidade !== 'aut.senha') redirect('/troca-senha');
   try {
     exigir(ctx, funcionalidade, acao);

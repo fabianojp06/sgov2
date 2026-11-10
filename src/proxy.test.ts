@@ -30,6 +30,24 @@ describe('proxy.ts', () => {
 
   it('/login sem cookie passa', () => expect(proxy(req('/login')).status).toBe(200));
 
+  // D-P9-4: a consulta periódica do aviso de desativação não renova a sessão.
+  const semRenovacao = (r: Response) => r.headers.get('x-middleware-request-x-sgo-sem-renovacao');
+  it('x-sgo-sem-renovacao só na rota do aviso, posto pelo proxy', () => {
+    expect(semRenovacao(proxy(req('/aut/aviso', { cookie: true })))).toBe('1');
+    expect(semRenovacao(proxy(req('/inicio', { cookie: true })))).toBeNull();
+    expect(semRenovacao(proxy(req('/aut/aviso/outra', { cookie: true })))).toBeNull();
+  });
+
+  it('x-sgo-sem-renovacao vindo do cliente é descartado', () => {
+    const r = proxy(req('/inicio', { cookie: true, cabecalhos: { 'x-sgo-sem-renovacao': '1' } }));
+    expect(semRenovacao(r)).toBeNull();
+    // O Next só repassa os cabeçalhos listados em x-middleware-override-headers.
+    expect((r.headers.get('x-middleware-override-headers') ?? '').split(',')).not.toContain('x-sgo-sem-renovacao');
+  });
+
+  it('a rota do aviso sem cookie também redireciona (o cliente trata a resposta que não é JSON)', () =>
+    expect(proxy(req('/aut/aviso')).status).toBe(307));
+
   it.each([['/login'], ['/inicio']])('cabeçalhos de segurança também em %s sem cookie', (caminho) => {
     const r = proxy(req(caminho));
     expect(diretiva(r, 'frame-ancestors')).toBe("frame-ancestors 'none'");

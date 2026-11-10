@@ -17,5 +17,7 @@ export { FormTrocaSenha } from './ui/form-troca-senha';
 export { trocarUnidade } from './application/acoes-unidade';
 export { ajudaDaRota, filtrarMenu, montarMenu, type ItemMenu, type MenuModulo } from './application/menu';
 export { carregarTelaPrincipal, type DadosTelaPrincipal } from './application/tela-principal';
+export { obterAvisoDesativacao } from './application/aviso-desativacao';
+export { AvisoDesativacao } from './ui/aviso-desativacao';
 export { ErroCarregamento } from './ui/erro-carregamento';
 export { TelaPrincipal } from './ui/tela-principal';

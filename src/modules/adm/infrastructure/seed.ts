@@ -57,11 +57,25 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     grupo: 'Operadores e Permissões',
     nome: 'Módulos e Funcionalidades',
     rota: '/adm/modulos',
-    ordem: 4,
+    ordem: 5,
     // Texto de ajuda [PROVISÓRIO]: sem fonte no EP085.
     ajuda:
       'Ative ou desative os módulos do sistema e, num módulo ativo, as funcionalidades dele. ' +
       'Desativar um módulo desativa as funcionalidades dele e desconecta os usuários; ativar o módulo não reativa as funcionalidades.',
+    acoes: ['consultar', 'alterar'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'alterar'] },
+  },
+  {
+    // US-036 (UC02.01: menu Ativar/Desativar Sistema em Administração › Operadores e Permissões).
+    codigo: 'adm.sistema',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Operadores e Permissões',
+    nome: 'Ativar/Desativar Sistema',
+    rota: '/adm/sistema',
+    ordem: 4,
+    ajuda:
+      'Ative o sistema ou desative-o informando o motivo. Os usuários conectados são avisados e desconectados ' +
+      'depois do tempo de espera; com o sistema inativo, só os Administradores entram, e só na Administração.',
     acoes: ['consultar', 'alterar'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'alterar'] },
   },

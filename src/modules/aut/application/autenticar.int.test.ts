@@ -82,7 +82,9 @@ afterAll(async () => {
 
 beforeEach(async () => {
   falharAuditoria = false;
-  await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: false } });
+  // Com a manutenção ligada sem instante, o login a fixa (US-036): desligar zera os campos da
+  // desativação (CHECK da configuração).
+  await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: false, manutencaoAPartir: null, manutencaoMotivo: null, manutencaoPorId: null } });
 });
 
 describe('autenticar: entrada e credenciais', () => {

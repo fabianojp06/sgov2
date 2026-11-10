@@ -5,9 +5,11 @@ import {
   conferirSenha,
   hashSenha,
   limparRecuperacao,
+  manutencaoEfetiva,
   normalizarLogin,
   obterConfiguracaoAcesso,
   registrarFalhaLogin,
+  travarDesativacaoEfetiva,
   travarUsuarioParaLogin,
   zerarFalhasLogin,
   type UsuarioParaLogin,
@@ -137,12 +139,13 @@ export async function autenticar(
   const normalizado = normalizarLogin(login);
 
   try {
-    // Fase 1.
+    // Fase 1. A manutenção vale quando a desativação do sistema já é efetiva (US-036, D-P9-2): durante
+    // a contagem, todos ainda entram.
     const previa = await obterConfiguracaoAcesso(cliente);
     const lido = normalizado ? await travarUsuarioParaLogin(cliente, normalizado, false) : null;
     let conferido: { hash: string; confere: boolean } | null = null;
     let temporaria: { hash: string; confere: boolean } | null = null;
-    const decisao = avaliarAntesDaSenha({ manutencao: previa.manutencao, usuario: lido });
+    const decisao = avaliarAntesDaSenha({ manutencao: manutencaoEfetiva(previa, agora), usuario: lido });
     // Manutenção e bloqueio também pagam as duas conferências: sem isso, o tempo em manutenção
     // revelaria quais logins são de Administrador (os únicos que conferem a senha).
     if (decisao === 'INEXISTENTE' || decisao === 'INATIVO' || decisao === 'MANUTENCAO' || decisao === 'BLOQUEADO') {
@@ -157,11 +160,17 @@ export async function autenticar(
 
     // Fase 2.
     const { resultado, alerta } = await cliente.$transaction(async (tx): Promise<{ resultado: ResultadoLogin; alerta?: Alerta }> => {
-      const config = await obterConfiguracaoAcesso(tx);
+      let config = await obterConfiguracaoAcesso(tx);
+      // Manutenção ligada direto no banco (sem instante): fixa o instante antes de emitir a sessão, para
+      // a do Administrador (criada agora) não cair na efetivação da requisição seguinte (US-036).
+      if (manutencaoEfetiva(config, agora) && config.manutencaoAPartir === null) {
+        await travarDesativacaoEfetiva(tx, agora);
+        config = await obterConfiguracaoAcesso(tx);
+      }
       const usuario = normalizado ? await travarUsuarioParaLogin(tx, normalizado) : null;
       const t: Tentativa = { usuario, rotulo: usuario?.login ?? normalizado ?? ROTULO_INVALIDO, ip, agora };
 
-      switch (avaliarAntesDaSenha({ manutencao: config.manutencao, usuario })) {
+      switch (avaliarAntesDaSenha({ manutencao: manutencaoEfetiva(config, agora), usuario })) {
         case 'MANUTENCAO':
           await auditarTentativa(tx, t, 'Tentativa de login durante a manutenção');
           return { resultado: negar('MANUTENCAO', MENSAGENS.MANUTENCAO, false, usuario === null) };

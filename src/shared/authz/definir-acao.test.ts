@@ -60,6 +60,13 @@ describe('definirAcao', () => {
     });
   });
 
+  it('sem contexto porque o sistema foi desativado → 401 com o texto da RN0023 (US-033)', async () => {
+    contexto = null;
+    configurarProvedorContexto({ obter: async () => null, motivoAusencia: async () => 'SISTEMA_INATIVO' });
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, vi.fn());
+    expect(await acao({ nome: 'x' })).toEqual({ ok: false, status: 401, erros: [{ campo: '_', mensagem: 'Sistema está em manutenção' }] });
+  });
+
   it('sem a permissão e com entrada inválida → 403 sem erros de campo, auditado', async () => {
     const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, vi.fn());
     expect(await acao({ nome: '' })).toEqual({

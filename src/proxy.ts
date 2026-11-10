@@ -8,6 +8,10 @@ import { lerEnvAcesso, nomeCookieSessao, nomeCookieUnidade } from '@/shared/conf
 const PUBLICAS = new Set(['/', '/login']);
 // O mesmo nome de CABECALHO_IP de @/shared/authz (que carrega o Prisma e fica fora do proxy).
 const CABECALHO_IP = 'x-sgo-ip';
+// O mesmo nome de CABECALHO_SEM_RENOVACAO de @/shared/authz: a consulta periódica do aviso de
+// desativação (D-P9-4) não renova a sessão, para a inatividade valer numa aba esquecida aberta.
+const CABECALHO_SEM_RENOVACAO = 'x-sgo-sem-renovacao';
+const ROTA_AVISO = '/aut/aviso';
 
 // Último salto do X-Forwarded-For: é o que o Traefik acrescenta; os anteriores vêm do cliente.
 // Zona IPv6 ('%eth0') é recusada, porque o tipo inet do Postgres não a aceita.
@@ -61,6 +65,9 @@ export function proxy(req: NextRequest): NextResponse {
 
   const cabecalhos = new Headers(req.headers);
   cabecalhos.delete(CABECALHO_IP);
+  // Cabeçalho interno: o do cliente nunca passa; só a rota do aviso o recebe, daqui.
+  cabecalhos.delete(CABECALHO_SEM_RENOVACAO);
+  if (pathname === ROTA_AVISO) cabecalhos.set(CABECALHO_SEM_RENOVACAO, '1');
   const ip = ipDoCliente(req, env.confiarProxy);
   if (ip) cabecalhos.set(CABECALHO_IP, ip);
   cabecalhos.set('Content-Security-Policy', csp);

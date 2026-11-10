@@ -27,7 +27,8 @@ model SessaoEncerrada {
   tokenHash   String   @id @map("token_hash")
   usuarioId   String   @map("usuario_id") @db.Uuid
   usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  // Só 'NOVO_ACESSO' por enquanto (CHECK no banco); a US-033 (desconexão pelo Administrador) acrescenta.
+  // 'NOVO_ACESSO' (US-028) ou 'SISTEMA_INATIVO' (US-033/US-036: desconexão pela desativação do
+  // sistema); CHECK no banco.
   motivo      String
   encerradaEm DateTime @map("encerrada_em") @db.Timestamptz(6)
   expiraEm    DateTime @map("expira_em") @db.Timestamptz(6)

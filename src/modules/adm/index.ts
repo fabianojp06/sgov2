@@ -1,7 +1,11 @@
 // API pública do módulo adm (spec §4.1). Contrato C6: catálogo de funcionalidades e perfis padrão.
 export { listarCatalogoDoMenu, listarUnidadesDoUsuario } from './application/catalogo-ativo';
 export { MODULOS_MENU, type CodigoModuloMenu, type DeclaracaoFuncionalidade } from './application/catalogo';
-export { obterConfiguracaoAcesso, type ConfiguracaoAcesso } from './application/configuracao';
+export { manutencaoEfetiva, obterConfiguracaoAcesso, type ConfiguracaoAcesso } from './application/configuracao';
+export { ativar, desativar } from './application/acoes-sistema';
+export { TelaSistema } from './ui/tela-sistema';
+export { ativarSistema, consultarEstadoSistema, desativarSistema, listarAtivacoes, obterEstadoSistema, travarDesativacaoEfetiva, type DepsSistema, type EstadoSistema, type LinhaAtivacao } from './application/sistema';
+export { MENSAGENS_SISTEMA } from './domain/sistema';
 export { obterEscopoCentroCusto } from './application/escopo-cc';
 export { instalarFuncionalidades } from './application/instalar-funcionalidades';
 export {
