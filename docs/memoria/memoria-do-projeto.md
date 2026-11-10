@@ -345,8 +345,8 @@
   - ~~**`main-unico.test.ts`:** tirar a exceção `${SISTEMA}/cad` do `FORA`, porque as páginas do `cad` já não abrem `<main>` (#320)~~ **feito pela frente A (#335)**;
   - **CSP completa e HSTS:** no `proxy.ts` ou no Traefik (PO). O teste está em `test.fixme` no `e2e/seguranca/cabecalhos.spec.ts` (#318).
 - [ ] **Frente B, próximos passos do P7:**
-  - Task 2 parte 2: a seção de usuários, depois do contrato do `adm`;
-  - Task 3: a primeira rodada da carga (com o ok do PO) e as metas de servidor por teste de integração com tempo (escrita simples, recálculo e exportação de 5.000 linhas);
+  - ~~Task 2 parte 2: a seção de usuários, depois do contrato do `adm`~~ **feito em 10/11 (#344)**;
+  - ~~Task 3: a primeira rodada da carga (com o ok do PO) e as metas de servidor por teste de integração com tempo (escrita simples, recálculo e exportação de 5.000 linhas)~~ **feito em 10/11 (#324, #338); o recálculo foi pedido à frente A (bloco de 10/11)**;
   - Task 4: o ZAP (ativo no dev local, *baseline* em hml);
   - Tasks 5 a 7: dependem da Tarefa 6 do P3 (GAP-INF-001).
 - [x] **Lições de 04/11:**
@@ -366,7 +366,7 @@
   - quando a tela do Histórico mostrar `antes`/`depois`: usar o `mascararHistoricoCad` (#339) e registrar o `CONSULTA` de `cad.salarios` quando `contemSalario` vier `true` (R24). O aviso está no #330.
 - [ ] **Frente B, próximos passos:**
   - **P7, Task 3:** o gerador dos 5 exercícios (depois da resposta da frente A) e a medição da Tree Grid sobre o plano de 5.000 linhas (`ops/carga/gerar-plano.ts`, #341). Atenção: a seed com `CARGA_DADOS_REFERENCIA=1` inativa o ramo `9` (README da carga);
-  - **P7, Task 4:** o ZAP (ativo no dev local, com o ok do PO, porque pesa na VPS);
+  - **P7, Task 4:** o ZAP (ativo no dev local, com o ok do PO, porque pesa na VPS; *baseline* em hml, depois da Tarefa 6 do P3);
   - **US-024 (#46), o que falta:** a exportação assíncrona acima de 5.000 linhas (job e aviso) e o PDF (ISO 32000-1);
   - Tasks 5 a 7 do P7: dependem da Tarefa 6 do P3 (GAP-INF-001).
 - [x] **Lições de 10/11:**
