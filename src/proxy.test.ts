@@ -10,6 +10,13 @@ const req = (caminho: string, opcoes: { metodo?: string; cabecalhos?: Record<str
 
 // O proxy repassa os cabeçalhos da requisição ao Next em x-middleware-request-<nome>.
 const ipRepassado = (r: Response) => r.headers.get('x-middleware-request-x-sgo-ip');
+const csp = (r: Response) => r.headers.get('content-security-policy') ?? '';
+const diretiva = (r: Response, nome: string) =>
+  csp(r)
+    .split(';')
+    .map((d) => d.trim())
+    .find((d) => d === nome || d.startsWith(`${nome} `));
+const nonce = (r: Response) => /'nonce-([^']+)'/.exec(diretiva(r, 'script-src') ?? '')?.[1];
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -25,7 +32,7 @@ describe('proxy.ts', () => {
 
   it.each([['/login'], ['/inicio']])('cabeçalhos de segurança também em %s sem cookie', (caminho) => {
     const r = proxy(req(caminho));
-    expect(r.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+    expect(diretiva(r, 'frame-ancestors')).toBe("frame-ancestors 'none'");
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
@@ -41,9 +48,52 @@ describe('proxy.ts', () => {
   it('página do sistema com cookie: no-store e cabeçalhos de segurança', () => {
     const r = proxy(req('/inicio', { cookie: true }));
     expect(r.headers.get('cache-control')).toBe('no-store');
-    expect(r.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+    expect(diretiva(r, 'frame-ancestors')).toBe("frame-ancestors 'none'");
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
     expect(r.headers.get('referrer-policy')).toBe('same-origin');
+  });
+
+  // CSP completa (#318, decisão do PO em 10/11): script só com o nonce da requisição; o Next lê o
+  // nonce do cabeçalho da requisição e o põe nos scripts dele (SSR).
+  it('CSP completa: script só com nonce, sem eval nem inline, e o resto restrito à origem', () => {
+    const r = proxy(req('/inicio', { cookie: true }));
+    expect(diretiva(r, 'default-src')).toBe("default-src 'self'");
+    expect(diretiva(r, 'script-src')).toMatch(/^script-src 'self' 'nonce-[A-Za-z0-9+/=]{16,}' 'strict-dynamic'$/);
+    expect(diretiva(r, 'object-src')).toBe("object-src 'none'");
+    expect(diretiva(r, 'base-uri')).toBe("base-uri 'self'");
+    expect(diretiva(r, 'form-action')).toBe("form-action 'self'");
+    expect(diretiva(r, 'connect-src')).toBe("connect-src 'self'");
+    expect(diretiva(r, 'img-src')).toBe("img-src 'self' blob: data:");
+    // Estilo inline fica liberado: há atributos style e <style> nas telas; com nonce, o
+    // 'unsafe-inline' seria ignorado pelo navegador.
+    expect(diretiva(r, 'style-src')).toBe("style-src 'self' 'unsafe-inline'");
+    expect(csp(r)).not.toContain('unsafe-eval');
+  });
+
+  it('o nonce muda a cada requisição e vai também na requisição repassada ao Next', () => {
+    const a = proxy(req('/inicio', { cookie: true }));
+    const b = proxy(req('/inicio', { cookie: true }));
+    expect(nonce(a)).toBeDefined();
+    expect(nonce(a)).not.toBe(nonce(b));
+    expect(a.headers.get('x-middleware-request-content-security-policy')).toBe(csp(a));
+  });
+
+  it('CSP enviada pelo cliente na requisição é trocada pela do proxy', () => {
+    const r = proxy(req('/login', { cabecalhos: { 'content-security-policy': "script-src 'unsafe-inline'" } }));
+    expect(r.headers.get('x-middleware-request-content-security-policy')).toBe(csp(r));
+  });
+
+  it('upgrade-insecure-requests só com URL_PUBLICA https; unsafe-eval só em desenvolvimento', () => {
+    expect(diretiva(proxy(req('/login')), 'upgrade-insecure-requests')).toBeUndefined();
+    vi.stubEnv('URL_PUBLICA', 'https://sgo.exemplo.org');
+    expect(diretiva(proxy(req('/login')), 'upgrade-insecure-requests')).toBe('upgrade-insecure-requests');
+    vi.unstubAllEnvs();
+    vi.stubEnv('NODE_ENV', 'development');
+    expect(diretiva(proxy(req('/login')), 'script-src')).toContain("'unsafe-eval'");
+  });
+
+  it('redirecionamento para o login também leva a CSP completa', () => {
+    expect(nonce(proxy(req('/inicio')))).toBeDefined();
   });
 
   it('x-sgo-ip do cliente é descartado; sem CONFIAR_PROXY, IP nulo', () => {
