@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { carregarPermissoes, listarUnidadesDoUsuario, obterConfiguracaoAcesso, obterUsuarioParaSessao } from '@/modules/adm';
 import { auditar } from '@/shared/audit';
-import type { ContextoRequisicao, ProvedorContexto } from '@/shared/authz';
+import type { ContextoRequisicao, MotivoAusenciaSessao, ProvedorContexto } from '@/shared/authz';
 import { CABECALHO_IP } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { resolverUnidadeAtiva } from '@/shared/unidade';
@@ -93,6 +93,15 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
         permissoes,
         trocaSenhaPendente: sessao.trocaSenhaPendente,
       };
+    },
+    // US-028: a sessão deste cookie foi encerrada por um login em outra estação? Não apaga a marca
+    // (o layout e a página perguntam na mesma requisição); ela vale até o prazo e sai depois de vencida.
+    async motivoAusencia(): Promise<MotivoAusenciaSessao | null> {
+      const token = await lerCookie(nomeCookieSessao());
+      if (!token) return null;
+      const marca = await cliente.sessaoEncerrada.findUnique({ where: { tokenHash: hashDoToken(token) } });
+      if (!marca || marca.expiraEm.getTime() <= relogio().getTime()) return null;
+      return marca.motivo === 'NOVO_ACESSO' ? 'NOVO_ACESSO' : null;
     },
   };
 }

@@ -112,6 +112,8 @@ export async function trocarSenha(
         ip: ctx.ip,
         agora,
         maximoHoras: config.sessaoMaximaHoras,
+        inatividadeMin: config.inatividadeMin,
+        motivoAnteriores: null,
       });
       await auditar(tx, {
         contexto: { ...contexto, sessaoUid: sessao.sessaoUid },

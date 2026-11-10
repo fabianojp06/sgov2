@@ -83,6 +83,7 @@ model Usuario {
   sessoes               SessaoUsuario[]
   alcadasTitular        AlcadaAprovacao[] @relation("AlcadaTitular")
   alcadasSubstituto     AlcadaAprovacao[] @relation("AlcadaSubstituto")
+  sessoesEncerradas     SessaoEncerrada[]
   unidades              UsuarioUnidade[]
 
   @@map("usuario")

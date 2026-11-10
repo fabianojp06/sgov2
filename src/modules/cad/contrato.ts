@@ -58,3 +58,6 @@ export type { ContagemNivel, ResumoCadastros, SomaSalarios } from './infrastruct
 // Parâmetros por exercício (Task 9a): semáforo (RN_PLA_006) e tipos da tela.
 export { classificarSemaforo, type FaixaSemaforo, type FaixasSemaforo } from './domain/semaforo';
 export type { EntradaParametros, ParametrosExercicio } from './domain/parametros';
+
+// Máscara dos salários no Histórico (R24; pedido do P8, D-P8-10): função pura para a tela do Histórico.
+export { mascararHistoricoCad, VALOR_MASCARADO, type HistoricoMascarado } from './domain/mascara-historico';
