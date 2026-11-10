@@ -13,6 +13,9 @@ export type ContextoRequisicao = Omit<ContextoAuditoria, 'usuarioId' | 'sessaoUi
   permissoes: ReadonlySet<string>;
   // Sessão com troca de senha obrigatória (P5): só a troca de senha e o logoff são permitidos.
   trocaSenhaPendente?: boolean;
+  // Unidades (TPs) ativas do usuário, para a RLS (US-007, app.unidades). Opcional: ausente vale
+  // como lista vazia (não vê dado de TP nenhum). A unidade ativa do seletor é `unidadeId`.
+  unidades?: readonly string[];
 };
 
 // Por que não há sessão (US-028): a sessão única foi encerrada por um login em outra estação.

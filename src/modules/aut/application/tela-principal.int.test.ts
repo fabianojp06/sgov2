@@ -122,6 +122,10 @@ describe('unidade ativa no contexto', () => {
     expect((await logado('fabi', 'ORCAMENTISTA', [unidades.a, unidades.b], unidades.inativa)).unidadeId).toBeNull());
   it('cookie com unidade inativa do próprio usuário → ignorado (sobra a única ativa)', async () =>
     expect((await logado('ivo', 'ORCAMENTISTA', [unidades.a, unidades.inativa], unidades.inativa)).unidadeId).toBe(unidades.a));
+  it('unidades do contexto (US-007): só as ativas do usuário; vazia com a troca de senha pendente', async () => {
+    expect([...((await logado('kaka', 'ORCAMENTISTA', [unidades.a, unidades.inativa])).unidades ?? [])]).toEqual([unidades.a]);
+    expect((await logado('lulu', 'ORCAMENTISTA', [unidades.a], undefined, true)).unidades).toEqual([]);
+  });
   it('troca de senha pendente → sem unidade ativa, mesmo com uma só', async () =>
     expect((await logado('juca', 'ORCAMENTISTA', [unidades.a], undefined, true)).unidadeId).toBeNull());
 });
