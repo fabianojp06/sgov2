@@ -335,7 +335,7 @@
 **Frente A (10/11, tarde), P11: pacotes base zero pela tela** (plano no #361)
 - [x] Na `main`: plano (#361) e US-057 (#362, migration `202611101500_orc_pacote_tela`, tela `orc.pacotes`). O Gestor de Diretoria (no escopo) e a GFIN incluem, alteram e excluem pacotes com prévia do anual e das 12 parcelas; toda escrita trava o exercício e sobe a versão dele; premissas iguais recalculam só o pacote, premissas mudadas recusam o Gestor e recalculam tudo para a GFIN; `sgo_app` com UPDATE por coluna em `orc_pacote` (sem `origem`, `importacao_id`, `exercicio_id`).
 - [x] **Muda a R7 do P6 (D-P11-7):** a reimportação substitui só os pacotes do CC com `origem <> 'TELA'`; os da tela ficam, e o relatório e o Histórico da importação contam os mantidos. A cópia de exercício grava os pacotes TELA como COPIA no ano novo.
-- [ ] PO valida: D-P11-1 (Gestor e GFIN lançam; a GFIN lançar pela tela vai além da leitura que a §11.3 lhe dá), D-P11-2, D-P11-5, D-P11-7 e os textos [PROVISÓRIOS] do #362 (o UC04.17 não é EP, GAP-ORC-004).
+- [ ] PO valida: D-P11-1 (Gestor e GFIN lançam; a GFIN lançar pela tela vai além da leitura que a §11.3 lhe dá), D-P11-2, D-P11-5, D-P11-6 (prévia calculada no cliente), D-P11-7 e os textos [PROVISÓRIOS] do #362 (o UC04.17 não é EP, GAP-ORC-004).
 - [ ] **US-056 (posições de pessoal pela tela, #78) espera o PO:** (a) cargo em texto livre até a carga do C&S (C34) ou só com o C&S (C24); (b) se o Gestor pode ver o salário da Fonte Ativa e com que máscara (R24 × D-P6-1); (c) se o salário vai ao Histórico. Com o C&S, precisa de acréscimo no C2 da frente B (leitor de cargos e base de custo do cargo).
 
 **Frente B (03/11)**
