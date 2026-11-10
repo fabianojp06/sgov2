@@ -9,6 +9,12 @@ export default async function CentrosCusto() {
     <div>
       <h1>Centros de Custo</h1>
       {ctx.permissoes.has('cad.centros_custo:executar') && <a href="/cad/centros-custo/importar">Importar arquivo</a>}
+      {ctx.permissoes.has('cad.centros_custo:exportar') && (
+        <p>
+          Exportar: <a href="/cad/centros-custo/exportar?formato=xlsx">XLSX</a> · <a href="/cad/centros-custo/exportar?formato=csv">CSV</a> (com os inativos: <a href="/cad/centros-custo/exportar?formato=xlsx&inativos=1">XLSX</a> ·{' '}
+          <a href="/cad/centros-custo/exportar?formato=csv&inativos=1">CSV</a>)
+        </p>
+      )}
       <ArvoreCc nos={nos} escopoSessao={escopoDaSessao(ctx)} />
     </div>
   );
