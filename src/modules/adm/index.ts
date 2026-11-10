@@ -32,6 +32,17 @@ export {
   type DepsAlcadas,
   type LinhaAlcada,
 } from './application/alcadas';
+export { alternarFuncionalidade, alternarModulo } from './application/acoes-modulos';
+export {
+  alterarFuncionalidade,
+  alterarModulo,
+  listarModulos,
+  type DepsModulos,
+  type FuncionalidadeDoModulo,
+  type ModuloComFuncionalidades,
+} from './application/modulos';
+export { MENSAGENS_MODULOS } from './domain/modulos';
+export { TelaModulos } from './ui/tela-modulos';
 export { FormAlcada } from './ui/form-alcada';
 export { ListaAlcadas } from './ui/lista-alcadas';
 export { FLUXOS_APROVACAO, MENSAGENS_ALCADA, ROTULO_FLUXO, type FluxoAprovacao } from './domain/alcada';

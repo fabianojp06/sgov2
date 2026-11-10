@@ -32,6 +32,9 @@ export const USUARIOS = {
   // Histórico de Operações (e2e/adm/historico.spec.ts, US-040).
   historico: { login: 'adm.historico', nome: 'E2E Administrador Histórico', perfil: 'ADMINISTRADOR' },
   auditor: { login: 'aud.historico', nome: 'E2E Auditor Histórico', perfil: 'AUDITOR' },
+  // Módulos e funcionalidades (e2e/adm/modulos.spec.ts, US-035): o GFIN vê o menu da Adm. Central.
+  modulos: { login: 'adm.modulos', nome: 'E2E Administrador Módulos', perfil: 'ADMINISTRADOR' },
+  gfinModulos: { login: 'gfin.modulos', nome: 'E2E Gestor Financeiro Módulos', perfil: 'GFIN' },
   // Ativar e desativar o sistema (e2e/adm/sistema.spec.ts, US-036/US-033).
   sistema: { login: 'adm.sistema', nome: 'E2E Administrador Sistema', perfil: 'ADMINISTRADOR' },
   sistemaOrc: { login: 'orc.sistema', nome: 'E2E Orçamentista Sistema', perfil: 'ORCAMENTISTA' },
