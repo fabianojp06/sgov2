@@ -17,8 +17,31 @@ function ipDoCliente(req: NextRequest, confiarProxy: boolean): string | null {
   return ultimo !== '' && !ultimo.includes('%') && isIP(ultimo) !== 0 ? ultimo : null;
 }
 
-function comSeguranca(r: NextResponse): NextResponse {
-  r.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
+// CSP completa (#318; decisão do PO em 10/11): script só com o nonce desta requisição. O Next lê o
+// nonce da CSP da requisição e o aplica aos scripts dele no SSR; por isso as páginas com script
+// precisam ser dinâmicas (as do sistema leem o cookie). Estilo inline continua liberado, porque as
+// telas usam atributos style e <style>; com nonce em style-src, o navegador ignoraria o
+// 'unsafe-inline'. O eval só entra em desenvolvimento (o React o usa para depuração). HSTS fica no
+// Traefik de hml e prod, não aqui.
+function politicaSeguranca(nonce: string, seguro: boolean): string {
+  const dev = process.env.NODE_ENV === 'development';
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' blob: data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(seguro ? ['upgrade-insecure-requests'] : []),
+  ].join('; ');
+}
+
+function comSeguranca(r: NextResponse, csp: string): NextResponse {
+  r.headers.set('Content-Security-Policy', csp);
   r.headers.set('X-Content-Type-Options', 'nosniff');
   r.headers.set('Referrer-Policy', 'same-origin');
   r.headers.set('Cache-Control', 'no-store');
@@ -29,17 +52,19 @@ export function proxy(req: NextRequest): NextResponse {
   const env = lerEnvAcesso();
   const nomeSessao = nomeCookieSessao(env);
   const { pathname, searchParams } = req.nextUrl;
+  const csp = politicaSeguranca(btoa(crypto.randomUUID()), env.seguro);
 
   if (!PUBLICAS.has(pathname) && !req.cookies.has(nomeSessao)) {
     const metodoSeguro = req.method === 'GET' || req.method === 'HEAD';
-    return comSeguranca(NextResponse.redirect(new URL('/login', req.url), metodoSeguro ? 307 : 303));
+    return comSeguranca(NextResponse.redirect(new URL('/login', req.url), metodoSeguro ? 307 : 303), csp);
   }
 
   const cabecalhos = new Headers(req.headers);
   cabecalhos.delete(CABECALHO_IP);
   const ip = ipDoCliente(req, env.confiarProxy);
   if (ip) cabecalhos.set(CABECALHO_IP, ip);
-  const resposta = comSeguranca(NextResponse.next({ request: { headers: cabecalhos } }));
+  cabecalhos.set('Content-Security-Policy', csp);
+  const resposta = comSeguranca(NextResponse.next({ request: { headers: cabecalhos } }), csp);
 
   // Logoff (Task 4): o cliente sempre termina em /login?saiu=1. Os cookies são limpos aqui, mesmo
   // com a sessão já expirada (RNF0010), mas só quando o pedido vem do próprio sistema: um link de
