@@ -63,12 +63,16 @@ export { registrarImpressaoHistorico } from './application/acoes-historico';
 export { consultaDaUrl, lerFiltroHistorico, type ValoresFiltro } from './application/filtro-historico';
 export {
   consultarHistorico,
+  AVISOS_EXPORTACAO_HISTORICO,
+  avisoDaRecusa,
   exportarHistorico,
+  MENSAGEM_EXPORTACAO_AGENDADA,
   MENSAGEM_EXPORTACAO_LIMITE,
   registrarImpressao,
   FUNCIONALIDADE_HISTORICO,
   MENSAGEM_PERIODO,
   POR_PAGINA,
+  type ExportacaoHistorico,
   type FiltroHistorico,
   type LinhaHistorico,
   type PaginaHistorico,

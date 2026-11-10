@@ -9,3 +9,6 @@ export { contarUsuariosPorPerfil, type ContagemUsuarios } from './application/co
 // Roteamento das alçadas (US-042) para os fluxos de aprovação (US-078); sem permissão própria.
 export { resolverAprovador, type AprovadorResolvido } from './application/roteamento-alcada';
 export { MENSAGENS_ALCADA, type FluxoAprovacao } from './domain/alcada';
+// Exportação assíncrona do Histórico (US-040, US-024): o gerador que o worker passa ao ger. Sem
+// sessão no worker, ele refaz a permissão e o alcance de quem pediu.
+export { GERADORES_EXPORTACAO_ADM } from './application/planilha-historico';

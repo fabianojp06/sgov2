@@ -1,4 +1,5 @@
 import { rmSync, writeFileSync } from 'node:fs';
+import { GERADORES_EXPORTACAO_ADM } from '@/modules/adm/servidor';
 import { limparExportacoes, registrarTrabalhadoresGer } from '@/modules/ger/servidor';
 import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
@@ -51,7 +52,7 @@ async function iniciar(): Promise<void> {
   await registrarTrabalhadoresGer(fila, {
     cliente: prisma,
     obterNomeExibicao: criarObterNomeExibicao(prisma),
-    geradoresExportacao: { ...GERADORES_EXPORTACAO_CAD },
+    geradoresExportacao: { ...GERADORES_EXPORTACAO_CAD, ...GERADORES_EXPORTACAO_ADM },
   });
   // Merge das cargas de estrutura (plano do P4, R6): só o worker tem o sgo_sync. Sem a variável,
   // o processador avisa [CARGA_SEM_SYNC] e os lotes ficam PENDENTE, visíveis na tela.

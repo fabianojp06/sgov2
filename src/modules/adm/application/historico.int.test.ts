@@ -4,7 +4,9 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedAdm } from '../infrastructure/seed';
 import ExcelJS from 'exceljs';
-import { consultarHistorico, exportarHistorico, MENSAGEM_EXPORTACAO_LIMITE, MENSAGEM_PERIODO, MENSAGEM_USUARIO_FILTRO, registrarImpressao } from './historico';
+import { criarTrabalhadorExportacao } from '@/modules/ger/servidor';
+import { consultarHistorico, exportarHistorico, MENSAGEM_EXPORTACAO_LIMITE, MENSAGEM_PERIODO, MENSAGEM_USUARIO_FILTRO, registrarImpressao, type ExportacaoHistorico } from './historico';
+import { GERADORES_EXPORTACAO_ADM, MENSAGEM_SEM_PERMISSAO_EXPORTAR } from './planilha-historico';
 
 // Consulta do Histórico de Operações (US-040, UC02.24): alcance por perfil (RN0099, RN0100), filtros,
 // paginação no banco e o registro da própria consulta (nível Avançado, §5).
@@ -15,6 +17,24 @@ let admin: ContextoRequisicao;
 let auditor: ContextoRequisicao;
 const deps = () => ({ cliente: app });
 const DE = new Date('2026-10-01T03:00:00Z');
+// Até o limite síncrono, o arquivo sai na hora.
+const arquivo = (r: Awaited<ReturnType<typeof exportarHistorico>>): Extract<ExportacaoHistorico, { tipo: 'arquivo' }> => {
+  if (!r.ok || r.valor.tipo !== 'arquivo') throw new Error(`esperava o arquivo na hora: ${JSON.stringify(r)}`);
+  return r.valor;
+};
+const pedidoAgendado = (r: Awaited<ReturnType<typeof exportarHistorico>>): string => {
+  if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(`esperava o pedido: ${JSON.stringify(r)}`);
+  return r.valor.pedidoId;
+};
+// As células do XLSX como texto, linha a linha.
+async function celulas(bytes: Uint8Array): Promise<(string | null)[][]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(Buffer.from(bytes) as unknown as ArrayBuffer);
+  const aba = wb.worksheets[0]!;
+  const linhas: (string | null)[][] = [];
+  aba.eachRow({ includeEmpty: true }, (r) => linhas.push((r.values as unknown[]).slice(1).map((v) => (v === undefined || v === null ? null : String(v)))));
+  return linhas;
+}
 const ATE = new Date('2026-10-31T03:00:00Z');
 
 async function usuarioComPerfil(login: string, perfil: string): Promise<ContextoRequisicao> {
@@ -129,9 +149,8 @@ describe('exportarHistorico e registrarImpressao (UC0.05, RN_LOG_EXP)', () => {
 
   it('XLSX com os filtros na primeira linha e as colunas do UC02.24; EXPORTACAO com a quantidade e os filtros', async () => {
     const r = await exportarHistorico(exportador(), { de: DE, ate: ATE, funcionalidade: 'orc.exercicios' }, deps());
-    expect(r.ok).toBe(true);
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load((r.ok ? r.valor.bytes : new Uint8Array()) as unknown as ArrayBuffer);
+    await wb.xlsx.load(arquivo(r).bytes as unknown as ArrayBuffer);
     const aba = wb.worksheets[0]!;
     const valores = (n: number) => (aba.getRow(n).values as unknown[]).slice(1).map((v) => (v === undefined || v === null ? null : String(v)));
     expect(valores(1)).toEqual(['Data da Operação', 'Usuário', 'Funcionalidade', 'Tipo de Operação', 'Descrição']);
@@ -144,25 +163,12 @@ describe('exportarHistorico e registrarImpressao (UC0.05, RN_LOG_EXP)', () => {
 
   it('a data final é o dia em Brasília, não o dia seguinte em UTC (revisão do #330)', async () => {
     const r = await exportarHistorico(exportador(), { de: new Date('2026-10-01T03:00:00Z'), ate: new Date('2026-11-01T02:59:59.999Z') }, deps());
-    expect(r.ok && r.valor.nome).toBe('historico-2026-10-01-a-2026-10-31.xlsx');
+    expect(arquivo(r).nome).toBe('historico-2026-10-01-a-2026-10-31.xlsx');
     const ultimo = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'adm.historico', tipoOperacao: 'EXPORTACAO' }, orderBy: { id: 'desc' } });
     expect(ultimo.descricao).toContain('período 2026-10-01 a 2026-10-31');
   });
 
-  it('acima de 5.000 linhas → recusa sem gerar nem registrar; sem a permissão → ErroPermissao', async () => {
-    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
-      SELECT '2026-08-10T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa ' || g FROM generate_series(1, 4999) g`;
-    // 4.999 registros + a linha dos filtros = 5.000: cabe. Com mais um, passa do limite.
-    const cabe = await exportarHistorico(exportador(), { de: new Date('2026-08-01T03:00:00Z'), ate: new Date('2026-08-31T03:00:00Z') }, deps());
-    expect(cabe.ok).toBe(true);
-    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
-      VALUES ('2026-08-11T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa 5000')`;
-    const antes = await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } });
-    expect(await exportarHistorico(exportador(), { de: new Date('2026-08-01T03:00:00Z'), ate: new Date('2026-08-31T03:00:00Z') }, deps())).toEqual({
-      ok: false,
-      erros: [{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }],
-    });
-    expect(await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } })).toBe(antes);
+  it('sem a permissão de exportar → ErroPermissao', async () => {
     await expect(exportarHistorico(admin, { de: DE, ate: ATE }, deps())).rejects.toBeInstanceOf(ErroPermissao);
   });
 
@@ -172,3 +178,118 @@ describe('exportarHistorico e registrarImpressao (UC0.05, RN_LOG_EXP)', () => {
     expect(ultimo.descricao).toContain('tipo LOGIN');
   });
 });
+
+// Acima de 5.000 linhas (RF_IMP_003; US-024), o pedido vai para o worker. O gerador roda sem sessão:
+// refaz a permissão e o alcance de quem pediu na hora de gerar. O trabalhador é o mesmo que o worker
+// registra; o limite baixo (limiteSincrono) evita montar 5.000 linhas fora do primeiro teste.
+describe('exportação assíncrona do Histórico (US-040, US-024)', () => {
+  const AGORA = new Date('2026-11-10T15:00:00.000Z');
+  const trabalhar = () => criarTrabalhadorExportacao({ cliente: app, geradores: GERADORES_EXPORTACAO_ADM, agora: () => AGORA });
+  const pedido = async (id: string) => (await migrator.$queryRaw<Record<string, unknown>[]>`SELECT * FROM exportacao_pedido WHERE id = ${id}::uuid`)[0]!;
+  const exportacoesDoPedido = (id: string) => migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO', registroId: id } });
+  const permissoes = (ctx: ContextoRequisicao) => ({ ...ctx, permissoes: new Set(['adm.historico:consultar', 'adm.historico:exportar']) });
+  const AGOSTO = { de: new Date('2026-08-01T03:00:00Z'), ate: new Date('2026-09-01T02:59:59.999Z') };
+
+  it('4.999 registros saem na hora; com 5.000, vira pedido (outbox, sem Histórico) e o worker gera o arquivo', async () => {
+    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
+      SELECT '2026-08-10T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa ' || g FROM generate_series(1, 4999) g`;
+    // 4.999 registros + a linha dos filtros = 5.000: cabe. Com mais um, passa do limite.
+    expect(arquivo(await exportarHistorico(permissoes(admin), AGOSTO, deps())).bytes.length).toBeGreaterThan(0);
+    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
+      VALUES ('2026-08-11T12:00:00Z'::timestamptz, 'Massa', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'massa 5000')`;
+    const antes = await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } });
+    const id = pedidoAgendado(await exportarHistorico(permissoes(admin), { ...AGOSTO, usuario: 'massa' }, deps()));
+    expect(await pedido(id)).toMatchObject({
+      usuario_id: admin.usuarioId,
+      funcionalidade: 'adm.historico',
+      titulo: 'Histórico de Operações',
+      formato: 'xlsx',
+      nome_arquivo: 'historico-2026-08-01-a-2026-08-31.xlsx',
+      situacao: 'PENDENTE',
+      conteudo: null,
+      parametros: { usuarioId: admin.usuarioId, de: '2026-08-01T03:00:00.000Z', ate: '2026-09-01T02:59:59.999Z', usuario: 'massa' },
+    });
+    const outbox = await migrator.$queryRaw<{ tipo: string }[]>`SELECT tipo FROM outbox_mensagem WHERE dados->>'pedidoId' = ${id}`;
+    expect(outbox).toEqual([{ tipo: 'exportacao.gerar' }]);
+    expect(await migrator.historicoOperacao.count({ where: { tipoOperacao: 'EXPORTACAO' } })).toBe(antes);
+
+    await trabalhar()({ pedidoId: id });
+    const pronto = await pedido(id);
+    expect(pronto).toMatchObject({ situacao: 'PRONTA', erro: null, registros: 5000 });
+    const l = await celulas(new Uint8Array(pronto.conteudo as Buffer));
+    expect(l[1]).toEqual(['Filtros: Período: 2026-08-01 a 2026-08-31; Usuário: massa']);
+    expect(l[3]).toEqual([`Rastreio: ${id}`]);
+    expect(l[5]).toEqual(['Data da Operação', 'Usuário', 'Funcionalidade', 'Tipo de Operação', 'Descrição']);
+    expect(l[6]!.slice(1)).toEqual(['Massa', 'adm.usuarios', 'INSERCAO', 'massa 5000']);
+    expect(l.length).toBe(6 + 5000);
+    expect(await exportacoesDoPedido(id)).toBe(1);
+  });
+
+  it('o gerador aplica o alcance do Auditor (só as funcionalidades do perfil) e não leva antes/depois', async () => {
+    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao, antes, depois)
+      VALUES ('2026-10-09T12:00:00Z'::timestamptz, 'Carla', 'adm.historico', 'EXPORTACAO'::"TipoOperacao", 'com dados', '{"x":"SEGREDO-ANTES"}'::jsonb, '{"x":"SEGREDO-DEPOIS"}'::jsonb)`;
+    const id = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    await trabalhar()({ pedidoId: id });
+    const pronto = await pedido(id);
+    expect(pronto.situacao).toBe('PRONTA');
+    const l = await celulas(new Uint8Array(pronto.conteudo as Buffer));
+    const dados = l.slice(6);
+    expect(dados.length).toBeGreaterThan(0);
+    expect(new Set(dados.map((d) => d[2]))).toEqual(new Set(['adm.historico']));
+    expect(dados.some((d) => d[4] === 'com dados')).toBe(true);
+    expect(JSON.stringify(l)).not.toMatch(/SEGREDO/);
+    // Em nome de quem pediu.
+    const h = await migrator.historicoOperacao.findFirstOrThrow({ where: { tipoOperacao: 'EXPORTACAO', registroId: id } });
+    expect(h.usuarioId).toBe(auditor.usuarioId);
+  });
+
+  it('quem perdeu o exportar, foi inativado ou bloqueado depois do pedido não recebe o arquivo', async () => {
+    const perfil = await migrator.perfil.findUniqueOrThrow({ where: { codigo: 'AUDITOR' } });
+    const semPermissao = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    await migrator.perfilPermissao.deleteMany({ where: { perfilId: perfil.id, funcionalidadeCodigo: 'adm.historico', acao: 'exportar' } });
+    try {
+      await trabalhar()({ pedidoId: semPermissao });
+    } finally {
+      await migrator.perfilPermissao.create({ data: { perfilId: perfil.id, funcionalidadeCodigo: 'adm.historico', acao: 'exportar' } });
+    }
+    expect(await pedido(semPermissao)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: MENSAGEM_SEM_PERMISSAO_EXPORTAR });
+    expect(await exportacoesDoPedido(semPermissao)).toBe(0);
+
+    const inativo = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    await migrator.usuario.update({ where: { id: auditor.usuarioId }, data: { ativo: false } });
+    try {
+      await trabalhar()({ pedidoId: inativo });
+    } finally {
+      await migrator.usuario.update({ where: { id: auditor.usuarioId }, data: { ativo: true } });
+    }
+    expect(await pedido(inativo)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: MENSAGEM_SEM_PERMISSAO_EXPORTAR });
+    expect(await exportacoesDoPedido(inativo)).toBe(0);
+
+    const bloqueado = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    await migrator.usuario.update({ where: { id: auditor.usuarioId }, data: { bloqueado: true } });
+    try {
+      await trabalhar()({ pedidoId: bloqueado });
+    } finally {
+      await migrator.usuario.update({ where: { id: auditor.usuarioId }, data: { bloqueado: false } });
+    }
+    expect(await pedido(bloqueado)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: MENSAGEM_SEM_PERMISSAO_EXPORTAR });
+    expect(await exportacoesDoPedido(bloqueado)).toBe(0);
+  });
+
+  it('pedido adulterado no banco (outro alcance, chave a mais): FALHOU, sem arquivo', async () => {
+    const id = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    await migrator.$executeRaw`UPDATE exportacao_pedido SET parametros = parametros || '{"antes": true}'::jsonb WHERE id = ${id}::uuid`;
+    await trabalhar()({ pedidoId: id });
+    expect(await pedido(id)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: 'Pedido de exportação inválido.' });
+  });
+
+  it('acima do teto assíncrono (100.000) → recusa sem pedido', async () => {
+    await migrator.$executeRaw`INSERT INTO historico_operacao (ocorrido_em, usuario_rotulo, funcionalidade, tipo_operacao, descricao)
+      SELECT '2025-06-10T12:00:00Z'::timestamptz, 'Teto', 'adm.usuarios', 'INSERCAO'::"TipoOperacao", 'teto ' || g FROM generate_series(1, 100001) g`;
+    const antes = await migrator.exportacaoPedido.count();
+    const r = await exportarHistorico(permissoes(admin), { de: new Date('2025-06-01T03:00:00Z'), ate: new Date('2025-06-30T03:00:00Z') }, deps());
+    expect(r).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }] });
+    expect(await migrator.exportacaoPedido.count()).toBe(antes);
+  });
+});
+

@@ -1,5 +1,5 @@
 import { TIPOS_OPERACAO, type TipoOperacao } from '@/shared/audit';
-import type { FiltroHistorico } from './historico';
+import type { FiltroHistorico } from './planilha-historico';
 
 // Filtros da tela do Histórico (US-040) vindos da URL (?usuario=&funcionalidade=&tipo=&de=&ate=&pagina=).
 // As datas são dias no horário de Brasília: `de` começa às 00:00 e `ate` vai até o fim do dia. Sem
