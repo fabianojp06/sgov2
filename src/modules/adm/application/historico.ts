@@ -120,7 +120,7 @@ export async function exportarHistorico(ctx: ContextoRequisicao, f: Omit<FiltroH
         titulo: TITULO_HISTORICO,
         formato: 'xlsx',
         nomeArquivo: nome,
-        parametros: parametrosDoPedido(ctx.usuarioId, f),
+        parametros: parametrosDoPedido(f),
       });
       return pedido.ok ? ok({ tipo: 'agendada', pedidoId: pedido.valor }) : falha(pedido.erros);
     }

@@ -86,12 +86,12 @@ export const CAMPOS_EXPORTACAO = { descricao: true, usuarioRotulo: true, funcion
 type LinhaExportacao = { descricao: string; usuarioRotulo: string; funcionalidade: string; ocorridoEm: Date; tipoOperacao: string };
 export const linhaDaExportacao = (l: LinhaExportacao) => [HORA_BRASILIA.format(l.ocorridoEm), l.usuarioRotulo, l.funcionalidade, l.tipoOperacao, l.descricao];
 
-// O pedido assíncrono leva quem pediu e os filtros da tela, já validados. As datas vão em ISO 8601.
-export type ParametrosExportacaoHistorico = { usuarioId: string; de: string; ate: string; usuario?: string; funcionalidade?: string; tipo?: TipoOperacao };
+// O pedido assíncrono leva só os filtros da tela, já validados, com as datas em ISO 8601. Quem pediu
+// fica na linha do pedido (usuario_id), e o ger o passa ao gerador (#377).
+export type ParametrosExportacaoHistorico = { de: string; ate: string; usuario?: string; funcionalidade?: string; tipo?: TipoOperacao };
 
-export function parametrosDoPedido(usuarioId: string, f: Omit<FiltroHistorico, 'pagina'>): ParametrosExportacaoHistorico {
+export function parametrosDoPedido(f: Omit<FiltroHistorico, 'pagina'>): ParametrosExportacaoHistorico {
   return {
-    usuarioId,
     de: f.de.toISOString(),
     ate: f.ate.toISOString(),
     ...(f.usuario ? { usuario: f.usuario } : {}),
@@ -107,14 +107,13 @@ const opcional = (v: unknown, valido: (s: string) => boolean): v is string | und
  * Os parâmetros gravados no pedido vêm do banco: são lidos de novo, campo a campo, com as mesmas
  * regras da tela (filtro-historico.ts). Chave a mais ou valor fora do formato recusa o pedido.
  */
-export function lerParametrosPedido(parametros: unknown): Resultado<{ usuarioId: string; filtro: Omit<FiltroHistorico, 'pagina'> }> {
+export function lerParametrosPedido(parametros: unknown): Resultado<Omit<FiltroHistorico, 'pagina'>> {
   const invalido = falha([{ campo: '_', mensagem: MENSAGEM_PEDIDO_INVALIDO }]);
   if (typeof parametros !== 'object' || parametros === null || Array.isArray(parametros)) return invalido;
   const p = parametros as Record<string, unknown>;
-  const conhecidas = new Set(['usuarioId', 'de', 'ate', 'usuario', 'funcionalidade', 'tipo']);
+  const conhecidas = new Set(['de', 'ate', 'usuario', 'funcionalidade', 'tipo']);
   if (Object.keys(p).some((k) => !conhecidas.has(k))) return invalido;
-  const { usuarioId, de, ate, usuario, funcionalidade, tipo } = p;
-  if (typeof usuarioId !== 'string' || !UUID.test(usuarioId)) return invalido;
+  const { de, ate, usuario, funcionalidade, tipo } = p;
   if (typeof de !== 'string' || !ISO.test(de) || typeof ate !== 'string' || !ISO.test(ate)) return invalido;
   if (!opcional(usuario, (s) => s.length <= MAXIMO_USUARIO)) return invalido;
   if (!opcional(funcionalidade, (s) => CODIGO.test(s))) return invalido;
@@ -127,7 +126,7 @@ export function lerParametrosPedido(parametros: unknown): Resultado<{ usuarioId:
     ...(tipo ? { tipo: tipo as TipoOperacao } : {}),
   };
   const v = validarFiltroHistorico(filtro);
-  return v.ok ? ok({ usuarioId, filtro }) : falha(v.erros);
+  return v.ok ? ok(filtro) : falha(v.erros);
 }
 
 /** Os filtros legíveis do cabeçalho do arquivo (RN0011). */
@@ -141,14 +140,17 @@ export function filtrosLegiveis(f: Omit<FiltroHistorico, 'pagina'>): FiltroExpor
 }
 
 /**
- * O gerador do worker: confere, na transação da geração, que quem pediu continua ativo, sem bloqueio
+ * O gerador do worker: quem pediu vem da linha do pedido (`pedido.usuarioId`, #377), nunca dos
+ * parâmetros. Confere, na transação da geração, que essa pessoa continua ativa, sem bloqueio
  * e com adm.historico:exportar; depois aplica o alcance do perfil dele hoje (o Auditor só vê as
  * funcionalidades do perfil) e os filtros e o período do pedido.
  */
-export const gerarExportacaoHistorico: GeradorExportacao = async (tx, parametros): Promise<Resultado<ConteudoExportacao>> => {
+export const gerarExportacaoHistorico: GeradorExportacao = async (tx, parametros, pedido): Promise<Resultado<ConteudoExportacao>> => {
+  const { usuarioId } = pedido;
+  if (!UUID.test(usuarioId)) return falha([{ campo: '_', mensagem: MENSAGEM_PEDIDO_INVALIDO }]);
   const lido = lerParametrosPedido(parametros);
   if (!lido.ok) return falha(lido.erros);
-  const { usuarioId, filtro } = lido.valor;
+  const filtro = lido.valor;
   const usuario = await tx.usuario.findUnique({ where: { id: usuarioId }, select: { ativo: true, bloqueado: true } });
   const permissoes = usuario?.ativo && !usuario.bloqueado ? await carregarPermissoes(tx, usuarioId) : new Set<string>();
   if (!permissoes.has(`${FUNCIONALIDADE_HISTORICO}:exportar`)) return falha([{ campo: '_', mensagem: MENSAGEM_SEM_PERMISSAO_EXPORTAR }]);
