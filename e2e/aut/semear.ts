@@ -1,6 +1,7 @@
 import { hashSenha, normalizarLogin, seedAdm, seedAdministradorInicial } from '@/modules/adm';
 import { seedCad, seedDadosReferenciaCad } from '@/modules/cad/servidor';
 import { seedOrc } from '@/modules/orc';
+import { seedRel } from '@/modules/rel/servidor';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { PERFIL_SEM_PERMISSAO, SENHA, USUARIOS } from './apoio';
 
@@ -23,7 +24,7 @@ if (process.env.CARGA_DADOS_REFERENCIA !== '1') throw new Error('CARGA_DADOS_REF
 
 const cliente = criarPrisma(url);
 try {
-  await executarSeeds(cliente, [seedAdm, seedAdministradorInicial, seedCad, seedDadosReferenciaCad, seedOrc]);
+  await executarSeeds(cliente, [seedAdm, seedAdministradorInicial, seedCad, seedDadosReferenciaCad, seedOrc, seedRel]);
   await cliente.perfil.create({
     data: { codigo: PERFIL_SEM_PERMISSAO, nome: 'E2E Sem Permissão', descricao: 'Perfil do teste, sem funcionalidade nenhuma' },
   });

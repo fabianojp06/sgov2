@@ -5,12 +5,12 @@ import { describe, expect, it } from 'vitest';
 
 // A TelaPrincipal já é o <main> da área logada: o que é renderizado dentro dela não abre outro (dois
 // landmarks main confundem o leitor de tela). Fica de fora a casca (tela-principal, erro-carregamento)
-// e o que é renderizado fora dela (/login, /troca-senha). As páginas do cad (frente B) têm o mesmo
-// padrão e ficam de fora deste teste até a frente B tratar.
+// e o que é renderizado fora dela (/login, /troca-senha). As páginas do cad (frente B) também entram
+// desde o #320.
 const RAIZ = fileURLToPath(new URL('../../../../', import.meta.url));
 const SISTEMA = 'src/app/(sistema)';
 const RAIZES = [SISTEMA, 'src/modules/aut/ui', 'src/modules/adm/ui', 'src/modules/orc/ui'];
-const FORA = new Set([`${SISTEMA}/cad`, `${SISTEMA}/layout.tsx`]);
+const FORA = new Set([`${SISTEMA}/layout.tsx`]);
 const FORA_DA_CASCA = new Set(['tela-principal.tsx', 'erro-carregamento.tsx', 'form-login.tsx', 'form-troca-senha.tsx']);
 
 function arquivos(dir: string): string[] {
