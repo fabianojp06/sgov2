@@ -43,9 +43,9 @@ export function exportarCsvFalso(): {
 }
 
 // Um envio registrado pelo falso, com os dados tipados pelo modelo (união discriminada).
-// Por padrão, só os modelos de acesso (usuario.*): os testes que conferem a senha temporária
-// leem `dados.senhaTemporaria` sem estreitar o modelo. Quem envia outros modelos passa o tipo.
-export type ModeloAcesso = Extract<ModeloEmail, `usuario.${string}`>;
+// Por padrão, só os modelos de senha: os testes que conferem a senha temporária leem
+// `dados.senhaTemporaria` sem estreitar o modelo. Quem envia outros modelos passa o tipo.
+export type ModeloAcesso = 'usuario.senha_inicial' | 'usuario.senha_redefinida' | 'usuario.recuperacao_senha';
 export type EnvioFalso<T extends ModeloEmail = ModeloAcesso> = {
   [M in T]: { modelo: M; destinatario: Destinatario; dados: DadosModeloEmail[M] };
 }[T];

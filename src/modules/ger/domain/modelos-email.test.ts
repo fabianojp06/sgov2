@@ -57,6 +57,19 @@ describe('validarDadosModelo', () => {
     expect(erro(() => validarDadosModelo('usuario.senha_inicial', { ...dados, urlAcesso: `${URL}/rel/exportacoes` }, URL))?.detalhes).toEqual({ campo: 'urlAcesso' });
   });
 
+  it('alerta de tentativas: link exatamente ${URL_PUBLICA}/adm/usuarios, número inteiro e bloqueado booleano', () => {
+    const ok = { nomeAdministrador: 'Ana', nomeUsuario: 'João', login: 'joao', tentativas: 5, bloqueado: true, dataHora: '10/11/2026 18:30', urlAcesso: `${URL}/adm/usuarios` };
+    expect(() => validarDadosModelo('usuario.alerta_tentativas', ok, URL)).not.toThrow();
+    expect(() => validarDadosModelo('usuario.alerta_tentativas', { ...ok, bloqueado: false, tentativas: 1 }, URL)).not.toThrow();
+    const campo = (d: object) => erro(() => validarDadosModelo('usuario.alerta_tentativas', { ...ok, ...d }, URL))?.detalhes;
+    expect(campo({ urlAcesso: `${URL}/login` })).toEqual({ campo: 'urlAcesso' });
+    for (const tentativas of [0, 1.5, '5', 1001, Number.NaN]) expect(campo({ tentativas })).toEqual({ campo: 'tentativas' });
+    expect(campo({ bloqueado: 'sim' })).toEqual({ campo: 'bloqueado' });
+    expect(campo({ nomeUsuario: 'João\nSouza' })).toEqual({ campo: 'nomeUsuario' });
+    expect(campo({ dataHora: 'x'.repeat(41) })).toEqual({ campo: 'dataHora' });
+    expect(campo({ nomeAdministrador: '' })).toEqual({ campo: 'nomeAdministrador' });
+  });
+
   it('recusa dados que não são objeto', () => {
     expect(erro(() => validarDadosModelo('usuario.senha_inicial', null, URL))?.codigo).toBe('email.dados_invalidos');
     expect(erro(() => validarDadosModelo('usuario.senha_inicial', [], URL))?.codigo).toBe('email.dados_invalidos');

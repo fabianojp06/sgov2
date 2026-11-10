@@ -1,6 +1,7 @@
 import { ErroDominio } from '@/shared/kernel';
 import type { EmailRenderizado, MensagemEmail, ModeloEmail } from './modelos-email';
 import { exportacaoConcluidaV1 } from './modelos/exportacao-concluida.v1';
+import { usuarioAlertaTentativasV1 } from './modelos/usuario-alerta-tentativas.v1';
 import type { LinhaCorpo, VersaoModelo } from './modelos/tipos';
 import { usuarioRecuperacaoSenhaV1 } from './modelos/usuario-recuperacao-senha.v1';
 import { usuarioSenhaInicialV1 } from './modelos/usuario-senha-inicial.v1';
@@ -14,6 +15,7 @@ export const VERSOES_MODELO: { readonly [M in ModeloEmail]: Readonly<Record<numb
   'usuario.senha_redefinida': { 1: usuarioSenhaRedefinidaV1 },
   'usuario.recuperacao_senha': { 1: usuarioRecuperacaoSenhaV1 },
   'exportacao.concluida': { 1: exportacaoConcluidaV1 },
+  'usuario.alerta_tentativas': { 1: usuarioAlertaTentativasV1 },
 };
 
 const SISTEMA = 'SGO 2.0 – Sistema de Gestão Orçamentária';
@@ -77,5 +79,5 @@ export function renderizarEmail(m: MensagemEmail, contexto: { nomeExibicao: stri
     `<p><small>${escaparHtml(RODAPE)}</small></p>`,
     '</body></html>',
   ].join('\n');
-  return { assunto: versao.assunto(), texto, html };
+  return { assunto: versao.assunto(m.dados as never), texto, html };
 }

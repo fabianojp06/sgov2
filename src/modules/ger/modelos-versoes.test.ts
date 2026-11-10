@@ -16,6 +16,7 @@ const HASHES: Record<string, string> = {
   'usuario.senha_redefinida@1': '8b32a27bed6d0b3e3204fa84a9f5ca827d300bd7ab3e26b5695821ba8f09b43a',
   'usuario.recuperacao_senha@1': 'e42080579dd0475aa7468a0800933a4a2823f561025059346a862ea031482dfc',
   'exportacao.concluida@1': '00d0e1d52a62f2ebcfb097d6519db1fed12a0f3b2f7203981f49e266ff18c9ca',
+  'usuario.alerta_tentativas@1': 'a49f59dd30041183584ea9ab402ce4c67cab339bb4a15d761cbae71c4001b00a',
 };
 
 const ARQUIVO: Record<ModeloEmail, string> = {
@@ -23,6 +24,7 @@ const ARQUIVO: Record<ModeloEmail, string> = {
   'usuario.senha_redefinida': 'usuario-senha-redefinida',
   'usuario.recuperacao_senha': 'usuario-recuperacao-senha',
   'exportacao.concluida': 'exportacao-concluida',
+  'usuario.alerta_tentativas': 'usuario-alerta-tentativas',
 };
 
 const SAIDAS: Record<string, string> = {
@@ -30,6 +32,7 @@ const SAIDAS: Record<string, string> = {
   'usuario.senha_redefinida@1': '8bf6e08a9718ea9e3ddfa15df7504d863555cc18b117e4e0393d503048fd90f2',
   'usuario.recuperacao_senha@1': '89a4bc357318e46aeb3f0af1fa822cd865eac370edb8578434e870bbbaabf1bf',
   'exportacao.concluida@1': 'bc2af74f8edd8d4af0752a4ba6c3f0e1b0c42c4b9e22d3d6284a59096d61e8d9',
+  'usuario.alerta_tentativas@1': '3e1d2ba944a5b1ab4e9cce72c5c811734e0e0732016c10332c8f86c38cb56d10',
 };
 
 // Fim de linha normalizado: um checkout com CRLF não muda o hash.
@@ -40,6 +43,15 @@ const EXEMPLO: Record<ModeloEmail, object> = {
   'usuario.senha_redefinida': ACESSO,
   'usuario.recuperacao_senha': ACESSO,
   'exportacao.concluida': { nome: 'Maria', titulo: 'Plano de contas', resultado: 'pronta', urlAcesso: 'https://sgo.exemplo/rel/exportacoes' },
+  'usuario.alerta_tentativas': {
+    nomeAdministrador: 'Maria',
+    nomeUsuario: 'João Souza',
+    login: 'joao.souza',
+    tentativas: 5,
+    bloqueado: true,
+    dataHora: '10/11/2026 18:30',
+    urlAcesso: 'https://sgo.exemplo/adm/usuarios',
+  },
 };
 
 describe('versões dos modelos de e-mail', () => {

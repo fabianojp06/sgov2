@@ -62,6 +62,24 @@ describe('renderizarEmail', () => {
     expect(falhou.html).toContain('A exportação &quot;Plano de contas&quot;');
   });
 
+  it('alerta de tentativas: assunto e texto do bloqueio e do limiar, com singular para 1 tentativa', () => {
+    const alerta = (bloqueado: boolean, tentativas: number): MensagemEmail => ({
+      ...base,
+      modelo: 'usuario.alerta_tentativas',
+      dados: { nomeAdministrador: 'Ana', nomeUsuario: 'João <x>', login: 'joao', tentativas, bloqueado, dataHora: '10/11/2026 18:30', urlAcesso: 'https://sgo.exemplo/adm/usuarios' },
+    });
+    const b = renderizarEmail(alerta(true, 5), { nomeExibicao: '' });
+    expect(b.assunto).toBe('[SGO 2.0][Acesso] Usuário bloqueado por tentativas de acesso');
+    expect(b.texto).toContain('O usuário João <x> foi bloqueado depois de 5 tentativas de acesso malsucedidas.');
+    expect(b.texto).toContain('Login: joao');
+    expect(b.texto).toContain('Data e hora: 10/11/2026 18:30');
+    expect(b.html).toContain('João &lt;x&gt;');
+    const l = renderizarEmail(alerta(false, 1), { nomeExibicao: '' });
+    expect(l.assunto).toBe('[SGO 2.0][Acesso] Tentativas de acesso malsucedidas');
+    expect(l.texto).toContain('O usuário João <x> teve 1 tentativa de acesso malsucedida.');
+    expect(l.texto).toContain('Abrir Administração → Usuários: https://sgo.exemplo/adm/usuarios');
+  });
+
   it('escapa no HTML todo dado e o nome de exibição', () => {
     const r = renderizarEmail(
       { ...base, dados: { ...base.dados, nome: '<script>alert(1)</script>', login: 'a"b', senhaTemporaria: "x'&<y" } },
