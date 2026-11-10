@@ -34,6 +34,13 @@ describe('bundle do worker', () => {
     expect(entradas).not.toContain('src/modules/cad/application/exportar-estrutura.ts');
   });
 
+  // US-040 (frente A, #372, pedido na #138): o gerador do Histórico entra; o caso de uso da tela, com
+  // authz e server-only, não.
+  it('leva o gerador do Histórico do adm, sem o caso de uso da tela', () => {
+    expect(entradas).toContain('src/modules/adm/application/planilha-historico.ts');
+    expect(entradas).not.toContain('src/modules/adm/application/historico.ts');
+  });
+
   // E-N4: o nome de exibição sai do cad pelo servidor.ts, sem puxar os casos de uso (que exigem permissão).
   it('leva o obterParametroSistema do cad, sem os casos de uso dos parâmetros', () => {
     expect(entradas).toContain('worker/nome-exibicao.ts');

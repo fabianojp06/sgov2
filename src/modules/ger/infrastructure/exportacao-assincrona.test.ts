@@ -59,6 +59,17 @@ describe('criarTrabalhadorExportacao', () => {
     expect(opcoes).toEqual([{ timeout: 5 * 60_000 }]);
   });
 
+  it('o gerador recebe os parâmetros e o dono do pedido, da linha do pedido (#138)', async () => {
+    const { cliente } = clienteFalso();
+    const chamadas: unknown[][] = [];
+    const espiao: GeradorExportacao = async (...a) => {
+      chamadas.push(a.slice(1));
+      return gerador(1)(...a);
+    };
+    await criarTrabalhadorExportacao({ cliente, geradores: { 'cad.teste': espiao }, agora: () => new Date() })({ pedidoId: PEDIDO });
+    expect(chamadas).toEqual([[{}, { usuarioId: 'u' }]]);
+  });
+
   it(`exatamente ${LIMITE_EXPORTACAO_ASSINCRONA} linhas (acima do limite síncrono): PRONTA, com o Histórico`, async () => {
     const { cliente, updates } = clienteFalso();
     await criarTrabalhadorExportacao({ cliente, geradores: { 'cad.teste': gerador(LIMITE_EXPORTACAO_ASSINCRONA) }, agora: () => new Date() })({ pedidoId: PEDIDO });
