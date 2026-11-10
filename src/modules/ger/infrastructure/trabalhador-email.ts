@@ -3,6 +3,7 @@ import { auditar } from '@/shared/audit';
 import type { FilaGerenciada } from '@/shared/filas';
 import { ErroDominio } from '@/shared/kernel';
 import {
+  dadosDoModelo,
   mascararEmail,
   MODELOS_SENSIVEIS,
   SENSIBILIDADE_MODELO,
@@ -72,12 +73,11 @@ function lerMensagem(m: unknown, urlPublica: string): MensagemEmail {
   validarDadosModelo(modelo as ModeloEmail, bruta.dados, urlPublica);
   const criadoEm = typeof bruta.criadoEm === 'string' ? Date.parse(bruta.criadoEm) : Number.NaN;
   if (Number.isNaN(criadoEm)) throw new ErroDominio('email.dados_invalidos', 'Data da mensagem inválida.', { campo: 'criadoEm' });
-  const { nome, login, senhaTemporaria, urlAcesso } = bruta.dados as Record<string, string>;
   return {
     modelo,
     versao: bruta.versao as number,
     destinatario,
-    dados: { nome, login, senhaTemporaria, urlAcesso },
+    dados: dadosDoModelo(modelo as ModeloEmail, bruta.dados),
     criadoEm: bruta.criadoEm as string,
   } as MensagemEmail;
 }

@@ -5,6 +5,7 @@ import type { TxCliente } from '@/shared/db';
 // execução, o outbox.ts só usa o kernel.
 import { registrarNoOutbox } from '@/shared/filas/outbox';
 import {
+  dadosDoModelo,
   validarDadosModelo,
   validarDestinatario,
   VERSAO_ATUAL,
@@ -25,9 +26,10 @@ import {
  *   próprio formulário**, para o cadastro não falhar no envio:
  *   - `destinatario.email` até 254 caracteres; `destinatario.nome` sem `< > , ; "`;
  *   - `dados.nome` até 120, `dados.login` até 100, `dados.senhaTemporaria` até 128 caracteres, não
- *     vazios;
+ *     vazios; no de exportação, `dados.titulo` até 120 e `dados.resultado` `pronta` ou `falhou`;
  *   - nenhum texto com caractere de controle (quebra de linha, tabulação, C1, bidi);
- *   - `dados.urlAcesso` exatamente `${lerEnvAcesso().urlPublica}/login` (use o `lerEnvAcesso`, que
+ *   - `dados.urlAcesso` exatamente `${lerEnvAcesso().urlPublica}` mais o caminho do modelo (`/login`
+ *     nos de acesso, `/rel/exportacoes` no de exportação; use o `lerEnvAcesso`, que
  *     normaliza a origem; não monte a partir do `process.env` cru);
  * - registra com `registrarNoOutbox(tx, 'email.enviar', mensagem)`, do `outbox.ts` de
  *   `@/shared/filas`: o index.ts do ger também é importado por componentes cliente, e Prisma, pg e
@@ -56,12 +58,11 @@ export async function enviarEmail<M extends ModeloEmail>(
 ): Promise<void> {
   validarDestinatario(destinatario);
   validarDadosModelo(modelo, dados, lerEnvAcesso().urlPublica);
-  const { nome, login, senhaTemporaria, urlAcesso } = dados;
   const mensagem = {
     modelo,
     versao: VERSAO_ATUAL[modelo],
     destinatario: destinatario.nome === undefined ? { email: destinatario.email } : { email: destinatario.email, nome: destinatario.nome },
-    dados: { nome, login, senhaTemporaria, urlAcesso },
+    dados: dadosDoModelo(modelo, dados),
     criadoEm: new Date().toISOString(),
   } as MensagemEmail;
   await registrarNoOutbox(tx, 'email.enviar', mensagem);

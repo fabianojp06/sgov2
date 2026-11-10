@@ -1,9 +1,11 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
+import { lerEnvAcesso } from '@/shared/config';
 import type { TxCliente } from '@/shared/db';
 import { registrarNoOutbox } from '@/shared/filas/outbox';
-import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { ErroDominio, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import type { FormatoArquivo } from '../application/download';
+import { enviarEmail } from '../application/email';
 import { criarIdentificacao, LIMITE_EXPORTACAO_ASSINCRONA, type FiltroExportacao, type PlanilhaExportacao } from './exportacao';
 import { exportarCsv } from './exportar-csv';
 import { exportarXlsx } from './exportar-xlsx';
@@ -89,6 +91,23 @@ function lerPedidoId(dados: unknown): string | null {
   return typeof id === 'string' && UUID.test(id) ? id : null;
 }
 
+/**
+ * Aviso por e-mail de que a exportação terminou (US-024, "por job e aviso"), na transação que grava
+ * o resultado: o e-mail só sai se o resultado commitar. Pessoa inativa ou sem e-mail válido fica
+ * sem aviso (a tela Minhas exportações mostra o resultado): registra no log e segue.
+ */
+async function avisar(tx: TxCliente, p: { id: string; usuarioId: string; titulo: string }, resultado: 'pronta' | 'falhou'): Promise<void> {
+  const u = await tx.usuario.findUnique({ where: { id: p.usuarioId }, select: { nome: true, email: true, ativo: true } });
+  if (!u?.ativo) return;
+  const { urlPublica } = lerEnvAcesso();
+  try {
+    await enviarEmail(tx, 'exportacao.concluida', { email: u.email, nome: u.nome }, { nome: u.nome, titulo: p.titulo, resultado, urlAcesso: `${urlPublica}/rel/exportacoes` });
+  } catch (erro) {
+    if (!(erro instanceof ErroDominio)) throw erro;
+    console.warn('[EXPORTACAO_AVISO_NAO_ENVIADO]', { pedido: p.id, codigo: erro.codigo });
+  }
+}
+
 const textoDosErros = (erros: readonly ErroCampo[]) => erros.map((e) => e.mensagem).join(' ').slice(0, MAX_ERRO);
 
 export type DepsTrabalhadorExportacao = {
@@ -101,7 +120,8 @@ export type DepsTrabalhadorExportacao = {
  * Trabalhador da fila exportacao.gerar. Pedido que não está pendente (já gerado, job repetido) é
  * ignorado. Falha da própria exportação (gerador ausente, filtros inválidos, acima do teto) marca o
  * pedido como FALHOU, sem nova tentativa; erro de infraestrutura sobe para a fila tentar de novo. O
- * Histórico registra a exportação quando o arquivo fica pronto, em nome de quem pediu.
+ * Histórico registra a exportação quando o arquivo fica pronto, em nome de quem pediu. Pronta ou com
+ * falha, quem pediu recebe o aviso por e-mail (avisar).
  */
 export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
   return async (dados: unknown): Promise<void> => {
@@ -119,6 +139,7 @@ export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
         const p = await tx.exportacaoPedido.findUniqueOrThrow({ where: { id: pedidoId }, omit: { conteudo: true } });
         const falhar = async (erros: readonly ErroCampo[]) => {
           await tx.exportacaoPedido.update({ where: { id: p.id }, data: { situacao: 'FALHOU', erro: textoDosErros(erros) || 'Falha na geração.', concluidoEm: deps.agora() }, select: { id: true } });
+          await avisar(tx, p, 'falhou');
           return 'falhou' as const;
         };
         const gerador = Object.hasOwn(deps.geradores, p.funcionalidade) ? deps.geradores[p.funcionalidade] : undefined;
@@ -144,6 +165,7 @@ export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
           descricao: `${p.titulo} exportado em ${p.formato.toUpperCase()} (rastreio ${p.id}, em segundo plano)`,
           depois: { formato: p.formato, registros, filtros: c.valor.filtros, rastreio: p.id, assincrona: true },
         });
+        await avisar(tx, p, 'pronta');
         return 'pronta' as const;
       },
       { timeout: TEMPO_GERACAO_MS },

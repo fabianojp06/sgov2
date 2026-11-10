@@ -47,6 +47,16 @@ describe('validarDadosModelo', () => {
     expect(e?.detalhes).toEqual({ campo });
   });
 
+  it('aviso de exportação: link exatamente ${URL_PUBLICA}/rel/exportacoes, título e resultado conhecidos', () => {
+    const ok = { nome: 'Maria', titulo: 'Plano de contas', resultado: 'pronta', urlAcesso: `${URL}/rel/exportacoes` };
+    expect(() => validarDadosModelo('exportacao.concluida', ok, URL)).not.toThrow();
+    expect(() => validarDadosModelo('exportacao.concluida', { ...ok, resultado: 'falhou' }, URL)).not.toThrow();
+    expect(erro(() => validarDadosModelo('exportacao.concluida', { ...ok, urlAcesso: `${URL}/login` }, URL))?.detalhes).toEqual({ campo: 'urlAcesso' });
+    expect(erro(() => validarDadosModelo('exportacao.concluida', { ...ok, resultado: 'outro' }, URL))?.detalhes).toEqual({ campo: 'resultado' });
+    expect(erro(() => validarDadosModelo('exportacao.concluida', { ...ok, titulo: 'x'.repeat(121) }, URL))?.detalhes).toEqual({ campo: 'titulo' });
+    expect(erro(() => validarDadosModelo('usuario.senha_inicial', { ...dados, urlAcesso: `${URL}/rel/exportacoes` }, URL))?.detalhes).toEqual({ campo: 'urlAcesso' });
+  });
+
   it('recusa dados que não são objeto', () => {
     expect(erro(() => validarDadosModelo('usuario.senha_inicial', null, URL))?.codigo).toBe('email.dados_invalidos');
     expect(erro(() => validarDadosModelo('usuario.senha_inicial', [], URL))?.codigo).toBe('email.dados_invalidos');

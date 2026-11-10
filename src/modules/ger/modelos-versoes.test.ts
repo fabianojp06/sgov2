@@ -15,23 +15,32 @@ const HASHES: Record<string, string> = {
   'usuario.senha_inicial@1': 'a952a93ccf955ac9fa715f3678123abda5d2b2d51a4fe5ef2697153927af95fa',
   'usuario.senha_redefinida@1': '8b32a27bed6d0b3e3204fa84a9f5ca827d300bd7ab3e26b5695821ba8f09b43a',
   'usuario.recuperacao_senha@1': 'e42080579dd0475aa7468a0800933a4a2823f561025059346a862ea031482dfc',
+  'exportacao.concluida@1': '00d0e1d52a62f2ebcfb097d6519db1fed12a0f3b2f7203981f49e266ff18c9ca',
 };
 
 const ARQUIVO: Record<ModeloEmail, string> = {
   'usuario.senha_inicial': 'usuario-senha-inicial',
   'usuario.senha_redefinida': 'usuario-senha-redefinida',
   'usuario.recuperacao_senha': 'usuario-recuperacao-senha',
+  'exportacao.concluida': 'exportacao-concluida',
 };
 
 const SAIDAS: Record<string, string> = {
   'usuario.senha_inicial@1': 'e3230555188a3d2bf60c0edcc090c6046e62f6abf411d635ff785da35db2bafc',
   'usuario.senha_redefinida@1': '8bf6e08a9718ea9e3ddfa15df7504d863555cc18b117e4e0393d503048fd90f2',
   'usuario.recuperacao_senha@1': '89a4bc357318e46aeb3f0af1fa822cd865eac370edb8578434e870bbbaabf1bf',
+  'exportacao.concluida@1': 'bc2af74f8edd8d4af0752a4ba6c3f0e1b0c42c4b9e22d3d6284a59096d61e8d9',
 };
 
 // Fim de linha normalizado: um checkout com CRLF não muda o hash.
 const sha256 = (texto: string) => createHash('sha256').update(texto.replaceAll('\r\n', '\n')).digest('hex');
-const EXEMPLO = { nome: 'Maria', login: 'maria.silva', senhaTemporaria: 'Tmp-123456', urlAcesso: 'https://sgo.exemplo/login' };
+const ACESSO = { nome: 'Maria', login: 'maria.silva', senhaTemporaria: 'Tmp-123456', urlAcesso: 'https://sgo.exemplo/login' };
+const EXEMPLO: Record<ModeloEmail, object> = {
+  'usuario.senha_inicial': ACESSO,
+  'usuario.senha_redefinida': ACESSO,
+  'usuario.recuperacao_senha': ACESSO,
+  'exportacao.concluida': { nome: 'Maria', titulo: 'Plano de contas', resultado: 'pronta', urlAcesso: 'https://sgo.exemplo/rel/exportacoes' },
+};
 
 describe('versões dos modelos de e-mail', () => {
   const registradas = (Object.keys(VERSOES_MODELO) as ModeloEmail[]).flatMap((modelo) =>
@@ -56,7 +65,7 @@ describe('versões dos modelos de e-mail', () => {
 
   it.each(Object.entries(SAIDAS))('%s renderiza igual (layout comum incluído)', (chave, hash) => {
     const [modelo, versao] = chave.split('@') as [ModeloEmail, string];
-    const m = { modelo, versao: Number(versao), destinatario: { email: 'a@b.org' }, dados: EXEMPLO, criadoEm: '' } as MensagemEmail;
+    const m = { modelo, versao: Number(versao), destinatario: { email: 'a@b.org' }, dados: EXEMPLO[modelo], criadoEm: '' } as MensagemEmail;
     const r = renderizarEmail(m, { nomeExibicao: 'Instituição Exemplo' });
     expect(sha256(`${r.assunto}\n${r.texto}\n${r.html}`)).toBe(hash);
   });

@@ -16,6 +16,7 @@ function clienteFalso() {
   const opcoes: unknown[] = [];
   const tx = {
     $queryRaw: async () => [{ id: PEDIDO }],
+    usuario: { findUnique: async () => null }, // sem aviso: o aviso é testado no cad, com banco
     exportacaoPedido: {
       findUniqueOrThrow: async () => ({
         id: PEDIDO,

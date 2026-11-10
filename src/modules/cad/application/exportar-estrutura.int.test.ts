@@ -3,6 +3,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { seedAdm } from '@/modules/adm';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
+import { lerEnvAcesso } from '@/shared/config';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import ccMinuta from '../infrastructure/dados/cc-minuta-rev23102026.json';
@@ -169,9 +170,19 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
   const AGORA = new Date('2026-11-10T15:00:00.000Z');
   const trabalhar = () => criarTrabalhadorExportacao({ cliente: app, geradores: GERADORES_EXPORTACAO_CAD, agora: () => AGORA });
   const pedido = async (id: string) => (await migrator.query(`SELECT * FROM exportacao_pedido WHERE id = $1`, [id])).rows[0];
+  // Os avisos por e-mail no outbox, na ordem de gravação.
+  const avisos = async () => (await migrator.query(`SELECT dados FROM outbox_mensagem WHERE tipo = 'email.enviar' ORDER BY criado_em`)).rows.map((r) => r.dados);
+  const aviso = (titulo: string, resultado: 'pronta' | 'falhou') => ({
+    modelo: 'exportacao.concluida',
+    versao: 1,
+    destinatario: { email: 'g@exemplo.org', nome: 'GFIN' },
+    dados: { nome: 'GFIN', titulo, resultado, urlAcesso: `${lerEnvAcesso().urlPublica}/rel/exportacoes` },
+    criadoEm: expect.any(String),
+  });
 
-  it('agenda na mesma transação (pedido e outbox, sem Histórico); o worker gera o arquivo e registra a exportação', async () => {
+  it('agenda na mesma transação (pedido e outbox, sem Histórico); o worker gera o arquivo, registra a exportação e avisa', async () => {
     const antes = await ultimaExportacao('cad.plano_contas');
+    const n = (await avisos()).length;
     const filtros = { busca: 'pessoal', tipo: 'Analítica', formato: 'csv', inativos: '1' };
     const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: true, filtros }, { cliente: app, limiteSincrono: 10 });
     if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
@@ -183,6 +194,7 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     const outbox = (await migrator.query(`SELECT tipo, dados FROM outbox_mensagem WHERE dados->>'pedidoId' = $1`, [id])).rows;
     expect(outbox).toEqual([{ tipo: 'exportacao.gerar', dados: { pedidoId: id } }]);
     expect(await ultimaExportacao('cad.plano_contas')).toEqual(antes);
+    expect(await avisos()).toHaveLength(n);
 
     await trabalhar()({ pedidoId: id });
     const pronto = await pedido(id);
@@ -195,11 +207,13 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     const h = await ultimaExportacao('cad.plano_contas');
     expect(h.registro_id).toBe(id);
     expect(h.depois).toMatchObject({ formato: 'csv', registros: pronto.registros, rastreio: id, assincrona: true });
+    expect((await avisos()).slice(n)).toEqual([aviso('Plano de contas', 'pronta')]);
 
     // Job repetido (reenvio da fila): o pedido já está pronto e nada muda.
     await trabalhar()({ pedidoId: id });
     expect((await pedido(id)).concluido_em).toEqual(AGORA);
     expect(Number((await migrator.query(`SELECT count(*) FROM historico_operacao WHERE registro_id = $1`, [id])).rows[0].count)).toBe(1);
+    expect(await avisos()).toHaveLength(n + 1);
   });
 
   it('XLSX acima do limite também vai para o worker, com o rastreio no rodapé', async () => {
@@ -213,7 +227,8 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     expect(wb.worksheets[0]!.headerFooter.oddFooter).toContain(`Rastreio ${r.valor.pedidoId}`);
   });
 
-  it('falha da própria exportação (operador vazio, gerador ausente): FALHOU com o motivo, sem Histórico', async () => {
+  it('falha da própria exportação (operador vazio, gerador ausente): FALHOU com o motivo e o aviso, sem Histórico', async () => {
+    const n0 = (await avisos()).length;
     const r = await exportarPlanoContas({ ...gfin(), usuarioRotulo: '' }, { formato: 'csv', incluirInativos: false }, { cliente: app, limiteSincrono: 10 });
     if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
     await trabalhar()({ pedidoId: r.valor.pedidoId });
@@ -224,6 +239,16 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     expect(await pedido(sem)).toMatchObject({ situacao: 'FALHOU', erro: 'Esta listagem não tem exportação assíncrona.' });
     const n = Number((await migrator.query(`SELECT count(*) FROM historico_operacao WHERE registro_id = ANY($1)`, [[r.valor.pedidoId, sem]])).rows[0].count);
     expect(n).toBe(0);
+    expect((await avisos()).slice(n0)).toEqual([aviso('Plano de contas', 'falhou'), aviso('Outra', 'falhou')]);
+  });
+
+  it('pessoa inativa: o pedido termina, sem aviso', async () => {
+    const inativo = (await migrator.query(`INSERT INTO usuario (nome, email, login, login_normalizado, senha_hash, ativo) VALUES ('Inativo', 'i@exemplo.org', 'i', 'i', 'x', false) RETURNING id`)).rows[0].id;
+    const id = (await migrator.query(`INSERT INTO exportacao_pedido (usuario_id, usuario_rotulo, sessao_uid, funcionalidade, titulo, formato, parametros) VALUES ($1, 'i', 's', 'cad.outra', 'Outra', 'csv', '{}') RETURNING id`, [inativo])).rows[0].id;
+    const n = (await avisos()).length;
+    await trabalhar()({ pedidoId: id });
+    expect((await pedido(id)).situacao).toBe('FALHOU');
+    expect(await avisos()).toHaveLength(n);
   });
 
   it('job sem pedido válido: registra e encerra, sem nova tentativa', async () => {
