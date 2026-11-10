@@ -1,7 +1,7 @@
 import type { ErroCampo } from '@/shared/kernel';
-import { auditarNegacao, obterContexto } from './contexto';
+import { auditarNegacao, obterContexto, obterMotivoAusencia } from './contexto';
 import { exigir } from './exigir';
-import { ErroPermissao, MENSAGEM_PERMISSAO, type Acao, type ContextoRequisicao } from './tipos';
+import { ErroPermissao, MENSAGEM_PERMISSAO, MENSAGEM_SESSAO_NOVO_ACESSO, type Acao, type ContextoRequisicao } from './tipos';
 
 export { MENSAGEM_PERMISSAO };
 export const MENSAGEM_SESSAO = 'Sessão expirada. Entre novamente.';
@@ -94,18 +94,18 @@ export async function registrarNegacao(ctx: ContextoRequisicao, erro: ErroPermis
   }
 }
 
-export type Autorizacao = { ok: true; ctx: ContextoRequisicao } | { ok: false; status: 401 | 403 };
+export type Autorizacao = { ok: true; ctx: ContextoRequisicao } | { ok: false; status: 401 | 403; mensagem: string };
 
 // Passos comuns de definirAcao e definirRota: sessão e permissão da funcionalidade.
 export async function autorizar(funcionalidade: string, acao: Acao): Promise<Autorizacao> {
   const ctx = await obterContexto();
-  if (!ctx) return { ok: false, status: 401 };
+  if (!ctx) return { ok: false, status: 401, mensagem: (await obterMotivoAusencia()) === 'NOVO_ACESSO' ? MENSAGEM_SESSAO_NOVO_ACESSO : MENSAGEM_SESSAO };
   try {
     exigir(ctx, funcionalidade, acao);
   } catch (erro) {
     if (!(erro instanceof ErroPermissao)) throw erro;
     await registrarNegacao(ctx, erro);
-    return { ok: false, status: 403 };
+    return { ok: false, status: 403, mensagem: MENSAGEM_PERMISSAO };
   }
   return { ok: true, ctx };
 }

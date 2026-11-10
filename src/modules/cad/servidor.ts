@@ -11,5 +11,9 @@ export { iniciarProcessadorCargas } from './infrastructure/processador-cargas';
 export { seedCad, FUNCIONALIDADES_CAD } from './infrastructure/seed';
 export { seedDadosReferenciaCad } from './infrastructure/seed-referencia';
 
+// Plano sintético para os testes de desempenho (P7, Task 3, D-P7-3): o ops/carga/gerar-plano.ts grava o .xlsx.
+export { gerarPlanoSintetico } from './infrastructure/plano-sintetico';
+export { COLUNAS_PLANO_CONTAS } from './domain/plano-contas';
+
 // Parâmetros sem guarda (R10, R22): nome de exibição para o e-mail e a versão única do ano.
 export { obterParametroSistema, tocarVersaoExercicio, type ChaveParametroSistema } from './infrastructure/parametro-sistema';

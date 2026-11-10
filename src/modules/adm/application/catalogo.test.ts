@@ -38,6 +38,15 @@ describe('catálogo de funcionalidades (contrato C6)', () => {
       validarDeclaracoes([{ ...base, codigo: 'adm.y', modulo: 'ADMINISTRACAO', perfisPadrao: { AUDITOR: ['consultar'] } }]),
     ).toThrow(expect.objectContaining({ codigo: 'seed.perfil_proibido' })));
 
+  it('exceção da RN_SEED_003 só para adm.historico e só para o AUDITOR (§11.3, D-P8-8)', () => {
+    const historico = { ...base, codigo: 'adm.historico', modulo: 'ADMINISTRACAO' as const, acoes: ['consultar' as const] };
+    expect(() => validarDeclaracoes([{ ...historico, perfisPadrao: { ADMINISTRADOR: ['consultar'], AUDITOR: ['consultar'] } }])).not.toThrow();
+    expect(() => validarDeclaracoes([{ ...historico, perfisPadrao: { GFIN: ['consultar'] } }])).toThrow(expect.objectContaining({ codigo: 'seed.perfil_proibido' }));
+    expect(() => validarDeclaracoes([{ ...historico, codigo: 'adm.outra', perfisPadrao: { AUDITOR: ['consultar'] } }])).toThrow(
+      expect.objectContaining({ codigo: 'seed.perfil_proibido' }),
+    );
+  });
+
   it('ação padrão fora das ações da funcionalidade', () =>
     expect(() => validarDeclaracoes([{ ...base, perfisPadrao: { AUDITOR: ['excluir'] } }])).toThrow(
       expect.objectContaining({ codigo: 'seed.acao_invalida' }),
