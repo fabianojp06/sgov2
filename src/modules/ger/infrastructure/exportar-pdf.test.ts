@@ -114,6 +114,37 @@ describe('exportarPdf', () => {
     expect(pedacos.at(-1)).toMatch(/…$/);
   });
 
+  it('cabeçalho longo (30 filtros de 200 caracteres): nenhum filtro se perde, e o cabeçalho continua na página seguinte', async () => {
+    const filtros = Array.from({ length: 30 }, (_, i) => ({ rotulo: `F${i}`, valor: `${'v'.repeat(190)}${i}` }));
+    const ident = { ...identificacao, filtros };
+    const ps = await paginas(bytes(await exportarPdf([planilha([['A', '1']], { identificacao: ident })])));
+    const texto = ps.flat().join('').replaceAll(' ', '');
+    for (let i = 0; i < 30; i++) expect(texto).toContain(`F${i}:${'v'.repeat(190)}${i}`);
+    expect(ps.flat().join('|')).not.toContain('…');
+    expect(ps.length).toBeGreaterThan(1);
+    // A tabela vem depois do cabeçalho inteiro.
+    expect(ps.at(-1)).toContain('A');
+  });
+
+  it('título longo quebra em até 3 linhas; operador longo não passa por cima da numeração', async () => {
+    const ident = { ...identificacao, titulo: 'Título '.repeat(28).trim(), operador: 'o'.repeat(200) };
+    const [p] = await paginas(bytes(await exportarPdf([planilha([['A', '1']], { identificacao: ident })])));
+    const doc = await PDFDocument.load(bytes(await exportarPdf([planilha([['A', '1']], { identificacao: ident })])), { updateMetadata: false });
+    expect(doc.getTitle()).toBe(ident.titulo);
+    const titulo = p!.slice(0, p!.findIndex((t) => t.startsWith('Filtros:')));
+    expect(titulo.length).toBeGreaterThan(1);
+    expect(titulo.length).toBeLessThanOrEqual(3);
+    expect(titulo.join(' ')).toBe(ident.titulo);
+    expect(p!.at(-2)).toMatch(/^Exportado por o+…$/);
+    expect(p!.at(-1)).toBe('Página 1 de 1');
+  });
+
+  it('coluna mais estreita que um caractere: termina, com um caractere por linha e o corte em 8', async () => {
+    const colunas = Array.from({ length: 70 }, (_, i) => ({ titulo: `C${i}`, tipo: 'texto' as const }));
+    const r = await exportarPdf([{ nome: 'Larga', colunas, linhas: [colunas.map(() => 'WWW')] }]);
+    expect(r.ok).toBe(true);
+  });
+
   it('mesma entrada, mesmo arquivo (a data vem da identificação)', async () => {
     const a = bytes(await exportarPdf([planilha([['A', '1']])]));
     const b = bytes(await exportarPdf([planilha([['A', '1']])]));
@@ -132,5 +163,10 @@ describe('quebrar', () => {
     expect(quebrar('aa bb cc', 25, fonte)).toEqual(['aa bb', 'cc']);
     expect(quebrar('abcdefghij', 25, fonte)).toEqual(['abcde', 'fghij']);
     expect(quebrar('', 25, fonte)).toEqual(['']);
+  });
+
+  it('largura menor que um caractere: um caractere por linha, sem laço infinito', () => {
+    expect(quebrar('ab', 3, fonte)).toEqual(['a', 'b']);
+    expect(quebrar('abc', 0, fonte, 2)).toEqual(['a', '…']);
   });
 });

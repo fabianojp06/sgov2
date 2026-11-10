@@ -29,6 +29,8 @@ const TAMANHO_TITULO = 12;
 const ENTRELINHA = 10;
 const RESPIRO = 3; // espaço interno da célula
 const MAX_LINHAS_CELULA = 8; // texto além disso termina em "…"
+const MAX_LINHAS_TITULO = 3;
+const FIM_DA_AREA = MARGEM + 2 * ENTRELINHA; // abaixo disso, só o rodapé
 const LARGURA_PADRAO = 120; // em px, como o `largura` da tela
 const CINZA = { linha: 0.8, cabecalho: 0.92, rodape: 0.35 };
 
@@ -57,31 +59,49 @@ async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Arr
     const direita = p.colunas.map((c) => alinhaDireita(c.tipo));
     const titulos = p.colunas.map((c, i) => quebrar(limpo(c.titulo), larguras[i]! - 2 * RESPIRO, negrito));
 
+    // O título quebra em até 3 linhas na largura da página.
+    const linhasTitulo = quebrar(titulo, util, negrito, MAX_LINHAS_TITULO, TAMANHO_TITULO);
+
     let pagina!: PDFPage;
     let y!: number;
-    const novaPagina = (primeira: boolean) => {
+    const abrirPagina = () => {
       pagina = doc.addPage([LARGURA, ALTURA]);
       rodapes.push({ pagina, texto: marca });
       y = ALTURA - MARGEM;
-      escrever(pagina, titulo, MARGEM, y - TAMANHO_TITULO, negrito, TAMANHO_TITULO);
-      y -= TAMANHO_TITULO + 6;
-      if (primeira && p.identificacao) {
-        // O cabeçalho legível completo (filtros, operador e hora, rastreio) só na primeira página.
-        for (const l of linhasIdentificacao(p.identificacao).slice(1).flatMap((t) => quebrar(limpo(t), util, fonte))) {
-          escrever(pagina, l, MARGEM, y - TAMANHO, fonte, TAMANHO);
-          y -= ENTRELINHA;
-        }
-        y -= 6;
+      for (const l of linhasTitulo) {
+        escrever(pagina, l, MARGEM, y - TAMANHO_TITULO, negrito, TAMANHO_TITULO);
+        y -= TAMANHO_TITULO + 2;
       }
+      y -= 4;
+    };
+    const cabecalhoDasColunas = () => {
       y = desenharLinha(pagina, y, titulos, larguras, direita, negrito, grayscale(CINZA.cabecalho), grayscale(CINZA.linha));
     };
-    novaPagina(true);
+    const cabe = (altura: number) => y - altura >= FIM_DA_AREA;
+
+    abrirPagina();
+    if (p.identificacao) {
+      // RN0011: o cabeçalho legível completo (filtros, operador e hora, rastreio), sem corte; só no
+      // começo da aba e, se for longo, continua na página seguinte.
+      for (const l of linhasIdentificacao(p.identificacao).slice(1).flatMap((t) => quebrar(limpo(t), util, fonte, Infinity))) {
+        if (!cabe(ENTRELINHA)) abrirPagina();
+        escrever(pagina, l, MARGEM, y - TAMANHO, fonte, TAMANHO);
+        y -= ENTRELINHA;
+      }
+      y -= 6;
+    }
+    // Os títulos das colunas nunca ficam sozinhos no pé da página.
+    if (!cabe(alturaDaLinha(titulos) + alturaDaLinha([['']]))) abrirPagina();
+    cabecalhoDasColunas();
     if (p.linhas.length === 0) {
       escrever(pagina, 'Nenhum registro.', MARGEM + RESPIRO, y - TAMANHO - RESPIRO, fonte, TAMANHO);
     }
     for (const linha of p.linhas) {
       const celulas = linha.map((valor, i) => quebrar(limpo(formatarCelula(p.colunas[i]!.tipo, valor)), larguras[i]! - 2 * RESPIRO, fonte));
-      if (y - alturaDaLinha(celulas) < MARGEM + 2 * ENTRELINHA) novaPagina(false);
+      if (!cabe(alturaDaLinha(celulas))) {
+        abrirPagina();
+        cabecalhoDasColunas();
+      }
       y = desenharLinha(pagina, y, celulas, larguras, direita, fonte, undefined, grayscale(CINZA.linha));
     }
   }
@@ -90,7 +110,9 @@ async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Arr
   rodapes.forEach(({ pagina, texto }, i) => {
     const numero = `Página ${i + 1} de ${rodapes.length}`;
     const cor = grayscale(CINZA.rodape);
-    if (texto) pagina.drawText(texto, { x: MARGEM, y: MARGEM - 14, size: 7, font: fonte, color: cor });
+    // A marca nunca passa por cima da numeração: o que não cabe termina em "…".
+    const espaco = LARGURA - 2 * MARGEM - fonte.widthOfTextAtSize(numero, 7) - 12;
+    if (texto) pagina.drawText(cortar(texto, espaco, fonte, 7), { x: MARGEM, y: MARGEM - 14, size: 7, font: fonte, color: cor });
     pagina.drawText(numero, { x: LARGURA - MARGEM - fonte.widthOfTextAtSize(numero, 7), y: MARGEM - 14, size: 7, font: fonte, color: cor });
   });
 
@@ -141,9 +163,22 @@ function desenharLinha(
   return y - altura;
 }
 
-/** Quebra o texto na largura, por palavra (palavra maior que a largura é partida); no máximo MAX_LINHAS_CELULA. */
-export function quebrar(texto: string, largura: number, font: Pick<PDFFont, 'widthOfTextAtSize'>): string[] {
-  const cabe = (t: string) => font.widthOfTextAtSize(t, TAMANHO) <= largura;
+type Medida = Pick<PDFFont, 'widthOfTextAtSize'>;
+
+/** O texto cortado na largura, terminando em "…" quando não cabe inteiro. */
+function cortar(texto: string, largura: number, font: Medida, tamanho: number): string {
+  if (font.widthOfTextAtSize(texto, tamanho) <= largura) return texto;
+  let t = texto;
+  while (t && font.widthOfTextAtSize(`${t}…`, tamanho) > largura) t = t.slice(0, -1);
+  return `${t}…`;
+}
+
+/**
+ * Quebra o texto na largura, por palavra (palavra maior que a largura é partida, com pelo menos um
+ * caractere por linha, mesmo numa coluna mais estreita que ele); no máximo maxLinhas, a última com "…".
+ */
+export function quebrar(texto: string, largura: number, font: Medida, maxLinhas = MAX_LINHAS_CELULA, tamanho = TAMANHO): string[] {
+  const cabe = (t: string) => font.widthOfTextAtSize(t, tamanho) <= largura;
   const linhas: string[] = [];
   let atual = '';
   for (const palavra of texto.split(' ')) {
@@ -157,16 +192,16 @@ export function quebrar(texto: string, largura: number, font: Pick<PDFFont, 'wid
     while (resto && !cabe(resto)) {
       let n = resto.length - 1;
       while (n > 1 && !cabe(resto.slice(0, n))) n--;
+      // n >= 1: o laço sempre avança, mesmo quando nem um caractere cabe.
+      n = Math.max(1, n);
       linhas.push(resto.slice(0, n));
       resto = resto.slice(n);
     }
     atual = resto;
   }
   if (atual || linhas.length === 0) linhas.push(atual);
-  if (linhas.length <= MAX_LINHAS_CELULA) return linhas;
-  const cortadas = linhas.slice(0, MAX_LINHAS_CELULA);
-  let ultima = cortadas[MAX_LINHAS_CELULA - 1]!;
-  while (ultima && !cabe(`${ultima}…`)) ultima = ultima.slice(0, -1);
-  cortadas[MAX_LINHAS_CELULA - 1] = `${ultima}…`;
+  if (linhas.length <= maxLinhas) return linhas;
+  const cortadas = linhas.slice(0, maxLinhas);
+  cortadas[maxLinhas - 1] = cortar(`${cortadas[maxLinhas - 1]!}…`, largura, font, tamanho);
   return cortadas;
 }
