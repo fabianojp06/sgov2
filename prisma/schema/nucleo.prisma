@@ -39,6 +39,8 @@ model HistoricoOperacao {
 
   @@index([funcionalidade, ocorridoEm])
   @@index([usuarioId, ocorridoEm])
+  @@index([ocorridoEm])
+  @@index([tipoOperacao, ocorridoEm])
   @@map("historico_operacao")
 }
 

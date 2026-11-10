@@ -18,11 +18,18 @@ export type ContextoRequisicao = Omit<ContextoAuditoria, 'usuarioId' | 'sessaoUi
   unidades?: readonly string[];
 };
 
+// Por que não há sessão (US-028): a sessão única foi encerrada por um login em outra estação.
+export type MotivoAusenciaSessao = 'NOVO_ACESSO';
+// EP084 UC01.02 A2.2 (RN0519), exibida na próxima interação da estação anterior.
+export const MENSAGEM_SESSAO_NOVO_ACESSO = 'Sua sessão foi encerrada porque um novo acesso foi realizado com suas credenciais.';
+
 export interface ProvedorContexto {
   // Marca estável do provedor: o módulo aut pode ser avaliado em mais de uma camada do Next e
   // recriar o provedor; com o mesmo id, o novo registro é aceito.
   readonly id?: string;
   obter(): Promise<ContextoRequisicao | null>;
+  // Só quando obter() devolve null: o motivo, se houver. Opcional para os provedores de teste.
+  motivoAusencia?(): Promise<MotivoAusenciaSessao | null>;
 }
 
 // Consumo: `ok` separa sucesso de falha; `'status' in r` separa 401/403 de erro de validação
