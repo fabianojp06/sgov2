@@ -4,7 +4,7 @@ import { entrarNaTelaPrincipal, USUARIOS } from './apoio';
 // CSP completa (#318; decisão do PO em 10/11): o proxy manda script só com o nonce da requisição, e
 // o Next põe esse nonce nos scripts dele. Se a página fosse estática ou o nonce não chegasse ao SSR,
 // o navegador bloquearia o JavaScript e acusaria a violação no console.
-const TELAS = ['/inicio', '/adm/usuarios', '/adm/alcadas', '/adm/historico'];
+const TELAS = ['/inicio', '/adm/usuarios', '/adm/alcadas', '/adm/perfis', '/adm/historico'];
 
 // Abre a tela e confere que todo <script> do HTML do servidor traz o nonce da CSP desta resposta. Os
 // scripts que o Next injeta depois, pelo carregador de chunks, valem pelo 'strict-dynamic' e ficam

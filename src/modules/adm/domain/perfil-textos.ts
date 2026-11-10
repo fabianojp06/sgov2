@@ -1,6 +1,13 @@
 // Textos e regras puras da tela de perfis que o navegador usa (US-037): sem o kernel nem o Zod, para
 // o formulário não levá-los ao bundle (como notificacao-textos.ts).
 
+// Avisos da lista depois das ações: UC02.25 e UC02.26 com o texto do EP085; a exclusão [PROVISÓRIO].
+export const AVISOS_PERFIL = {
+  cadastrado: 'Perfil cadastrado com sucesso.',
+  alterado: 'Perfil alterado com sucesso.',
+  excluido: 'Perfil excluído com sucesso.',
+} as const;
+
 // E3 do UC02.26 (EP085), texto fixado.
 export const MENSAGEM_CONFIRMAR_INATIVACAO =
   'Este perfil possui usuários ativos associados. Ao inativá-lo, esses usuários perderão o acesso às funcionalidades deste perfil. Deseja continuar?';

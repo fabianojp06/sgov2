@@ -102,6 +102,8 @@ export {
   type ModuloDaGrade,
 } from './application/perfis';
 export { MENSAGENS_PERFIL, validarPerfil, type EntradaPerfil } from './domain/perfil';
+export { FormPerfil, type PerfilFormulario } from './ui/form-perfil';
+export { ListaPerfis } from './ui/lista-perfis';
 export { normalizarLogin } from './domain/login';
 export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { esquemaUsuario, MENSAGENS_USUARIO, type EntradaUsuario } from './domain/usuario';

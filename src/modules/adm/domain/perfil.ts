@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { falha, MENSAGEM_CONFLITO, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
-import { MENSAGEM_CONFIRMAR_INATIVACAO } from './perfil-textos';
+import { AVISOS_PERFIL, MENSAGEM_CONFIRMAR_INATIVACAO } from './perfil-textos';
 import { ehFixaDoAdministrador, podeReceberFuncionalidade } from './perfis';
 
 // Cadastro de perfis e permissões (US-037; EP085 UC02.07–10 e UC02.25/26 como um caso de uso só,
@@ -13,12 +13,12 @@ export type AcaoPerfil = (typeof ACOES_PERFIL)[number];
 
 export const MENSAGENS_PERFIL = {
   // EP085, textos fixados (UC02.25, UC02.26, E2 e E3).
-  CADASTRADO: 'Perfil cadastrado com sucesso.',
-  ALTERADO_SUCESSO: 'Perfil alterado com sucesso.',
+  CADASTRADO: AVISOS_PERFIL.cadastrado,
+  ALTERADO_SUCESSO: AVISOS_PERFIL.alterado,
   SEM_FUNCIONALIDADE: 'O perfil deve possuir ao menos uma funcionalidade associada.',
   CONFIRMAR_INATIVACAO: MENSAGEM_CONFIRMAR_INATIVACAO,
   // [PROVISÓRIOS] (D-P13-3, D-P13-4, D-P13-5, D-P13-10).
-  EXCLUIDO: 'Perfil excluído com sucesso.',
+  EXCLUIDO: AVISOS_PERFIL.excluido,
   NOME: 'O nome do perfil é obrigatório.',
   NOME_TAMANHO: 'O nome do perfil deve ter até 100 caracteres, sem quebras de linha.',
   NOME_DUPLICADO: 'Já existe um perfil com este nome.',
