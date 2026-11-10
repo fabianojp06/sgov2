@@ -1,33 +1,23 @@
 import 'server-only';
 import type { PrismaClient } from '@/generated/prisma/client';
-import {
-  aplicarFiltros,
-  criarIdentificacao,
-  validarValoresFiltro,
-  type DefinicaoFiltro,
-  type FiltroExportacao,
-  type FormatoArquivo,
-  type ValoresFiltro,
-} from '@/modules/ger';
-import { exportarCsv, exportarXlsx } from '@/modules/ger/servidor';
+import { criarIdentificacao, type FormatoArquivo } from '@/modules/ger';
+import { agendarExportacao, exportarCsv, exportarXlsx, LIMITE_EXPORTACAO_SINCRONA } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
-import { prisma, type TxCliente } from '@/shared/db';
+import { prisma } from '@/shared/db';
 import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
-import { nosVisiveis, paraNoTela, paraNoTelaCc, type ColunaCc, type ColunaConta, type NoTela } from '../domain/arvore-tela';
-import { listarArvoreCentrosCusto, listarArvoreContas } from '../infrastructure/estrutura-financeira';
-import { COLUNAS_CC, COLUNAS_CONTAS, FILTROS_CC, FILTROS_CONTAS } from './filtros-estrutura';
+import { ARVORE_CENTROS, ARVORE_PLANO, montarConteudo, validarFiltrosArvore, type Arvore, type ParametrosEstrutura } from './planilha-estrutura';
 
-// Exportação das listagens do plano de contas e dos centros de custo (US-024, partes 2 e 3; RN0011 e
-// RN_WATERMARK pelo C3). O arquivo é o que a tela mostra: as mesmas linhas (paraNoTela), o mesmo
-// "mostrar inativos", os mesmos filtros da grade (validados e aplicados pelo aplicarFiltros do ger,
-// a função da própria Tree Grid) e as mesmas colunas, na ordem da árvore. Os filtros vão para o
-// cabeçalho. O arquivo é gerado antes do Histórico (UC0.05); se a geração falhar, nada é gravado. O
-// Histórico leva o formato, a quantidade de registros, os filtros e o rastreio.
+// Exportação das listagens do plano de contas e dos centros de custo (US-024, partes 2 a 4; RN0011 e
+// RN_WATERMARK pelo C3). O arquivo é o que a tela mostra (planilha-estrutura.ts), com os filtros no
+// cabeçalho. Até 5.000 linhas, sai na hora: o arquivo é gerado antes do Histórico (UC0.05) e, se a
+// geração falhar, nada é gravado; o Histórico leva o formato, os registros, os filtros e o rastreio.
+// Acima disso (RF_IMP_003), vira um pedido para o worker, na mesma transação da contagem.
 
-// `filtros` chega bruto da URL (busca, tipo): é validado pelas definições da tela.
-export type OpcoesExportacao = { formato: FormatoArquivo; incluirInativos: boolean; filtros?: unknown };
-type Deps = { cliente?: PrismaClient };
+export type OpcoesExportacao = ParametrosEstrutura & { formato: FormatoArquivo };
+export type ExportacaoEstrutura = { tipo: 'arquivo'; nome: string; bytes: Uint8Array } | { tipo: 'agendada'; pedidoId: string };
+// limiteSincrono: só para os testes da exportação assíncrona.
+type Deps = { cliente?: PrismaClient; limiteSincrono?: number };
 
 class FalhaGeracao extends Error {
   constructor(readonly erros: ErroCampo[]) {
@@ -35,74 +25,47 @@ class FalhaGeracao extends Error {
   }
 }
 
-function emOrdem<C extends string>(nos: readonly NoTela<C>[]): NoTela<C>[] {
-  return nos.flatMap((n) => [n, ...emOrdem(n.filhos ?? [])]);
-}
-
-/** Os filtros ativos, legíveis: o rótulo do filtro e o valor (o rótulo da opção, na seleção). */
-function filtrosLegiveis<C extends string>(defs: readonly DefinicaoFiltro<C>[], valores: ValoresFiltro): FiltroExportacao[] {
-  return defs.flatMap((d) => {
-    const v = valores[d.id];
-    if (d.tipo === 'texto' && typeof v === 'string' && v.trim() !== '') return [{ rotulo: d.rotulo, valor: v.trim() }];
-    if (d.tipo === 'selecao' && typeof v === 'string' && v !== '') return [{ rotulo: d.rotulo, valor: d.opcoes.find((o) => o.valor === v)?.rotulo ?? v }];
-    return [];
-  });
-}
-
-type Arvore<C extends string> = {
-  funcionalidade: 'cad.plano_contas' | 'cad.centros_custo';
-  titulo: string;
-  colunas: readonly { campo: C; titulo: string; largura: number }[];
-  filtros: readonly DefinicaoFiltro<C>[];
-  nos: (tx: TxCliente) => Promise<readonly NoTela<C>[]>;
-};
-
-async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvore<C>, o: OpcoesExportacao, deps: Deps): Promise<Resultado<Uint8Array>> {
+async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvore<C>, o: OpcoesExportacao, deps: Deps): Promise<Resultado<ExportacaoEstrutura>> {
   exigir(ctx, a.funcionalidade, 'exportar');
-  const v = validarValoresFiltro(a.filtros as readonly DefinicaoFiltro[], o.filtros ?? {});
+  const v = validarFiltrosArvore(a, o.filtros);
   if (!v.ok) return falha(v.erros);
   const cliente = deps.cliente ?? prisma;
   try {
-    const bytes = await cliente.$transaction(async (tx) => {
-      const filtros = [{ rotulo: 'Inativos', valor: o.incluirInativos ? 'incluídos' : 'não incluídos' }, ...filtrosLegiveis(a.filtros, v.valor)];
-      const identificacao = criarIdentificacao({ titulo: a.titulo, filtros, operador: ctx.usuarioRotulo });
-      const visiveis = aplicarFiltros(nosVisiveis(await a.nos(tx), o.incluirInativos), a.filtros, v.valor).nos;
-      const linhas = emOrdem(visiveis).map((n) => a.colunas.map((c) => n.linha[c.campo] ?? null));
-      const planilha = { nome: a.titulo, colunas: a.colunas.map((c) => ({ titulo: c.titulo, tipo: 'texto' as const, largura: c.largura })), linhas, identificacao };
-      const r = o.formato === 'xlsx' ? await exportarXlsx([planilha]) : exportarCsv(planilha);
-      if (!r.ok) throw new FalhaGeracao([...r.erros]);
+    const r = await cliente.$transaction(async (tx): Promise<ExportacaoEstrutura> => {
+      const c = await montarConteudo(tx, a, { incluirInativos: o.incluirInativos, filtros: v.valor });
+      if (!c.ok) throw new FalhaGeracao([...c.erros]);
+      const nome = `${a.arquivo}.${o.formato}`;
+      if (c.valor.planilha.linhas.length > (deps.limiteSincrono ?? LIMITE_EXPORTACAO_SINCRONA)) {
+        const pedidoId = await agendarExportacao(tx, {
+          contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip },
+          funcionalidade: a.funcionalidade,
+          titulo: a.titulo,
+          formato: o.formato,
+          nomeArquivo: nome,
+          parametros: { incluirInativos: o.incluirInativos, filtros: v.valor },
+        });
+        return { tipo: 'agendada', pedidoId };
+      }
+      const identificacao = criarIdentificacao({ titulo: a.titulo, filtros: c.valor.filtros, operador: ctx.usuarioRotulo });
+      const planilha = { ...c.valor.planilha, identificacao };
+      const arquivo = o.formato === 'xlsx' ? await exportarXlsx([planilha]) : exportarCsv(planilha);
+      if (!arquivo.ok) throw new FalhaGeracao([...arquivo.erros]);
       await auditar(tx, {
         contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null },
         funcionalidade: a.funcionalidade,
         tipo: 'EXPORTACAO',
         registroId: identificacao.rastreio,
         descricao: `${a.titulo} exportado em ${o.formato.toUpperCase()} (rastreio ${identificacao.rastreio})`,
-        depois: { formato: o.formato, registros: linhas.length, filtros, rastreio: identificacao.rastreio },
+        depois: { formato: o.formato, registros: planilha.linhas.length, filtros: c.valor.filtros, rastreio: identificacao.rastreio },
       });
-      return r.valor;
+      return { tipo: 'arquivo', nome, bytes: arquivo.valor };
     });
-    return ok(bytes);
+    return ok(r);
   } catch (e) {
     if (e instanceof FalhaGeracao) return falha(e.erros);
     throw e;
   }
 }
 
-const PLANO: Arvore<ColunaConta> = {
-  funcionalidade: 'cad.plano_contas',
-  titulo: 'Plano de contas',
-  colunas: COLUNAS_CONTAS,
-  filtros: FILTROS_CONTAS,
-  nos: async (tx) => (await listarArvoreContas(tx, { incluirInativos: true })).map(paraNoTela),
-};
-
-const CENTROS: Arvore<ColunaCc> = {
-  funcionalidade: 'cad.centros_custo',
-  titulo: 'Centros de custo',
-  colunas: COLUNAS_CC,
-  filtros: FILTROS_CC,
-  nos: async (tx) => (await listarArvoreCentrosCusto(tx, { incluirInativos: true })).map(paraNoTelaCc),
-};
-
-export const exportarPlanoContas = (ctx: ContextoRequisicao, o: OpcoesExportacao, deps: Deps = {}) => exportarArvore(ctx, PLANO, o, deps);
-export const exportarCentrosCusto = (ctx: ContextoRequisicao, o: OpcoesExportacao, deps: Deps = {}) => exportarArvore(ctx, CENTROS, o, deps);
+export const exportarPlanoContas = (ctx: ContextoRequisicao, o: OpcoesExportacao, deps: Deps = {}) => exportarArvore(ctx, ARVORE_PLANO, o, deps);
+export const exportarCentrosCusto = (ctx: ContextoRequisicao, o: OpcoesExportacao, deps: Deps = {}) => exportarArvore(ctx, ARVORE_CENTROS, o, deps);

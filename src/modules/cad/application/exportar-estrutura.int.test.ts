@@ -9,7 +9,9 @@ import ccMinuta from '../infrastructure/dados/cc-minuta-rev23102026.json';
 import planoOficial from '../infrastructure/dados/plano-contas-oficial.json';
 import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
-import { exportarCentrosCusto, exportarPlanoContas } from './exportar-estrutura';
+import { criarTrabalhadorExportacao } from '@/modules/ger/servidor';
+import { exportarCentrosCusto, exportarPlanoContas, type ExportacaoEstrutura } from './exportar-estrutura';
+import { GERADORES_EXPORTACAO_CAD } from './planilha-estrutura';
 
 // Exportação das listagens do plano de contas e dos CCs (US-024 parte 2) num Postgres real
 // (Testcontainers, D12), sobre a seed de referência: o cabeçalho (RN0011, RN_WATERMARK), as linhas
@@ -24,6 +26,11 @@ const ctx = (...p: [string, string][]): ContextoRequisicao => ({ usuarioId, usua
 const gfin = () => ctx(['cad.plano_contas', 'exportar'], ['cad.centros_custo', 'exportar']);
 const ultimaExportacao = async (funcionalidade: string) =>
   (await migrator.query(`SELECT registro_id, depois FROM historico_operacao WHERE funcionalidade = $1 AND tipo_operacao = 'EXPORTACAO' ORDER BY id DESC LIMIT 1`, [funcionalidade])).rows[0];
+// Até o limite síncrono, o arquivo sai na hora.
+const bytes = (e: ExportacaoEstrutura) => {
+  if (e.tipo !== 'arquivo') throw new Error('esperava o arquivo na hora');
+  return e.bytes;
+};
 const linhasCsv = (bytes: Uint8Array) => new TextDecoder().decode(bytes).replace(/^\uFEFF/, '').split('\r\n');
 
 beforeAll(async () => {
@@ -52,7 +59,7 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
   it('plano de contas em CSV: cabeçalho, as ativas na ordem da árvore e o Histórico com o rastreio', async () => {
     const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false }, { cliente: app });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
-    const l = linhasCsv(r.valor);
+    const l = linhasCsv(bytes(r.valor));
     expect(l.slice(0, 2)).toEqual(['"Plano de contas"', '"Filtros: Inativos: não incluídos"']);
     const rastreio = /^"Rastreio: ([0-9a-f-]{36})"$/.exec(l[3]!)![1]!;
     expect(l[5]).toBe('"Classificação";"Reduzido";"Descrição";"Nível";"Tipo";"Situação"');
@@ -79,7 +86,7 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
   it('plano de contas com os inativos: a conta inativada aparece como Inativa', async () => {
     const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: true }, { cliente: app });
     if (!r.ok) throw new Error('falhou');
-    const dados = linhasCsv(r.valor).slice(6).filter(Boolean);
+    const dados = linhasCsv(bytes(r.valor)).slice(6).filter(Boolean);
     expect(dados).toHaveLength(planoOficial.length);
     expect(dados.filter((d) => d.endsWith('"Inativa"'))).toHaveLength(1);
     expect((await ultimaExportacao('cad.plano_contas')).depois.filtros).toEqual([{ rotulo: 'Inativos', valor: 'incluídos' }]);
@@ -89,7 +96,7 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     const r = await exportarCentrosCusto(gfin(), { formato: 'xlsx', incluirInativos: false }, { cliente: app });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(Buffer.from(r.valor) as unknown as ArrayBuffer);
+    await wb.xlsx.load(Buffer.from(bytes(r.valor)) as unknown as ArrayBuffer);
     const ws = wb.getWorksheet('Centros de custo')!;
     expect(ws.getRow(1).getCell(1).value).toBe('Centros de custo');
     // As colunas da tela (com os selos de gestão e de provisório numa coluna só).
@@ -113,10 +120,10 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
   it('busca "pessoal" com tipo Analítica: a subárvore inteira, os caminhos, e os filtros no cabeçalho e no Histórico', async () => {
     const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: false, filtros: { busca: 'pessoal', tipo: 'Analítica', outro: 'ignorado' } }, { cliente: app });
     if (!r.ok) throw new Error(JSON.stringify(r.erros));
-    expect(linhasCsv(r.valor)[1]).toBe('"Filtros: Inativos: não incluídos; Buscar por classificação, reduzido ou descrição: pessoal; Tipo: Analítica"');
+    expect(linhasCsv(bytes(r.valor))[1]).toBe('"Filtros: Inativos: não incluídos; Buscar por classificação, reduzido ou descrição: pessoal; Tipo: Analítica"');
     // Sem os inativos, a 4.1.1.6.011 sai e, com ela, o caminho 4.1.1.6: "mostrar inativos" vem antes do
     // filtro, como na tela (com a ordem invertida, a 4.1.1.6 ficaria sem filhas no arquivo).
-    const classificacoes = classificacoesDe(r.valor);
+    const classificacoes = classificacoesDe(bytes(r.valor));
     expect(classificacoes).toEqual(['4', '4.1', '4.1.1', '4.1.1.1', ...debaixoDePessoal]);
     expect((await ultimaExportacao('cad.plano_contas')).depois).toMatchObject({
       registros: classificacoes.length,
@@ -131,7 +138,7 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
   it('a mesma busca com os inativos: entram a 4.1.1.6.011 e o caminho 4.1.1.6', async () => {
     const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: true, filtros: { busca: 'pessoal', tipo: 'Analítica' } }, { cliente: app });
     if (!r.ok) throw new Error('falhou');
-    expect(classificacoesDe(r.valor)).toEqual(['4', '4.1', '4.1.1', '4.1.1.1', ...debaixoDePessoal, '4.1.1.6', '4.1.1.6.011']);
+    expect(classificacoesDe(bytes(r.valor))).toEqual(['4', '4.1', '4.1.1', '4.1.1.1', ...debaixoDePessoal, '4.1.1.6', '4.1.1.6.011']);
   });
 
   it('filtro com valor inválido: recusado antes de gerar, sem Histórico', async () => {
@@ -153,5 +160,73 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     const r = await exportarPlanoContas({ ...gfin(), usuarioRotulo: '' }, { formato: 'xlsx', incluirInativos: false }, { cliente: app });
     expect(!r.ok && r.erros.map((e) => e.campo)).toEqual(['planilhas.0.identificacao.operador']);
     expect(await ultimaExportacao('cad.plano_contas')).toEqual(antes);
+  });
+});
+
+// Acima do limite síncrono (RF_IMP_003), o pedido vai para o worker. O limite baixo (limiteSincrono)
+// evita montar um plano de 5.000 contas; o trabalhador é o mesmo que o worker registra.
+describe('exportação assíncrona (US-024, parte 4)', () => {
+  const AGORA = new Date('2026-11-10T15:00:00.000Z');
+  const trabalhar = () => criarTrabalhadorExportacao({ cliente: app, geradores: GERADORES_EXPORTACAO_CAD, agora: () => AGORA });
+  const pedido = async (id: string) => (await migrator.query(`SELECT * FROM exportacao_pedido WHERE id = $1`, [id])).rows[0];
+
+  it('agenda na mesma transação (pedido e outbox, sem Histórico); o worker gera o arquivo e registra a exportação', async () => {
+    const antes = await ultimaExportacao('cad.plano_contas');
+    const filtros = { busca: 'pessoal', tipo: 'Analítica', formato: 'csv', inativos: '1' };
+    const r = await exportarPlanoContas(gfin(), { formato: 'csv', incluirInativos: true, filtros }, { cliente: app, limiteSincrono: 10 });
+    if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
+    const id = r.valor.pedidoId;
+    const p = await pedido(id);
+    expect(p).toMatchObject({ usuario_id: usuarioId, usuario_rotulo: 'gfin', funcionalidade: 'cad.plano_contas', formato: 'csv', situacao: 'PENDENTE', nome_arquivo: 'plano-de-contas.csv', conteudo: null });
+    // Só as chaves dos filtros da tela vão para o pedido (formato e inativos são da URL).
+    expect(p.parametros).toEqual({ incluirInativos: true, filtros: { busca: 'pessoal', tipo: 'Analítica' } });
+    const outbox = (await migrator.query(`SELECT tipo, dados FROM outbox_mensagem WHERE dados->>'pedidoId' = $1`, [id])).rows;
+    expect(outbox).toEqual([{ tipo: 'exportacao.gerar', dados: { pedidoId: id } }]);
+    expect(await ultimaExportacao('cad.plano_contas')).toEqual(antes);
+
+    await trabalhar()({ pedidoId: id });
+    const pronto = await pedido(id);
+    expect(pronto).toMatchObject({ situacao: 'PRONTA', erro: null, concluido_em: AGORA });
+    const l = linhasCsv(new Uint8Array(pronto.conteudo));
+    expect(l[3]).toBe(`"Rastreio: ${id}"`);
+    expect(l[1]).toBe('"Filtros: Inativos: incluídos; Buscar por classificação, reduzido ou descrição: pessoal; Tipo: Analítica"');
+    expect(pronto.registros).toBe(l.slice(6).filter(Boolean).length);
+    expect(pronto.registros).toBeGreaterThan(10);
+    const h = await ultimaExportacao('cad.plano_contas');
+    expect(h.registro_id).toBe(id);
+    expect(h.depois).toMatchObject({ formato: 'csv', registros: pronto.registros, rastreio: id, assincrona: true });
+
+    // Job repetido (reenvio da fila): o pedido já está pronto e nada muda.
+    await trabalhar()({ pedidoId: id });
+    expect((await pedido(id)).concluido_em).toEqual(AGORA);
+    expect(Number((await migrator.query(`SELECT count(*) FROM historico_operacao WHERE registro_id = $1`, [id])).rows[0].count)).toBe(1);
+  });
+
+  it('XLSX acima do limite também vai para o worker, com o rastreio no rodapé', async () => {
+    const r = await exportarCentrosCusto(gfin(), { formato: 'xlsx', incluirInativos: false }, { cliente: app, limiteSincrono: 1 });
+    if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
+    await trabalhar()({ pedidoId: r.valor.pedidoId });
+    const pronto = await pedido(r.valor.pedidoId);
+    expect(pronto.situacao).toBe('PRONTA');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(pronto.conteudo) as unknown as ArrayBuffer);
+    expect(wb.worksheets[0]!.headerFooter.oddFooter).toContain(`Rastreio ${r.valor.pedidoId}`);
+  });
+
+  it('falha da própria exportação (operador vazio, gerador ausente): FALHOU com o motivo, sem Histórico', async () => {
+    const r = await exportarPlanoContas({ ...gfin(), usuarioRotulo: '' }, { formato: 'csv', incluirInativos: false }, { cliente: app, limiteSincrono: 10 });
+    if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
+    await trabalhar()({ pedidoId: r.valor.pedidoId });
+    expect(await pedido(r.valor.pedidoId)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: expect.stringMatching(/operador/) });
+
+    const sem = (await migrator.query(`INSERT INTO exportacao_pedido (usuario_id, usuario_rotulo, sessao_uid, funcionalidade, titulo, formato, parametros) VALUES ($1, 'gfin', 's', 'cad.outra', 'Outra', 'csv', '{}') RETURNING id`, [usuarioId])).rows[0].id;
+    await trabalhar()({ pedidoId: sem });
+    expect(await pedido(sem)).toMatchObject({ situacao: 'FALHOU', erro: 'Esta listagem não tem exportação assíncrona.' });
+    const n = Number((await migrator.query(`SELECT count(*) FROM historico_operacao WHERE registro_id = ANY($1)`, [[r.valor.pedidoId, sem]])).rows[0].count);
+    expect(n).toBe(0);
+  });
+
+  it('job sem pedido válido: erro, para a fila registrar', async () => {
+    await expect(trabalhar()({ pedidoId: 'x' })).rejects.toThrow('Job de exportação sem pedido válido.');
   });
 });

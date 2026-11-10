@@ -69,6 +69,12 @@ function validarIdentificacao(i: IdentificacaoExportacao, prefixo: string): Erro
 }
 
 export const LIMITE_EXPORTACAO_SINCRONA = 5000; // RF_IMP_003, total de linhas somando as abas
+// Teto da exportação assíncrona (worker): o arquivo inteiro fica na memória e no banco. [PROVISÓRIO]
+// (decisão da frente B, 10/11), sem número na spec.
+export const LIMITE_EXPORTACAO_ASSINCRONA = 100_000;
+
+/** Opções dos geradores: o worker passa o limite assíncrono; a tela, nada (limite síncrono). */
+export type OpcoesGeracao = { limite?: number };
 
 const PROIBIDOS_NA_ABA = /[:\\/?*[\]]/;
 
@@ -85,8 +91,8 @@ function nomeDeAbaValido(nome: string): boolean {
   );
 }
 
-/** Valida as abas antes de gerar o arquivo (nomes do Excel, uma célula por coluna, limite síncrono). */
-export function validarPlanilhas(planilhas: readonly PlanilhaExportacao[]): Resultado<void> {
+/** Valida as abas antes de gerar o arquivo (nomes do Excel, uma célula por coluna, limite de linhas). */
+export function validarPlanilhas(planilhas: readonly PlanilhaExportacao[], limite: number = LIMITE_EXPORTACAO_SINCRONA): Resultado<void> {
   if (planilhas.length === 0) return falha([{ campo: 'planilhas', mensagem: 'Nada a exportar: nenhuma aba.' }]);
   const erros: ErroCampo[] = [];
   const vistos = new Set<string>();
@@ -112,10 +118,13 @@ export function validarPlanilhas(planilhas: readonly PlanilhaExportacao[]): Resu
     if (p.identificacao) erros.push(...validarIdentificacao(p.identificacao, `planilhas.${i}`));
   });
   const total = planilhas.reduce((soma, p) => soma + p.linhas.length, 0);
-  if (total > LIMITE_EXPORTACAO_SINCRONA) {
+  if (total > limite) {
     erros.push({
       campo: 'linhas',
-      mensagem: `A exportação tem ${total} linhas; acima de ${LIMITE_EXPORTACAO_SINCRONA}, use a exportação assíncrona.`,
+      mensagem:
+        limite === LIMITE_EXPORTACAO_SINCRONA
+          ? `A exportação tem ${total} linhas; acima de ${LIMITE_EXPORTACAO_SINCRONA}, use a exportação assíncrona.`
+          : `A exportação tem ${total} linhas; o máximo é ${limite}. Use filtros para reduzir.`,
     });
   }
   return erros.length > 0 ? falha(erros) : ok(undefined);

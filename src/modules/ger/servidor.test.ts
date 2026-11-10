@@ -11,14 +11,14 @@ afterEach(() => {
 });
 
 describe('registrarTrabalhadoresGer', () => {
-  it('sem SMTP, registra email.enviar e avisa [EMAIL_SEM_SMTP]', async () => {
+  it('sem SMTP, registra email.enviar e exportacao.gerar e avisa [EMAIL_SEM_SMTP]', async () => {
     vi.stubEnv('SMTP_HOST', '');
     const avisos: string[] = [];
     vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => void avisos.push(String(a[0])));
     const nomes: string[] = [];
     const fila = { registrarTrabalhador: vi.fn(async (nome: string) => void nomes.push(nome)) } as unknown as FilaGerenciada;
     await registrarTrabalhadoresGer(fila, { cliente: {} as PrismaClient });
-    expect(nomes).toEqual(['email.enviar']);
+    expect(nomes).toEqual(['email.enviar', 'exportacao.gerar']);
     expect(avisos).toContain('[EMAIL_SEM_SMTP] SMTP_HOST não definido: os e-mails falham até a configuração.');
   });
 
@@ -29,8 +29,8 @@ describe('registrarTrabalhadoresGer', () => {
     vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => void logs.push(JSON.stringify(a)));
     let handler: ((m: unknown, job: { id: string }) => Promise<void>) | undefined;
     const fila = {
-      registrarTrabalhador: vi.fn(async (_nome: string, h: typeof handler) => {
-        handler = h;
+      registrarTrabalhador: vi.fn(async (nome: string, h: typeof handler) => {
+        if (nome === 'email.enviar') handler = h;
       }),
     } as unknown as FilaGerenciada;
     const falha = Object.assign(new Error('conexão recusada para maria@ex.org'), { code: 'ECONNREFUSED' });

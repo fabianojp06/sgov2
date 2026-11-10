@@ -23,3 +23,10 @@ export function respostaDeArquivo(nome: string, formato: FormatoArquivo, bytes: 
 }
 
 export const respostaDeErro = (status: number, campo: string, mensagem: string): Response => Response.json({ erros: [{ campo, mensagem }] }, { status });
+
+/**
+ * Exportação acima do limite síncrono (RF_IMP_003): o pedido foi para o worker e a pessoa vai para a
+ * lista dos seus pedidos. Location relativo: atrás do proxy, o host da requisição pode ser o interno.
+ */
+export const respostaDeAgendamento = (pedidoId: string): Response =>
+  new Response(null, { status: 303, headers: { Location: `/rel/exportacoes?pedido=${encodeURIComponent(pedidoId)}`, 'Cache-Control': 'no-store' } });

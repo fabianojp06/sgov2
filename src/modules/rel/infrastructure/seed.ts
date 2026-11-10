@@ -2,7 +2,8 @@ import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/module
 import type { Seed } from '@/shared/db';
 
 // Funcionalidades do rel (contrato C6), no menu Relatórios. A primeira é a conferência da carga
-// inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem.
+// inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem. A segunda,
+// as exportações em segundo plano de cada pessoa (US-024).
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -18,6 +19,29 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'exportar'],
     // Plano do P7 (Task 2): GFIN e Administrador; Auditor e DIREX leem (§11.3: leitura dos módulos).
     perfisPadrao: { GFIN: ['consultar', 'exportar'], ADMINISTRADOR: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'], DIREX: ['consultar'] },
+  },
+  {
+    codigo: 'rel.exportacoes',
+    modulo: 'RELATORIOS',
+    grupo: 'Arquivos',
+    nome: 'Minhas exportações',
+    rota: '/rel/exportacoes',
+    ordem: 2,
+    ajuda:
+      'Exportações acima de 5.000 linhas, geradas em segundo plano: acompanhe a situação e baixe o arquivo quando ficar pronto. ' +
+      'Cada pessoa vê só os próprios pedidos, dos últimos 7 dias.',
+    acoes: ['consultar'],
+    // US-024: todos os perfis (a lista é só dos próprios pedidos; baixar exige o exportar da listagem de origem).
+    perfisPadrao: {
+      ADMINISTRADOR: ['consultar'],
+      ANALISTA_GRH: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+      GESTOR_DIRETORIA: ['consultar'],
+      GFIN: ['consultar'],
+      OPERADOR_VIAGENS: ['consultar'],
+      ORCAMENTISTA: ['consultar'],
+    },
   },
 ];
 

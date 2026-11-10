@@ -1,0 +1,35 @@
+// Modelos das saídas (frente B, spec §12.3). Regras que o Prisma não expressa (CHECK e privilégios)
+// ficam na migration, à mão.
+
+enum SituacaoExportacao {
+  PENDENTE
+  PRONTA
+  FALHOU
+}
+
+// Exportação assíncrona (US-024, RF_IMP_003): listagem acima de 5.000 linhas vira um pedido, gerado
+// pelo worker (fila exportacao.gerar). O id é o rastreio do arquivo e do Histórico. O contexto de
+// quem pediu fica na linha para o Histórico da geração. O componente é do ger; a tabela fica neste
+// arquivo porque o mapa de frentes dá à frente B só o cad, o rel e o int no Prisma.
+model ExportacaoPedido {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId      String             @map("usuario_id") @db.Uuid
+  usuarioRotulo  String             @map("usuario_rotulo")
+  sessaoUid      String             @map("sessao_uid")
+  ip             String?
+  funcionalidade String
+  titulo         String
+  formato        String
+  // Opções da tela (inativos e filtros), validadas de novo pelo gerador no worker.
+  parametros     Json
+  situacao       SituacaoExportacao @default(PENDENTE)
+  registros      Int?
+  nomeArquivo    String?            @map("nome_arquivo")
+  conteudo       Bytes?
+  erro           String?
+  criadoEm       DateTime           @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  concluidoEm    DateTime?          @map("concluido_em") @db.Timestamptz(6)
+
+  @@index([usuarioId, criadoEm])
+  @@map("exportacao_pedido")
+}
