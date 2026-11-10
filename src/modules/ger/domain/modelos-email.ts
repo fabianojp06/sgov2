@@ -10,6 +10,8 @@ export type DadosModeloEmail = {
   'usuario.senha_redefinida': { nome: string; login: string; senhaTemporaria: string; urlAcesso: string };
   // Recuperação pela tela de login (US-029, frente A).
   'usuario.recuperacao_senha': { nome: string; login: string; senhaTemporaria: string; urlAcesso: string };
+  // Aviso de exportação em segundo plano concluída (US-024, frente B): pronta ou com falha.
+  'exportacao.concluida': { nome: string; titulo: string; resultado: 'pronta' | 'falhou'; urlAcesso: string };
 };
 export type ModeloEmail = keyof DadosModeloEmail;
 
@@ -23,6 +25,7 @@ export const SENSIBILIDADE_MODELO = {
   'usuario.senha_inicial': true,
   'usuario.senha_redefinida': true,
   'usuario.recuperacao_senha': true,
+  'exportacao.concluida': false,
 } as const satisfies Record<ModeloEmail, boolean>;
 
 export const MODELOS_SENSIVEIS: ReadonlySet<ModeloEmail> = new Set(
@@ -56,7 +59,30 @@ export const VERSAO_ATUAL = {
   'usuario.senha_inicial': 1,
   'usuario.senha_redefinida': 1,
   'usuario.recuperacao_senha': 1,
+  'exportacao.concluida': 1,
 } as const satisfies Record<ModeloEmail, number>;
+
+// Os campos de cada modelo: a mensagem leva só estes, nunca chaves a mais do objeto recebido.
+const CAMPOS_MODELO = {
+  'usuario.senha_inicial': ['nome', 'login', 'senhaTemporaria', 'urlAcesso'],
+  'usuario.senha_redefinida': ['nome', 'login', 'senhaTemporaria', 'urlAcesso'],
+  'usuario.recuperacao_senha': ['nome', 'login', 'senhaTemporaria', 'urlAcesso'],
+  'exportacao.concluida': ['nome', 'titulo', 'resultado', 'urlAcesso'],
+} as const satisfies { [M in ModeloEmail]: readonly (keyof DadosModeloEmail[M])[] };
+
+/** Copia só os campos do modelo (dados já validados por validarDadosModelo). */
+export function dadosDoModelo<M extends ModeloEmail>(modelo: M, dados: unknown): DadosModeloEmail[M] {
+  const d = dados as Record<string, unknown>;
+  return Object.fromEntries(CAMPOS_MODELO[modelo].map((c) => [c, d[c]])) as DadosModeloEmail[M];
+}
+
+// O link de cada modelo: exatamente a URL pública mais este caminho.
+const CAMINHO_LINK: Record<ModeloEmail, string> = {
+  'usuario.senha_inicial': '/login',
+  'usuario.senha_redefinida': '/login',
+  'usuario.recuperacao_senha': '/login',
+  'exportacao.concluida': '/rel/exportacoes',
+};
 
 // O que vai ao outbox e ao job (payload de email.enviar).
 export type MensagemEmail = {
@@ -74,7 +100,7 @@ export const VALIDADE_MENSAGEM_SENSIVEL_MS = 24 * 60 * 60 * 1000;
 
 export type EmailRenderizado = { assunto: string; texto: string; html: string };
 
-const TAMANHO_MAXIMO = { nome: 120, login: 100, senhaTemporaria: 128 } as const;
+const TAMANHO_MAXIMO = { nome: 120, login: 100, senhaTemporaria: 128, titulo: 120 } as const;
 
 function invalido(campo: string): never {
   throw new ErroDominio('email.dados_invalidos', 'Dados do e-mail inválidos.', { campo });
@@ -89,8 +115,9 @@ function textoCurto(dados: Record<string, unknown>, campo: keyof typeof TAMANHO_
 
 /**
  * Valida os dados do modelo antes do outbox e de novo no trabalhador, antes de renderizar.
- * O link de acesso é exatamente `${urlPublica}/login`: sem query, fragmento, credencial nem outra
- * origem, para o e-mail não levar a senha a outro endereço nem carregar dado na URL.
+ * O link é exatamente a URL pública mais o caminho do modelo (`/login` nos de acesso): sem query,
+ * fragmento, credencial nem outra origem, para o e-mail não levar a senha a outro endereço nem
+ * carregar dado na URL.
  * O detalhe do erro tem só o nome do campo, nunca o valor.
  * @throws ErroDominio('email.modelo_desconhecido') | ErroDominio('email.dados_invalidos')
  */
@@ -101,7 +128,12 @@ export function validarDadosModelo(modelo: ModeloEmail, dados: unknown, urlPubli
   if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) invalido('dados');
   const d = dados as Record<string, unknown>;
   textoCurto(d, 'nome');
-  textoCurto(d, 'login');
-  textoCurto(d, 'senhaTemporaria');
-  if (d.urlAcesso !== `${urlPublica}/login`) invalido('urlAcesso');
+  if (modelo === 'exportacao.concluida') {
+    textoCurto(d, 'titulo');
+    if (d.resultado !== 'pronta' && d.resultado !== 'falhou') invalido('resultado');
+  } else {
+    textoCurto(d, 'login');
+    textoCurto(d, 'senhaTemporaria');
+  }
+  if (d.urlAcesso !== `${urlPublica}${CAMINHO_LINK[modelo]}`) invalido('urlAcesso');
 }

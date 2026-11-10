@@ -43,26 +43,30 @@ export function exportarCsvFalso(): {
 }
 
 // Um envio registrado pelo falso, com os dados tipados pelo modelo (união discriminada).
-export type EnvioFalso = {
-  [M in ModeloEmail]: { modelo: M; destinatario: Destinatario; dados: DadosModeloEmail[M] };
-}[ModeloEmail];
+// Por padrão, só os modelos de acesso (usuario.*): os testes que conferem a senha temporária
+// leem `dados.senhaTemporaria` sem estreitar o modelo. Quem envia outros modelos passa o tipo.
+export type ModeloAcesso = Extract<ModeloEmail, `usuario.${string}`>;
+export type EnvioFalso<T extends ModeloEmail = ModeloAcesso> = {
+  [M in T]: { modelo: M; destinatario: Destinatario; dados: DadosModeloEmail[M] };
+}[T];
 
-// Mesma validação do real (destinatário e dados do modelo, com o link `${urlPublica}/login`);
+// Mesma validação do real (destinatário e dados do modelo, com o link do modelo);
 // guarda os envios em memória. Sem `urlPublica`, usa a URL_PUBLICA do ambiente, como o real.
 // Limitação: o falso ignora a transação. Um envio feito antes de o caso de uso desfazer a
 // transação continua em `enviados`; para provar "rollback, nenhum e-mail", use o teste de
 // integração da US-025.
-export function emailFalso(opcoes: { urlPublica?: string } = {}): {
-  enviarEmail: typeof enviarEmail;
-  enviados: EnvioFalso[];
-} {
-  const enviados: EnvioFalso[] = [];
+type EmailFalso<T extends ModeloEmail> = { enviarEmail: typeof enviarEmail; enviados: EnvioFalso<T>[] };
+// A assinatura sem parâmetro de tipo fica por último: é a que o ReturnType<typeof emailFalso> usa.
+export function emailFalso<T extends ModeloEmail = ModeloAcesso>(opcoes?: { urlPublica?: string }): EmailFalso<T>;
+export function emailFalso(opcoes?: { urlPublica?: string }): EmailFalso<ModeloAcesso>;
+export function emailFalso(opcoes: { urlPublica?: string } = {}): EmailFalso<ModeloEmail> {
+  const enviados: EnvioFalso<ModeloEmail>[] = [];
   return {
     enviados,
     enviarEmail: async (_tx, modelo, destinatario, dados) => {
       validarDestinatario(destinatario);
       validarDadosModelo(modelo, dados, opcoes.urlPublica ?? lerEnvAcesso().urlPublica);
-      enviados.push({ modelo, destinatario, dados } as EnvioFalso);
+      enviados.push({ modelo, destinatario, dados } as EnvioFalso<ModeloEmail>);
     },
   };
 }

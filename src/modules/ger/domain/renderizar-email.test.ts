@@ -46,6 +46,22 @@ describe('renderizarEmail', () => {
     expect(r.assunto).toBe('[SGO 2.0][Acesso] Sua senha foi redefinida');
   });
 
+  it('aviso de exportação: pronta leva ao download; com falha, aponta o motivo em Minhas exportações', () => {
+    const exportacao = (resultado: 'pronta' | 'falhou'): MensagemEmail => ({
+      ...base,
+      modelo: 'exportacao.concluida',
+      dados: { nome: 'Maria', titulo: 'Plano de contas', resultado, urlAcesso: 'https://sgo.exemplo/rel/exportacoes' },
+    });
+    const pronta = renderizarEmail(exportacao('pronta'), { nomeExibicao: '' });
+    expect(pronta.assunto).toBe('[SGO 2.0][Exportação] Sua exportação terminou');
+    expect(pronta.texto).toContain('A exportação "Plano de contas" que você pediu está pronta.');
+    expect(pronta.texto).toContain('Baixar em Minhas exportações: https://sgo.exemplo/rel/exportacoes');
+    const falhou = renderizarEmail(exportacao('falhou'), { nomeExibicao: '' });
+    expect(falhou.texto).toContain('A exportação "Plano de contas" que você pediu não pôde ser gerada.');
+    expect(falhou.texto).toContain('O motivo está em Minhas exportações.');
+    expect(falhou.html).toContain('A exportação &quot;Plano de contas&quot;');
+  });
+
   it('escapa no HTML todo dado e o nome de exibição', () => {
     const r = renderizarEmail(
       { ...base, dados: { ...base.dados, nome: '<script>alert(1)</script>', login: 'a"b', senhaTemporaria: "x'&<y" } },
