@@ -20,7 +20,10 @@ async function confirmar(page: Page, botao: string): Promise<void> {
 
 test.describe.serial(`pacotes base zero ${ANO}`, () => {
   test.afterAll(async () => {
-    // Deixa o banco do teste como estava (o Histórico é imutável e fica).
+    // Deixa o banco do teste como estava (o Histórico é imutável e fica). Depende das tabelas por ano
+    // da frente B que a criação do exercício preenche (garantirPremissasExercicio do cad):
+    // parametros_exercicio, encargo_exercicio, conta_componente_exercicio e beneficio_mestre. Se o cad
+    // passar a gravar outra tabela por ano, ela entra aqui.
     const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
     await cliente.connect();
     try {
@@ -84,7 +87,7 @@ test.describe.serial(`pacotes base zero ${ANO}`, () => {
     await expect(linha).toContainText('Mensal');
     await expect(linha).toContainText('Tela');
 
-    await page.getByRole('link', { name: `Alterar ${CONTA.classificacao}` }).click();
+    await page.getByRole('link', { name: `Alterar pacote 1: ${CONTA.classificacao}, Reposição anual de material de escritóri…` }).click();
     await expect(page.getByRole('heading', { name: 'Alterar pacote' })).toBeVisible();
     await expect(linha).toHaveAttribute('aria-current', 'true');
     await page.getByRole('radio', { name: 'Pontual (um mês)' }).check();
@@ -95,7 +98,7 @@ test.describe.serial(`pacotes base zero ${ANO}`, () => {
     await expect(linha).toContainText('Pontual (julho)');
     await expect(linha).toContainText('3.703,71');
 
-    await confirmar(page, `Excluir ${CONTA.classificacao}`);
+    await confirmar(page, `Excluir pacote 1: ${CONTA.classificacao}, Reposição anual de material de escritóri…`);
     await expect(page.getByText('Pacote excluído. O orçamento foi recalculado.')).toBeVisible();
     await expect(page.getByText('Nenhum pacote neste centro de custo.')).toBeVisible();
   });

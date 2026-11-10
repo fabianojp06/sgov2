@@ -10,3 +10,9 @@ ALTER TABLE "orc_pacote"
   ADD CONSTRAINT "orc_pacote_origem_check" CHECK ("origem" IN ('IMPORTACAO', 'COPIA', 'TELA')),
   ADD CONSTRAINT "orc_pacote_tela_check" CHECK ("origem" <> 'TELA' OR "importacao_id" IS NULL),
   ADD CONSTRAINT "orc_pacote_versao_check" CHECK ("versao" >= 0);
+
+-- 3) Defesa em profundidade da ORIGEM BLINDADA (D-P11-5): a aplicação só atualiza os dados do
+--    pacote e a versão (alterarPacote); origem, importação e exercício nunca mudam por UPDATE.
+REVOKE UPDATE ON "orc_pacote" FROM sgo_app;
+GRANT UPDATE ("cc", "conta", "justificativa", "prioridade", "quantidade", "valor_unitario", "corrigir_ipca",
+  "distribuicao", "mes_ocorrencia", "versao") ON "orc_pacote" TO sgo_app;

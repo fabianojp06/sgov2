@@ -7,18 +7,18 @@ import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import { Dinheiro } from '@/shared/kernel';
 
 vi.mock('next/server', () => ({ connection: async () => undefined }));
-const caso = vi.hoisted(() => ({ situacao: 'RASCUNHO' as 'RASCUNHO' | 'EM_APROVACAO' }));
+const caso = vi.hoisted(() => ({ situacao: 'RASCUNHO' as 'RASCUNHO' | 'EM_APROVACAO', origem: 'IMPORTACAO', conta: '4.1.1.5.005' }));
 vi.mock('@/modules/orc', async (original) => {
   const editavel = () => caso.situacao === 'RASCUNHO';
-  const k = {
-    id: 'p1', cc: '4.3.0', conta: '4.1.1.5.005', justificativa: 'Reposição de material de escritório', prioridade: 'IMPORTANTE', quantidade: 3,
-    valorUnitario: Dinheiro.de('100.00'), corrigirIpca: false, distribuicao: 'MENSAL', mesOcorrencia: null, origem: 'IMPORTACAO', versao: 2,
+  const k = () => ({
+    id: 'p1', cc: '4.3.0', conta: caso.conta, justificativa: 'Reposição de material de escritório', prioridade: 'IMPORTANTE', quantidade: 3,
+    valorUnitario: Dinheiro.de('100.00'), corrigirIpca: false, distribuicao: 'MENSAL', mesOcorrencia: null, origem: caso.origem, versao: 2,
     valorAnual: Dinheiro.de('300.00'), meses: Array.from({ length: 12 }, () => Dinheiro.de('25.00')),
-  };
+  });
   return {
     ...(await original<typeof import('@/modules/orc')>()),
     listarExercicios: async () => [{ id: 'e1', ano: 2027, situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', versao: 0 }],
-    listarPacotes: async () => ({ pacotes: [k], editavel: editavel() }),
+    listarPacotes: async () => ({ pacotes: [k()], editavel: editavel() }),
     opcoesPacote: async () => ({
       ccs: [{ classificacao: '4.3.0', descricao: 'Gabinete' }], contas: [{ classificacao: '4.1.1.5.005', descricao: 'Material de escritório' }],
       ipca: '4.5000', quantidadeMaxima: 9999, situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', editavel: editavel(),
@@ -35,6 +35,8 @@ let negacoes: EventoAuditoria[];
 
 beforeEach(() => {
   caso.situacao = 'RASCUNHO';
+  caso.origem = 'IMPORTACAO';
+  caso.conta = '4.1.1.5.005';
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -58,7 +60,7 @@ describe('página de pacotes base zero', () => {
     const h = await html();
     expect(h).toContain('Pacotes do CC 4.3.0');
     expect(h).toContain('300,00');
-    expect(h).not.toContain('Excluir 4.1.1.5.005');
+    expect(h).not.toContain('Excluir pacote 1: 4.1.1.5.005, Reposição de material de escritório');
     expect(h).not.toContain('Novo pacote');
   });
 
@@ -66,12 +68,28 @@ describe('página de pacotes base zero', () => {
     contexto = ctx(TUDO);
     const nova = await html();
     expect(nova).toContain('Novo pacote');
-    expect(nova).toContain('Excluir 4.1.1.5.005');
+    expect(nova).toContain('Excluir pacote 1: 4.1.1.5.005, Reposição de material de escritório');
     const edicao = await html({ editar: 'p1' });
     expect(edicao).toContain('Alterar pacote');
     expect(edicao).toContain('aria-current="true"');
     expect(edicao).toContain('Este pacote veio da planilha: uma nova importação deste CC o substitui.');
     expect(edicao).toContain('Valor anual: R$ 300,00');
+  });
+
+  it('aviso de origem: cópia do exercício anterior tem texto próprio; o da tela não tem aviso', async () => {
+    contexto = ctx(TUDO);
+    caso.origem = 'COPIA';
+    expect(await html({ editar: 'p1' })).toContain('Este pacote veio da cópia do exercício anterior: uma nova importação deste CC o substitui.');
+    caso.origem = 'TELA';
+    const h = await html({ editar: 'p1' });
+    expect(h).not.toContain('uma nova importação deste CC o substitui');
+    expect(h).not.toContain('não é mais permitida');
+  });
+
+  it('alteração de pacote cuja conta saiu das opções: a nota pede outra conta', async () => {
+    contexto = ctx(TUDO);
+    caso.conta = '4.1.1.1.001';
+    expect(await html({ editar: 'p1' })).toContain('A conta 4.1.1.1.001 não é mais permitida em pacote; escolha outra.');
   });
 
   it('exercício fechado: só leitura, com a mensagem da situação', async () => {
@@ -81,6 +99,6 @@ describe('página de pacotes base zero', () => {
     expect(h).toContain('Este exercício não pode ser alterado na situação Em Aprovação.');
     expect(h).not.toContain('Novo pacote');
     expect(h).not.toContain('Alterar pacote');
-    expect(h).not.toContain('Excluir 4.1.1.5.005');
+    expect(h).not.toContain('Excluir pacote 1: 4.1.1.5.005, Reposição de material de escritório');
   });
 });

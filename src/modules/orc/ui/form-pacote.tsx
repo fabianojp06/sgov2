@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { ErroDoCampo, Formulario } from '@/modules/ger';
 import type { AcaoFormulario } from '@/modules/ger';
+import { MENSAGENS_ORC } from '../domain/mensagens';
 import { previaPacote, type CamposPrevia } from '../domain/previa-pacote';
 import { valorParaTela } from '../domain/valor-tela';
 
@@ -80,6 +81,9 @@ export function FormPacote({
     <section aria-labelledby={`${prefixo}-titulo`}>
       <h2 id={`${prefixo}-titulo`}>{pacote ? 'Alterar pacote' : 'Novo pacote'}</h2>
       {avisoOrigem && <p role="note">{avisoOrigem}</p>}
+      {/* Conta ou CC gravados que saíram das opções (vetados ou inativos): é preciso escolher outro. */}
+      {pacote && !ccs.some((c) => c.classificacao === pacote.cc) && <p role="note">{MENSAGENS_ORC.CC_PACOTE_FORA_DAS_OPCOES(pacote.cc)}</p>}
+      {pacote && !contas.some((c) => c.classificacao === pacote.conta) && <p role="note">{MENSAGENS_ORC.CONTA_PACOTE_FORA_DAS_OPCOES(pacote.conta)}</p>}
       <Formulario acao={salvar} textoEnviar={pacote ? 'Salvar alteração' : 'Incluir pacote'}>
         {pacote ? (
           <>
@@ -166,19 +170,19 @@ export function FormPacote({
             <ErroDoCampo campo="mesOcorrencia" />
           </p>
         </div>
-        <section aria-labelledby={`${prefixo}-previa`} aria-live="polite">
+        <section aria-labelledby={`${prefixo}-previa`}>
           <h3 id={`${prefixo}-previa`}>{`Prévia (${ano})`}</h3>
-          {!previa.ok ? (
-            <p>{previa.motivo}</p>
-          ) : (
+          {/* Só o resumo é anunciado ao digitar; a tabela das 12 parcelas não (seria verborrágico). */}
+          <p aria-live="polite">
+            {!previa.ok
+              ? previa.motivo
+              : `Valor anual: R$ ${valorParaTela(previa.valorAnual)}${previa.ipcaAplicado ? ` (corrigido pelo IPCA do exercício, ${previa.ipcaAplicado.formatar()})` : ''}.${
+                  previa.mesOcorrencia !== null ? ` Todo o valor em ${MESES[previa.mesOcorrencia - 1]}.` : ''
+                }`}
+          </p>
+          {previa.ok && (
             <>
-              <p>
-                {`Valor anual: R$ ${valorParaTela(previa.valorAnual)}`}
-                {previa.ipcaAplicado && ` (corrigido pelo IPCA do exercício, ${previa.ipcaAplicado.formatar()})`}
-              </p>
-              {previa.mesOcorrencia !== null ? (
-                <p>{`Todo o valor em ${MESES[previa.mesOcorrencia - 1]}.`}</p>
-              ) : (
+              {previa.mesOcorrencia === null && (
                 <table>
                   <caption>Parcelas mensais em R$ (centavos que sobram vão para dezembro)</caption>
                   <thead>

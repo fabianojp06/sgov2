@@ -314,6 +314,8 @@ describe('reimportação da planilha (D-P11-7)', () => {
     expect(restantes.some((k) => k.id === daTela)).toBe(true);
     expect(restantes.some((k) => k.id === importado.id || k.id === copia.id)).toBe(false);
     expect(await migrator.linhaOrcada.count({ where: { pacoteId: daTela } })).toBe(1);
+    const h = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'orc.importacao', descricao: { contains: `exercício ${e.ano}` } } });
+    expect(h.depois).toMatchObject({ mantidosDaTela: [{ cc: '4.4', pacotes: 1 }] });
   });
 });
 

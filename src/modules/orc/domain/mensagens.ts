@@ -79,6 +79,9 @@ export const MENSAGENS_ORC = {
   // Pacotes base zero pela tela (US-057; plano do P11) [PROVISÓRIOS]
   PREMISSAS_DESATUALIZADAS_PACOTE: 'As premissas do exercício mudaram. Peça à GFIN para recalcular o orçamento antes de lançar.',
   PACOTE_DA_PLANILHA: 'Este pacote veio da planilha: uma nova importação deste CC o substitui.',
+  PACOTE_DA_COPIA: 'Este pacote veio da cópia do exercício anterior: uma nova importação deste CC o substitui.',
+  CONTA_PACOTE_FORA_DAS_OPCOES: (conta: string) => `A conta ${conta} não é mais permitida em pacote; escolha outra.`,
+  CC_PACOTE_FORA_DAS_OPCOES: (cc: string) => `O CC ${cc} não está mais disponível para pacote; escolha outro.`,
   PACOTE_INEXISTENTE: 'Pacote não encontrado.',
   RECALCULO_BARROU_PACOTE: 'O pacote não foi gravado: o recálculo do orçamento encontrou erro em outro lançamento do exercício.',
   PACOTES_DA_TELA_MANTIDOS: (cc: string, n: number) => `O CC ${cc} mantém ${n} pacote(s) lançado(s) pela tela.`,

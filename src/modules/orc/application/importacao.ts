@@ -186,6 +186,7 @@ export async function importarPlanilha(
           receitas: receitas.map((r) => r.tp),
           versaoPremissas: recalculo.versaoPremissas,
           linhas: recalculo.linhas,
+          mantidosDaTela: daTela.map((g) => ({ cc: g.cc, pacotes: g._count._all })),
         },
       });
       return ok({

@@ -21,6 +21,13 @@ const AVISOS: Readonly<Record<string, string>> = {
 };
 export const textoAvisoPacote = (aviso: string | undefined) => (aviso !== undefined && Object.hasOwn(AVISOS, aviso) ? AVISOS[aviso] : undefined);
 
+// Pacote que não é da tela: uma nova importação do CC o substitui (D-P11-7) [PROVISÓRIO].
+const AVISO_ORIGEM: Readonly<Record<string, string | undefined>> = { IMPORTACAO: MENSAGENS_ORC.PACOTE_DA_PLANILHA, COPIA: MENSAGENS_ORC.PACOTE_DA_COPIA };
+// Nome acessível único por linha (ordinal, conta e o início da justificativa).
+const TRECHO = 40;
+const descreverPacote = (i: number, k: PacoteTela) =>
+  `pacote ${i + 1}: ${k.conta}, ${k.justificativa.length > TRECHO ? `${k.justificativa.slice(0, TRECHO).trimEnd()}…` : k.justificativa}`;
+
 export type PermissoesPacote = { podeIncluir: boolean; podeAlterar: boolean; podeExcluir: boolean };
 
 export function TelaPacotes({
@@ -92,7 +99,7 @@ export function TelaPacotes({
                   </tr>
                 </thead>
                 <tbody>
-                  {pacotes.map((k) => {
+                  {pacotes.map((k, i) => {
                     const destacada = editando?.id === k.id;
                     return (
                       <tr key={k.id} aria-current={destacada ? 'true' : undefined} className={destacada ? 'em-edicao' : undefined} style={destacada ? { outline: '2px solid currentColor' } : undefined}>
@@ -104,10 +111,10 @@ export function TelaPacotes({
                         <td>{ORIGEM[k.origem] ?? k.origem}</td>
                         {acoesNaLinha && (
                           <td>
-                            {permissoes.podeAlterar && <a href={rota(`&editar=${k.id}#form-pacote`)}>{`Alterar ${k.conta}`}</a>}
+                            {permissoes.podeAlterar && <a href={rota(`&editar=${k.id}#form-pacote`)}>{`Alterar ${descreverPacote(i, k)}`}</a>}
                             {permissoes.podeExcluir && (
                               <AcaoConfirmada
-                                rotulo={`Excluir ${k.conta}`}
+                                rotulo={`Excluir ${descreverPacote(i, k)}`}
                                 pergunta={MENSAGENS_ORC.CONFIRMA_EXCLUSAO_PACOTE(k.conta, k.cc)}
                                 acao={acoes.excluir}
                                 campos={{ id: k.id, versao: String(k.versao) }}
@@ -143,7 +150,7 @@ export function TelaPacotes({
               ano={ano}
               exercicioId={exercicioId}
               ccAtual={ccAtual}
-              ccs={ccs}
+              ccs={opcoes.ccs}
               contas={opcoes.contas}
               ipca={opcoes.ipca}
               quantidadeMaxima={opcoes.quantidadeMaxima}
@@ -160,7 +167,7 @@ export function TelaPacotes({
                 mesOcorrencia: editando.mesOcorrencia === null ? '' : String(editando.mesOcorrencia),
                 versao: editando.versao,
               }}
-              avisoOrigem={editando.origem === 'IMPORTACAO' ? MENSAGENS_ORC.PACOTE_DA_PLANILHA : undefined}
+              avisoOrigem={AVISO_ORIGEM[editando.origem]}
               salvar={acoes.alterar}
               cancelarPara={rota('')}
             />
