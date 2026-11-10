@@ -25,7 +25,7 @@ let usuarioId: string;
 // "funcionalidade:ação" literal parece usuário:senha para o GitGuardian: as permissões saem daqui.
 const ctx = (...p: [string, string][]): ContextoRequisicao => ({ usuarioId, usuarioRotulo: 'gfin', sessaoUid: 's', ip: '127.0.0.1', permissoes: new Set(p.map(([f, a]) => `${f}:${a}`)) });
 const gfin = () => ctx(['cad.parametros', 'consultar'], ['cad.parametros', 'alterar'], ['cad.salario_minimo', 'alterar']);
-const versao = async () => (await migrator.query('SELECT versao FROM parametros_exercicio WHERE ano = 2027')).rows[0].versao as number;
+const versaoAtual = async () => (await migrator.query('SELECT versao FROM parametros_exercicio WHERE ano = 2027')).rows[0].versao as number;
 
 const entrada = (reajuste: string): EntradaParametros => ({
   reajuste,
@@ -45,13 +45,17 @@ const entrada = (reajuste: string): EntradaParametros => ({
 
 const p95 = (amostras: number[]) => [...amostras].sort((a, b) => a - b)[Math.ceil(amostras.length * 0.95) - 1]!;
 
-async function medir(nome: string, escrever: (i: number) => Promise<{ ok: boolean }>): Promise<number> {
+// A versão vem da escrita anterior (ou é lida antes de começar): o tempo medido é só o do caso de uso.
+type Escrita = { ok: true; valor: { versao: number } } | { ok: false };
+async function medir(nome: string, escrever: (i: number, versao: number) => Promise<Escrita>): Promise<number> {
   const tempos: number[] = [];
+  let versao = await versaoAtual();
   for (let i = 0; i < VEZES; i++) {
     const inicio = performance.now();
-    const r = await escrever(i);
+    const r = await escrever(i, versao);
     tempos.push(performance.now() - inicio);
     expect(r.ok, `${nome}, escrita ${i + 1}`).toBe(true);
+    if (r.ok) versao = r.valor.versao;
   }
   const resultado = p95(tempos);
   console.log(`[META_ESCRITA] ${nome}: p95 ${resultado.toFixed(0)} ms, máximo ${Math.max(...tempos).toFixed(0)} ms em ${VEZES} escritas`);
@@ -79,14 +83,14 @@ afterAll(async () => {
 
 describe('meta da escrita simples (§10.3: até 1,5 s)', () => {
   it('parâmetros do exercício: p95 dentro da meta', async () => {
-    const r = await medir('parâmetros do exercício', async (i) =>
-      alterarParametrosExercicio(gfin(), 2027, await versao(), entrada(i % 2 === 0 ? '6' : '6.5'), { cliente: app }),
+    const r = await medir('parâmetros do exercício', (i, versao) =>
+      alterarParametrosExercicio(gfin(), 2027, versao, entrada(i % 2 === 0 ? '6' : '6.5'), { cliente: app }),
     );
     expect(r).toBeLessThanOrEqual(META_MS);
   });
 
   it('salário mínimo: p95 dentro da meta', async () => {
-    const r = await medir('salário mínimo', async (i) => alterarSalarioMinimo(gfin(), 2027, await versao(), i % 2 === 0 ? '1518,00' : '1520,00', { cliente: app }));
+    const r = await medir('salário mínimo', (i, versao) => alterarSalarioMinimo(gfin(), 2027, versao, i % 2 === 0 ? '1518,00' : '1520,00', { cliente: app }));
     expect(r).toBeLessThanOrEqual(META_MS);
   });
 });

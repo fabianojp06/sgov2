@@ -5,8 +5,9 @@ import { exportarCsv } from './exportar-csv';
 import { exportarXlsx } from './exportar-xlsx';
 
 // Exportação síncrona no limite (§10.3, RF_IMP_003: até 5.000 linhas na hora; plano do P7, Task 3,
-// Step 2; US-116, #138). A §10.3 não fixa tempo para a exportação; o teto aqui é o da escrita simples
-// com folga para o CI (o arquivo inteiro numa requisição), e o tempo vai para o log ([META_EXPORTACAO]).
+// Step 2; US-116, #138). A §10.3 não fixa tempo para a exportação: o teto de 5 s é uma trava de
+// regressão escolhida no plano, não meta da spec, e o tempo vai para o log ([META_EXPORTACAO]). Fica no
+// projeto de integração, que roda os arquivos em série: na unidade, em paralelo, o tempo oscilaria.
 const TETO_MS = 5000;
 
 const planilha: PlanilhaExportacao = {
