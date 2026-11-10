@@ -4,11 +4,10 @@ import { lerEnvAcesso } from '@/shared/config';
 import type { TxCliente } from '@/shared/db';
 import { registrarNoOutbox } from '@/shared/filas/outbox';
 import { ErroDominio, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
-import type { FormatoArquivo } from '../application/download';
+import { ehFormatoArquivo, type FormatoArquivo } from '../application/download';
 import { enviarEmail } from '../application/email';
 import { criarIdentificacao, LIMITE_EXPORTACAO_ASSINCRONA, type FiltroExportacao, type PlanilhaExportacao } from './exportacao';
-import { exportarCsv } from './exportar-csv';
-import { exportarXlsx } from './exportar-xlsx';
+import { gerarArquivo } from './gerar-arquivo';
 
 // Exportação assíncrona (US-024, RF_IMP_003): acima de 5.000 linhas, a tela grava um pedido e o worker
 // gera o arquivo pela fila exportacao.gerar. Cada módulo dono da listagem registra um gerador por
@@ -153,7 +152,8 @@ export function criarTrabalhadorExportacao(deps: DepsTrabalhadorExportacao) {
         const identificacao = criarIdentificacao({ titulo: p.titulo, filtros: c.valor.filtros, operador: p.usuarioRotulo }, deps.agora(), p.id);
         const planilha = { ...c.valor.planilha, identificacao };
         const opcoes = { limite: LIMITE_EXPORTACAO_ASSINCRONA };
-        const arquivo = p.formato === 'xlsx' ? await exportarXlsx([planilha], opcoes) : exportarCsv(planilha, opcoes);
+        if (!ehFormatoArquivo(p.formato)) return falhar([{ campo: 'formato', mensagem: 'Formato de arquivo desconhecido.' }]);
+        const arquivo = await gerarArquivo(p.formato, [planilha], opcoes);
         if (!arquivo.ok) return falhar(arquivo.erros);
         const registros = planilha.linhas.length;
         await tx.exportacaoPedido.update({

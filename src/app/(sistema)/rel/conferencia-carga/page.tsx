@@ -17,7 +17,8 @@ export default async function ConferenciaCarga({ searchParams }: { searchParams:
       {podeExportar && tela.ano !== null && (
         <p>
           Exportar: <a href={`/rel/conferencia-carga/exportar?ano=${tela.ano}&formato=xlsx`}>XLSX</a> ·{' '}
-          <a href={`/rel/conferencia-carga/exportar?ano=${tela.ano}&formato=csv`}>CSV</a>
+          <a href={`/rel/conferencia-carga/exportar?ano=${tela.ano}&formato=csv`}>CSV</a> ·{' '}
+          <a href={`/rel/conferencia-carga/exportar?ano=${tela.ano}&formato=pdf`}>PDF</a>
         </p>
       )}
       <table>

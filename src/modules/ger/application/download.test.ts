@@ -13,8 +13,15 @@ describe('download das exportações', () => {
     expect(origemDeExportacaoValida(pedido('same-site'))).toBe(false);
   });
 
-  it('formato: só xlsx e csv', () => {
-    expect([ehFormatoArquivo('xlsx'), ehFormatoArquivo('csv'), ehFormatoArquivo('pdf'), ehFormatoArquivo(null)]).toEqual([true, true, false, false]);
+  it('formato: só xlsx, csv e pdf (chave do próprio objeto)', () => {
+    expect([ehFormatoArquivo('xlsx'), ehFormatoArquivo('csv'), ehFormatoArquivo('pdf'), ehFormatoArquivo('doc'), ehFormatoArquivo('toString'), ehFormatoArquivo(null)]).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it('resposta: anexo com o nome, o tipo e sem cache; nome fora do padrão é recusado', async () => {

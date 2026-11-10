@@ -9,10 +9,11 @@ export function origemDeExportacaoValida(req: Request): boolean {
 export const TIPOS_ARQUIVO = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   csv: 'text/csv; charset=utf-8',
+  pdf: 'application/pdf',
 } as const;
 export type FormatoArquivo = keyof typeof TIPOS_ARQUIVO;
 
-export const ehFormatoArquivo = (f: string | null): f is FormatoArquivo => f === 'xlsx' || f === 'csv';
+export const ehFormatoArquivo = (f: string | null): f is FormatoArquivo => f !== null && Object.hasOwn(TIPOS_ARQUIVO, f);
 
 /** Resposta de download. O nome vem do sistema (nunca do usuário): só letras, números, ponto e hífen. */
 export function respostaDeArquivo(nome: string, formato: FormatoArquivo, bytes: Uint8Array): Response {
