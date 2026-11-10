@@ -80,6 +80,7 @@ async function criarSessao(
   usuario: UsuarioParaLogin,
   t: Tentativa,
   maximoHoras: number,
+  inatividadeMin: number,
   trocaSenhaPendente = usuario.trocaSenhaObrigatoria,
 ): Promise<{ token: string; expiraEm: Date }> {
   const { token, expiraEm, sessaoUid, anteriores } = await emitirSessao(tx, {
@@ -89,6 +90,8 @@ async function criarSessao(
     ip: t.ip,
     agora: t.agora,
     maximoHoras,
+    inatividadeMin,
+    motivoAnteriores: 'NOVO_ACESSO',
   });
   await zerarFalhasLogin(tx, usuario.id);
   const contexto = { usuarioId: usuario.id, usuarioRotulo: usuario.login, sessaoUid, ip: t.ip };
@@ -187,7 +190,7 @@ export async function autenticar(
           return { resultado: negar('SENHA_EXPIRADA', MENSAGENS.RECUPERACAO_EXPIRADA) };
         }
         await limparRecuperacao(tx, u.id);
-        const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras, true);
+        const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras, config.inatividadeMin, true);
         return { resultado: { ok: true, ...sessao, trocaSenhaObrigatoria: true } };
       }
       if (!confere) {
@@ -205,7 +208,7 @@ export async function autenticar(
         return { resultado: negar('SENHA_EXPIRADA', MENSAGENS.SENHA_EXPIRADA) };
       }
       if (u.recuperacaoHash) await limparRecuperacao(tx, u.id);
-      const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras);
+      const sessao = await criarSessao(tx, u, t, config.sessaoMaximaHoras, config.inatividadeMin);
       return { resultado: { ok: true, ...sessao, trocaSenhaObrigatoria: u.trocaSenhaObrigatoria } };
     });
     // Só depois do commit: o alerta ao Administrador por e-mail (REQ0040) está fora da trilha
