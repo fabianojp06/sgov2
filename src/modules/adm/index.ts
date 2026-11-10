@@ -42,7 +42,8 @@ export {
   type LinhaNotificacao,
   type OpcoesNotificacao,
 } from './application/notificacoes';
-export { CONTA_TODAS, MENSAGENS_NOTIFICACAO, validarNotificacao, type NotificacaoValidada } from './domain/notificacao';
+export { CONTA_TODAS, MENSAGENS_NOTIFICACAO, ROTULO_TODAS } from './domain/notificacao-textos';
+export { validarNotificacao, type NotificacaoValidada } from './domain/notificacao';
 export { TelaNotificacoes } from './ui/tela-notificacoes';
 export { alternarFuncionalidade, alternarModulo } from './application/acoes-modulos';
 export {

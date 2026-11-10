@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CONTAS_EXEMPLO, type NoConta } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
-import { criarPrisma, executarSeeds } from '@/shared/db';
+import { criarPrisma, executarSeeds, travarRecurso } from '@/shared/db';
+import { MENSAGEM_CONFLITO } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_NOTIFICACAO } from '../domain/notificacao';
 import { seedAdm } from '../infrastructure/seed';
-import { excluirNotificacao, incluirNotificacao, listarNotificacoes, listarOpcoesNotificacao } from './notificacoes';
+import { chaveTravaNotificacao, excluirNotificacao, incluirNotificacao, listarNotificacoes, listarOpcoesNotificacao } from './notificacoes';
 
 // Notificações de desempenho (US-041, UC02.20 "Desempenho"; D-P10-8/9): conta sintética ativa do C1
 // ou "Todas", usuário ativo, faixas, duplicado (A3) inclusive na corrida, soft delete e Histórico.
@@ -115,6 +116,40 @@ describe('inclusão (UC02.20, A1)', () => {
     expect(await migrator.notificacaoDesempenho.count({ where: { usuarioId: v, ativa: true } })).toBe(1);
   });
 
+  it('a trava do par serializa: com o par travado por outra transação, o incluir espera e depois vê a linha dela (A3)', async () => {
+    const u = await usuario('dest.trava');
+    let soltar!: () => void;
+    const segura = new Promise<void>((r) => (soltar = r));
+    let travou!: () => void;
+    const travada = new Promise<void>((r) => (travou = r));
+    // Outra inclusão do mesmo par, ainda sem commit, segurando a trava.
+    const outra = app.$transaction(
+      async (tx) => {
+        await travarRecurso(tx, chaveTravaNotificacao(u, '4.1.1'));
+        await tx.notificacaoDesempenho.create({ data: { contaClassificacao: '4.1.1', limitePercentual: '10', frequenciaDias: 1, usuarioId: u, criadaEm: AGORA } });
+        travou();
+        await segura;
+      },
+      { timeout: 20_000 },
+    );
+    try {
+      await Promise.race([travada, outra]);
+      let terminou = false;
+      const incluir = incluirNotificacao(ctx, entrada(u, '4.1.1'), deps()).finally(() => (terminou = true));
+      await new Promise((r) => setTimeout(r, 500));
+      expect(terminou).toBe(false);
+      soltar();
+      await outra;
+      expect(await incluir).toEqual(erro('conta', MENSAGENS_NOTIFICACAO.DUPLICADA));
+      // Par diferente (outra conta) não espera pela trava.
+      expect((await incluirNotificacao(ctx, entrada(u, '4.1'), deps())).ok).toBe(true);
+    } finally {
+      soltar();
+      await outra.catch(() => undefined);
+    }
+    expect(await migrator.notificacaoDesempenho.count({ where: { usuarioId: u, contaClassificacao: '4.1.1', ativa: true } })).toBe(1);
+  });
+
   it('o índice parcial barra o duplicado mesmo sem a checagem do caso de uso', async () => {
     const u = await usuario('dest.indice');
     const inserir = (conta: string | null) =>
@@ -147,7 +182,7 @@ describe('exclusão e grade (A4, RN0085, soft delete)', () => {
       usuario: { id: u, nome: 'Nome dest.exclui', ativo: true },
       versao: 1,
     });
-    expect(await excluirNotificacao(ctx, id, 0, deps())).toEqual(erro('_', MENSAGENS_NOTIFICACAO.ALTERADO));
+    expect(await excluirNotificacao(ctx, id, 0, deps())).toEqual(erro('_', MENSAGEM_CONFLITO));
     expect(await excluirNotificacao(ctx, id, 1, deps())).toEqual({ ok: true, valor: undefined });
     expect(await migrator.notificacaoDesempenho.findUniqueOrThrow({ where: { id } })).toMatchObject({ ativa: false, inativadaEm: AGORA, versao: 2 });
     expect(await historico(id)).toEqual([
@@ -189,7 +224,7 @@ describe('exclusão e grade (A4, RN0085, soft delete)', () => {
   it('opções do formulário: só sintéticas ativas, com "Todas" de fora (a tela a acrescenta), e só usuários ativos', async () => {
     const o = await listarOpcoesNotificacao(ctx, deps());
     expect(o.contas.map((c) => c.classificacao)).toEqual(['4', '4.1', '4.1.1', '4.1.1.1', '4.1.1.5']);
-    expect(o.contas[1]).toEqual({ classificacao: '4.1', rotulo: '4.1 – DESPESAS OPERACIONAIS', nivel: 2 });
+    expect(o.contas[1]).toEqual({ classificacao: '4.1', rotulo: '4.1 – DESPESAS OPERACIONAIS' });
     expect(o.usuarios.some((x) => x.nome === 'Nome dest.inativo')).toBe(false);
     expect(o.usuarios.some((x) => x.nome === 'Nome dest.um')).toBe(true);
   });

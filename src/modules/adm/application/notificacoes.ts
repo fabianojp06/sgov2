@@ -4,7 +4,7 @@ import { compararClassificacao, listarArvoreContas, type NoConta } from '@/modul
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma, travarRecurso, type TxCliente } from '@/shared/db';
-import { ErroDominio, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
+import { ErroDominio, falha, MENSAGEM_CONFLITO, ok, Percentual, type Resultado } from '@/shared/kernel';
 import { MENSAGENS_NOTIFICACAO, ROTULO_TODAS, validarNotificacao, type NotificacaoValidada } from '../domain/notificacao';
 
 // Casos de uso das notificações de desempenho (US-041; EP085 UC02.20, grupo "Desempenho"; plano do
@@ -50,13 +50,16 @@ export type LinhaNotificacao = {
 };
 
 export type OpcoesNotificacao = {
-  contas: { classificacao: string; rotulo: string; nivel: number }[];
+  contas: { classificacao: string; rotulo: string }[];
   usuarios: { id: string; nome: string }[];
 };
 
+/** Chave da trava do par usuário + conta (exportada para o teste da corrida). */
+export const chaveTravaNotificacao = (usuarioId: string, conta: string | null) => `adm.notificacao:${usuarioId}:${conta ?? '*'}`;
+
 const idValido = (id: string) => z.uuid().safeParse(id).success;
 const inexistente = () => new ErroDominio('adm.notificacao_inexistente', MENSAGENS_NOTIFICACAO.INEXISTENTE);
-const alterado = () => falha([{ campo: '_', mensagem: MENSAGENS_NOTIFICACAO.ALTERADO }]);
+const alterado = () => falha([{ campo: '_', mensagem: MENSAGEM_CONFLITO }]);
 const duplicada = () => falha([{ campo: 'conta', mensagem: MENSAGENS_NOTIFICACAO.DUPLICADA }]);
 const ehDuplicada = (erro: unknown) => erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2002';
 const rotuloConta = (c: { classificacao: string; descricao: string }) => `${c.classificacao} – ${c.descricao}`;
@@ -98,7 +101,7 @@ export async function incluirNotificacao(ctx: ContextoRequisicao, entrada: unkno
     // Dois administradores incluindo o mesmo par: a trava serializa e o segundo vê o primeiro (A3).
     // "Todas" e uma conta específica são pares diferentes e podem coexistir para o mesmo usuário
     // (B9 da revisão do plano): o envio futuro deduplica por usuário.
-    await travarRecurso(tx, `adm.notificacao:${n.usuarioId}:${n.conta ?? '*'}`);
+    await travarRecurso(tx, chaveTravaNotificacao(n.usuarioId, n.conta));
     const existente = await tx.notificacaoDesempenho.count({ where: { usuarioId: n.usuarioId, contaClassificacao: n.conta, ativa: true } });
     if (existente > 0) return duplicada();
     const criada = await tx.notificacaoDesempenho.create({
@@ -168,5 +171,5 @@ export async function listarOpcoesNotificacao(ctx: ContextoRequisicao, deps: Par
     d.contas(d.cliente),
     d.cliente.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: 'asc' } }),
   ]);
-  return { contas: sinteticasAtivas(arvore).map((c) => ({ classificacao: c.classificacao, rotulo: rotuloConta(c), nivel: c.nivel })), usuarios };
+  return { contas: sinteticasAtivas(arvore).map((c) => ({ classificacao: c.classificacao, rotulo: rotuloConta(c) })), usuarios };
 }

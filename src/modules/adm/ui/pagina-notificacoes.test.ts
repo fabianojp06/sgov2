@@ -26,7 +26,7 @@ vi.mock('@/modules/adm', async (original) => ({
   ],
   listarOpcoesNotificacao: async () => {
     chamadas.opcoes += 1;
-    return { contas: [{ classificacao: '4.1', rotulo: '4.1 – DESPESAS OPERACIONAIS', nivel: 2 }], usuarios: [{ id: 'u1', nome: 'Ana Maria' }] };
+    return { contas: [{ classificacao: '4.1', rotulo: '4.1 – DESPESAS OPERACIONAIS' }], usuarios: [{ id: 'u1', nome: 'Ana Maria' }] };
   },
 }));
 
@@ -66,6 +66,7 @@ describe('página das notificações de desempenho', () => {
     expect(h).toContain('(Conta inexistente ou inativa)');
     expect(h).toContain('Bruno Lima (inativo)');
     expect(h.match(/>Excluir</g)).toHaveLength(2);
+    expect(h).toContain('<th scope="col">Limite</th>');
   });
 
   it('só consultar: sem formulário, sem Excluir e sem carregar as opções; aviso desconhecido é ignorado', async () => {

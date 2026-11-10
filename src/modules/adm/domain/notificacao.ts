@@ -1,27 +1,10 @@
-import { falha, MENSAGEM_CONFLITO, ok, Percentual, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { falha, ok, Percentual, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { CONTA_TODAS, MENSAGENS_NOTIFICACAO } from './notificacao-textos';
+
+export { CONTA_TODAS, MENSAGENS_NOTIFICACAO, ROTULO_TODAS } from './notificacao-textos';
 
 // Notificações de desempenho das contas (US-041; EP085 UC02.20, grupo "Desempenho"; plano do P10,
 // D-P10-6 a D-P10-9). Só a configuração: o envio vem com o realizado (US-085).
-
-/** Valor do select para a opção "Todas" (RN0051); gravado como conta nula. */
-export const CONTA_TODAS = '*';
-export const ROTULO_TODAS = 'Todas';
-
-// O A2 e o A3 do UC02.20 pedem as mensagens sem dar o texto: todas [PROVISÓRIAS] (D-P10-9).
-export const MENSAGENS_NOTIFICACAO = {
-  CONTA: 'Selecione a conta sintética.',
-  CONTA_INVALIDA: 'Selecione uma conta sintética ativa ou a opção Todas.',
-  CONTA_INEXISTENTE: 'Conta inexistente ou inativa',
-  LIMITE: 'Informe o limite em % do orçado: maior que zero, até 999,99 e com no máximo duas casas decimais.',
-  FREQUENCIA: 'Informe a frequência em dias: um número inteiro de 1 a 365.',
-  USUARIO: 'O usuário é obrigatório.',
-  USUARIO_INATIVO: 'Selecione um usuário ativo cadastrado no sistema.',
-  DUPLICADA: 'Este usuário já recebe a notificação desta conta.',
-  INATIVA: 'Esta notificação já foi excluída.',
-  INEXISTENTE: 'Notificação não encontrada',
-  CONFIRMAR_EXCLUSAO: 'Deseja realmente excluir esta notificação?',
-  ALTERADO: MENSAGEM_CONFLITO,
-} as const;
 
 export type NotificacaoValidada = {
   /** Classificação da conta sintética; null é "Todas". */

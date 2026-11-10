@@ -1,7 +1,7 @@
 'use client';
 
 import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
-import { CONTA_TODAS, MENSAGENS_NOTIFICACAO, ROTULO_TODAS } from '../domain/notificacao';
+import { CONTA_TODAS, MENSAGENS_NOTIFICACAO, ROTULO_TODAS } from '../domain/notificacao-textos';
 
 // Notificações de Desempenho (US-041; EP085 UC02.20, grupo "Desempenho", REQ0091 e REQ0098). O
 // formulário (Conta Sintética com "Todas", Limite, Frequência e Usuário) adiciona o destinatário, e
@@ -97,7 +97,7 @@ export function TelaNotificacoes({ linhas, contas, usuarios, podeIncluir, podeEx
             <thead>
               <tr>
                 <th scope="col">Conta Sintética</th>
-                <th scope="col">Limite (%)</th>
+                <th scope="col">Limite</th>
                 <th scope="col">Frequência (dias)</th>
                 <th scope="col">Usuário</th>
                 {podeExcluir && <th scope="col">Ações</th>}

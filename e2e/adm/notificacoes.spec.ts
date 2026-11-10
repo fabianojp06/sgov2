@@ -54,5 +54,12 @@ test('administrador: adiciona o destinatário, vê na grade, recusa o duplicado 
   await page.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
   await expect(page).toHaveURL(/\/adm\/notificacoes\?aviso=excluida$/);
   await expect(grade(page).getByRole('row').filter({ hasText: CONTA })).toHaveCount(0);
-  await expect(grade(page).getByRole('row').filter({ hasText: 'Todas' })).toHaveCount(1);
+  const todas = grade(page).getByRole('row').filter({ hasText: 'Todas' }).filter({ hasText: USUARIOS.gfin.nome });
+  await expect(todas).toHaveCount(1);
+
+  // Limpa o "Todas": uma nova tentativa do teste (retry do CI) não esbarra no A3.
+  await todas.getByRole('button', { name: 'Excluir' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+  await expect(page).toHaveURL(/\/adm\/notificacoes\?aviso=excluida$/);
+  await expect(grade(page).getByRole('row').filter({ hasText: USUARIOS.gfin.nome })).toHaveCount(0);
 });
