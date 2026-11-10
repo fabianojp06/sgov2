@@ -15,8 +15,3 @@ export class ConflitoConcorrencia extends ErroDominio {
 export function exigirUmaLinha(r: { count: number }): void {
   if (r.count !== 1) throw new ConflitoConcorrencia();
 }
-
-// Para quem já travou a linha (FOR UPDATE) e compara a versão lida com a enviada pela tela.
-export function exigirVersao(atual: number, esperada: number): void {
-  if (atual !== esperada) throw new ConflitoConcorrencia();
-}

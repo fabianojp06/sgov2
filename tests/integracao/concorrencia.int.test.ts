@@ -55,20 +55,26 @@ describe('concorrência (US-011)', () => {
       },
       { timeout: 20_000 },
     );
-    await travada;
-    expect(await app.$transaction((tx) => tentarTravarRecurso(tx, 'teste:recurso'))).toBe(false);
-    expect(await app.$transaction((tx) => tentarTravarRecurso(tx, 'teste:outro'))).toBe(true);
-    const segunda = app.$transaction(
-      async (tx) => {
-        await travarRecurso(tx, 'teste:recurso');
-        ordem.push('segunda');
-      },
-      { timeout: 20_000 },
-    );
-    await new Promise((r) => setTimeout(r, 300));
-    expect(ordem).toEqual([]);
-    soltar();
-    await Promise.all([primeira, segunda]);
-    expect(ordem).toEqual(['primeira', 'segunda']);
+    try {
+      await Promise.race([travada, primeira]);
+      expect(await app.$transaction((tx) => tentarTravarRecurso(tx, 'teste:recurso'))).toBe(false);
+      expect(await app.$transaction((tx) => tentarTravarRecurso(tx, 'teste:outro'))).toBe(true);
+      const segunda = app.$transaction(
+        async (tx) => {
+          await travarRecurso(tx, 'teste:recurso');
+          ordem.push('segunda');
+        },
+        { timeout: 20_000 },
+      );
+      await new Promise((r) => setTimeout(r, 300));
+      expect(ordem).toEqual([]);
+      soltar();
+      await Promise.all([primeira, segunda]);
+      expect(ordem).toEqual(['primeira', 'segunda']);
+    } finally {
+      // Falha no meio não deixa a primeira transação presa até o timeout.
+      soltar();
+      await primeira.catch(() => undefined);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConflitoConcorrencia, exigirUmaLinha, exigirVersao, MENSAGEM_CONFLITO } from './concorrencia';
+import { ConflitoConcorrencia, exigirUmaLinha, MENSAGEM_CONFLITO } from './concorrencia';
 import { ErroDominio } from './erros';
 
 describe('concorrência otimista (US-011)', () => {
@@ -19,10 +19,5 @@ describe('concorrência otimista (US-011)', () => {
     expect(() => exigirUmaLinha({ count: 0 })).toThrow(ConflitoConcorrencia);
     expect(() => exigirUmaLinha({ count: 2 })).toThrow(ConflitoConcorrencia);
     expect(() => exigirUmaLinha({ count: 1 })).not.toThrow();
-  });
-
-  it('exigirVersao: a versão lida tem de ser a enviada pela tela', () => {
-    expect(() => exigirVersao(3, 2)).toThrow(ConflitoConcorrencia);
-    expect(() => exigirVersao(3, 3)).not.toThrow();
   });
 });
