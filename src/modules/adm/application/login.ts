@@ -99,14 +99,32 @@ export async function carregarPermissoes(tx: TxCliente, usuarioId: string, filtr
   return new Set(linhas.map((l) => l.p));
 }
 
-// Estado do usuário que decide se a sessão continua valendo.
+// Estado do usuário que decide se a sessão continua valendo. ehAdministrador: a mesma definição da
+// RN0023 no login (perfil ADMINISTRADOR ativo), para a sessão de quem não é Administrador cair com o
+// sistema inativo.
 export async function obterUsuarioParaSessao(
   tx: TxCliente,
   usuarioId: string,
-): Promise<{ nome: string; login: string; ativo: boolean; bloqueado: boolean; acessoVersao: number } | null> {
+): Promise<{ nome: string; login: string; ativo: boolean; bloqueado: boolean; acessoVersao: number; ehAdministrador: boolean } | null> {
   const u = await tx.usuario.findUnique({
     where: { id: usuarioId },
-    select: { nome: true, loginNormalizado: true, ativo: true, bloqueado: true, acessoVersao: true },
+    select: {
+      nome: true,
+      loginNormalizado: true,
+      ativo: true,
+      bloqueado: true,
+      acessoVersao: true,
+      perfis: { where: { perfil: { codigo: 'ADMINISTRADOR', ativo: true } }, select: { perfilId: true }, take: 1 },
+    },
   });
-  return u && { nome: u.nome, login: u.loginNormalizado, ativo: u.ativo, bloqueado: u.bloqueado, acessoVersao: u.acessoVersao };
+  return (
+    u && {
+      nome: u.nome,
+      login: u.loginNormalizado,
+      ativo: u.ativo,
+      bloqueado: u.bloqueado,
+      acessoVersao: u.acessoVersao,
+      ehAdministrador: u.perfis.length > 0,
+    }
+  );
 }

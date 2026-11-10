@@ -7,7 +7,7 @@ import { prisma } from '@/shared/db';
 import { resolverUnidadeAtiva } from '@/shared/unidade';
 import { nomeCookieSessao, nomeCookieUnidade } from '../infrastructure/cookies';
 import { hashDoToken } from './autenticar';
-import { efetivarDesativacao } from './efetivar-desativacao';
+import { desconectarSessaoPorSistemaInativo, efetivarDesativacao } from './efetivar-desativacao';
 
 // Permissões de toda sessão válida (R5), fora do menu e dos perfis.
 export const PERMISSOES_BASICAS: readonly string[] = [
@@ -85,6 +85,12 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
         await encerrar(sessao.id, sessao.usuarioId, usuario?.login ?? 'Sistema', sessao.sessaoUid, ip);
         return null;
       }
+      // Com o sistema inativo, só o Administrador fica (RN0023), qualquer que seja a criação da sessão:
+      // uma emitida depois do corte (ex.: troca de senha no instante do prazo) não escapa.
+      if (inativo && !usuario.ehAdministrador) {
+        await desconectarSessaoPorSistemaInativo(cliente, sessao.id, agora, config.inatividadeMin);
+        return null;
+      }
       // A consulta periódica do aviso de desativação (cabeçalho posto pelo proxy, D-P9-4) não renova.
       const renovar = (await lerCabecalho(CABECALHO_SEM_RENOVACAO)) === null;
       if (renovar && agora.getTime() - sessao.ultimoAcessoEm.getTime() >= RENOVACAO_MS) {
@@ -118,8 +124,11 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
       const token = await lerCookie(nomeCookieSessao());
       if (!token) return null;
       const marca = await cliente.sessaoEncerrada.findUnique({ where: { tokenHash: hashDoToken(token) } });
-      if (!marca || marca.expiraEm.getTime() <= relogio().getTime()) return null;
-      return MOTIVOS_AUSENCIA.has(marca.motivo) ? (marca.motivo as MotivoAusenciaSessao) : null;
+      const agora = relogio();
+      if (!marca || marca.expiraEm.getTime() <= agora.getTime() || !MOTIVOS_AUSENCIA.has(marca.motivo)) return null;
+      // Depois da reativação, a queda pela desativação deixa de ser motivo: a estação vê o login comum.
+      if (marca.motivo === 'SISTEMA_INATIVO' && !manutencaoEfetiva(await obterConfiguracaoAcesso(cliente), agora)) return null;
+      return marca.motivo as MotivoAusenciaSessao;
     },
   };
 }

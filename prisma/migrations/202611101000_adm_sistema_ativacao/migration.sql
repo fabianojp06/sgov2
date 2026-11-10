@@ -16,6 +16,9 @@ ALTER TABLE "configuracao_acesso" ADD CONSTRAINT "configuracao_acesso_manutencao
 ALTER TABLE "configuracao_acesso" ADD CONSTRAINT "configuracao_acesso_espera_check" CHECK ("desconexao_espera_min" BETWEEN 0 AND 60);
 ALTER TABLE "configuracao_acesso" ADD CONSTRAINT "configuracao_acesso_manutencao_check"
   CHECK ("manutencao" OR ("manutencao_a_partir" IS NULL AND "manutencao_motivo" IS NULL AND "manutencao_por" IS NULL));
+-- Teto do motivo (o mesmo MOTIVO_MAXIMO do adm) [PROVISÓRIO].
+ALTER TABLE "configuracao_acesso" ADD CONSTRAINT "configuracao_acesso_motivo_check"
+  CHECK ("manutencao_motivo" IS NULL OR char_length("manutencao_motivo") <= 500);
 
 -- A desconexão pela desativação do sistema (UC02.15) deixa a marca SISTEMA_INATIVO na sessão
 -- apagada: a estação vê "Sistema está em manutenção" na próxima interação.

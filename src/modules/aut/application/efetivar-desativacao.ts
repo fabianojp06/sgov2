@@ -1,6 +1,7 @@
-import type { PrismaClient } from '@/generated/prisma/client';
+import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 import { travarDesativacaoEfetiva } from '@/modules/adm';
 import { auditar } from '@/shared/audit';
+import type { TxCliente } from '@/shared/db';
 
 // Efetivação da desativação do sistema (US-036 e US-033; UC02.01 FA1 2.8, UC02.15, REQ0044, RN0060;
 // D-P9-5). Sem job: a primeira requisição de qualquer usuário depois do instante da desativação
@@ -25,33 +26,54 @@ export async function efetivarDesativacao(
   return cliente.$transaction(async (tx) => {
     const estado = await travarDesativacaoEfetiva(tx, agora);
     if (!estado) return null;
-    const sessoes = await tx.sessaoUsuario.findMany({
-      where: { criadaEm: { lt: estado.corte }, ...semAutor(estado.por) },
-      select: { id: true, tokenHash: true, usuarioId: true, sessaoUid: true, ip: true, ultimoAcessoEm: true, expiraEm: true, usuario: { select: { loginNormalizado: true } } },
-    });
-    if (sessoes.length === 0) return estado;
-    await tx.sessaoUsuario.deleteMany({ where: { id: { in: sessoes.map((s) => s.id) } } });
-    // Só as sessões ainda vivas recebem o aviso e o Histórico: a parada por inatividade ou pelo teto
-    // já tinha caído (a estação vê "Sessão expirada").
-    const ativaDesde = agora.getTime() - config.inatividadeMin * 60 * 1000;
-    const vivas = sessoes.filter((s) => s.expiraEm.getTime() > agora.getTime() && s.ultimoAcessoEm.getTime() >= ativaDesde);
-    if (vivas.length > 0) {
-      await tx.sessaoEncerrada.createMany({
-        data: vivas.map((s) => ({ tokenHash: s.tokenHash, usuarioId: s.usuarioId, motivo: 'SISTEMA_INATIVO', encerradaEm: agora, expiraEm: s.expiraEm })),
-        skipDuplicates: true,
-      });
-    }
-    for (const s of vivas) {
-      await auditar(tx, {
-        contexto: { usuarioId: s.usuarioId, usuarioRotulo: s.usuario.loginNormalizado, sessaoUid: s.sessaoUid, ip: s.ip },
-        funcionalidade: 'aut.sessao',
-        tipo: 'LOGOFF',
-        origem: 'SISTEMA',
-        descricao: `Usuário ${s.usuario.loginNormalizado} desconectado pelo sistema`,
-      });
-    }
+    // DELETE … RETURNING: só as linhas que esta transação de fato apagou recebem o Histórico e a marca.
+    // Uma sessão apagada em paralelo (logoff, novo login, queda por acesso alterado) não volta aqui.
+    const apagadas = await tx.$queryRaw<Apagada[]>`
+      DELETE FROM sessao_usuario s USING usuario u
+      WHERE u.id = s.usuario_id AND s.criada_em < ${estado.corte}
+        AND (${estado.por}::uuid IS NULL OR s.usuario_id <> ${estado.por}::uuid)
+      RETURNING ${COLUNAS_APAGADA}`;
+    await registrarDesconexoes(tx, apagadas, agora, config.inatividadeMin);
     return estado;
   });
+}
+
+// Sessão de quem não é Administrador ainda aberta com o sistema inativo (ex.: emitida pela troca de
+// senha depois do corte): cai do mesmo jeito, com o Histórico e a marca (RN0023). Idempotente.
+export async function desconectarSessaoPorSistemaInativo(cliente: PrismaClient, sessaoId: string, agora: Date, inatividadeMin: number): Promise<void> {
+  await cliente.$transaction(async (tx) => {
+    const apagadas = await tx.$queryRaw<Apagada[]>`
+      DELETE FROM sessao_usuario s USING usuario u
+      WHERE u.id = s.usuario_id AND s.id = ${sessaoId}::uuid
+      RETURNING ${COLUNAS_APAGADA}`;
+    await registrarDesconexoes(tx, apagadas, agora, inatividadeMin);
+  });
+}
+
+type Apagada = { tokenHash: string; usuarioId: string; sessaoUid: string; ip: string | null; ultimoAcessoEm: Date; expiraEm: Date; login: string };
+
+const COLUNAS_APAGADA = Prisma.sql`s.token_hash AS "tokenHash", s.usuario_id::text AS "usuarioId", s.sessao_uid AS "sessaoUid", host(s.ip) AS ip,
+        s.ultimo_acesso_em AS "ultimoAcessoEm", s.expira_em AS "expiraEm", u.login_normalizado AS login`;
+
+// Só as sessões ainda vivas recebem o aviso e o Histórico do UC02.15: a parada por inatividade ou
+// pelo teto já tinha caído (a estação vê "Sessão expirada").
+async function registrarDesconexoes(tx: TxCliente, apagadas: readonly Apagada[], agora: Date, inatividadeMin: number): Promise<void> {
+  const ativaDesde = agora.getTime() - inatividadeMin * 60 * 1000;
+  const vivas = apagadas.filter((s) => s.expiraEm.getTime() > agora.getTime() && s.ultimoAcessoEm.getTime() >= ativaDesde);
+  if (vivas.length === 0) return;
+  await tx.sessaoEncerrada.createMany({
+    data: vivas.map((s) => ({ tokenHash: s.tokenHash, usuarioId: s.usuarioId, motivo: 'SISTEMA_INATIVO', encerradaEm: agora, expiraEm: s.expiraEm })),
+    skipDuplicates: true,
+  });
+  for (const s of vivas) {
+    await auditar(tx, {
+      contexto: { usuarioId: s.usuarioId, usuarioRotulo: s.login, sessaoUid: s.sessaoUid, ip: s.ip },
+      funcionalidade: 'aut.sessao',
+      tipo: 'LOGOFF',
+      origem: 'SISTEMA',
+      descricao: `Usuário ${s.login} desconectado pelo sistema`,
+    });
+  }
 }
 
 const semAutor = (por: string | null) => (por ? { usuarioId: { not: por } } : {});

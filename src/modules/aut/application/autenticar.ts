@@ -9,6 +9,7 @@ import {
   normalizarLogin,
   obterConfiguracaoAcesso,
   registrarFalhaLogin,
+  travarDesativacaoEfetiva,
   travarUsuarioParaLogin,
   zerarFalhasLogin,
   type UsuarioParaLogin,
@@ -159,7 +160,13 @@ export async function autenticar(
 
     // Fase 2.
     const { resultado, alerta } = await cliente.$transaction(async (tx): Promise<{ resultado: ResultadoLogin; alerta?: Alerta }> => {
-      const config = await obterConfiguracaoAcesso(tx);
+      let config = await obterConfiguracaoAcesso(tx);
+      // Manutenção ligada direto no banco (sem instante): fixa o instante antes de emitir a sessão, para
+      // a do Administrador (criada agora) não cair na efetivação da requisição seguinte (US-036).
+      if (manutencaoEfetiva(config, agora) && config.manutencaoAPartir === null) {
+        await travarDesativacaoEfetiva(tx, agora);
+        config = await obterConfiguracaoAcesso(tx);
+      }
       const usuario = normalizado ? await travarUsuarioParaLogin(tx, normalizado) : null;
       const t: Tentativa = { usuario, rotulo: usuario?.login ?? normalizado ?? ROTULO_INVALIDO, ip, agora };
 

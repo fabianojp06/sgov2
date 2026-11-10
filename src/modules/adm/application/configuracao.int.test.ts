@@ -56,6 +56,7 @@ describe('obterConfiguracaoAcesso', () => {
     ['desconexao_espera_min = 61'],
     ["manutencao_motivo = 'sem o indicador'"],
     ["manutencao_a_partir = now()"],
+    ["manutencao = true, manutencao_motivo = repeat('x', 501)"],
   ])('o banco recusa %s', async (atribuicao) =>
     expect(app.$executeRawUnsafe(`UPDATE configuracao_acesso SET ${atribuicao}`)).rejects.toThrow(/check/i));
 });

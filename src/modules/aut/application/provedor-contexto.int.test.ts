@@ -1,9 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { hashSenha, seedAdm } from '@/modules/adm';
+import { hashSenha, obterConfiguracaoAcesso, seedAdm } from '@/modules/adm';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { autenticar } from './autenticar';
 import { obterAvisoDesativacao } from './aviso-desativacao';
+import { efetivarDesativacao } from './efetivar-desativacao';
 import { criarProvedorContexto, PERMISSOES_BASICAS, PERMISSOES_TROCA_OBRIGATORIA } from './provedor-contexto';
 
 // Provedor de contexto (US-026 parte 2): cookie → sessão → usuário → permissões.
@@ -361,6 +362,88 @@ describe('sistema desativado (US-036, US-033)', () => {
     expect(await de(autor.id)).toEqual({ segundos: null });
     agora = PRAZO;
     expect(await de(outro.id)).toEqual({ segundos: null });
+  });
+
+  it('M1: sessão apagada em paralelo (logoff) durante a efetivação não ganha Histórico nem marca', async () => {
+    const autor = await criarUsuario('sis.m1.autor');
+    const orc = await criarUsuario('sis.m1.orc', {}, 'ORCAMENTISTA');
+    await logar('sis.m1.orc');
+    await desativar(autor.id);
+    agora = PRAZO;
+    const sessao = await migrator.sessaoUsuario.findFirstOrThrow({ where: { usuarioId: orc.id } });
+    let liberar!: () => void;
+    const segura = new Promise<void>((r) => (liberar = r));
+    let apagou!: () => void;
+    const apagada = new Promise<void>((r) => (apagou = r));
+    // Outra transação apaga a sessão e segura a linha até ser liberada.
+    const outra = app.$transaction(
+      async (tx) => {
+        await tx.sessaoUsuario.deleteMany({ where: { id: sessao.id } });
+        apagou();
+        await segura;
+      },
+      { timeout: 20_000 },
+    );
+    await apagada;
+    const config = await obterConfiguracaoAcesso(app);
+    const efetivacao = efetivarDesativacao(app, agora, config);
+    await new Promise((r) => setTimeout(r, 300));
+    liberar();
+    await outra;
+    await efetivacao;
+    expect(await migrator.historicoOperacao.count({ where: { usuarioId: orc.id, descricao: { contains: 'desconectado pelo sistema' } } })).toBe(0);
+    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: orc.id } })).toBe(0);
+  });
+
+  it('M1: duas efetivações em paralelo da mesma sessão → um Histórico só', async () => {
+    const autor = await criarUsuario('sis.m1b.autor');
+    const orc = await criarUsuario('sis.m1b.orc', {}, 'ORCAMENTISTA');
+    await logar('sis.m1b.orc');
+    await desativar(autor.id);
+    agora = PRAZO;
+    const config = await obterConfiguracaoAcesso(app);
+    await Promise.all([efetivarDesativacao(app, agora, config), efetivarDesativacao(app, agora, config), efetivarDesativacao(app, agora, config)]);
+    expect(await migrator.historicoOperacao.count({ where: { usuarioId: orc.id, descricao: { contains: 'desconectado pelo sistema' } } })).toBe(1);
+  });
+
+  it('M2: sessão de não administrador emitida depois do corte cai com o sistema inativo, com Histórico e marca', async () => {
+    const autor = await criarUsuario('sis.m2.autor');
+    const orc = await criarUsuario('sis.m2.orc', {}, 'ORCAMENTISTA');
+    await desativar(autor.id);
+    agora = new Date('2026-11-11T12:06:00.000Z');
+    // Ex.: troca de senha no instante do prazo (emitirSessao fora do autenticar).
+    const { emitirSessao } = await import('./sessao');
+    const { token } = await app.$transaction((tx) =>
+      emitirSessao(tx, { usuarioId: orc.id, acessoVersao: orc.acessoVersao, trocaSenhaPendente: false, ip: null, agora, maximoHoras: 12, inatividadeMin: 30, motivoAnteriores: null }),
+    );
+    cookie = token;
+    agora = new Date('2026-11-11T12:06:30.000Z');
+    expect(await provedor().obter()).toBeNull();
+    expect(await sessoesDe(orc.id)).toBe(0);
+    expect(await migrator.historicoOperacao.count({ where: { usuarioId: orc.id, descricao: 'Usuário sis.m2.orc desconectado pelo sistema' } })).toBe(1);
+    expect(await provedor().motivoAusencia!()).toBe('SISTEMA_INATIVO');
+  });
+
+  it('M3: manutenção ligada por SQL antes de qualquer requisição: o administrador entra e não cai na requisição seguinte', async () => {
+    await criarUsuario('sis.m3.adm');
+    await desativar(null, null);
+    agora = new Date('2026-11-11T12:10:00.000Z');
+    cookie = await logar('sis.m3.adm');
+    expect((await migrator.configuracaoAcesso.findUniqueOrThrow({ where: { id: 1 } })).manutencaoAPartir).toEqual(agora);
+    agora = new Date('2026-11-11T12:10:05.000Z');
+    expect((await provedor().obter())?.usuarioRotulo).toBe('sis.m3.adm');
+  });
+
+  it('B1: depois da reativação, motivoAusencia deixa de dizer SISTEMA_INATIVO', async () => {
+    const autor = await criarUsuario('sis.b1.autor');
+    await criarUsuario('sis.b1.orc', {}, 'ORCAMENTISTA');
+    cookie = await logar('sis.b1.orc');
+    await desativar(autor.id);
+    agora = PRAZO;
+    expect(await provedor().obter()).toBeNull();
+    expect(await provedor().motivoAusencia!()).toBe('SISTEMA_INATIVO');
+    await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: false, manutencaoAPartir: null, manutencaoMotivo: null, manutencaoPorId: null } });
+    expect(await provedor().motivoAusencia!()).toBeNull();
   });
 
   it('autenticar: com a desativação agendada todos entram; depois do prazo, só o Administrador (RN0023)', async () => {
