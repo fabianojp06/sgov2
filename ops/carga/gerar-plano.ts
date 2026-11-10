@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import { COLUNAS_PLANO_CONTAS, gerarPlanoSintetico } from '@/modules/cad/servidor';
 
 const [saida, linhasTexto = '5000'] = process.argv.slice(2);
-if (!saida || !saida.endsWith('.xlsx')) {
+if (!saida || !saida.endsWith('.xlsx') || !/^\d+$/.test(linhasTexto)) {
   console.error('Uso: npx tsx ops/carga/gerar-plano.ts <saida.xlsx> [linhas=5000]');
   process.exit(2);
 }

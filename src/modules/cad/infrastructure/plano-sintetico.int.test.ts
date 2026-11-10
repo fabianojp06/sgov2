@@ -6,7 +6,9 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { solicitarCargaPlanoContas } from '../application/importar-estrutura';
-import { COLUNAS_PLANO_CONTAS } from '../domain/plano-contas';
+import { planejarCarga } from '../domain/carga';
+import { COLUNAS_PLANO_CONTAS, validarPlanoContas } from '../domain/plano-contas';
+import { comoNova, lerContasAtuais } from './aplicar-carga';
 import { gerarPlanoSintetico } from './plano-sintetico';
 import { seedCad } from './seed';
 import { seedDadosReferenciaCad } from './seed-referencia';
@@ -50,6 +52,18 @@ afterAll(async () => {
 });
 
 describe('plano sintético de 5.000 linhas pela importação real (D-P7-3)', () => {
+  it('sobre o plano oficial, a carga só inclui o ramo "9": nada é inativado nem alterado', async () => {
+    const v = validarPlanoContas(gerarPlanoSintetico(5000), (texto) => ({ texto, retirou: false }));
+    if (!v.ok) throw new Error('inválido');
+    const plano = planejarCarga(await lerContasAtuais(app), v.contas.map(comoNova));
+    expect(plano.erros).toEqual([]);
+    expect(plano.inativar).toEqual([]);
+    expect(plano.alterarDescricao).toEqual([]);
+    expect(plano.reativar).toEqual([]);
+    expect(plano.inalteradas).toBe(174);
+    expect(plano.incluir).toHaveLength(5000 - 174);
+  });
+
   it('a importação aceita o arquivo sobre o plano oficial e grava o lote com as 5.000 linhas', async () => {
     const r = await solicitarCargaPlanoContas(ctx(['cad.plano_contas', 'executar']), { nome: 'plano-sintetico.xlsx', conteudo: await xlsx(5000) }, { cliente: app });
     if (!r.ok) throw new Error(JSON.stringify(r.erros.slice(0, 5)));
