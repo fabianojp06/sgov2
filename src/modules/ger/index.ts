@@ -30,7 +30,15 @@ export {
 } from './ui/grade-filtros';
 // Os geradores de arquivo saem só pelo servidor.ts: o exportarXlsx, porque o ExcelJS não entra no navegador
 // (R22), e o exportarCsv pela mesma regra do contrato (exportação chamada de application/).
-export { LIMITE_EXPORTACAO_SINCRONA, validarPlanilhas, type PlanilhaExportacao } from './infrastructure/exportacao';
+export {
+  criarIdentificacao,
+  LIMITE_EXPORTACAO_SINCRONA,
+  linhasIdentificacao,
+  validarPlanilhas,
+  type FiltroExportacao,
+  type IdentificacaoExportacao,
+  type PlanilhaExportacao,
+} from './infrastructure/exportacao';
 
 // Falsos para os testes dos consumidores.
 export { emailFalso, exportarCsvFalso, exportarXlsxFalso, type EnvioFalso } from './falsos';

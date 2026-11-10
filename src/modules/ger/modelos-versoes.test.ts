@@ -14,16 +14,19 @@ import { renderizarEmail, VERSOES_MODELO } from './domain/renderizar-email';
 const HASHES: Record<string, string> = {
   'usuario.senha_inicial@1': 'a952a93ccf955ac9fa715f3678123abda5d2b2d51a4fe5ef2697153927af95fa',
   'usuario.senha_redefinida@1': '8b32a27bed6d0b3e3204fa84a9f5ca827d300bd7ab3e26b5695821ba8f09b43a',
+  'usuario.recuperacao_senha@1': 'e42080579dd0475aa7468a0800933a4a2823f561025059346a862ea031482dfc',
 };
 
 const ARQUIVO: Record<ModeloEmail, string> = {
   'usuario.senha_inicial': 'usuario-senha-inicial',
   'usuario.senha_redefinida': 'usuario-senha-redefinida',
+  'usuario.recuperacao_senha': 'usuario-recuperacao-senha',
 };
 
 const SAIDAS: Record<string, string> = {
   'usuario.senha_inicial@1': 'e3230555188a3d2bf60c0edcc090c6046e62f6abf411d635ff785da35db2bafc',
   'usuario.senha_redefinida@1': '8bf6e08a9718ea9e3ddfa15df7504d863555cc18b117e4e0393d503048fd90f2',
+  'usuario.recuperacao_senha@1': '89a4bc357318e46aeb3f0af1fa822cd865eac370edb8578434e870bbbaabf1bf',
 };
 
 // Fim de linha normalizado: um checkout com CRLF não muda o hash.

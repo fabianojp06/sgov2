@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { carregarPermissoes, listarUnidadesDoUsuario, obterConfiguracaoAcesso, obterUsuarioParaSessao } from '@/modules/adm';
 import { auditar } from '@/shared/audit';
-import type { ContextoRequisicao, ProvedorContexto } from '@/shared/authz';
+import type { ContextoRequisicao, MotivoAusenciaSessao, ProvedorContexto } from '@/shared/authz';
 import { CABECALHO_IP } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { resolverUnidadeAtiva } from '@/shared/unidade';
@@ -80,19 +80,29 @@ export function criarProvedorContexto(deps: Partial<DepsProvedor> = {}): Provedo
       const permissoes = sessao.trocaSenhaPendente
         ? new Set(PERMISSOES_TROCA_OBRIGATORIA)
         : new Set([...(await carregarPermissoes(cliente, sessao.usuarioId)), ...PERMISSOES_BASICAS]);
-      // Unidade ativa: o cookie só escolhe dentro da lista do usuário (nunca é confiado).
-      const unidadeId = sessao.trocaSenhaPendente
-        ? null
-        : resolverUnidadeAtiva(await listarUnidadesDoUsuario(cliente, sessao.usuarioId), (await lerCookie(nomeCookieUnidade())) ?? null);
+      // Unidade ativa: o cookie só escolhe dentro da lista do usuário (nunca é confiado). A lista vai
+      // inteira para a RLS (US-007); com a troca de senha pendente, nenhuma.
+      const unidades = sessao.trocaSenhaPendente ? [] : await listarUnidadesDoUsuario(cliente, sessao.usuarioId);
+      const unidadeId = sessao.trocaSenhaPendente ? null : resolverUnidadeAtiva(unidades, (await lerCookie(nomeCookieUnidade())) ?? null);
       return {
         usuarioId: sessao.usuarioId,
         usuarioRotulo: usuario.login,
         sessaoUid: sessao.sessaoUid,
         ip,
         unidadeId,
+        unidades: unidades.map((u) => u.id),
         permissoes,
         trocaSenhaPendente: sessao.trocaSenhaPendente,
       };
+    },
+    // US-028: a sessão deste cookie foi encerrada por um login em outra estação? Não apaga a marca
+    // (o layout e a página perguntam na mesma requisição); ela vale até o prazo e sai depois de vencida.
+    async motivoAusencia(): Promise<MotivoAusenciaSessao | null> {
+      const token = await lerCookie(nomeCookieSessao());
+      if (!token) return null;
+      const marca = await cliente.sessaoEncerrada.findUnique({ where: { tokenHash: hashDoToken(token) } });
+      if (!marca || marca.expiraEm.getTime() <= relogio().getTime()) return null;
+      return marca.motivo === 'NOVO_ACESSO' ? 'NOVO_ACESSO' : null;
     },
   };
 }
