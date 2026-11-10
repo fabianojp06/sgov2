@@ -43,6 +43,10 @@ export const USUARIOS = {
   sistemaOrc: { login: 'orc.sistema', nome: 'E2E Orçamentista Sistema', perfil: 'ORCAMENTISTA' },
   // Notificações de desempenho (e2e/adm/notificacoes.spec.ts, US-041).
   notificacoes: { login: 'adm.notif', nome: 'E2E Administrador Notificações', perfil: 'ADMINISTRADOR' },
+  // Perfis e permissões (e2e/adm/perfis.spec.ts, US-037): o orçamentista recebe o perfil criado
+  // pela tela e volta ao Orçamentista no fim.
+  perfis: { login: 'adm.perfis', nome: 'E2E Administrador Perfis', perfil: 'ADMINISTRADOR' },
+  orcPerfis: { login: 'orc.perfis', nome: 'E2E Orçamentista Perfis', perfil: 'ORCAMENTISTA' },
   // CSP completa nas telas (e2e/aut/csp.spec.ts, #318).
   csp: { login: 'adm.csp', nome: 'E2E Administrador CSP', perfil: 'ADMINISTRADOR' },
   // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do

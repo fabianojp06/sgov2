@@ -1,7 +1,7 @@
 import type { Acao } from '@/shared/authz';
 import { ErroDominio } from '@/shared/kernel';
 import { MODULO_PROTEGIDO } from '../domain/modulos';
-import { ehCodigoPerfil, type CodigoPerfil } from '../domain/perfis';
+import { ehCodigoPerfil, podeReceberFuncionalidade, type CodigoPerfil } from '../domain/perfis';
 
 // Contrato C6 (spec §12.6): cada módulo declara as próprias funcionalidades na sua seed. O menu
 // é montado a partir do catálogo no banco, porque o Administrador ativa e desativa itens.
@@ -35,8 +35,6 @@ export type DeclaracaoFuncionalidade = {
 
 // O mesmo módulo que não pode ser desativado (D-P9-7): uma constante só para as duas regras.
 export const MODULO_EXCLUSIVO_ADMIN: CodigoModuloMenu = MODULO_PROTEGIDO;
-// Única exceção à RN_SEED_003 (D-P8-8): o Auditor consulta o Histórico de Operações (spec §11.3).
-const EXCECOES_ADMIN: Readonly<Record<string, readonly string[]>> = { 'adm.historico': ['AUDITOR'] };
 // Código de 3 letras do módulo de código (spec §4.1) + nome: 'adm.usuarios', 'cad.cargos'.
 const FORMATO_CODIGO = /^[a-z]{3}\.[a-z0-9_]+$/;
 
@@ -69,9 +67,9 @@ export function validarDeclaracoes(itens: readonly DeclaracaoFuncionalidade[]): 
       if (!ehCodigoPerfil(perfil)) {
         throw new ErroDominio('seed.perfil_invalido', `Perfil desconhecido em ${item.codigo}: ${perfil}`);
       }
-      // RN_SEED_003: só o Administrador acessa o módulo de Administração (por módulo de menu, R10).
-      const excecao = EXCECOES_ADMIN[item.codigo]?.includes(perfil) ?? false;
-      if (item.modulo === MODULO_EXCLUSIVO_ADMIN && perfil !== 'ADMINISTRADOR' && !excecao && (acoes?.length ?? 0) > 0) {
+      // RN_SEED_003: só o Administrador acessa o módulo de Administração (por módulo de menu, R10), com
+      // a exceção do Histórico ao Auditor (D-P8-8). A mesma regra da tela de perfis (D-P13-4).
+      if ((acoes?.length ?? 0) > 0 && !podeReceberFuncionalidade(perfil, item.codigo, item.modulo)) {
         throw new ErroDominio('seed.perfil_proibido', `Só o Administrador acessa ${item.codigo} (RN_SEED_003)`);
       }
       for (const acao of acoes ?? []) {

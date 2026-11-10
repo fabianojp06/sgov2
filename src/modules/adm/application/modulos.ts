@@ -32,7 +32,10 @@ const recusa = (mensagem: string) => falha([{ campo: '_', mensagem }]);
 // Desativar derruba as sessões de todos menos quem executou (D-P9-8; RN0043, RN0044): muda só a
 // versão de acesso, nunca a `versao` do usuário (não gera conflito falso nas telas de usuário). O
 // provedor de contexto encerra as sessões na próxima requisição, com o Histórico do UC02.15.
+// A trava dos administradores antes do UPDATE em massa serializa com alterarPerfil e alterarUsuario,
+// que a pegam primeiro: sem ela, dois UPDATEs de acessoVersao em ordens diferentes podiam dar impasse.
 async function desconectarOutros(tx: TxCliente, ctx: ContextoRequisicao): Promise<void> {
+  await travarRecurso(tx, 'adm:administradores');
   await tx.usuario.updateMany({ where: { id: { not: ctx.usuarioId } }, data: { acessoVersao: { increment: 1 } } });
 }
 

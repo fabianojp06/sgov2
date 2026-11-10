@@ -7,9 +7,9 @@ import { describe, expect, it } from 'vitest';
 const PROIBIDOS = /node_modules\/(pg|pg-boss|pg-pool|@prisma|prisma|nodemailer|exceljs|argon2|@node-rs|server-only)\//;
 
 describe('bundle do navegador dos componentes cliente do adm', () => {
-  it('form-usuario, form-alcada, botao-imprimir, desativar-sistema e tela-notificacoes não alcançam código de servidor', async () => {
+  it('form-usuario, form-alcada, form-perfil, lista-perfis, botao-imprimir, desativar-sistema e tela-notificacoes não alcançam código de servidor', async () => {
     const r = await build({
-      entryPoints: ['src/modules/adm/ui/form-usuario.tsx', 'src/modules/adm/ui/form-alcada.tsx', 'src/modules/adm/ui/botao-imprimir.tsx', 'src/modules/adm/ui/desativar-sistema.tsx', 'src/modules/adm/ui/tela-notificacoes.tsx'],
+      entryPoints: ['src/modules/adm/ui/form-usuario.tsx', 'src/modules/adm/ui/form-alcada.tsx', 'src/modules/adm/ui/form-perfil.tsx', 'src/modules/adm/ui/lista-perfis.tsx', 'src/modules/adm/ui/botao-imprimir.tsx', 'src/modules/adm/ui/desativar-sistema.tsx', 'src/modules/adm/ui/tela-notificacoes.tsx'],
       bundle: true,
       splitting: true,
       format: 'esm',
@@ -49,5 +49,26 @@ describe('bundle do navegador dos componentes cliente do adm', () => {
       .filter(([arquivo]) => arquivo.startsWith('src/modules/adm/'))
       .flatMap(([arquivo, i]) => i.imports.filter((imp) => imp.path.startsWith('src/shared/kernel/')).map(() => arquivo));
     expect(admParaKernel).toEqual([]);
+  }, 60_000);
+
+  // US-037: o formulário de perfil usa só os textos puros (perfil-textos.ts), nunca o domínio com o Zod
+  // e o kernel (perfil.ts).
+  it('form-perfil leva só os textos do perfil, não o domínio com a validação', async () => {
+    const r = await build({
+      entryPoints: ['src/modules/adm/ui/form-perfil.tsx'],
+      bundle: true,
+      format: 'esm',
+      platform: 'browser',
+      write: false,
+      metafile: true,
+      logLevel: 'silent',
+      tsconfig: 'tsconfig.json',
+      jsx: 'automatic',
+      external: ['react', 'react-dom', 'next'],
+    });
+    const entradas = Object.keys(r.metafile.inputs);
+    expect(entradas).toContain('src/modules/adm/domain/perfil-textos.ts');
+    expect(entradas).not.toContain('src/modules/adm/domain/perfil.ts');
+    expect(entradas).not.toContain('src/modules/adm/domain/perfis.ts');
   }, 60_000);
 });

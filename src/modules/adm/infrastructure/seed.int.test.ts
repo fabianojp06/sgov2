@@ -153,6 +153,8 @@ describe('seedAdm', () => {
   it('perfil criado depois da funcionalidade recebe o padrão na seed seguinte', async () => {
     const ferias = { ...cargos, codigo: 'cad.ferias', perfisPadrao: { DIREX: ['consultar'] } } as const;
     const direx = await cliente.perfil.findUniqueOrThrow({ where: { codigo: 'DIREX' } });
+    // O gatilho da US-037 só deixa apagar perfil da tela (P_…): o código muda antes, como numa base antiga.
+    await cliente.$executeRaw`UPDATE perfil SET codigo = 'P_000000000DEL' WHERE id = ${direx.id}::uuid`;
     await cliente.$executeRaw`DELETE FROM perfil WHERE id = ${direx.id}::uuid`;
     await executarSeeds(cliente, [seedCom([ferias])]);
     expect(await cliente.perfilPermissao.count({ where: { funcionalidadeCodigo: 'cad.ferias' } })).toBe(0);
@@ -179,5 +181,28 @@ describe('seedAdm', () => {
     const proibida = { ...cargos, codigo: 'adm.x', modulo: 'ADMINISTRACAO' as const, perfisPadrao: { AUDITOR: ['consultar'] as const } };
     await expect(executarSeeds(cliente, [seedCom([proibida])])).rejects.toThrow('Falha na seed "teste"');
     expect(await cliente.funcionalidade.count({ where: { codigo: 'adm.x' } })).toBe(0);
+  });
+
+  // US-037 (D-P13-1): a tela de perfis é do Administrador, com todas as ações.
+  it('adm.perfis instalada e concedida só ao Administrador', async () => {
+    expect(await permissoes('ADMINISTRADOR', 'adm.perfis')).toEqual(['alterar', 'consultar', 'excluir', 'incluir']);
+    expect(await cliente.perfilPermissao.count({ where: { funcionalidadeCodigo: 'adm.perfis', perfil: { codigo: { not: 'ADMINISTRADOR' } } } })).toBe(0);
+  });
+
+  // D-P13-11 e ajuste A8: um perfil da tela pode já usar o nome de um padrão que a seed ainda vai
+  // instalar. Simulado trocando o código do padrão instalado para um código da tela.
+  it('padrão novo com nome já usado entra com " (padrão)", depois " (padrão 2)", e a seed registra', async () => {
+    const nome = 'Operador de Viagens (SCOR/GAD)';
+    await cliente.perfil.update({ where: { codigo: 'OPERADOR_VIAGENS' }, data: { codigo: 'P_000000000099' } });
+    await executarSeeds(cliente, [seedAdm]);
+    expect((await cliente.perfil.findUniqueOrThrow({ where: { codigo: 'OPERADOR_VIAGENS' } })).nome).toBe(`${nome} (padrão)`);
+    await cliente.perfil.update({ where: { codigo: 'OPERADOR_VIAGENS' }, data: { codigo: 'P_000000000098' } });
+    await executarSeeds(cliente, [seedAdm]);
+    expect((await cliente.perfil.findUniqueOrThrow({ where: { codigo: 'OPERADOR_VIAGENS' } })).nome).toBe(`${nome} (padrão 2)`);
+    const registro = await cliente.historicoOperacao.findFirst({ where: { funcionalidade: 'adm.seed', descricao: { contains: `"${nome} (padrão 2)"` } } });
+    expect(registro?.descricao).toContain('já estava em uso');
+    const antes = await retrato();
+    await executarSeeds(cliente, [seedAdm]);
+    expect(await retrato()).toEqual(antes);
   });
 });

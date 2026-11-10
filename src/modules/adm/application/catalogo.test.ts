@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CODIGOS_PERFIL, PREFIXO_PERFIL_TELA } from '../domain/perfis';
 import { MODULOS_MENU, validarDeclaracoes, type DeclaracaoFuncionalidade } from './catalogo';
 
 const base: DeclaracaoFuncionalidade = {
@@ -78,4 +79,9 @@ describe('catálogo de funcionalidades (contrato C6)', () => {
     expect(() =>
       validarDeclaracoes([{ ...base, perfisPadrao: { XPTO: ['consultar'] } as DeclaracaoFuncionalidade['perfisPadrao'] }]),
     ).toThrow(expect.objectContaining({ codigo: 'seed.perfil_invalido' })));
+
+  // O prefixo P_ é dos perfis criados pela tela (D-P13-2, ajuste A5): o gatilho do banco só deixa
+  // apagar perfil com ele. Um padrão com P_ ficaria apagável.
+  it('nenhum perfil padrão usa o prefixo P_ dos perfis da tela', () =>
+    expect(CODIGOS_PERFIL.filter((c) => c.startsWith(PREFIXO_PERFIL_TELA))).toEqual([]));
 });

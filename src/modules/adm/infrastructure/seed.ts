@@ -97,6 +97,22 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'incluir', 'excluir'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'excluir'] },
   },
+  {
+    // US-037 (EP085 UC02.07–10, UC02.25/26; REQ0048: Administração › Operadores e Permissões › Perfis
+    // de Usuário; plano do P13, D-P13-1). Exclusivo do Administrador (RN_SEED_003).
+    codigo: 'adm.perfis',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Operadores e Permissões',
+    nome: 'Perfis de Usuário',
+    rota: '/adm/perfis',
+    ordem: 7,
+    // Texto de ajuda [PROVISÓRIO]: sem fonte no EP085.
+    ajuda:
+      'Cadastre e altere os perfis de acesso e defina as permissões de cada um por módulo, funcionalidade e ação. ' +
+      'Inative o perfil que não for mais usado; só um perfil criado aqui e sem usuários pode ser excluído.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar', 'excluir'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {
@@ -119,12 +135,30 @@ async function instalarModulos(tx: TxCliente): Promise<void> {
   }
 }
 
-// Perfis padrão (§11.3): perfil existente não é tocado (RN_SEED_002).
+// Nome livre para um perfil padrão novo (D-P13-11, ajuste A8 da revisão do plano do P13): o nome é
+// único sem diferenciar maiúsculas, e um perfil criado pela tela pode já usar o do padrão. Tenta o nome,
+// depois "<nome> (padrão)", "<nome> (padrão 2)" e assim por diante, sempre dentro dos 100 caracteres.
+async function nomeLivre(tx: TxCliente, nome: string): Promise<string> {
+  for (let n = 1; ; n++) {
+    const sufixo = n === 1 ? '' : n === 2 ? ' (padrão)' : ` (padrão ${n - 1})`;
+    const candidato = `${nome.slice(0, 100 - sufixo.length).trimEnd()}${sufixo}`;
+    const [uso] = await tx.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM perfil WHERE lower(nome) = lower(${candidato})`;
+    if (uso?.n === 0) return candidato;
+  }
+}
+
+// Perfis padrão (§11.3): perfil existente não é tocado (RN_SEED_002); a idempotência é pelo código.
 async function instalarPerfis(tx: TxCliente): Promise<void> {
   for (const codigo of CODIGOS_PERFIL) {
     if (await tx.perfil.findUnique({ where: { codigo } })) continue;
-    const perfil = await tx.perfil.create({ data: { codigo, ...PERFIS_PADRAO[codigo] } });
-    await auditarSeed(tx, `Seed: perfil ${codigo} instalado`, perfil.id);
+    const padrao = PERFIS_PADRAO[codigo];
+    const nome = await nomeLivre(tx, padrao.nome);
+    const perfil = await tx.perfil.create({ data: { codigo, nome, descricao: padrao.descricao } });
+    await auditarSeed(
+      tx,
+      nome === padrao.nome ? `Seed: perfil ${codigo} instalado` : `Seed: perfil ${codigo} instalado com o nome "${nome}" (o nome "${padrao.nome}" já estava em uso)`,
+      perfil.id,
+    );
   }
 }
 

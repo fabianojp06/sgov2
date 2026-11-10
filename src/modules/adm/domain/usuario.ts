@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { falha, MENSAGEM_CONFLITO, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { chaveExcecao, MENSAGENS_EXCECAO } from './excecao-usuario';
 import { normalizarLogin } from './login';
-import { CODIGOS_PERFIL } from './perfis';
+import { FORMATO_CODIGO_PERFIL } from './perfis';
 
 // Mensagens do cadastro de usuários (UC02.12, UC02.13). O EP085 não fixa o texto: todas são
 // [PROVISÓRIAS]; as que o plano do P5 já lista (Global Constraints) usam o texto de lá.
@@ -13,6 +13,8 @@ export const MENSAGENS_USUARIO = {
   LOGIN_DUPLICADO: 'Login já cadastrado',
   PERFIL_OBRIGATORIO: 'Selecione pelo menos um perfil de acesso',
   PERFIL_INVALIDO: 'Perfil de acesso inexistente ou inativo',
+  // [PROVISÓRIO] (US-037, ajuste A6 da revisão do plano do P13).
+  PERFIL_EXCLUIDO: 'Um dos perfis de acesso selecionados acabou de ser excluído. Recarregue a tela e tente de novo.',
   UNIDADE_INVALIDA: 'Termo de Parceria inexistente ou inativo',
   CC_OBRIGATORIO: 'Informe o centro de custo de escopo do Gestor de Diretoria',
   CC_INVALIDO: 'Centro de custo de escopo inválido (até 60 caracteres, sem caracteres de controle)',
@@ -60,8 +62,10 @@ export const esquemaUsuario = z.object({
   email: z.string().trim().max(254, MENSAGENS_USUARIO.EMAIL).regex(EMAIL, MENSAGENS_USUARIO.EMAIL),
   login: z.string().trim(),
   ativo: z.boolean(),
+  // Código de perfil padrão ou criado pela tela (US-037, D-P13-2): aqui só o formato; a existência e o
+  // status são conferidos no banco (resolverVinculos).
   perfis: z
-    .array(z.enum(CODIGOS_PERFIL, { error: MENSAGENS_USUARIO.PERFIL_INVALIDO }))
+    .array(z.string(MENSAGENS_USUARIO.PERFIL_INVALIDO).regex(FORMATO_CODIGO_PERFIL, MENSAGENS_USUARIO.PERFIL_INVALIDO))
     .min(1, MENSAGENS_USUARIO.PERFIL_OBRIGATORIO)
     .transform((p) => [...new Set(p)]),
   unidades: z
@@ -74,7 +78,7 @@ export const esquemaUsuario = z.object({
   excecoes: z
     .array(
       z.object({
-        perfil: z.enum(CODIGOS_PERFIL, { error: MENSAGENS_EXCECAO.PERFIL_NAO_ASSOCIADO }),
+        perfil: z.string(MENSAGENS_EXCECAO.PERFIL_NAO_ASSOCIADO).regex(FORMATO_CODIGO_PERFIL, MENSAGENS_EXCECAO.PERFIL_NAO_ASSOCIADO),
         funcionalidade: z.string().trim().min(1, MENSAGENS_EXCECAO.FUNCIONALIDADE_FORA_DO_PERFIL).max(100, MENSAGENS_EXCECAO.FUNCIONALIDADE_FORA_DO_PERFIL),
       }),
     )
