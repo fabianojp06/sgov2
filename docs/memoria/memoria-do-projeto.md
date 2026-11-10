@@ -4,7 +4,7 @@
 >
 > Hierarquia: a **spec** (`docs/superpowers/specs/2026-10-24-sgo-v2-especificacao-oficial-design.md`) é a norma. O **backlog** (`docs/backlog/`) é o que construir e em que ordem. Este arquivo é **estado, decisões recentes e pendências**. Em caso de conflito, vale a spec.
 
-Última atualização: 10/11/2026 (frente A, P8 na `main` depois da volta do CI); 04/11/2026 (frente A, P8 planejado e implementado, merges esperando o CI); 04/11/2026 (frente B, P7 planejado e iniciado: plano, roteiro de homologação, conferência da carga, segurança e carga); 03/11/2026 (frente B, P4 completo na `main`, acréscimos ao C2 e ao C3 pedidos pela frente A, E2E no CI e seed no deploy; à noite, #302 e #221); 03/11/2026 (frente A, P6 completo na `main`, ressalvas do P5 e melhorias menores); 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: pilha mergeada; à tarde, #222 com a M5, ambiente único, Node 24 no CI e as telas do plano de contas); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
+Última atualização: 10/11/2026 (frente B, P7: carga, metas de servidor e plano sintético; conferência da carga completa; US-024 em 3 partes; máscara do Histórico); 10/11/2026 (frente A, P8 na `main` depois da volta do CI); 04/11/2026 (frente A, P8 planejado e implementado, merges esperando o CI); 04/11/2026 (frente B, P7 planejado e iniciado: plano, roteiro de homologação, conferência da carga, segurança e carga); 03/11/2026 (frente B, P4 completo na `main`, acréscimos ao C2 e ao C3 pedidos pela frente A, E2E no CI e seed no deploy; à noite, #302 e #221); 03/11/2026 (frente A, P6 completo na `main`, ressalvas do P5 e melhorias menores); 02/11/2026 (frente A, P5 Acesso na `main`, plano do P6 e P6 implementado em branches locais); 02/11/2026 (frente B, P4: pilha mergeada; à tarde, #222 com a M5, ambiente único, Node 24 no CI e as telas do plano de contas); 25/10/2026 (frente A, US-003 a US-010 e fim do P1; frente B, abertura, plano do P3 e Tarefas 1 a 5 do P3).
 
 ---
 
@@ -334,15 +334,15 @@
 
 **Frente B (04/11)**
 - [ ] **PO:**
-  - **carga de desempenho:** dar o ok para a primeira rodada do `ops/carga/rodar.sh` no dev local (D-P7-1; 20 usuários, cerca de 3 min, `--memory 256m`). A frente B não roda sem o ok, porque a VPS é a mesma da produção;
+  - ~~**carga de desempenho:** dar o ok para a primeira rodada do `ops/carga/rodar.sh` no dev local (D-P7-1; 20 usuários, cerca de 3 min, `--memory 256m`). A frente B não roda sem o ok, porque a VPS é a mesma da produção~~ **ok do PO em 04/11; rodada feita (#324)**;
   - **decisões D-P7-1 a 8** do plano do P7 (#307): sem objeção, valem as recomendações. A D-P7-6 diz que, sem o GAP-CC-001, o orçamento segue pelo plano B e o go-live espera; a §6.1a e a R16 proíbem a minuta em prod;
-  - **`X-Powered-By: Next.js`:** é um achado baixo da US-116 (#318). A correção é `poweredByHeader: false` no `next.config.ts`, num PR compartilhado, e a frente B abre com o ok do PO;
+  - ~~**`X-Powered-By: Next.js`:** é um achado baixo da US-116 (#318). A correção é `poweredByHeader: false` no `next.config.ts`, num PR compartilhado, e a frente B abre com o ok do PO~~ **corrigido com o ok do PO em 10/11 (#337, teste ligado no #340)**;
   - **`alerta-memoria.sh`:** reinstalar na VPS depois do #308 (`install -m 0755 ops/vps/alerta-memoria.sh /usr/local/sbin/sgo-alerta-memoria`), para a URL do webhook sair do `ps`;
   - **homologação:** criar a label `homologacao` antes da issue da R1 (D-P7-4).
 - [ ] **Para a frente A:**
-  - **conferência da carga:** o contrato `contarUsuariosPorPerfil(tx)` no `adm/servidor.ts` para a seção de usuários. A proposta está na #137;
-  - **`e2e/aut/semear.ts`:** acrescentar a `seedRel`, porque sem ela a tela do `rel` fica fora da matriz de autorização (#322). Pedido na #137;
-  - **`main-unico.test.ts`:** tirar a exceção `${SISTEMA}/cad` do `FORA`, porque as páginas do `cad` já não abrem `<main>` (#320);
+  - ~~**conferência da carga:** o contrato `contarUsuariosPorPerfil(tx)` no `adm/servidor.ts` para a seção de usuários. A proposta está na #137~~ **feito pela frente A (#335)**, usado no #344;
+  - ~~**`e2e/aut/semear.ts`:** acrescentar a `seedRel`, porque sem ela a tela do `rel` fica fora da matriz de autorização (#322). Pedido na #137~~ **feito pela frente A (#335)**;
+  - ~~**`main-unico.test.ts`:** tirar a exceção `${SISTEMA}/cad` do `FORA`, porque as páginas do `cad` já não abrem `<main>` (#320)~~ **feito pela frente A (#335)**;
   - **CSP completa e HSTS:** no `proxy.ts` ou no Traefik (PO). O teste está em `test.fixme` no `e2e/seguranca/cabecalhos.spec.ts` (#318).
 - [ ] **Frente B, próximos passos do P7:**
   - Task 2 parte 2: a seção de usuários, depois do contrato do `adm`;
@@ -353,6 +353,26 @@
   - **`server-only` no `servidor.ts`:** o `servidor.ts` de um módulo nunca pode alcançar um arquivo com `server-only`, porque o worker e a seed caem fora do Next. Quem mexer em `servidor.ts` roda o `worker/bundle.test.ts` (o #317 caiu nisso na primeira versão);
   - **GitHub instável:** com o incidente, o push por SSH falhava. O contorno foi `git -c credential.helper='!gh auth git-credential' push https://github.com/fabianojp06/sgov2.git <branch>`, e o merge pela API REST (`PUT pulls/N/merge` com `sha`) quando o GraphQL falhou;
   - **revisores em subagente:** o prompt diz explicitamente "não rode `git checkout`/`git switch` em `/root/sistemas/sgo-b`". Um revisor fez isso uma vez e voltou; a cópia principal foi conferida.
+
+**Frente B (10/11)**
+- [x] **CI:** o GitHub Actions ficou parado por cobrança de 04/11 a 10/11. O PO regularizou, e o CI voltou em 10/11 (o #324 rodou de novo).
+- [ ] **PO:**
+  - **coluna "Selos" na exportação dos CCs (#346):** as colunas "De gestão" e "Provisório" da parte 2 viraram a "Selos" da tela. Se a GFIN preferir as duas colunas, a frente B as devolve só na exportação;
+  - **perfis com `exportar`** no plano de contas e nos CCs (#343): GFIN, Orçamentista e Auditor; a DIREX e os demais só consultam (§11.3). Ajustar se a GFIN pedir;
+  - continuam do bloco de 04/11: reinstalar o `alerta-memoria.sh` e criar a label `homologacao`.
+- [ ] **Para a frente A** (pedidos na #138):
+  - a meta do recálculo do exercício (≤ 2 s para 1.000 linhas analíticas), num `*.int.test.ts` do `orc`, no formato do `cad/application/metas-desempenho.int.test.ts`;
+  - para a base de referência da D-P7-3: confirmar se a importação do `orc` aceita os exercícios de 2028 a 2031, o limite de linhas e as validações que um gerador da planilha-modelo precisa conhecer;
+  - quando a tela do Histórico mostrar `antes`/`depois`: usar o `mascararHistoricoCad` (#339) e registrar o `CONSULTA` de `cad.salarios` quando `contemSalario` vier `true` (R24). O aviso está no #330.
+- [ ] **Frente B, próximos passos:**
+  - **P7, Task 3:** o gerador dos 5 exercícios (depois da resposta da frente A) e a medição da Tree Grid sobre o plano de 5.000 linhas (`ops/carga/gerar-plano.ts`, #341). Atenção: a seed com `CARGA_DADOS_REFERENCIA=1` inativa o ramo `9` (README da carga);
+  - **P7, Task 4:** o ZAP (ativo no dev local, com o ok do PO, porque pesa na VPS);
+  - **US-024 (#46), o que falta:** a exportação assíncrona acima de 5.000 linhas (job e aviso) e o PDF (ISO 32000-1);
+  - Tasks 5 a 7 do P7: dependem da Tarefa 6 do P3 (GAP-INF-001).
+- [x] **Lições de 10/11:**
+  - **Prettier:** o projeto não tem configuração do Prettier. Rodar `npx prettier --write` reformata o arquivo inteiro com aspas duplas (aconteceu no #342, corrigido no #343). Não usar; se precisar, `--single-quote --print-width 160 --trailing-comma all --object-wrap collapse` reproduz o estilo;
+  - **matar processo por nome:** o classificador barrou um `kill` pelo nome `next-server`, porque poderia derrubar o dev da frente A. Parar só pelo PID do processo que a própria sessão subiu;
+  - **Playwright no host:** o Chromium não roda direto no host (faltam bibliotecas); usar a imagem oficial, como o E2E e o `ops/carga/rodar.sh`.
 
 **Com SMEs**
 - [ ] Wellington: ISS, GAP-CAD-004/005 e GAP-CAR-005 (contas de obrigações e riscos trabalhistas).
@@ -365,6 +385,7 @@
 | --- | --- | --- |
 | 10/11/2026 | A | CI de volta (cobrança regularizada pelo PO); P8 inteiro na `main` (#325 a #335), com os empilhados por *squash* na branch-pai e os conflitos resolvidos como na integração local; memória de 04/11 (#336); PO valida as decisões do P8 pelas recomendações (D-P8-2, 5, 6, 8 e 9, limite da recuperação, #64, textos provisórios, CSP no `proxy.ts` e HSTS no Traefik) |
 | 04/11/2026 | A | Manhã: R10, semáforo real, leitor seguro, AcaoConfirmada do ger, Playwright no CI, credenciais e trava do Histórico (#309 a #312, #314 a #316); GitHub instável e, desde 10:22, CI parado por cobrança; P8 (base de R0/R1) planejado (#325, duas rodadas de revisão) e implementado: US-028 (#326), US-042 (#327, #328), US-040 (#329, #330), US-007 (#331), US-029 (#332 a #334) e pedidos da frente B (#335), cada um com revisão 12.12 e ressalvas corrigidas; revisão de bloco; integração local verde; merges esperando o CI |
+| 10/11/2026 | B | CI de volta depois da cobrança; P7: carga com login no contêiner e primeira rodada no dev (p95 de 149 ms, #324), metas de servidor (escrita p95 ≤ 43 ms, exportação de 5.000 linhas em 0,9 s, #338) e plano de contas sintético de 5.000 linhas (#341); conferência da carga completa com a seção de usuários (#344, contrato do adm no #335); US-024 em 3 partes: cabeçalho de filtros e marca do operador e do rastreio no C3 (#342), exportação do plano de contas e dos CCs pelas telas (#343) e com os filtros da tela (#346); contrato de máscara dos salários no Histórico para a frente A (#339); `X-Powered-By` desligado (#337, #340); de acordo da frente B no #333; revisão 12.12 por agente independente em cada PR |
 | 04/11/2026 | B | P7 planejado e iniciado: plano (#307, D-P7-1 a 8); roteiro de homologação (#313, Task 1); relatório de conferência da carga, o primeiro do `rel` (#317, Task 2) e a seed no orquestrador (#319); testes de segurança de cabeçalhos e cookie (#318) e a matriz de autorização pelo catálogo (#322, Task 4); ferramentas de carga com o k6, sem rodar (#321, Task 3); CSV seguro no `ger` (#306, fecha a #233); pendências da VPS (#308, fecha a #153); páginas do `cad` sem `<main>` (#320); teste dos hooks numa sessão nova (#145); GitHub com incidente na manhã (push por HTTPS, merge pela API REST); revisão 12.12 por agente independente em cada PR |
 | 03/11/2026 | B | P4 completo na `main`: #249, #254, cargos 12a a 12c (#261, #267, #270), benefícios do cargo (#272) e custo do cargo (#274); correções do `cad` pedidas pela frente A (#276) e log das cargas sem valores (#288); C3 para a frente A (#278, #279, #284, #287) e C2 (#295); E2E no CI (#292), Argon2 na imagem (#297) e seed no deploy (#299); #221 atualizado com a `main`; revisão 12.12 por agente independente em cada PR, com os bloqueantes corrigidos antes do merge; merges com a autorização do PO para seguir as recomendações; à noite, benefícios do cargo no exercício novo (#302, decisão do PO) e #221 na `main` depois da #223 |
 | 03/11/2026 | A | P6 completo na `main`: seed do orc (#251), US-121 (#252, #253, #258), US-055 parte 2 (#255), US-060 (#256), US-058 (#259), US-059 (#260), US-061 (#262) e E2E (#265, Task 9 por subagente, revisada); encerramento do P5 (#257, `flock` nos testes pesados e spec 1.6); ressalvas 1, 2, 3 e 5 do P5 (#263, #266); CC de escopo pelo C1 (#264); melhorias menores do Histórico (#268) e mensagens do Zod em pt-BR (#269); revisão de bloco do P6 com 3 lentes e correções (#273, #275); à tarde, dívida técnica: issue #280 e ressalva 4 do P5 com medição (#293), fronteiras de erro da raiz (#290), diálogos e `<main>` único (#281, #291), auditoria (#282, #294), config e prisma (#283, #286), kernel (#285), testes das filas (#289); revisão 12.12 por agente independente em cada PR; merges com a autorização do PO para seguir as recomendações; noite: aprovação do PO na #223 publicada, regra do aviso direto entre frentes (#303) e #223 fechada |
