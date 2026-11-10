@@ -1,6 +1,6 @@
 import { Dinheiro, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
 import { CELULA_INVALIDA, formatarCelula, type TipoColuna, type ValorCelula } from '../domain/celula';
-import { validarPlanilhas, type PlanilhaExportacao } from './exportacao';
+import { linhasIdentificacao, validarPlanilhas, type PlanilhaExportacao } from './exportacao';
 
 // Contrato C3: exportação para CSV (issue #233, R17 do P6), na mesma forma do XLSX (uma aba).
 // Formato do Excel em pt-BR: BOM UTF-8, separador ";", vírgula decimal, linhas com \r\n e todo
@@ -14,7 +14,11 @@ import { validarPlanilhas, type PlanilhaExportacao } from './exportacao';
 export function exportarCsv(planilha: PlanilhaExportacao): Resultado<Uint8Array> {
   const v = validarPlanilhas([planilha]);
   if (!v.ok) return falha(v.erros);
+  // US-024: o cabeçalho legível (filtros, operador e rastreio) vem antes da tabela, um campo por
+  // linha e uma linha vazia depois, com o mesmo escape de fórmula do resto.
+  const cabecalho = planilha.identificacao ? [...linhasIdentificacao(planilha.identificacao).map((t) => [campo(textoSeguro(t))]), []] : [];
   const linhas = [
+    ...cabecalho,
     planilha.colunas.map((c) => campo(textoSeguro(c.titulo))),
     ...planilha.linhas.map((l) => l.map((valor, i) => campo(valorDoCampo(planilha.colunas[i]!.tipo, valor)))),
   ];
