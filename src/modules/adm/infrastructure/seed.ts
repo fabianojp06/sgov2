@@ -19,6 +19,20 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'incluir', 'alterar'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar'] },
   },
+  {
+    // US-042 (§11.4, §6.4: Administração › Parâmetros › Alçadas de Aprovação), exclusivo do Administrador.
+    codigo: 'adm.alcadas',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Parâmetros',
+    nome: 'Alçadas de Aprovação',
+    rota: '/adm/alcadas',
+    ordem: 2,
+    ajuda:
+      'Cadastre o titular e o substituto de cada fluxo de aprovação. O substituto assume quando o titular está inativo; ' +
+      'trocar um aprovador ou excluir mantém o registro de quem aprovava em cada período.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'alterar', 'excluir'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {

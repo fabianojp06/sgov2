@@ -7,9 +7,9 @@ import { describe, expect, it } from 'vitest';
 const PROIBIDOS = /node_modules\/(pg|pg-boss|pg-pool|@prisma|prisma|nodemailer|exceljs|argon2|@node-rs|server-only)\//;
 
 describe('bundle do navegador dos componentes cliente do adm', () => {
-  it('form-usuario não alcança código de servidor', async () => {
+  it('form-usuario e form-alcada não alcançam código de servidor', async () => {
     const r = await build({
-      entryPoints: ['src/modules/adm/ui/form-usuario.tsx'],
+      entryPoints: ['src/modules/adm/ui/form-usuario.tsx', 'src/modules/adm/ui/form-alcada.tsx'],
       bundle: true,
       splitting: true,
       format: 'esm',
