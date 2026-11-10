@@ -1,4 +1,4 @@
-import type { Seed, TxCliente } from '@/shared/db';
+import { travarRecurso, type Seed, type TxCliente } from '@/shared/db';
 import { auditarSeed } from '../application/auditar-seed';
 import { obterConfiguracaoAcesso } from '../application/configuracao';
 import { normalizarLogin } from '../domain/login';
@@ -27,7 +27,7 @@ export function criarSeedAdministradorInicial(env: Env = process.env, agora: () 
     nome: 'adm.administrador-inicial',
     executar: async (tx) => {
       // Duas seeds ao mesmo tempo (dois deploys): a segunda espera e vê o administrador criado.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('adm:administrador-inicial'))`;
+      await travarRecurso(tx, 'adm:administrador-inicial');
       if (await existeAdministradorAtivo(tx)) return;
 
       const faltando = VARIAVEIS.filter((v) => !env[v]?.trim());
