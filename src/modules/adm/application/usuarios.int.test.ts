@@ -12,6 +12,7 @@ import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_USUARIO } from '../domain/usuario';
 import { seedAdm } from '../infrastructure/seed';
 import { conferirSenha } from '../infrastructure/senha-argon2';
+import { instalarFuncionalidades } from './instalar-funcionalidades';
 import { alterarUsuario, cadastrarUsuario, desbloquearUsuario, listarUsuarios, obterUsuario, resetarSenha } from './usuarios';
 
 // Falhas injetadas na auditoria (R13 do plano: vi.spyOn não alcança export ESM).
@@ -648,5 +649,37 @@ describe('login duplicado decidido pelo índice único', () => {
     const r = await cadastrarUsuario(ctx, dados('NINA'), { ...deps(), cliente: cego });
     expect(r).toEqual({ ok: false, erros: [{ campo: 'login', mensagem: MENSAGENS_USUARIO.LOGIN_DUPLICADO }] });
     expect(email.enviados).toEqual([]);
+  });
+});
+
+// US-037 (D-P13-2): o cadastro de usuários aceita o perfil criado pela tela (código P_…), com exceção
+// de funcionalidade; o perfil da tela inativo não entra em vínculo novo.
+describe('perfil criado pela tela de perfis', () => {
+  it('associa o usuário ao perfil da tela, com exceção; o inativo é recusado para vínculo novo', async () => {
+    await migrator.$transaction((tx) =>
+      instalarFuncionalidades(tx, [
+        { codigo: 'cad.tela_um', modulo: 'CADASTROS', grupo: 'G', nome: 'Tela Um', rota: '/cad/tela-um', ordem: 1, acoes: ['consultar'], perfisPadrao: {} },
+        { codigo: 'cad.tela_dois', modulo: 'CADASTROS', grupo: 'G', nome: 'Tela Dois', rota: '/cad/tela-dois', ordem: 2, acoes: ['consultar'], perfisPadrao: {} },
+      ]),
+    );
+    const daTela = await migrator.perfil.create({
+      data: {
+        codigo: 'P_0A0B0C0D0E0F',
+        nome: 'Perfil da Tela',
+        descricao: '',
+        permissoes: { create: [{ funcionalidadeCodigo: 'cad.tela_um', acao: 'consultar' }, { funcionalidadeCodigo: 'cad.tela_dois', acao: 'consultar' }] },
+      },
+    });
+    const id = await cadastrar('da.tela', { perfis: [daTela.codigo], excecoes: [{ perfil: daTela.codigo, funcionalidade: 'cad.tela_dois' }] });
+    expect((await usuario(id)).perfis.map((p) => p.perfil.codigo)).toEqual([daTela.codigo]);
+    expect((await obterUsuario(ctx, id, deps()))?.excecoes).toEqual([{ perfil: daTela.codigo, funcionalidade: 'cad.tela_dois' }]);
+    await migrator.perfil.update({ where: { id: daTela.id }, data: { ativo: false } });
+    const r = await cadastrarUsuario(ctx, dados('da.tela2', { perfis: [daTela.codigo] }), deps());
+    expect(r).toEqual({ ok: false, erros: [{ campo: 'perfis', mensagem: MENSAGENS_USUARIO.PERFIL_INVALIDO }] });
+    // Código fora do formato: recusado já na validação.
+    expect(await cadastrarUsuario(ctx, dados('da.tela3', { perfis: ['p_minusculo'] }), deps())).toEqual({
+      ok: false,
+      erros: [{ campo: 'perfis', mensagem: MENSAGENS_USUARIO.PERFIL_INVALIDO }],
+    });
   });
 });

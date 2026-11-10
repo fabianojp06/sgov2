@@ -62,6 +62,28 @@ describe('privilégios do adm', () => {
     await expect(app.query(`UPDATE perfil SET codigo = 'ADMIN2' WHERE codigo = 'PX'`)).rejects.toEqual(negado);
   });
 
+  // US-037 (migration 202611102000_adm_perfil_tela): versão e exclusão do perfil criado pela tela.
+  it('perfil: sgo_app muda a versão e apaga perfil P_; não muda o código nem apaga padrão; sgo_sync sem acesso', async () => {
+    const { rows } = await migrator.query(`INSERT INTO perfil (codigo, nome, descricao) VALUES ('P_0123456789AB', 'Da Tela', '') RETURNING id`);
+    const id = (rows[0] as { id: string }).id;
+    await expect(app.query(`UPDATE perfil SET versao = versao + 1 WHERE id = $1`, [id])).resolves.toBeDefined();
+    await expect(app.query(`UPDATE perfil SET codigo = 'P_FFFFFFFFFFFF' WHERE id = $1`, [id])).rejects.toEqual(negado);
+    await expect(app.query(`DELETE FROM perfil WHERE id = $1`, [id])).resolves.toEqual(expect.objectContaining({ rowCount: 1 }));
+    await expect(app.query(`DELETE FROM perfil WHERE codigo = 'PX'`)).rejects.toEqual(expect.objectContaining({ code: '23514' }));
+    await expect(sync.query('SELECT * FROM perfil')).rejects.toEqual(negado);
+  });
+
+  it('perfil: CHECKs de nome, descrição e código e nome único sem diferenciar maiúsculas', async () => {
+    const inserir = (codigo: string, nome: string, descricao = '') => migrator.query(`INSERT INTO perfil (codigo, nome, descricao) VALUES ($1, $2, $3)`, [codigo, nome, descricao]);
+    const check = expect.objectContaining({ code: '23514' });
+    await expect(inserir('P_000000000001', ' Espaço')).rejects.toEqual(check);
+    await expect(inserir('P_000000000002', '')).rejects.toEqual(check);
+    await expect(inserir('P_000000000003', 'n'.repeat(101))).rejects.toEqual(check);
+    await expect(inserir('P_000000000004', 'Descrição longa', 'd'.repeat(501))).rejects.toEqual(check);
+    await expect(inserir('minusculo', 'Código ruim')).rejects.toEqual(check);
+    await expect(inserir('P_000000000005', 'PERFIL x')).rejects.toEqual(expect.objectContaining({ code: '23505' }));
+  });
+
   it('sgo_app não lê os padrões aplicados pela seed', async () =>
     expect(app.query('SELECT * FROM permissao_padrao_aplicada')).rejects.toEqual(negado));
 
@@ -127,7 +149,7 @@ describe('privilégios do adm', () => {
       migrator.query(`INSERT INTO funcionalidade (codigo, modulo_codigo, grupo, nome, rota, ordem, acoes)
         VALUES ('mmm.g', 'M', 'g', 'g', '/g', 1, '{voar}')`),
     ).rejects.toEqual(expect.objectContaining({ code: '23514' }));
-    const { rows } = await migrator.query(`INSERT INTO perfil (codigo, nome, descricao) VALUES ('P', 'P', 'P') RETURNING id`);
+    const { rows } = await migrator.query(`INSERT INTO perfil (codigo, nome, descricao) VALUES ('PP', 'P', 'P') RETURNING id`);
     await expect(
       migrator.query(`INSERT INTO perfil_permissao (perfil_id, funcionalidade_codigo, acao) VALUES ($1, 'mmm.f', 'voar')`, [
         (rows[0] as { id: string }).id,

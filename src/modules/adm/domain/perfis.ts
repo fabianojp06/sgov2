@@ -24,3 +24,40 @@ export const PERFIS_PADRAO: Readonly<Record<CodigoPerfil, { nome: string; descri
 };
 
 export const ehCodigoPerfil = (v: string): v is CodigoPerfil => (CODIGOS_PERFIL as readonly string[]).includes(v);
+
+// Perfil padrão: o de código fixo do catálogo, instalado pela seed. Os criados pela tela (US-037)
+// recebem um código gerado com o prefixo PREFIXO_PERFIL_TELA, que nenhum padrão usa (D-P13-2, A5).
+export const ehPerfilPadrao = (codigo: string): boolean => ehCodigoPerfil(codigo);
+
+// Formato de todo código de perfil (o CHECK da migration 202611102000_adm_perfil_tela repete a regra).
+export const FORMATO_CODIGO_PERFIL = /^[A-Z][A-Z0-9_]{1,39}$/;
+// Reservado aos perfis criados pela tela: o gatilho do banco só deixa apagar perfil com ele (A5).
+export const PREFIXO_PERFIL_TELA = 'P_';
+// Criado pela tela: só ele pode ser excluído (D-P13-3). Os demais (padrões e os semeados por teste)
+// contam como padrão na tela.
+export const ehPerfilDaTela = (codigo: string): boolean => codigo.startsWith(PREFIXO_PERFIL_TELA);
+
+// Código do perfil criado pela tela (D-P13-2): P_ + 12 hexadecimais maiúsculos de um UUID aleatório.
+// Imutável e invisível na tela; o caso de uso confere a colisão e tenta de novo.
+export function gerarCodigoPerfil(uuid: string = globalThis.crypto.randomUUID()): string {
+  return `${PREFIXO_PERFIL_TELA}${uuid.replaceAll('-', '').slice(0, 12).toUpperCase()}`;
+}
+
+// Módulo exclusivo do Administrador (RN_SEED_003) e a única exceção a ela (D-P8-8): o Auditor consulta
+// o Histórico de Operações (spec §11.3). O mesmo código do módulo protegido da D-P9-7.
+const MODULO_ADMINISTRACAO = 'ADMINISTRACAO';
+const EXCECOES_ADMINISTRACAO: Readonly<Record<string, readonly string[]>> = { 'adm.historico': ['AUDITOR'] };
+
+// RN_SEED_003 num lugar só (D-P13-4), usado pela seed (validarDeclaracoes) e pela tela de perfis: só o
+// Administrador recebe funcionalidade da Administração (código adm.* ou módulo ADMINISTRACAO), salvo
+// adm.historico ao Auditor. Fora da Administração, qualquer perfil pode receber.
+export function podeReceberFuncionalidade(perfilCodigo: string, funcionalidadeCodigo: string, moduloCodigo: string): boolean {
+  const daAdministracao = moduloCodigo === MODULO_ADMINISTRACAO || funcionalidadeCodigo.startsWith('adm.');
+  if (!daAdministracao || perfilCodigo === 'ADMINISTRADOR') return true;
+  return Object.hasOwn(EXCECOES_ADMINISTRACAO, funcionalidadeCodigo) && EXCECOES_ADMINISTRACAO[funcionalidadeCodigo]!.includes(perfilCodigo);
+}
+
+// As funcionalidades da Administração do perfil Administrador ficam fora da tela de perfis (D-P13-4,
+// ajuste A2): a grade as mostra fixas, e o caso de uso não as toca.
+export const ehFixaDoAdministrador = (perfilCodigo: string, funcionalidadeCodigo: string, moduloCodigo: string): boolean =>
+  perfilCodigo === 'ADMINISTRADOR' && (moduloCodigo === MODULO_ADMINISTRACAO || funcionalidadeCodigo.startsWith('adm.'));

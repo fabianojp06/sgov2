@@ -60,6 +60,10 @@ const retrato = (u: Omit<UsuarioValidado, 'loginNormalizado'>) => ({
 
 const ehLoginDuplicado = (erro: unknown) => erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2002';
 const loginDuplicado = () => falha([{ campo: 'login', mensagem: MENSAGENS_USUARIO.LOGIN_DUPLICADO }]);
+// Perfil excluído pela tela de perfis entre a leitura e a associação (US-037, ajuste A6): a exclusão
+// trava a linha do perfil, e a FK do usuario_perfil recusa o vínculo depois do commit dela.
+const ehPerfilExcluido = (erro: unknown) => erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2003';
+const perfilExcluido = () => falha([{ campo: 'perfis', mensagem: MENSAGENS_USUARIO.PERFIL_EXCLUIDO }]);
 const alterado = () => falha([{ campo: '_', mensagem: MENSAGENS_USUARIO.ALTERADO }]);
 
 // Serializa as mudanças que podem tirar o último Administrador ativo. Depende do READ COMMITTED
@@ -98,7 +102,7 @@ async function resolverVinculos(
       return falha([{ campo: 'ccEscopo', mensagem: MENSAGENS_USUARIO.CC_FORA_ESTRUTURA }]);
     }
   }
-  // Ordem do catálogo (CODIGOS_PERFIL) para o Histórico sair estável.
+  // Na ordem pedida (padrões e perfis da tela, D-P13-2); o retrato do Histórico ordena os códigos.
   return ok({ perfis: u.perfis.map((codigo) => perfis.find((p) => p.codigo === codigo)!) });
 }
 
@@ -223,6 +227,7 @@ export async function cadastrarUsuario(ctx: ContextoRequisicao, entrada: unknown
   } catch (erro) {
     // Dois cadastros simultâneos do mesmo login: o índice único decide (RN0065).
     if (ehLoginDuplicado(erro)) return loginDuplicado();
+    if (ehPerfilExcluido(erro)) return perfilExcluido();
     throw erro;
   }
 }
@@ -240,7 +245,14 @@ export async function alterarUsuario(
   const { cliente, agora, estrutura } = resolver(deps);
   if (!idValido(id)) throw inexistente();
   const contexto = contextoAuditoria(ctx);
-  return cliente.$transaction(async (tx) => {
+  try {
+    return await cliente.$transaction((tx) => gravarAlteracao(tx));
+  } catch (erro) {
+    if (ehPerfilExcluido(erro)) return perfilExcluido();
+    throw erro;
+  }
+
+  async function gravarAlteracao(tx: TxCliente): Promise<Resultado<void>> {
     await travarAdministradores(tx);
     const atual = await tx.usuario.findUnique({
       where: { id },
@@ -361,7 +373,7 @@ export async function alterarUsuario(
     }
     await auditarExcecoes(tx, contexto, id, u.nome, (codigo) => perfil(codigo).nome, catalogo.nome, excecoesCriadas, excecoesRemovidas);
     return ok(undefined);
-  });
+  }
 }
 
 // UC02.13 A2 / UC02.18: nova senha temporária, enviada por e-mail; as sessões abertas caem. Não

@@ -87,6 +87,21 @@ export {
   type ItemListaUsuario,
   type OpcoesUsuario,
 } from './application/usuarios';
+export { cadastrarPerfil, removerPerfil, salvarPerfil } from './application/acoes-perfis';
+export {
+  alterarPerfil,
+  excluirPerfil,
+  gradePermissoes,
+  incluirPerfil,
+  listarPerfis,
+  obterPerfil,
+  type DepsPerfis,
+  type DetalhePerfil,
+  type FuncionalidadeDaGrade,
+  type LinhaPerfil,
+  type ModuloDaGrade,
+} from './application/perfis';
+export { MENSAGENS_PERFIL, validarPerfil, type EntradaPerfil } from './domain/perfil';
 export { normalizarLogin } from './domain/login';
 export { CODIGOS_PERFIL, type CodigoPerfil } from './domain/perfis';
 export { esquemaUsuario, MENSAGENS_USUARIO, type EntradaUsuario } from './domain/usuario';

@@ -24,7 +24,8 @@ export async function contarUsuariosPorPerfil(tx: TxCliente): Promise<ContagemUs
     LEFT JOIN usuario u ON u.id = up.usuario_id
     GROUP BY p.codigo, p.nome, p.ativo`;
   const ordem = (c: string) => (CODIGOS_PERFIL as readonly string[]).indexOf(c);
-  // Na ordem do catálogo; perfis criados fora dele (testes) ficam de fora.
+  // Na ordem do catálogo, só os perfis padrão: os criados pela tela (US-037, códigos P_…) não são
+  // contados, e a interface do contrato com a frente B (#137) não muda (ajuste A4 do plano do P13).
   const perfis = linhas
     .filter((l) => ordem(l.codigo) >= 0)
     .sort((a, b) => ordem(a.codigo) - ordem(b.codigo))

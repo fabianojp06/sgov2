@@ -28,7 +28,7 @@ describe('validarUsuario (UC02.12, UC02.13)', () => {
     const e = { perfil: 'ORCAMENTISTA', funcionalidade: 'cad.centros_custo' };
     const r = validarUsuario({ ...base, excecoes: [e, { ...e, funcionalidade: ' cad.centros_custo ' }] });
     expect(r.ok && r.valor.excecoes).toEqual([e]);
-    expect(campos(validarUsuario({ ...base, excecoes: [{ perfil: 'X', funcionalidade: 'cad.um' }] }))).toEqual(['excecoes']);
+    expect(campos(validarUsuario({ ...base, excecoes: [{ perfil: 'x', funcionalidade: 'cad.um' }] }))).toEqual(['excecoes']);
     expect(campos(validarUsuario({ ...base, excecoes: [{ perfil: 'GFIN', funcionalidade: ' ' }] }))).toEqual(['excecoes']);
   });
 
@@ -37,7 +37,13 @@ describe('validarUsuario (UC02.12, UC02.13)', () => {
     expect(r).toEqual({ ok: false, erros: [{ campo: 'perfis', mensagem: MENSAGENS_USUARIO.PERFIL_OBRIGATORIO }] });
   });
 
-  it('perfil fora do catálogo: erro em perfis', () => expect(campos(validarUsuario({ ...base, perfis: ['SUPER'] }))).toEqual(['perfis']));
+  // D-P13-2 (US-037): o perfil criado pela tela tem código gerado; aqui só o formato. A existência e o
+  // status são conferidos no banco (resolverVinculos, usuarios.int.test.ts).
+  it('perfil fora do formato de código: erro em perfis; código no formato passa para o banco conferir', () => {
+    expect(campos(validarUsuario({ ...base, perfis: ['super'] }))).toEqual(['perfis']);
+    expect(campos(validarUsuario({ ...base, perfis: ['X'] }))).toEqual(['perfis']);
+    expect(validarUsuario({ ...base, perfis: ['P_0A0B0C0D0E0F'] }).ok).toBe(true);
+  });
 
   it('GESTOR_DIRETORIA sem CC de escopo, ou CC sem esse perfil: erro em ccEscopo (C25)', () => {
     expect(validarUsuario({ ...base, perfis: ['GESTOR_DIRETORIA'] })).toEqual({

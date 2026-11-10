@@ -37,12 +37,17 @@ model Funcionalidade {
   @@map("funcionalidade")
 }
 
+// Perfil de acesso: os padrões vêm da seed (código fixo, §11.3); os criados pela tela (US-037) têm o
+// código P_ + 12 hexadecimais (D-P13-2). Nome único sem diferenciar maiúsculas (índice perfil_nome_ci_key
+// em lower(nome)), CHECKs de nome, descrição e código, e o gatilho que só deixa apagar perfil P_ ficam
+// na migration 202611102000_adm_perfil_tela, que o Prisma não declara.
 model Perfil {
   id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   codigo     String            @unique
   nome       String
   descricao  String
   ativo      Boolean           @default(true)
+  versao     Int               @default(0)
   permissoes PerfilPermissao[]
   usuarios   UsuarioPerfil[]
 
