@@ -13,7 +13,7 @@ import { contasVetadasEmPacote } from './contas-vetadas';
 
 // Exercícios do orçamento da Adm. Central (US-055; plano do P6, Task 3; spec §6.6).
 
-const CONSULTAS_ORC = ['orc.orcamento', 'orc.exercicios', 'orc.receitas', 'orc.importacao', 'orc.aprovacao'];
+const CONSULTAS_ORC = ['orc.orcamento', 'orc.exercicios', 'orc.receitas', 'orc.importacao', 'orc.aprovacao', 'orc.pacotes'];
 
 export type ResumoExercicio = { id: string; ano: number; situacao: SituacaoExercicio; rotuloSituacao: string; versao: number; oficializadoEm: Date | null };
 

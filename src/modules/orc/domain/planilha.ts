@@ -219,6 +219,16 @@ function validarPacote(l: LinhaPlanilha, estrutura: ConsultaEstrutura, limites: 
   };
 }
 
+// Um pacote lançado pela tela (US-057; plano do P11): a mesma validação da aba Pacotes base zero,
+// com os nomes das colunas como campos dos erros (a aplicação traduz para os campos do formulário).
+export type DadosPacoteValidado = Omit<PacoteValidado, 'linha'>;
+export function validarLinhaPacote(celulas: LinhaPlanilha['celulas'], estrutura: ConsultaEstrutura, limites: LimitesPlanilha): Resultado<DadosPacoteValidado> {
+  const lista: ErroPlanilha[] = [];
+  const p = validarPacote({ numero: 0, celulas }, estrutura, limites, lista);
+  if (!p) return falha(lista.map((x): ErroCampo => ({ campo: x.coluna ?? '_', mensagem: x.mensagem })));
+  return ok({ cc: p.cc, conta: p.conta, justificativa: p.justificativa, prioridade: p.prioridade, quantidade: p.quantidade, valorUnitario: p.valorUnitario, corrigirIpca: p.corrigirIpca, distribuicao: p.distribuicao, mesOcorrencia: p.mesOcorrencia });
+}
+
 // Uma linha de receita (aba Receitas ou tela da Task 5). Os campos dos erros são os nomes das colunas.
 export function validarReceita(celulas: LinhaPlanilha['celulas']): Resultado<Omit<ReceitaValidada, 'linha'>> {
   const lista: ErroPlanilha[] = [];

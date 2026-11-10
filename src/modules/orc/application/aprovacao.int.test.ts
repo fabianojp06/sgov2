@@ -122,7 +122,7 @@ describe('enviarParaAprovacao', () => {
     const inativa = estruturaFinanceiraFalsa({ centrosCusto: CENTROS_CUSTO_EXEMPLO.map((n) => marcarInativo(n, '4.4')) });
     expect(await enviarParaAprovacao(GFIN(), { id: e.id, versao: v }, e.deps({ estrutura: inativa }))).toEqual({
       ok: false,
-      erros: [{ campo: '_', mensagem: 'CC 4.4 ou conta 4.1.1.1.001 não é mais analítico ativo: reimporte a planilha antes de enviar.' }],
+      erros: [{ campo: '_', mensagem: 'CC 4.4 ou conta 4.1.1.1.001 não é mais analítico ativo: reimporte a planilha ou corrija o pacote na tela antes de enviar.' }],
     });
     // Conta que deixou de ser analítica ativa (R2), com o CC ativo: também recusa.
     const inativarConta = (n: NoConta): NoConta => ({ ...n, ativa: n.classificacao === '4.1.1.1.001' ? false : n.ativa, filhos: n.filhos.map(inativarConta) });

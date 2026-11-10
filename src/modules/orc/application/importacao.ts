@@ -134,8 +134,9 @@ export async function importarPlanilha(
         data: { exercicioId: e.id, arquivoNome: nomeArquivo, arquivoSha256: sha256, criadoPor: ctx.usuarioId, resumo: { porCc: resumoContagem, receitas: receitas.map((r) => r.tp) } },
       });
       // R7: substitui só os CCs do arquivo (as linhas saem em cascata) e as receitas dos TPs do arquivo.
+      // Os pacotes lançados pela tela (origem TELA) sobrevivem à reimportação (plano do P11).
       await tx.posicaoOrcada.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs } } });
-      await tx.pacoteBaseZero.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs } } });
+      await tx.pacoteBaseZero.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs }, origem: { not: 'TELA' } } });
       await tx.posicaoOrcada.createMany({
         data: posicoes.map((p) => ({
           exercicioId: e.id, cc: p.cc, cargo: p.cargo, quantidade: p.quantidade, salarioMensal: p.salarioMensal.paraString(),
@@ -156,6 +157,8 @@ export async function importarPlanilha(
           total: Dinheiro.somarTodos(r.meses).paraString(), importacaoId: importacao.id,
         })),
       });
+      // [PROVISÓRIO] Aviso dos pacotes da tela que ficaram nos CCs do arquivo (D-P11-7).
+      const daTela = await tx.pacoteBaseZero.groupBy({ by: ['cc'], where: { exercicioId: e.id, cc: { in: ccs }, origem: 'TELA' }, _count: { _all: true }, orderBy: { cc: 'asc' } });
       const recalculo = await recalcularExercicio(tx, e.id, deps);
       // As premissas são relidas no recálculo: uma versão nova gravada entre as duas leituras também desfaz.
       if (escopo.tipo !== 'TOTAL' && e.versaoPremissas !== null && recalculo.versaoPremissas !== e.versaoPremissas) {
@@ -191,7 +194,7 @@ export async function importarPlanilha(
         ccs: ccs.length,
         receitas: receitas.length,
         resumoPorCc,
-        mensagem: MENSAGENS_ORC.IMPORTADA(posicoes.length, pacotes.length, ccs.length, receitas.length),
+        mensagem: [MENSAGENS_ORC.IMPORTADA(posicoes.length, pacotes.length, ccs.length, receitas.length), ...daTela.map((g) => MENSAGENS_ORC.PACOTES_DA_TELA_MANTIDOS(g.cc, g._count._all))].join(' '),
       });
     });
   } catch (erro) {

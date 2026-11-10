@@ -11,6 +11,9 @@ import type { DepsOrc } from './deps';
 export const CAMPOS_ORIGEM_BLINDADA = {
   exercicio: ['situacao', 'versaoPremissas', 'enviadoPor', 'oficializadoEm', 'tetoEfetivo'],
   receita: ['origem', 'total', 'liquido', 'iss', 'importacaoId'],
+  // D-P11-5: a tela altera pacote de qualquer origem, mas nunca muda a origem, a importação nem o
+  // exercício (o da inclusão vem do formulário); valor anual e parcelas são sempre do servidor.
+  pacote: ['origem', 'importacaoId', 'exercicioId', 'valorAnual', 'meses', 'linhas'],
 } as const satisfies Record<string, readonly string[]>;
 
 export async function recusarCamposBlindados(

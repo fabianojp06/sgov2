@@ -42,7 +42,7 @@ export const MENSAGENS_ORC = {
   MES_NEGATIVO: 'Valor do mês não pode ser negativo.',
   // Envio e aprovação (Task 8)
   EXERCICIO_VAZIO: 'O orçamento não tem lançamentos para enviar.',
-  LANCAMENTO_INATIVO: (cc: string, conta: string) => `CC ${cc} ou conta ${conta} não é mais analítico ativo: reimporte a planilha antes de enviar.`,
+  LANCAMENTO_INATIVO: (cc: string, conta: string) => `CC ${cc} ou conta ${conta} não é mais analítico ativo: reimporte a planilha ou corrija o pacote na tela antes de enviar.`,
   QUEM_ENVIOU_NAO_APROVA: 'Quem enviou o orçamento para aprovação não pode aprová-lo.',
   REJEICAO_CURTA: 'A justificativa da rejeição precisa ter pelo menos 15 caracteres.',
   CONFIRMA_ENVIO: (ano: number) => `Deseja realmente enviar o orçamento ${ano} para aprovação?`,
@@ -76,4 +76,11 @@ export const MENSAGENS_ORC = {
   RECEITA_DUPLICADA: (tp: string) => `Já existe receita do TP ${tp} neste exercício.`,
   RECEITA_INEXISTENTE: 'Receita não encontrada.',
   SELO_TRANSICAO: 'Digitado na transição',
+  // Pacotes base zero pela tela (US-057; plano do P11) [PROVISÓRIOS]
+  PREMISSAS_DESATUALIZADAS_PACOTE: 'As premissas do exercício mudaram. Peça à GFIN para recalcular o orçamento antes de lançar.',
+  PACOTE_DA_PLANILHA: 'Este pacote veio da planilha: uma nova importação deste CC o substitui.',
+  PACOTE_INEXISTENTE: 'Pacote não encontrado.',
+  RECALCULO_BARROU_PACOTE: 'O pacote não foi gravado: o recálculo do orçamento encontrou erro em outro lançamento do exercício.',
+  PACOTES_DA_TELA_MANTIDOS: (cc: string, n: number) => `O CC ${cc} mantém ${n} pacote(s) lançado(s) pela tela.`,
+  CONFIRMA_EXCLUSAO_PACOTE: (conta: string, cc: string) => `Deseja realmente excluir o pacote da conta ${conta} do CC ${cc}?`,
 } as const;
