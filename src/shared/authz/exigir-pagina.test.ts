@@ -17,13 +17,15 @@ const base: ContextoRequisicao = {
   permissoes: new Set(['adm.usuarios:consultar']),
 };
 let contexto: ContextoRequisicao | null;
+let motivo: 'NOVO_ACESSO' | null;
 let negacoes: EventoAuditoria[];
 
 beforeEach(() => {
   contexto = base;
+  motivo = null;
   negacoes = [];
   limparJanelaNegacoes();
-  configurarProvedorContexto({ obter: async () => contexto });
+  configurarProvedorContexto({ obter: async () => contexto, motivoAusencia: async () => motivo });
   configurarAuditorNegacao(async (e) => {
     negacoes.push(e);
   });
@@ -36,6 +38,12 @@ describe('exigirPagina', () => {
   it('sem sessão → redirect para /login', async () => {
     contexto = null;
     expect(await digest(exigirPagina('adm.usuarios', 'consultar'))).toMatch(/^NEXT_REDIRECT;.*;\/login;/);
+  });
+
+  it('sem sessão e encerrada por novo acesso → redirect para /login?motivo=novo-acesso (US-028)', async () => {
+    contexto = null;
+    motivo = 'NOVO_ACESSO';
+    expect(await digest(exigirPagina('adm.usuarios', 'consultar'))).toMatch(/^NEXT_REDIRECT;.*;\/login\?motivo=novo-acesso;/);
   });
 
   it('troca de senha pendente → redirect para /troca-senha', async () => {

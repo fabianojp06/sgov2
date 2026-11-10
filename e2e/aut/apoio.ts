@@ -15,6 +15,8 @@ export const PERFIL_SEM_PERMISSAO = 'E2E_SEM_PERMISSAO';
 export const USUARIOS = {
   admin: { login: 'adm.menu', nome: 'E2E Administrador Menu', perfil: 'ADMINISTRADOR' },
   sair: { login: 'adm.sair', nome: 'E2E Administrador Sair', perfil: 'ADMINISTRADOR' },
+  // Sessão única com aviso (e2e/aut/sessao-unica.spec.ts, US-028).
+  sessaoUnica: { login: 'adm.sessao', nome: 'E2E Administrador Sessão', perfil: 'ADMINISTRADOR' },
   senhaErrada: { login: 'orc.senha', nome: 'E2E Orçamentista Senha', perfil: 'ORCAMENTISTA' },
   orcamentista: { login: 'orc.menu', nome: 'E2E Orçamentista Menu', perfil: 'ORCAMENTISTA' },
   bloqueio: { login: 'orc.bloqueio', nome: 'E2E Orçamentista Bloqueio', perfil: 'ORCAMENTISTA' },
@@ -22,6 +24,11 @@ export const USUARIOS = {
   // Cadastro de usuários (e2e/adm/usuarios.spec.ts, US-038).
   cadastro: { login: 'adm.usuarios', nome: 'E2E Administrador Usuários', perfil: 'ADMINISTRADOR' },
   desbloqueio: { login: 'orc.desbloq', nome: 'E2E Orçamentista Desbloqueio', perfil: 'ORCAMENTISTA' },
+  // Alçadas de aprovação (e2e/adm/alcadas.spec.ts, US-042).
+  alcadas: { login: 'adm.alcadas', nome: 'E2E Administrador Alçadas', perfil: 'ADMINISTRADOR' },
+  // Histórico de Operações (e2e/adm/historico.spec.ts, US-040).
+  historico: { login: 'adm.historico', nome: 'E2E Administrador Histórico', perfil: 'ADMINISTRADOR' },
+  auditor: { login: 'aud.historico', nome: 'E2E Auditor Histórico', perfil: 'AUDITOR' },
   // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do
   // orc, todos os perfis padrão, menos o Administrador, recebem alguma funcionalidade.
   semPermissao: { login: 'sem.permissao', nome: 'E2E Sem Permissão', perfil: PERFIL_SEM_PERMISSAO },
