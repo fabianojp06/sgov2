@@ -41,6 +41,8 @@ export const USUARIOS = {
   // Ativar e desativar o sistema (e2e/adm/sistema.spec.ts, US-036/US-033).
   sistema: { login: 'adm.sistema', nome: 'E2E Administrador Sistema', perfil: 'ADMINISTRADOR' },
   sistemaOrc: { login: 'orc.sistema', nome: 'E2E Orçamentista Sistema', perfil: 'ORCAMENTISTA' },
+  // Notificações de desempenho (e2e/adm/notificacoes.spec.ts, US-041).
+  notificacoes: { login: 'adm.notif', nome: 'E2E Administrador Notificações', perfil: 'ADMINISTRADOR' },
   // CSP completa nas telas (e2e/aut/csp.spec.ts, #318).
   csp: { login: 'adm.csp', nome: 'E2E Administrador CSP', perfil: 'ADMINISTRADOR' },
   // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do

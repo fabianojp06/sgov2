@@ -66,6 +66,8 @@ describe('carregarTelaPrincipal', () => {
     // Módulos e Funcionalidades (US-035) e Ativar/Desativar Sistema (US-036) em Operadores e
     // Permissões, depois de Usuários.
     expect(t.menu[0]?.grupos.find((g) => g.nome === 'Operadores e Permissões')?.itens.map((i) => i.codigo)).toEqual(['adm.usuarios', 'adm.sistema', 'adm.modulos']);
+    // Notificações de Desempenho (US-041) em Parâmetros, depois das Alçadas de Aprovação.
+    expect(t.menu[0]?.grupos.find((g) => g.nome === 'Parâmetros')?.itens.map((i) => i.codigo)).toEqual(['adm.alcadas', 'adm.notificacoes']);
     expect(t.usuario).toEqual({ nome: 'Nome ana', acessoEm: AGORA.toISOString() });
     expect(t.unidades.map((u) => u.codigo)).toEqual(['TP-A', 'TP-B']);
     expect(t.unidadeAtiva).toBeNull();

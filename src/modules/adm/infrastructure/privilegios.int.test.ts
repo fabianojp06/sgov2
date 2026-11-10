@@ -2,7 +2,8 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 
-// Privilégios das tabelas do adm (migrations 202610260300_adm_acesso e 202610260500_adm_unidade).
+// Privilégios das tabelas do adm (migrations 202610260300_adm_acesso, 202610260500_adm_unidade e
+// 202611101200_adm_notificacao_desempenho).
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let migrator: pg.Client;
 let app: pg.Client;
@@ -87,6 +88,20 @@ describe('privilégios do adm', () => {
   it('sgo_sync não lê usuário nem perfil', async () => {
     await expect(sync.query('SELECT * FROM usuario')).rejects.toEqual(negado);
     await expect(sync.query('SELECT * FROM perfil_permissao')).rejects.toEqual(negado);
+  });
+
+  it('notificação de desempenho (US-041): sgo_app inclui e só inativa; sem DELETE nem ultimo_envio_em; sgo_sync sem acesso', async () => {
+    const { rows } = await app.query(`INSERT INTO adm_notificacao_desempenho (conta_classificacao, limite_percentual, frequencia_dias, usuario_id, criada_em)
+      VALUES ('4.1', 80.5, 7, (SELECT id FROM usuario WHERE login = 'ana'), now()) RETURNING id`);
+    const id = (rows[0] as { id: string }).id;
+    await expect(app.query(`UPDATE adm_notificacao_desempenho SET ativa = false, inativada_em = now(), versao = versao + 1 WHERE id = $1`, [id])).resolves.toBeDefined();
+    await expect(app.query(`UPDATE adm_notificacao_desempenho SET limite_percentual = 90`)).rejects.toEqual(negado);
+    await expect(app.query(`UPDATE adm_notificacao_desempenho SET conta_classificacao = '4'`)).rejects.toEqual(negado);
+    await expect(app.query(`UPDATE adm_notificacao_desempenho SET usuario_id = usuario_id`)).rejects.toEqual(negado);
+    await expect(app.query(`UPDATE adm_notificacao_desempenho SET ultimo_envio_em = now()`)).rejects.toEqual(negado);
+    await expect(app.query('DELETE FROM adm_notificacao_desempenho')).rejects.toEqual(negado);
+    await expect(app.query('TRUNCATE adm_notificacao_desempenho')).rejects.toEqual(negado);
+    await expect(sync.query('SELECT * FROM adm_notificacao_desempenho')).rejects.toEqual(negado);
   });
 
   // US-039 (migration 202611101100_adm_usuario_excecao): a aplicação só lê, inclui e apaga exceções.

@@ -62,34 +62,35 @@ model PerfilPermissao {
 
 // Usuário (UC02.11–UC02.14). Status e bloqueio são independentes (RN0063, RN0524).
 model Usuario {
-  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome                  String
-  email                 String
-  login                 String
-  loginNormalizado      String               @unique @map("login_normalizado")
-  ativo                 Boolean              @default(true)
-  bloqueado             Boolean              @default(false)
-  tentativasFalhas      Int                  @default(0) @map("tentativas_falhas")
-  senhaHash             String               @map("senha_hash")
-  trocaSenhaObrigatoria Boolean              @default(true) @map("troca_senha_obrigatoria")
-  senhaExpiraEm         DateTime?            @map("senha_expira_em") @db.Timestamptz(6)
+  id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                   String
+  email                  String
+  login                  String
+  loginNormalizado       String                  @unique @map("login_normalizado")
+  ativo                  Boolean                 @default(true)
+  bloqueado              Boolean                 @default(false)
+  tentativasFalhas       Int                     @default(0) @map("tentativas_falhas")
+  senhaHash              String                  @map("senha_hash")
+  trocaSenhaObrigatoria  Boolean                 @default(true) @map("troca_senha_obrigatoria")
+  senhaExpiraEm          DateTime?               @map("senha_expira_em") @db.Timestamptz(6)
   // Recuperação pela tela de login (US-029, D-P8-2): convive com a senha vigente até ser usada.
-  recuperacaoHash       String?              @map("recuperacao_hash")
-  recuperacaoExpiraEm   DateTime?            @map("recuperacao_expira_em") @db.Timestamptz(6)
+  recuperacaoHash        String?                 @map("recuperacao_hash")
+  recuperacaoExpiraEm    DateTime?               @map("recuperacao_expira_em") @db.Timestamptz(6)
   // CC raiz de escopo do Gestor de Diretoria (C25, R8): classificação do CC, validada no P6.
-  ccEscopo              String?              @map("cc_escopo")
+  ccEscopo               String?                 @map("cc_escopo")
   // Incrementado quando o acesso muda (perfis, inativação, reset, desbloqueio): derruba as sessões.
-  acessoVersao          Int                  @default(0) @map("acesso_versao")
-  versao                Int                  @default(0)
-  criadoEm              DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  atualizadoEm          DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
-  perfis                UsuarioPerfil[]
-  sessoes               SessaoUsuario[]
-  alcadasTitular        AlcadaAprovacao[]    @relation("AlcadaTitular")
-  alcadasSubstituto     AlcadaAprovacao[]    @relation("AlcadaSubstituto")
-  sessoesEncerradas     SessaoEncerrada[]
-  unidades              UsuarioUnidade[]
-  desativacoesSistema   ConfiguracaoAcesso[] @relation("ManutencaoPor")
+  acessoVersao           Int                     @default(0) @map("acesso_versao")
+  versao                 Int                     @default(0)
+  criadoEm               DateTime                @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm           DateTime                @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  perfis                 UsuarioPerfil[]
+  sessoes                SessaoUsuario[]
+  alcadasTitular         AlcadaAprovacao[]       @relation("AlcadaTitular")
+  alcadasSubstituto      AlcadaAprovacao[]       @relation("AlcadaSubstituto")
+  sessoesEncerradas      SessaoEncerrada[]
+  unidades               UsuarioUnidade[]
+  desativacoesSistema    ConfiguracaoAcesso[]    @relation("ManutencaoPor")
+  notificacoesDesempenho NotificacaoDesempenho[]
 
   @@map("usuario")
 }
@@ -186,4 +187,27 @@ model AlcadaAprovacao {
   @@index([titularId])
   @@index([substitutoId])
   @@map("adm_alcada_aprovacao")
+}
+
+// Notificação de desempenho das contas (US-041, EP085 UC02.20, grupo "Desempenho"; D-P10-8): o
+// destinatário de cada conta sintética, com o limite em % do orçado [PROVISÓRIO] e a frequência em
+// dias (RN0067). A conta é a classificação do C1, sem FK para o cad; nulo é "Todas" (RN0051). Soft
+// delete: excluir inativa a linha. Um destinatário por conta entre as ativas (índice único parcial
+// NULLS NOT DISTINCT na migration, que o Prisma não declara). O envio (US-085) lerá as ativas e o
+// ultimoEnvioEm.
+model NotificacaoDesempenho {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contaClassificacao String?   @map("conta_classificacao")
+  limitePercentual   Decimal   @map("limite_percentual") @db.Decimal(5, 2)
+  frequenciaDias     Int       @map("frequencia_dias")
+  usuarioId          String    @map("usuario_id") @db.Uuid
+  usuario            Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  ultimoEnvioEm      DateTime? @map("ultimo_envio_em") @db.Timestamptz(6)
+  ativa              Boolean   @default(true)
+  inativadaEm        DateTime? @map("inativada_em") @db.Timestamptz(6)
+  criadaEm           DateTime  @map("criada_em") @db.Timestamptz(6)
+  versao             Int       @default(1)
+
+  @@index([usuarioId])
+  @@map("adm_notificacao_desempenho")
 }

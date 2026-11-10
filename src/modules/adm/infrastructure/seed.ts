@@ -79,6 +79,24 @@ export const FUNCIONALIDADES_ADM: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'alterar'],
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'alterar'] },
   },
+  {
+    // US-041 (EP085 UC02.20, grupo "Desempenho"; plano do P10, D-P10-6/7): só a configuração; o envio
+    // vem com o realizado (US-085). Exclusivo do Administrador (RN_SEED_003, D-P10-7 [PO valida]).
+    // Nome [PROVISÓRIO]: o EP chama o menu de "Notificações e Aprovações", que pela spec ficou só com
+    // as notificações (as aprovações são as alçadas, §6.5).
+    codigo: 'adm.notificacoes',
+    modulo: 'ADMINISTRACAO',
+    grupo: 'Parâmetros',
+    nome: 'Notificações de Desempenho',
+    rota: '/adm/notificacoes',
+    ordem: 6,
+    // Texto de ajuda [PROVISÓRIO]: sem fonte no EP085.
+    ajuda:
+      'Cadastre quem recebe o alerta de desempenho de cada conta sintética (ou de todas), com o limite em % do orçado ' +
+      'e a frequência de envio em dias. Excluir retira o destinatário da lista.',
+    acoes: ['consultar', 'incluir', 'excluir'],
+    perfisPadrao: { ADMINISTRADOR: ['consultar', 'incluir', 'excluir'] },
+  },
 ];
 
 async function instalarConfiguracao(tx: TxCliente): Promise<void> {

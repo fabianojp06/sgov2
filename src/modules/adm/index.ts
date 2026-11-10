@@ -32,6 +32,19 @@ export {
   type DepsAlcadas,
   type LinhaAlcada,
 } from './application/alcadas';
+export { adicionarNotificacao, removerNotificacao } from './application/acoes-notificacoes';
+export {
+  excluirNotificacao,
+  incluirNotificacao,
+  listarNotificacoes,
+  listarOpcoesNotificacao,
+  type DepsNotificacoes,
+  type LinhaNotificacao,
+  type OpcoesNotificacao,
+} from './application/notificacoes';
+export { CONTA_TODAS, MENSAGENS_NOTIFICACAO, ROTULO_TODAS } from './domain/notificacao-textos';
+export { validarNotificacao, type NotificacaoValidada } from './domain/notificacao';
+export { TelaNotificacoes } from './ui/tela-notificacoes';
 export { alternarFuncionalidade, alternarModulo } from './application/acoes-modulos';
 export {
   alterarFuncionalidade,
