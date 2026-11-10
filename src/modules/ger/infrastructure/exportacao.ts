@@ -72,6 +72,12 @@ export const LIMITE_EXPORTACAO_SINCRONA = 5000; // RF_IMP_003, total de linhas s
 // Teto da exportação assíncrona (worker): o arquivo inteiro fica na memória e no banco. [PROVISÓRIO]
 // (decisão da frente B, 10/11), sem número na spec.
 export const LIMITE_EXPORTACAO_ASSINCRONA = 100_000;
+// Teto do PDF, também em segundo plano: 20.000 linhas levam cerca de 8 s e 230 MB no worker; 100.000
+// levariam 40 s e 1,5 GB (medido em 10/11). [PROVISÓRIO] (decisão da frente B, 10/11).
+export const LIMITE_EXPORTACAO_PDF = 20_000;
+
+/** O teto da exportação em segundo plano para o formato. */
+export const tetoAssincrono = (formato: string): number => (formato === 'pdf' ? LIMITE_EXPORTACAO_PDF : LIMITE_EXPORTACAO_ASSINCRONA);
 
 /** Opções dos geradores: o worker passa o limite assíncrono; a tela, nada (limite síncrono). */
 export type OpcoesGeracao = { limite?: number };

@@ -1,7 +1,7 @@
 import 'server-only';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { criarIdentificacao, type FormatoArquivo } from '@/modules/ger';
-import { agendarExportacao, exportarCsv, exportarXlsx, LIMITE_EXPORTACAO_ASSINCRONA, LIMITE_EXPORTACAO_SINCRONA } from '@/modules/ger/servidor';
+import { agendarExportacao, gerarArquivo, LIMITE_EXPORTACAO_SINCRONA, tetoAssincrono } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
@@ -36,9 +36,11 @@ async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvo
       if (!c.ok) throw new FalhaGeracao([...c.erros]);
       const nome = `${a.arquivo}.${o.formato}`;
       const total = c.valor.planilha.linhas.length;
-      // Acima do teto assíncrono, o worker também recusaria: avisa já, sem pedido.
-      if (total > LIMITE_EXPORTACAO_ASSINCRONA) {
-        throw new FalhaGeracao([{ campo: 'linhas', mensagem: `A exportação tem ${total} linhas; o máximo é ${LIMITE_EXPORTACAO_ASSINCRONA}. Use filtros para reduzir.` }]);
+      // Acima do teto assíncrono do formato (o PDF tem um teto menor), o worker também recusaria: avisa
+      // já, sem pedido.
+      const teto = tetoAssincrono(o.formato);
+      if (total > teto) {
+        throw new FalhaGeracao([{ campo: 'linhas', mensagem: `A exportação tem ${total} linhas; o máximo é ${teto}. Use filtros para reduzir.` }]);
       }
       if (total > (deps.limiteSincrono ?? LIMITE_EXPORTACAO_SINCRONA)) {
         const pedido = await agendarExportacao(tx, {
@@ -54,7 +56,7 @@ async function exportarArvore<C extends string>(ctx: ContextoRequisicao, a: Arvo
       }
       const identificacao = criarIdentificacao({ titulo: a.titulo, filtros: c.valor.filtros, operador: ctx.usuarioRotulo });
       const planilha = { ...c.valor.planilha, identificacao };
-      const arquivo = o.formato === 'xlsx' ? await exportarXlsx([planilha]) : exportarCsv(planilha);
+      const arquivo = await gerarArquivo(o.formato, [planilha]);
       if (!arquivo.ok) throw new FalhaGeracao([...arquivo.erros]);
       await auditar(tx, {
         contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null },

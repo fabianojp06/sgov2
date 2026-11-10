@@ -80,6 +80,9 @@ export {
 export { exportarXlsx } from './infrastructure/exportar-xlsx';
 // Exportação CSV segura do C3 (#233): mesma forma, uma aba, com o texto que vira fórmula escapado.
 export { exportarCsv } from './infrastructure/exportar-csv';
+// Exportação PDF do C3 (US-024) e o despachante por formato (XLSX, CSV ou PDF).
+export { exportarPdf } from './infrastructure/exportar-pdf';
+export { gerarArquivo } from './infrastructure/gerar-arquivo';
 
 // Exportação assíncrona (US-024): a tela agenda (na transação dela) e o worker gera. Os filtros da
 // grade e a identificação também saem por aqui para os geradores, que rodam no worker (o index.ts
@@ -95,5 +98,5 @@ export {
   type GeradorExportacao,
   type PedidoExportacao,
 } from './infrastructure/exportacao-assincrona';
-export { LIMITE_EXPORTACAO_ASSINCRONA, LIMITE_EXPORTACAO_SINCRONA } from './infrastructure/exportacao';
+export { LIMITE_EXPORTACAO_ASSINCRONA, LIMITE_EXPORTACAO_PDF, LIMITE_EXPORTACAO_SINCRONA, tetoAssincrono } from './infrastructure/exportacao';
 export { aplicarFiltros, validarValoresFiltro } from './ui/grade-filtros';

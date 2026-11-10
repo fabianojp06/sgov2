@@ -3,7 +3,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { contarUsuariosPorPerfil } from '@/modules/adm/servidor';
 import { listarAnosExercicio, resumirCadastrosParaConferencia } from '@/modules/cad';
 import { criarIdentificacao, TIPOS_ARQUIVO, type FormatoArquivo } from '@/modules/ger';
-import { exportarCsv, exportarXlsx } from '@/modules/ger/servidor';
+import { gerarArquivo } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
@@ -65,7 +65,7 @@ export async function exportarConferenciaCarga(
         const identificacao = criarIdentificacao({ titulo: `Conferência da carga ${ano}`, filtros, operador: ctx.usuarioRotulo });
         const p = planilhaConferencia(resumo, await contarUsuariosPorPerfil(tx), ano, identificacao);
         const comSoma = resumo.cargos.somaSalarioReal.situacao === 'calculada';
-        const r = formato === 'xlsx' ? await exportarXlsx([p]) : exportarCsv(p);
+        const r = await gerarArquivo(formato, [p]);
         if (!r.ok) throw new FalhaGeracao([...r.erros]);
         await auditar(tx, {
           contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null },

@@ -42,7 +42,8 @@ export function ArvoreEstrutura<C extends string>({
       {exportar && (
         <p>
           Exportar o que está na tela: <a href={hrefExportacao(exportar, 'xlsx', mostrarInativos, valores)}>XLSX</a> ·{' '}
-          <a href={hrefExportacao(exportar, 'csv', mostrarInativos, valores)}>CSV</a>
+          <a href={hrefExportacao(exportar, 'csv', mostrarInativos, valores)}>CSV</a> ·{' '}
+          <a href={hrefExportacao(exportar, 'pdf', mostrarInativos, valores)}>PDF</a>
         </p>
       )}
       <GradeArvore<C | 'situacao'>

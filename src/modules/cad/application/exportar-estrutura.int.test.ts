@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { PDFDocument } from 'pdf-lib';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { seedAdm } from '@/modules/adm';
@@ -108,6 +109,21 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     expect(await ultimaExportacao('cad.centros_custo')).toEqual({
       registro_id: rastreio,
       depois: { formato: 'xlsx', registros: ccMinuta.length, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
+    });
+  });
+
+  it('centros de custo em PDF: título, rastreio nos metadados e o Histórico com o formato', async () => {
+    const r = await exportarCentrosCusto(gfin(), { formato: 'pdf', incluirInativos: false }, { cliente: app });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    const b = bytes(r.valor);
+    expect(new TextDecoder().decode(b.slice(0, 8))).toBe('%PDF-1.7');
+    const doc = await PDFDocument.load(b, { updateMetadata: false });
+    expect([doc.getTitle(), doc.getAuthor()]).toEqual(['Centros de custo', 'gfin']);
+    const rastreio = /^Rastreio ([0-9a-f-]{36})$/.exec(doc.getSubject()!)![1];
+    expect(doc.getPageCount()).toBeGreaterThan(1);
+    expect(await ultimaExportacao('cad.centros_custo')).toEqual({
+      registro_id: rastreio,
+      depois: { formato: 'pdf', registros: ccMinuta.length, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
     });
   });
 
@@ -225,6 +241,16 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(Buffer.from(pronto.conteudo) as unknown as ArrayBuffer);
     expect(wb.worksheets[0]!.headerFooter.oddFooter).toContain(`Rastreio ${r.valor.pedidoId}`);
+  });
+
+  it('PDF acima do limite também vai para o worker, com o rastreio do pedido', async () => {
+    const r = await exportarCentrosCusto(gfin(), { formato: 'pdf', incluirInativos: false }, { cliente: app, limiteSincrono: 1 });
+    if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
+    await trabalhar()({ pedidoId: r.valor.pedidoId });
+    const pronto = await pedido(r.valor.pedidoId);
+    expect(pronto).toMatchObject({ situacao: 'PRONTA', formato: 'pdf', nome_arquivo: 'centros-de-custo.pdf', registros: ccMinuta.length });
+    const doc = await PDFDocument.load(new Uint8Array(pronto.conteudo), { updateMetadata: false });
+    expect(doc.getSubject()).toBe(`Rastreio ${r.valor.pedidoId}`);
   });
 
   it('falha da própria exportação (operador vazio, gerador ausente): FALHOU com o motivo e o aviso, sem Histórico', async () => {
