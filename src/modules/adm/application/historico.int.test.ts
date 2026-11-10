@@ -207,7 +207,8 @@ describe('exportação assíncrona do Histórico (US-040, US-024)', () => {
       nome_arquivo: 'historico-2026-08-01-a-2026-08-31.xlsx',
       situacao: 'PENDENTE',
       conteudo: null,
-      parametros: { usuarioId: admin.usuarioId, de: '2026-08-01T03:00:00.000Z', ate: '2026-09-01T02:59:59.999Z', usuario: 'massa' },
+      // Quem pediu fica só na linha do pedido (usuario_id), não nos parâmetros (#377).
+      parametros: { de: '2026-08-01T03:00:00.000Z', ate: '2026-09-01T02:59:59.999Z', usuario: 'massa' },
     });
     const outbox = await migrator.$queryRaw<{ tipo: string }[]>`SELECT tipo FROM outbox_mensagem WHERE dados->>'pedidoId' = ${id}`;
     expect(outbox).toEqual([{ tipo: 'exportacao.gerar' }]);
@@ -276,11 +277,18 @@ describe('exportação assíncrona do Histórico (US-040, US-024)', () => {
     expect(await exportacoesDoPedido(bloqueado)).toBe(0);
   });
 
-  it('pedido adulterado no banco (outro alcance, chave a mais): FALHOU, sem arquivo', async () => {
+  it('pedido adulterado no banco (chave a mais, ou o Administrador nos parâmetros para ganhar o alcance dele): FALHOU, sem arquivo', async () => {
     const id = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
     await migrator.$executeRaw`UPDATE exportacao_pedido SET parametros = parametros || '{"antes": true}'::jsonb WHERE id = ${id}::uuid`;
     await trabalhar()({ pedidoId: id });
     expect(await pedido(id)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: 'Pedido de exportação inválido.' });
+
+    const outro = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    const comAdministrador = JSON.stringify({ usuarioId: admin.usuarioId });
+    await migrator.$executeRaw`UPDATE exportacao_pedido SET parametros = parametros || ${comAdministrador}::jsonb WHERE id = ${outro}::uuid`;
+    await trabalhar()({ pedidoId: outro });
+    expect(await pedido(outro)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: 'Pedido de exportação inválido.' });
+    expect(await exportacoesDoPedido(outro)).toBe(0);
   });
 
   it('acima do teto assíncrono (100.000) → recusa sem pedido', async () => {
