@@ -74,6 +74,9 @@ export async function consultarHistorico(ctx: ContextoRequisicao, f: FiltroHisto
 
 // [PROVISÓRIO] (D-P8-11): acima do teto da exportação assíncrona (US-024), recusa. O PDF é da US-024.
 export const MENSAGEM_EXPORTACAO_LIMITE = `A exportação passa de ${LIMITE_EXPORTACAO_ASSINCRONA.toLocaleString('pt-BR')} linhas. Reduza o período ou os filtros.`;
+// [PROVISÓRIO] Outra recusa do arquivo da hora (ex.: o Histórico cresceu entre a contagem e a leitura e
+// passou do limite síncrono do ger): não é o teto assíncrono, então a tela não pode dizer que é.
+export const MENSAGEM_EXPORTACAO_FALHOU = 'Não foi possível gerar a exportação agora. Tente de novo.';
 // [PROVISÓRIO] Acima de 5.000 linhas (RF_IMP_003), o pedido vai para o worker; a tela aponta para Minhas exportações.
 export const MENSAGEM_EXPORTACAO_AGENDADA = 'A exportação passa de 5.000 linhas e está sendo gerada em segundo plano. O arquivo fica disponível em Minhas exportações.';
 const contexto = (ctx: ContextoRequisicao) => ({ usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null });
@@ -86,8 +89,13 @@ type DepsExportacao = Partial<DepsHistorico> & { limiteSincrono?: number };
 export const AVISOS_EXPORTACAO_HISTORICO: Readonly<Record<string, string>> = {
   'exportacao-recusada': MENSAGEM_EXPORTACAO_LIMITE,
   'exportacao-pendentes': MENSAGEM_MUITOS_PENDENTES,
+  'exportacao-falhou': MENSAGEM_EXPORTACAO_FALHOU,
 };
-export const avisoDaRecusa = (erros: readonly ErroCampo[]): string => (erros.some((e) => e.mensagem === MENSAGEM_MUITOS_PENDENTES) ? 'exportacao-pendentes' : 'exportacao-recusada');
+export const avisoDaRecusa = (erros: readonly ErroCampo[]): string => {
+  if (erros.some((e) => e.mensagem === MENSAGEM_MUITOS_PENDENTES)) return 'exportacao-pendentes';
+  if (erros.some((e) => e.mensagem === MENSAGEM_EXPORTACAO_LIMITE)) return 'exportacao-recusada';
+  return 'exportacao-falhou';
+};
 
 // Exportar (UC0.05; RN_LOG_EXP): XLSX até o limite síncrono, com os filtros na primeira linha (RN0011),
 // e um EXPORTACAO no Histórico com a quantidade e os filtros. Acima dele (RF_IMP_003), vira um pedido

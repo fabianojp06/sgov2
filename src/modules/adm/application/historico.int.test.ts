@@ -243,7 +243,7 @@ describe('exportação assíncrona do Histórico (US-040, US-024)', () => {
     expect(h.usuarioId).toBe(auditor.usuarioId);
   });
 
-  it('quem perdeu o exportar ou foi inativado depois do pedido não recebe o arquivo', async () => {
+  it('quem perdeu o exportar, foi inativado ou bloqueado depois do pedido não recebe o arquivo', async () => {
     const perfil = await migrator.perfil.findUniqueOrThrow({ where: { codigo: 'AUDITOR' } });
     const semPermissao = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
     await migrator.perfilPermissao.deleteMany({ where: { perfilId: perfil.id, funcionalidadeCodigo: 'adm.historico', acao: 'exportar' } });
@@ -264,6 +264,16 @@ describe('exportação assíncrona do Histórico (US-040, US-024)', () => {
     }
     expect(await pedido(inativo)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: MENSAGEM_SEM_PERMISSAO_EXPORTAR });
     expect(await exportacoesDoPedido(inativo)).toBe(0);
+
+    const bloqueado = pedidoAgendado(await exportarHistorico(permissoes(auditor), { de: DE, ate: ATE }, { ...deps(), limiteSincrono: 1 }));
+    await migrator.usuario.update({ where: { id: auditor.usuarioId }, data: { bloqueado: true } });
+    try {
+      await trabalhar()({ pedidoId: bloqueado });
+    } finally {
+      await migrator.usuario.update({ where: { id: auditor.usuarioId }, data: { bloqueado: false } });
+    }
+    expect(await pedido(bloqueado)).toMatchObject({ situacao: 'FALHOU', conteudo: null, erro: MENSAGEM_SEM_PERMISSAO_EXPORTAR });
+    expect(await exportacoesDoPedido(bloqueado)).toBe(0);
   });
 
   it('pedido adulterado no banco (outro alcance, chave a mais): FALHOU, sem arquivo', async () => {

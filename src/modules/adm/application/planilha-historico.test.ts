@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MENSAGEM_MUITOS_PENDENTES } from '@/modules/ger/servidor';
-import { avisoDaRecusa } from './historico';
+import { avisoDaRecusa, MENSAGEM_EXPORTACAO_LIMITE } from './historico';
 import { filtrosLegiveis, GERADORES_EXPORTACAO_ADM, lerParametrosPedido, MENSAGEM_PEDIDO_INVALIDO, MENSAGEM_PERIODO, parametrosDoPedido } from './planilha-historico';
 
 // Exportação assíncrona do Histórico (US-040, US-024): o pedido gravado é relido no worker com as
@@ -54,8 +54,9 @@ describe('cabeçalho, geradores e avisos', () => {
     expect(Object.keys(GERADORES_EXPORTACAO_ADM)).toEqual(['adm.historico']);
   });
 
-  it('a recusa por pedidos em geração tem aviso próprio; as demais, o do limite', () => {
+  it('cada recusa tem o seu aviso; outra recusa não diz que passou do teto', () => {
     expect(avisoDaRecusa([{ campo: '_', mensagem: MENSAGEM_MUITOS_PENDENTES }])).toBe('exportacao-pendentes');
-    expect(avisoDaRecusa([{ campo: '_', mensagem: 'outra' }])).toBe('exportacao-recusada');
+    expect(avisoDaRecusa([{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }])).toBe('exportacao-recusada');
+    expect(avisoDaRecusa([{ campo: '_', mensagem: 'outra' }])).toBe('exportacao-falhou');
   });
 });
