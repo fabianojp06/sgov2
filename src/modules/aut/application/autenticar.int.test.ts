@@ -280,3 +280,99 @@ describe('autenticar: senha temporária', () => {
     expect((await usuario('ivo')).tentativasFalhas).toBe(1);
   });
 });
+
+// Alerta aos administradores por e-mail (US-027, REQ0040): no limiar e no bloqueio, um e-mail por
+// administrador ativo, sem bloqueio, com e-mail e com o perfil ADMINISTRADOR ativo, pelo outbox,
+// depois do commit. O e-mail nunca derruba nem muda o login.
+describe('autenticar: alerta aos administradores (US-027)', () => {
+  type Mensagem = { modelo: string; destinatario: { email: string; nome?: string }; dados: Record<string, unknown> };
+  const alertasDe = async (login: string): Promise<Mensagem[]> =>
+    (await migrator.outboxMensagem.findMany({ where: { tipo: 'email.enviar' }, orderBy: { criadoEm: 'asc' } }))
+      .map((m) => m.dados as unknown as Mensagem)
+      .filter((m) => m.modelo === 'usuario.alerta_tentativas' && m.dados.login === login);
+
+  beforeAll(async () => {
+    await criarUsuario('adm.alerta1', { nome: 'Ana Alerta' }, 'ADMINISTRADOR');
+    await criarUsuario('adm.alerta2', { nome: 'Beto Alerta' }, 'ADMINISTRADOR');
+    await criarUsuario('adm.inativo', { ativo: false }, 'ADMINISTRADOR');
+    await criarUsuario('adm.bloqueado', { bloqueado: true }, 'ADMINISTRADOR');
+    await criarUsuario('adm.semmail', { email: '' }, 'ADMINISTRADOR');
+    await criarUsuario('orc.comum');
+  });
+
+  it('no limiar (3ª errada): um e-mail por administrador elegível, sem bloqueio', async () => {
+    await criarUsuario('marta', { nome: 'Marta Lima', tentativasFalhas: 2 });
+    expect(await entrar('marta', ERRADA)).toMatchObject({ motivo: 'CREDENCIAIS' });
+    const alertas = await alertasDe('marta');
+    const destinatarios = alertas.map((a) => a.destinatario.email);
+    expect(destinatarios).toEqual(expect.arrayContaining(['adm.alerta1@exemplo.org', 'adm.alerta2@exemplo.org']));
+    for (const fora of ['adm.inativo', 'adm.bloqueado', 'adm.semmail', 'orc.comum', 'marta']) {
+      expect(destinatarios).not.toContain(`${fora}@exemplo.org`);
+    }
+    expect(new Set(destinatarios).size).toBe(destinatarios.length);
+    expect(alertas.find((a) => a.destinatario.email === 'adm.alerta1@exemplo.org')).toMatchObject({
+      destinatario: { nome: 'Ana Alerta' },
+      dados: { nomeAdministrador: 'Ana Alerta', nomeUsuario: 'Marta Lima', login: 'marta', tentativas: 3, bloqueado: false, dataHora: '11/11/2026, 09:00' },
+    });
+    // A 4ª errada não é limiar nem bloqueio: nenhum e-mail novo.
+    await entrar('marta', ERRADA);
+    expect(await alertasDe('marta')).toHaveLength(alertas.length);
+  });
+
+  it('no bloqueio (5ª errada): e-mail com bloqueado = true e o log continua', async () => {
+    await criarUsuario('nina', { tentativasFalhas: 4 });
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(await entrar('nina', ERRADA)).toMatchObject({ motivo: 'CREDENCIAIS' });
+    expect(await usuario('nina')).toMatchObject({ bloqueado: true, tentativasFalhas: 5 });
+    const alertas = await alertasDe('nina');
+    expect(alertas.length).toBeGreaterThanOrEqual(2);
+    expect(alertas.every((a) => a.dados.bloqueado === true && a.dados.tentativas === 5)).toBe(true);
+    expect(log).toHaveBeenCalledWith('[LOGIN_TENTATIVAS]', { usuarioId: (await usuario('nina')).id, tentativas: 5, bloqueado: true });
+    log.mockRestore();
+  });
+
+  it('falha do envio: o login responde igual, o contador e o bloqueio ficam, e o log não leva login nem e-mail', async () => {
+    const otto = 'otto';
+    await criarUsuario(otto, { tentativasFalhas: 4 });
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await autenticar(
+      { login: otto, senha: ERRADA, ip: IP },
+      {
+        cliente: app,
+        agora: () => AGORA,
+        enviarEmail: async () => {
+          throw Object.assign(new Error('SMTP fora para otto e adm.alerta1@exemplo.org'), { code: 'X1' });
+        },
+      },
+    );
+    expect(r).toMatchObject({ ok: false, motivo: 'CREDENCIAIS', contaFalha: true });
+    expect(await usuario('otto')).toMatchObject({ bloqueado: true, tentativasFalhas: 5 });
+    expect(await alertasDe('otto')).toEqual([]);
+    expect(erro).toHaveBeenCalledWith('[LOGIN_ALERTA_EMAIL_FALHA]', expect.objectContaining({ nome: 'Error', codigo: 'X1' }));
+    expect(JSON.stringify(erro.mock.calls)).not.toMatch(/otto|@exemplo\.org/);
+    erro.mockRestore();
+  });
+
+  it('nenhum administrador elegível (perfil ADMINISTRADOR inativo): sem e-mail, com aviso no log, e o login segue', async () => {
+    await criarUsuario('paula', { tentativasFalhas: 2 });
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await migrator.perfil.update({ where: { codigo: 'ADMINISTRADOR' }, data: { ativo: false } });
+    try {
+      expect(await entrar('paula', ERRADA)).toMatchObject({ motivo: 'CREDENCIAIS' });
+    } finally {
+      await migrator.perfil.update({ where: { codigo: 'ADMINISTRADOR' }, data: { ativo: true } });
+    }
+    expect((await usuario('paula')).tentativasFalhas).toBe(3);
+    expect(await alertasDe('paula')).toEqual([]);
+    expect(aviso).toHaveBeenCalledWith('[LOGIN_ALERTA_SEM_DESTINATARIO]', { usuarioId: (await usuario('paula')).id });
+    aviso.mockRestore();
+  });
+
+  it('senha certa e falhas abaixo do limiar não geram alerta', async () => {
+    await criarUsuario('quito', { tentativasFalhas: 3 });
+    expect(await entrar('quito')).toMatchObject({ ok: true });
+    await criarUsuario('rita');
+    await entrar('rita', ERRADA);
+    expect([...(await alertasDe('quito')), ...(await alertasDe('rita'))]).toEqual([]);
+  });
+});
