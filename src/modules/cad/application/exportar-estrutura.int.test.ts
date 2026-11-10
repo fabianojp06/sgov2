@@ -59,6 +59,16 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     const dados = l.slice(6).filter(Boolean);
     expect(dados).toHaveLength(planoOficial.length - 1);
     expect(dados[0]).toMatch(/^"4";"";"[^"]+";"1";"Sintética";"Ativa"$/);
+    // A ordem inteira é a pré-ordem da árvore: cada conta logo depois da conta superior, irmãs pela
+    // classificação em segmentos numéricos (a mesma ordem da tela).
+    const classificacoes = dados.map((d) => d.split(';')[0]!.replace(/"/g, ''));
+    const segmentos = (c: string) => c.split('.').map(Number);
+    const esperada = [...classificacoes].sort((a, b) => {
+      const [x, y] = [segmentos(a), segmentos(b)];
+      for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i]! - y[i]!;
+      return x.length - y.length;
+    });
+    expect(classificacoes).toEqual(esperada);
     expect(dados.every((d) => d.endsWith('"Ativa"'))).toBe(true);
     expect(await ultimaExportacao('cad.plano_contas')).toEqual({
       registro_id: rastreio,
@@ -85,7 +95,11 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     expect(ws.getRow(6).values).toEqual([undefined, 'Classificação', 'Reduzido', 'Descrição', 'Nível', 'Tipo', 'De gestão', 'Provisório', 'Situação']);
     expect(ws.rowCount).toBe(6 + ccMinuta.length);
     expect(ws.headerFooter.oddFooter).toMatch(/^&Lgfin&RRastreio [0-9a-f-]{36}$/);
-    expect((await ultimaExportacao('cad.centros_custo')).depois.registros).toBe(ccMinuta.length);
+    const rastreio = /^&Lgfin&RRastreio ([0-9a-f-]{36})$/.exec(ws.headerFooter.oddFooter!)![1];
+    expect(await ultimaExportacao('cad.centros_custo')).toEqual({
+      registro_id: rastreio,
+      depois: { formato: 'xlsx', registros: ccMinuta.length, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
+    });
   });
 
   it('sem a permissão de exportar: ErroPermissao, sem arquivo nem Histórico', async () => {

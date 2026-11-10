@@ -29,7 +29,7 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
       OPERADOR_VIAGENS: ['consultar'],
       AUDITOR: ['consultar', 'exportar'],
       GESTOR_DIRETORIA: ['consultar'],
-      DIREX: ['consultar', 'exportar'],
+      DIREX: ['consultar'],
     },
   },
   {
@@ -51,7 +51,7 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
       OPERADOR_VIAGENS: ['consultar'],
       AUDITOR: ['consultar', 'exportar'],
       GESTOR_DIRETORIA: ['consultar'],
-      DIREX: ['consultar', 'exportar'],
+      DIREX: ['consultar'],
     },
   },
   {
@@ -71,7 +71,7 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
       GFIN: ['consultar', 'exportar'],
       ORCAMENTISTA: ['consultar', 'exportar'],
       AUDITOR: ['consultar', 'exportar'],
-      DIREX: ['consultar', 'exportar'],
+      DIREX: ['consultar'],
     },
   },
   {
