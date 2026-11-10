@@ -157,8 +157,8 @@ describe('alterarUsuario com exceções (UC02.13 A4–A6)', () => {
     expect(JSON.stringify(h[0]!.depois)).toContain('"excecoes":["ORCAMENTISTA:cad.um"]');
     expect(JSON.stringify(h[0]!.antes)).toContain('"excecoes":[]');
 
-    // A5: marcar de novo devolve a funcionalidade.
-    expect((await alterar(id, { excecoes: [] })).ok).toBe(true);
+    // A5: marcar de novo devolve a funcionalidade (exibida no painel e marcada).
+    expect((await alterar(id, { excecoes: [], exibidas: ['ORCAMENTISTA:cad.um', 'ORCAMENTISTA:cad.dois'] })).ok).toBe(true);
     expect((await usuario(id)).acessoVersao).toBe(meio.acessoVersao + 1);
     expect(await excecoes(id)).toEqual([]);
     expect((await historico(id)).at(-1)).toEqual(['EXCLUSAO', 'Funcionalidade Tela cad.um do perfil Orçamentista devolvida ao usuário Nome so.excecao']);
@@ -221,13 +221,40 @@ describe('alterarUsuario com exceções (UC02.13 A4–A6)', () => {
     await migrator.funcionalidade.update({ where: { codigo: 'cad.dois' }, data: { ativo: false } });
     const opcoes = await listarOpcoesUsuario(ctx, id, deps());
     expect(opcoes.perfis.find((p) => p.codigo === 'ORCAMENTISTA')?.funcionalidades.map((f) => f.codigo)).toEqual(['cad.um']);
-    expect(await alterar(id, { excecoes: [] })).toEqual({ ok: true, valor: undefined });
+    expect(await alterar(id, { excecoes: [], exibidas: ['ORCAMENTISTA:cad.um'] })).toEqual({ ok: true, valor: undefined });
     expect(await excecoes(id)).toEqual(['ORCAMENTISTA:cad.dois']);
     // Inativa, também não aceita exceção nova.
-    expect(await alterar(id, { perfis: ['ORCAMENTISTA', 'GFIN'], excecoes: [ex('ORCAMENTISTA', 'cad.dois')] })).toEqual({
+    const outro = await cadastrar('inativa.nova');
+    expect(await alterar(outro, { excecoes: [ex('ORCAMENTISTA', 'cad.dois')], exibidas: ['ORCAMENTISTA:cad.dois'] })).toEqual({
       ok: false,
       erros: [{ campo: 'excecoes', mensagem: MENSAGENS_EXCECAO.FUNCIONALIDADE_FORA_DO_PERFIL }],
     });
+  });
+
+  it('funcionalidade reativada entre abrir e salvar o formulário: a exceção não exibida fica (M1 da revisão 12.12)', async () => {
+    const id = await cadastrar('reativada', { excecoes: [ex('ORCAMENTISTA', 'cad.dois')] });
+    await migrator.funcionalidade.update({ where: { codigo: 'cad.dois' }, data: { ativo: false } });
+    // O Administrador abre o formulário: o painel mostra só cad.um.
+    const exibidas = (await listarOpcoesUsuario(ctx, id, deps())).perfis
+      .find((p) => p.codigo === 'ORCAMENTISTA')!
+      .funcionalidades.map((f) => `ORCAMENTISTA:${f.codigo}`);
+    expect(exibidas).toEqual(['ORCAMENTISTA:cad.um']);
+    // Outro Administrador reativa cad.dois (US-035), sem mudar a versão do usuário.
+    await migrator.funcionalidade.update({ where: { codigo: 'cad.dois' }, data: { ativo: true } });
+    const antes = await usuario(id);
+    expect(await alterar(id, { excecoes: [], exibidas })).toEqual({ ok: true, valor: undefined });
+    expect(await excecoes(id)).toEqual(['ORCAMENTISTA:cad.dois']);
+    expect(await usuario(id)).toEqual(antes);
+    expect((await permissoes(id)).has(consulta('cad.dois'))).toBe(false);
+  });
+
+  it('alteração sem excecoes nem exibidas não mexe nas exceções (B3 da revisão 12.12)', async () => {
+    const id = await cadastrar('sem.painel', { excecoes: [ex('ORCAMENTISTA', 'cad.um')] });
+    const antes = await usuario(id);
+    const atual = { nome: 'Sem Painel', email: antes.email, login: 'sem.painel', ativo: true, perfis: ['ORCAMENTISTA'], unidades: [], ccEscopo: null };
+    expect(await alterarUsuario(ctx, id, antes.versao, atual, deps())).toEqual({ ok: true, valor: undefined });
+    expect(await excecoes(id)).toEqual(['ORCAMENTISTA:cad.um']);
+    expect((await usuario(id)).acessoVersao).toBe(antes.acessoVersao);
   });
 
   it('versão velha: erro de concorrência, nenhuma exceção gravada', async () => {

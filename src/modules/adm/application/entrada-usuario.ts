@@ -15,9 +15,13 @@ const textos = (f: FormData, campo: string): string[] => f.getAll(campo).filter(
 // oculto "funcionalidadesExibidas" ("<perfil>:<funcionalidade>"); a marcada vem também em
 // "funcionalidades". A exibida e desmarcada de um perfil marcado é a exceção; o caso de uso confere
 // se ela pertence ao perfil.
+// As exibidas seguem para o caso de uso: só uma exceção exibida pode ser removida (ajuste M1).
+const exibidasDeFormulario = (f: FormData, perfis: readonly string[]) =>
+  [...new Set(textos(f, 'funcionalidadesExibidas'))].filter((chave) => perfis.includes(chave.slice(0, Math.max(0, chave.indexOf(':')))));
+
 function excecoesDeFormulario(f: FormData, perfis: readonly string[]): { perfil: string; funcionalidade: string }[] {
   const marcadas = new Set(textos(f, 'funcionalidades'));
-  return [...new Set(textos(f, 'funcionalidadesExibidas'))]
+  return exibidasDeFormulario(f, perfis)
     .filter((chave) => !marcadas.has(chave))
     .map((chave) => {
       const i = chave.indexOf(':');
@@ -39,6 +43,7 @@ function usuarioDeFormulario(f: FormData): Record<string, unknown> {
     unidades: textos(f, 'unidades'),
     ccEscopo: cc === '' ? null : cc,
     excecoes: excecoesDeFormulario(f, perfis),
+    exibidas: exibidasDeFormulario(f, perfis),
   };
 }
 

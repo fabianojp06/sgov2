@@ -5,7 +5,7 @@ import { MODULO_SEM_EXCECAO, type FuncionalidadesDoPerfil } from '../domain/exce
 // "Funcionalidade(s) do Perfil" as mostra. Retiráveis: com alguma permissão no perfil, ativas, de
 // módulo ativo e fora da Administração. Fixas: as da Administração ativas, exibidas sem checkbox
 // (ajuste A1). As inativas não aparecem, e uma exceção já gravada nelas é mantida pelo Salvar
-// (ajuste M2): ela não está no painel, então o Administrador não a desfez.
+// (ajustes M2 e M1): só sai a exceção cuja chave o painel exibiu (aplicarExcecoes).
 
 export type FuncionalidadePainel = { codigo: string; nome: string };
 export type PainelPerfil = { retiraveis: readonly FuncionalidadePainel[]; fixas: readonly FuncionalidadePainel[] };
@@ -13,7 +13,6 @@ export type PainelPerfil = { retiraveis: readonly FuncionalidadePainel[]; fixas:
 export type CatalogoExcecoes = {
   painel: (perfil: string) => PainelPerfil;
   funcionalidades: (perfil: string) => FuncionalidadesDoPerfil;
-  retiravel: (perfil: string, funcionalidade: string) => boolean;
   nome: (funcionalidade: string) => string;
   ehAdministracao: (funcionalidade: string) => boolean;
 };
@@ -52,7 +51,6 @@ export async function carregarCatalogoExcecoes(tx: TxCliente, codigosPerfil: rea
   return {
     painel,
     funcionalidades: (perfil) => ({ retiraveis: painel(perfil).retiraveis.map((f) => f.codigo), fixas: painel(perfil).fixas.map((f) => f.codigo) }),
-    retiravel: (perfil, funcionalidade) => painel(perfil).retiraveis.some((f) => f.codigo === funcionalidade),
     nome: (funcionalidade) => nomes.get(funcionalidade) ?? funcionalidade,
     ehAdministracao: (funcionalidade) => daAdministracao.has(funcionalidade),
   };

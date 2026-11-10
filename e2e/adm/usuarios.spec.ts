@@ -142,3 +142,26 @@ test('exceção de permissão: retirar e devolver uma funcionalidade do perfil',
   await editar(true);
   await conferirAcesso(true);
 });
+
+// REQ0081 no formulário (ajustes B1 e B2 da revisão 12.12): desmarcar todas as funcionalidades do
+// perfil desmarca o perfil, com o foco na caixa dele e o aviso anunciado; remarcado, volta tudo marcado.
+test('exceção de permissão: desmarcar todas as funcionalidades desmarca o perfil (REQ0081)', async ({ page }) => {
+  await entrarNaTelaPrincipal(page, USUARIOS.excecoes.login);
+  await page.goto('/adm/usuarios/novo');
+  const perfil = page.getByLabel('Orçamentista', { exact: true });
+  await perfil.check();
+  const grupo = page.getByRole('group', { name: 'Funcionalidade(s) do Perfil' }).getByRole('group', { name: 'Orçamentista', exact: true });
+  const caixas = await grupo.getByRole('checkbox').all();
+  expect(caixas.length).toBeGreaterThan(1);
+  for (const caixa of caixas.slice(0, -1)) await caixa.uncheck();
+  await expect(perfil).toBeChecked();
+  await caixas.at(-1)!.click();
+  await expect(perfil).not.toBeChecked();
+  await expect(perfil).toBeFocused();
+  await expect(page.getByText('Perfil Orçamentista desmarcado: todas as funcionalidades foram retiradas.')).toBeVisible();
+  await expect(grupo).toHaveCount(0);
+
+  await perfil.check();
+  await expect(grupo.getByRole('checkbox')).toHaveCount(caixas.length);
+  for (const caixa of await grupo.getByRole('checkbox').all()) await expect(caixa).toBeChecked();
+});

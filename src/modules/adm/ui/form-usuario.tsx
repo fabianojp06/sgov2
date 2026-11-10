@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
+import { alternarFuncionalidade, alternarPerfil, chave, estadoInicial, mensagemPerfilDesmarcado, type EstadoPainel } from './painel-funcionalidades';
 
 // Formulário de cadastro (UC02.12) e alteração (UC02.13) de usuário. Componente cliente: recebe as
 // ações e os dados por props da página (não importa o index do módulo, que tem servidor).
@@ -47,8 +48,6 @@ export type PropsFormUsuario = {
 // Inativo só aparece se já está vinculado (a página manda só esses); fica identificado.
 const rotuloOpcao = (nome: string, ativo: boolean) => (ativo ? nome : `${nome} (inativo)`);
 const descrito = (campo: string) => ({ 'aria-describedby': `erro-${campo}` });
-const chave = (perfil: string, funcionalidade: string) => `${perfil}:${funcionalidade}`;
-const semPerfil = (retiradas: ReadonlySet<string>, perfil: string) => new Set([...retiradas].filter((k) => !k.startsWith(`${perfil}:`)));
 
 export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear }: PropsFormUsuario) {
   const alteracao = usuario !== undefined;
@@ -57,25 +56,21 @@ export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear
   const perfisVisiveis = opcoes.perfis.filter((p) => p.ativo || iniciais.has(p.codigo));
   // Painel "Funcionalidade(s) do Perfil" (US-039; UC02.12 A2, UC02.13 A4–A6): por perfil marcado, as
   // funcionalidades dele, marcadas menos as retiradas do usuário. Desmarcar cria a exceção (REQ0080).
-  const [perfis, setPerfis] = useState<ReadonlySet<string>>(iniciais);
-  const [retiradas, setRetiradas] = useState<ReadonlySet<string>>(
-    () => new Set((usuario?.excecoes ?? []).map((e) => chave(e.perfil, e.funcionalidade))),
-  );
-  const alternarPerfil = (codigo: string, marcado: boolean) => {
-    setPerfis((atual) => (marcado ? new Set([...atual, codigo]) : new Set([...atual].filter((c) => c !== codigo))));
-    // Perfil desmarcado perde as exceções (a cascata do banco); marcado de novo, volta todo marcado (A4).
-    setRetiradas((atual) => semPerfil(atual, codigo));
+  const [painel, setPainel] = useState<EstadoPainel>(() => estadoInicial([...iniciais], usuario?.excecoes ?? []));
+  const [aviso, setAviso] = useState('');
+  const caixasPerfil = useRef(new Map<string, HTMLInputElement>());
+  const perfis = painel.perfis;
+  const retiradas = painel.retiradas;
+  const marcarPerfil = (codigo: string, marcado: boolean) => {
+    setAviso('');
+    setPainel((atual) => alternarPerfil(atual, codigo, marcado));
   };
-  const alternarFuncionalidade = (perfil: OpcaoPerfil, funcionalidade: string, marcada: boolean) => {
-    const k = chave(perfil.codigo, funcionalidade);
-    const novas = marcada ? new Set([...retiradas].filter((x) => x !== k)) : new Set([...retiradas, k]);
-    const todas = perfil.funcionalidades ?? [];
-    // REQ0081: todas as funcionalidades desmarcadas desmarcam o perfil (se ele não tiver fixa).
-    if (!marcada && (perfil.fixas ?? []).length === 0 && todas.every((f) => novas.has(chave(perfil.codigo, f.codigo)))) {
-      alternarPerfil(perfil.codigo, false);
-      return;
-    }
-    setRetiradas(novas);
+  const marcarFuncionalidade = (perfil: OpcaoPerfil, funcionalidade: string, marcada: boolean) => {
+    const r = alternarFuncionalidade(painel, perfil, funcionalidade, marcada);
+    setPainel(r.estado);
+    setAviso(r.perfilDesmarcado ? mensagemPerfilDesmarcado(perfil.nome) : '');
+    // REQ0081: a caixa da funcionalidade some com o perfil; o foco vai para a caixa do perfil (B1).
+    if (r.perfilDesmarcado) caixasPerfil.current.get(perfil.codigo)?.focus();
   };
   const perfisDoPainel = perfisVisiveis.filter((p) => perfis.has(p.codigo));
   const unidadesVisiveis = opcoes.unidades.filter((u) => u.ativo || unidades.has(u.id));
@@ -121,7 +116,11 @@ export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear
                 name="perfis"
                 value={p.codigo}
                 checked={perfis.has(p.codigo)}
-                onChange={(e) => alternarPerfil(p.codigo, e.target.checked)}
+                onChange={(e) => marcarPerfil(p.codigo, e.target.checked)}
+                ref={(caixa) => {
+                  if (caixa) caixasPerfil.current.set(p.codigo, caixa);
+                  else caixasPerfil.current.delete(p.codigo);
+                }}
               />{' '}
               {rotuloOpcao(p.nome, p.ativo)}
             </label>
@@ -143,7 +142,7 @@ export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear
                     name="funcionalidades"
                     value={chave(p.codigo, f.codigo)}
                     checked={!retiradas.has(chave(p.codigo, f.codigo))}
-                    onChange={(e) => alternarFuncionalidade(p, f.codigo, e.target.checked)}
+                    onChange={(e) => marcarFuncionalidade(p, f.codigo, e.target.checked)}
                   />{' '}
                   {f.nome}
                 </label>
@@ -158,6 +157,8 @@ export function FormUsuario({ usuario, opcoes, salvar, resetarSenha, desbloquear
             </fieldset>
           ))}
           <ErroDoCampo campo="excecoes" />
+          {/* Aviso da REQ0081, anunciado pelo leitor de tela; sem role="status" (o do Formulario). */}
+          <p aria-live="polite">{aviso}</p>
         </fieldset>
         <fieldset {...descrito('unidades')}>
           <legend>Termos de Parceria</legend>

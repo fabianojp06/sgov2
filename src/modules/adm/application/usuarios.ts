@@ -104,16 +104,20 @@ async function resolverVinculos(
 
 // Exceções de permissão (US-039): confere as pedidas contra o catálogo dos perfis e aplica a REQ0081
 // (o perfil com todas as funcionalidades retiradas sai) ANTES das checagens de RN0079, do CC de
-// escopo e do último Administrador, que veem os perfis já convertidos. Devolve o usuário revalidado.
+// escopo e do último Administrador, que veem os perfis já convertidos. Devolve o usuário revalidado,
+// com as exceções finais: as pedidas e as atuais que o painel não exibiu (ajuste M1 da revisão 12.12).
 async function aplicarExcecoesDoUsuario(
   tx: TxCliente,
   u: UsuarioValidado,
-  codigosAntes: readonly string[] = [],
+  antes: { perfis: readonly string[]; excecoes: readonly Excecao<UsuarioValidado['perfis'][number]>[] } = { perfis: [], excecoes: [] },
 ): Promise<Resultado<{ usuario: UsuarioValidado; catalogo: CatalogoExcecoes }>> {
-  const catalogo = await carregarCatalogoExcecoes(tx, [...new Set([...u.perfis, ...codigosAntes])]);
-  const aplicadas = aplicarExcecoes(u.perfis, u.excecoes, catalogo.funcionalidades, catalogo.ehAdministracao);
+  const catalogo = await carregarCatalogoExcecoes(tx, [...new Set([...u.perfis, ...antes.perfis])]);
+  const aplicadas = aplicarExcecoes(u.perfis, u.excecoes, catalogo.funcionalidades, catalogo.ehAdministracao, {
+    atuais: antes.excecoes,
+    exibidas: u.exibidas,
+  });
   if (!aplicadas.ok) return aplicadas;
-  if (aplicadas.valor.perfisDesmarcados.length === 0) return ok({ usuario: u, catalogo });
+  if (aplicadas.valor.perfisDesmarcados.length === 0) return ok({ usuario: { ...u, excecoes: aplicadas.valor.excecoes }, catalogo });
   const v = validarUsuario({ ...u, perfis: aplicadas.valor.perfis, excecoes: aplicadas.valor.excecoes });
   return v.ok ? ok({ usuario: v.valor, catalogo }) : v;
 }
@@ -255,13 +259,12 @@ export async function alterarUsuario(
     const excecoesAntes = atual.perfis.flatMap((p) =>
       p.excecoes.map((e) => ({ perfil: p.perfil.codigo as UsuarioValidado['perfis'][number], funcionalidade: e.funcionalidadeCodigo })),
     );
-    const comExcecoes = await aplicarExcecoesDoUsuario(tx, v.valor, codigosAntes);
+    // Só sai a exceção que o painel exibiu e voltou marcada; a não exibida (funcionalidade inativa, de
+    // módulo inativo, ou reativada depois que o formulário abriu) é mantida (ajustes M2 e M1). Sem o
+    // painel (exibidas ausente), nenhuma sai. A de perfil retirado cai com ele (cascata).
+    const comExcecoes = await aplicarExcecoesDoUsuario(tx, v.valor, { perfis: codigosAntes, excecoes: excecoesAntes });
     if (!comExcecoes.ok) return comExcecoes;
-    const { catalogo } = comExcecoes.valor;
-    // O painel só mostra as funcionalidades retiráveis: a exceção já gravada numa que não aparece
-    // (inativa, de módulo inativo) é mantida (ajuste M2). A de perfil retirado cai com ele (cascata).
-    const preservadas = excecoesAntes.filter((e) => comExcecoes.valor.usuario.perfis.includes(e.perfil) && !catalogo.retiravel(e.perfil, e.funcionalidade));
-    const u = { ...comExcecoes.valor.usuario, excecoes: [...comExcecoes.valor.usuario.excecoes, ...preservadas] };
+    const { usuario: u, catalogo } = comExcecoes.valor;
     const antes = retrato({ ...atual, perfis: codigosAntes as UsuarioValidado['perfis'], unidades: unidadesAntes, excecoes: excecoesAntes });
     // Salvar sem mudança nenhuma não grava nem audita.
     if (JSON.stringify(antes) === JSON.stringify(retrato(u))) return ok(undefined);

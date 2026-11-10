@@ -81,6 +81,9 @@ export const esquemaUsuario = z.object({
     .max(1000, MENSAGENS_EXCECAO.DEMAIS)
     .default([])
     .transform((lista) => [...new Map(lista.map((e) => [chaveExcecao(e), e])).values()]),
+  // Chaves "<perfil>:<funcionalidade>" que o painel mostrou (ajuste M1 da revisão 12.12): só uma
+  // exceção exibida pode ser removida. Ausente (chamada sem o painel): nenhuma exceção sai.
+  exibidas: z.array(z.string().max(200, MENSAGENS_EXCECAO.DEMAIS)).max(2000, MENSAGENS_EXCECAO.DEMAIS).optional(),
   // Classificação do CC raiz, validada contra o cadastro de CC no P6 (R8 do plano).
   ccEscopo: texto(60, MENSAGENS_USUARIO.CC_INVALIDO)
     .nullable()

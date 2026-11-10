@@ -32,6 +32,7 @@ describe('entradaCadastro', () => {
       unidades: [UNIDADE],
       ccEscopo: null,
       excecoes: [],
+      exibidas: [],
     });
   });
 
@@ -50,7 +51,10 @@ describe('entradaCadastro', () => {
         ['funcionalidades', 'GFIN:orc.orcamento'],
       ]),
     );
-    expect(r).toMatchObject({ excecoes: [{ perfil: 'ORCAMENTISTA', funcionalidade: 'cad.centros_custo' }] });
+    expect(r).toMatchObject({
+      excecoes: [{ perfil: 'ORCAMENTISTA', funcionalidade: 'cad.centros_custo' }],
+      exibidas: ['ORCAMENTISTA:cad.plano_contas', 'ORCAMENTISTA:cad.centros_custo', 'GFIN:orc.orcamento'],
+    });
   });
 
   it('checkbox desmarcado (ausente) vira false; sem perfil nem unidade, listas vazias', () => {
