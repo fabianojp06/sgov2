@@ -30,7 +30,10 @@ const HORA_BRASILIA = new Intl.DateTimeFormat('pt-BR', {
   minute: '2-digit',
 });
 
-/** Identificação de uma exportação, com um rastreio novo (UUID) e a hora do servidor. */
+/**
+ * Identificação de uma exportação, com um rastreio novo (UUID) e a hora do servidor. Chamar no
+ * servidor: no navegador, o crypto.randomUUID só existe em contexto seguro (HTTPS ou localhost).
+ */
 export function criarIdentificacao(
   d: { titulo: string; filtros: readonly FiltroExportacao[]; operador: string },
   agora: Date = new Date(),

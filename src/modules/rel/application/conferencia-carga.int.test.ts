@@ -110,6 +110,16 @@ describe('conferência da carga (P7, Task 2)', () => {
     expect(await historico('rel.conferencia_carga', 'EXPORTACAO')).toBe(antes + 2);
   });
 
+  it('falha na geração do arquivo (operador vazio): nada vai para o Histórico, nem a consulta de salário', async () => {
+    const exportacoes = await historico('rel.conferencia_carga', 'EXPORTACAO');
+    const consultas = await historico('cad.salarios', 'CONSULTA');
+    const semRotulo: ContextoRequisicao = { ...comSalarios(), usuarioRotulo: '' };
+    const r = await exportarConferenciaCarga(semRotulo, 2027, 'csv', { cliente: app });
+    expect(!r.ok && r.erros.map((e) => e.campo)).toEqual(['planilhas.0.identificacao.operador']);
+    expect(await historico('rel.conferencia_carga', 'EXPORTACAO')).toBe(exportacoes);
+    expect(await historico('cad.salarios', 'CONSULTA')).toBe(consultas);
+  });
+
   it('exercício fora do intervalo: recusa sem exportar nem registrar', async () => {
     const antes = await historico('rel.conferencia_carga', 'EXPORTACAO');
     const r = await exportarConferenciaCarga(gfin(), 1999, 'csv', { cliente: app });

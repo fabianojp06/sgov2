@@ -43,8 +43,13 @@ async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Arr
         if (n === 0) r.font = { bold: true };
       });
       ws.addRow([]);
-      const rodape = (t: string) => textoXml(t).replace(/&/g, '&&');
-      ws.headerFooter.oddFooter = `&L${rodape(p.identificacao.operador)}&RRastreio ${rodape(p.identificacao.rastreio)}`;
+      // O Excel recusa cabeçalho ou rodapé acima de 255 caracteres: o operador vai cortado em 150, sem
+      // partir um "&&" ao meio (o rastreio tem até 64 e não aceita "&").
+      const rodape = (t: string, max: number) => {
+        const r = textoXml(t).replace(/&/g, '&&').slice(0, max);
+        return /(^|[^&])(&&)*&$/.test(r) ? r.slice(0, -1) : r;
+      };
+      ws.headerFooter.oddFooter = `&L${rodape(p.identificacao.operador, 150)}&RRastreio ${rodape(p.identificacao.rastreio, 64)}`;
     }
     ws.addRow(p.colunas.map((c) => textoXml(c.titulo))).font = { bold: true };
     for (const linha of p.linhas) {

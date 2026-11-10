@@ -67,6 +67,19 @@ describe('identificação da exportação (US-024)', () => {
     expect((await ler(r.valor)).headerFooter.oddFooter).toBe(`&LAna && Bia&RRastreio ${RASTREIO}`);
   });
 
+  it('XLSX: operador longo é cortado no rodapé (limite de 255 do Excel), sem partir um "&&"', async () => {
+    for (const operador of ['x'.repeat(200), `${'x'.repeat(149)}&abc`, '&'.repeat(200)]) {
+      const r = await exportarXlsx([{ ...base, identificacao: { ...identificacao, operador } }]);
+      if (!r.ok) throw new Error('falhou');
+      const rodape = (await ler(r.valor)).headerFooter.oddFooter!;
+      expect(rodape.length).toBeLessThanOrEqual(255);
+      const esquerda = /^&L(.*)&RRastreio /.exec(rodape)![1]!;
+      expect(esquerda.length).toBeLessThanOrEqual(150);
+      // Fora os "&&", nenhum "&" sozinho sobra no fim do trecho do operador.
+      expect(esquerda.replace(/&&/g, '')).not.toContain('&');
+    }
+  });
+
   it('XLSX sem identificação: a tabela começa na linha 1, como antes', async () => {
     const r = await exportarXlsx([base]);
     if (!r.ok) throw new Error('falhou');
@@ -76,12 +89,12 @@ describe('identificação da exportação (US-024)', () => {
     expect(ws.headerFooter?.oddFooter).toBeUndefined();
   });
 
-  it('CSV: o cabeçalho antes da tabela, com o escape de fórmula também no operador e nos filtros', () => {
-    const r = exportarCsv({ ...base, identificacao: { ...identificacao, operador: '=HYPERLINK("x")', filtros: [{ rotulo: '+Filtro', valor: 'x' }] } });
+  it('CSV: o cabeçalho antes da tabela, com o escape de fórmula nas linhas do cabeçalho', () => {
+    const r = exportarCsv({ ...base, identificacao: { ...identificacao, titulo: '=1+1', operador: '=HYPERLINK("x")', filtros: [{ rotulo: '+Filtro', valor: 'x' }] } });
     if (!r.ok) throw new Error('falhou');
     const linhas = new TextDecoder().decode(r.valor).replace(/^\uFEFF/, '').split('\r\n');
     expect(linhas.slice(0, 7)).toEqual([
-      '"Conferência da carga"',
+      `"'=1+1"`,
       '"Filtros: +Filtro: x"',
       '"Exportado por =HYPERLINK(""x"") em 05/03/2027, 10:07 (horário de Brasília)"',
       `"Rastreio: ${RASTREIO}"`,
