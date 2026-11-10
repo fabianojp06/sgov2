@@ -31,6 +31,9 @@ export const USUARIOS = {
   // Histórico de Operações (e2e/adm/historico.spec.ts, US-040).
   historico: { login: 'adm.historico', nome: 'E2E Administrador Histórico', perfil: 'ADMINISTRADOR' },
   auditor: { login: 'aud.historico', nome: 'E2E Auditor Histórico', perfil: 'AUDITOR' },
+  // Módulos e funcionalidades (e2e/adm/modulos.spec.ts, US-035): o GFIN vê o menu da Adm. Central.
+  modulos: { login: 'adm.modulos', nome: 'E2E Administrador Módulos', perfil: 'ADMINISTRADOR' },
+  gfinModulos: { login: 'gfin.modulos', nome: 'E2E Gestor Financeiro Módulos', perfil: 'GFIN' },
   // CSP completa nas telas (e2e/aut/csp.spec.ts, #318).
   csp: { login: 'adm.csp', nome: 'E2E Administrador CSP', perfil: 'ADMINISTRADOR' },
   // Perfil criado só no banco do teste, sem permissão nenhuma (RN0521): com as seeds do cad e do
