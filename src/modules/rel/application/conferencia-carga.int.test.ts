@@ -85,7 +85,16 @@ describe('conferência da carga (P7, Task 2)', () => {
     if (!csv.ok) throw new Error(JSON.stringify(csv.erros));
     expect(csv.valor).toMatchObject({ nome: 'conferencia-carga-2027.csv', tipo: 'text/csv; charset=utf-8' });
     const texto = new TextDecoder().decode(csv.valor.bytes);
-    expect(texto.split('\r\n').filter(Boolean)).toHaveLength(tela.linhas.length + 1);
+    // US-024: 4 linhas de cabeçalho (título, filtros, operador e rastreio), uma vazia e a tabela.
+    const linhasCsv = texto.replace(/^\uFEFF/, '').split('\r\n');
+    expect(linhasCsv.slice(0, 2)).toEqual(['"Conferência da carga 2027"', '"Filtros: Exercício: 2027"']);
+    expect(linhasCsv[2]).toMatch(/^"Exportado por gfin em \d{2}\/\d{2}\/\d{4}, \d{2}:\d{2} \(horário de Brasília\)"$/);
+    const rastreioCsv = /^"Rastreio: ([0-9a-f-]{36})"$/.exec(linhasCsv[3]!)![1];
+    expect(linhasCsv[4]).toBe('');
+    expect(linhasCsv.slice(5).filter(Boolean)).toHaveLength(tela.linhas.length + 1);
+    const { rows } = await migrator.query(`SELECT descricao, depois FROM historico_operacao WHERE funcionalidade = 'rel.conferencia_carga' ORDER BY id DESC LIMIT 1`);
+    expect(rows[0].depois).toEqual({ formato: 'csv', registros: tela.linhas.length, filtros: [{ rotulo: 'Exercício', valor: '2027' }], rastreio: rastreioCsv });
+    expect(rows[0].descricao).toContain(rastreioCsv);
     expect(texto).toContain(`"${SOMA} (oculto: sem permissão de consultar salários)"`);
     expect(texto).toContain('"Analíticas ativas";"162"');
 
@@ -94,7 +103,9 @@ describe('conferência da carga (P7, Task 2)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(Buffer.from(xlsx.valor.bytes) as unknown as ArrayBuffer);
     const ws = wb.getWorksheet('Conferência 2027')!;
-    expect(ws.rowCount).toBe(tela.linhas.length + 1);
+    expect(ws.rowCount).toBe(tela.linhas.length + 1 + 5);
+    expect(ws.getRow(1).getCell(1).value).toBe('Conferência da carga 2027');
+    expect(ws.headerFooter.oddFooter).toMatch(/^&Lgfin&RRastreio [0-9a-f-]{36}$/);
     expect(ws.getRows(2, ws.rowCount - 1)!.some((r) => r.getCell(2).value === 'Analíticas ativas' && r.getCell(3).value === '162')).toBe(true);
     expect(await historico('rel.conferencia_carga', 'EXPORTACAO')).toBe(antes + 2);
   });

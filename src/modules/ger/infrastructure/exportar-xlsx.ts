@@ -1,6 +1,6 @@
 import { Competencia, Dinheiro, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
 import { CELULA_INVALIDA, lerDataIso, type TipoColuna, type ValorCelula } from '../domain/celula';
-import { validarPlanilhas, type PlanilhaExportacao } from './exportacao';
+import { linhasIdentificacao, validarPlanilhas, type PlanilhaExportacao } from './exportacao';
 
 // Contrato C3: exportação para XLSX (US-021, R21). Só pelo servidor.ts (R22): o index.ts do ger é
 // importado por componentes cliente e não pode alcançar o ExcelJS, nem por import dinâmico.
@@ -26,8 +26,8 @@ async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Arr
   const wb = new ExcelJS.Workbook();
   for (const p of planilhas) {
     const ws = wb.addWorksheet(p.nome);
+    // Sem `header` nas colunas: com a identificação (US-024), os títulos não ficam na linha 1.
     ws.columns = p.colunas.map((c) => ({
-      header: textoXml(c.titulo),
       // Largura em caracteres: cerca de 7 px por caractere (o Excel aceita até 255).
       width: c.largura ? Math.min(255, Math.max(4, Math.round(c.largura / 7))) : 18,
       ...(c.tipo === 'dinheiro' ? { style: { numFmt: '#,##0.00' } } : {}),
@@ -35,7 +35,18 @@ async function gerar(planilhas: readonly PlanilhaExportacao[]): Promise<Uint8Arr
       ...(c.tipo === 'percentual' ? { style: { numFmt: '#,##0.00##"%"' } } : {}),
       ...(c.tipo === 'data' ? { style: { numFmt: 'dd/mm/yyyy' } } : {}),
     }));
-    ws.getRow(1).font = { bold: true };
+    if (p.identificacao) {
+      // RN0011 e RN_WATERMARK: o cabeçalho legível no topo (título em negrito) e, na impressão, o
+      // operador e o rastreio no rodapé. No rodapé do Excel, "&" é código: vira "&&".
+      linhasIdentificacao(p.identificacao).forEach((t, n) => {
+        const r = ws.addRow([textoXml(t)]);
+        if (n === 0) r.font = { bold: true };
+      });
+      ws.addRow([]);
+      const rodape = (t: string) => textoXml(t).replace(/&/g, '&&');
+      ws.headerFooter.oddFooter = `&L${rodape(p.identificacao.operador)}&RRastreio ${rodape(p.identificacao.rastreio)}`;
+    }
+    ws.addRow(p.colunas.map((c) => textoXml(c.titulo))).font = { bold: true };
     for (const linha of p.linhas) {
       const r = ws.addRow([]);
       linha.forEach((v, i) => {

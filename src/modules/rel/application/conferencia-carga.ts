@@ -1,6 +1,7 @@
 import 'server-only';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { listarAnosExercicio, resumirCadastrosParaConferencia } from '@/modules/cad';
+import { criarIdentificacao } from '@/modules/ger';
 import { exportarCsv, exportarXlsx } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
@@ -53,14 +54,19 @@ export async function exportarConferenciaCarga(
   const planilha = await cliente.$transaction(
     async (tx) => {
       const resumo = await resumirCadastrosParaConferencia(ctx, tx, ano);
-      const p = planilhaConferencia(resumo, ano);
+      // US-024: filtros, operador e rastreio no cabeçalho do arquivo; o mesmo rastreio no Histórico.
+      const filtros = [{ rotulo: 'Exercício', valor: String(ano) }];
+      const identificacao = criarIdentificacao({ titulo: `Conferência da carga ${ano}`, filtros, operador: ctx.usuarioRotulo });
+      const p = planilhaConferencia(resumo, ano, identificacao);
       const comSoma = resumo.cargos.somaSalarioReal.situacao === 'calculada';
       await auditar(tx, {
         contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null },
         funcionalidade: 'rel.conferencia_carga',
         tipo: 'EXPORTACAO',
         registroId: String(ano),
-        descricao: `Conferência da carga de ${ano} exportada em ${formato.toUpperCase()}${comSoma ? ', com a soma dos salários' : ''}`,
+        descricao: `Conferência da carga de ${ano} exportada em ${formato.toUpperCase()}${comSoma ? ', com a soma dos salários' : ''} (rastreio ${identificacao.rastreio})`,
+        // RN0011 do Catálogo: quantidade de registros e filtros; RN_WATERMARK: o rastreio do arquivo.
+        depois: { formato, registros: p.linhas.length, filtros, rastreio: identificacao.rastreio },
       });
       return p;
     },
