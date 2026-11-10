@@ -229,6 +229,16 @@ export function validarLinhaPacote(celulas: LinhaPlanilha['celulas'], estrutura:
   return ok({ cc: p.cc, conta: p.conta, justificativa: p.justificativa, prioridade: p.prioridade, quantidade: p.quantidade, valorUnitario: p.valorUnitario, corrigirIpca: p.corrigirIpca, distribuicao: p.distribuicao, mesOcorrencia: p.mesOcorrencia });
 }
 
+// Uma posição lançada pela tela (US-056; plano do P12): a mesma validação da aba Pessoal, com os
+// nomes das colunas como campos dos erros (a aplicação traduz para os campos do formulário).
+export type DadosPosicaoValidada = Omit<PosicaoValidada, 'linha'>;
+export function validarLinhaPosicao(celulas: LinhaPlanilha['celulas'], estrutura: ConsultaEstrutura, limites: LimitesPlanilha): Resultado<DadosPosicaoValidada> {
+  const lista: ErroPlanilha[] = [];
+  const p = validarPessoal({ numero: 0, celulas }, estrutura, limites, lista);
+  if (!p) return falha(lista.map((x): ErroCampo => ({ campo: x.coluna ?? '_', mensagem: x.mensagem })));
+  return ok({ cc: p.cc, cargo: p.cargo, quantidade: p.quantidade, salarioMensal: p.salarioMensal, mesInicio: p.mesInicio, mesSaida: p.mesSaida, observacao: p.observacao });
+}
+
 // Uma linha de receita (aba Receitas ou tela da Task 5). Os campos dos erros são os nomes das colunas.
 export function validarReceita(celulas: LinhaPlanilha['celulas']): Resultado<Omit<ReceitaValidada, 'linha'>> {
   const lista: ErroPlanilha[] = [];

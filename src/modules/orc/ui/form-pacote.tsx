@@ -65,6 +65,8 @@ export function FormPacote({
   salvar: AcaoFormulario;
   cancelarPara: string;
 }) {
+  // CC fora das opções: o seletor começa vazio, para o pacote não mudar de CC sem o usuário escolher.
+  const ccInicial = ccs.some((c) => c.classificacao === (pacote?.cc ?? ccAtual)) ? (pacote?.cc ?? ccAtual) : '';
   const [campos, setCampos] = useState<CamposPrevia>(() => camposIniciais(pacote));
   // A prévia acompanha o que está digitado: lê o formulário inteiro a cada mudança.
   const aoMudar = (e: FormEvent<HTMLDivElement>) => {
@@ -96,7 +98,8 @@ export function FormPacote({
         <div onChange={aoMudar}>
           <p>
             <label htmlFor={`${prefixo}-cc`}>Centro de custo</label>
-            <select id={`${prefixo}-cc`} name="cc" defaultValue={pacote?.cc ?? ccAtual} aria-describedby="erro-cc">
+            <select id={`${prefixo}-cc`} name="cc" defaultValue={ccInicial} aria-describedby="erro-cc">
+              {ccInicial === '' && <option value="" disabled>Escolha o centro de custo</option>}
               {ccs.map((c) => (
                 <option key={c.classificacao} value={c.classificacao}>{`${c.classificacao} – ${c.descricao}`}</option>
               ))}

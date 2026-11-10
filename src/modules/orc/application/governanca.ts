@@ -14,6 +14,8 @@ export const CAMPOS_ORIGEM_BLINDADA = {
   // D-P11-5: a tela altera pacote de qualquer origem, mas nunca muda a origem, a importação nem o
   // exercício (o da inclusão vem do formulário); valor anual e parcelas são sempre do servidor.
   pacote: ['origem', 'importacaoId', 'exercicioId', 'valorAnual', 'meses', 'linhas'],
+  // D-P12-7: a mesma regra para a posição de pessoal; as linhas são sempre do motor (C33).
+  posicao: ['origem', 'importacaoId', 'exercicioId', 'linhas'],
 } as const satisfies Record<string, readonly string[]>;
 
 export async function recusarCamposBlindados(

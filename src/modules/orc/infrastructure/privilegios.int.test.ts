@@ -24,7 +24,7 @@ afterAll(async () => {
 const TODOS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
 const ESPERADO_APP: Record<string, string[]> = {
   orc_exercicio: ['INSERT', 'SELECT'],
-  orc_posicao: TODOS,
+  orc_posicao: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P12)
   orc_pacote: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P11)
   orc_linha: TODOS,
   orc_receita: TODOS,
@@ -69,6 +69,14 @@ describe('privilégios do orc', () => {
     expect(r.rows.map((x) => x.coluna)).toEqual([
       'cc', 'conta', 'corrigir_ipca', 'distribuicao', 'justificativa', 'mes_ocorrencia', 'prioridade', 'quantidade', 'valor_unitario', 'versao',
     ]);
+  });
+
+  it('sgo_app atualiza na posição só os dados e a versão: origem, importação e exercício ficam de fora (P12)', async () => {
+    const r = await migrator.query<{ coluna: string }>(
+      `SELECT column_name AS coluna FROM information_schema.column_privileges
+       WHERE grantee = 'sgo_app' AND table_name = 'orc_posicao' AND privilege_type = 'UPDATE' ORDER BY 1`,
+    );
+    expect(r.rows.map((x) => x.coluna)).toEqual(['cargo', 'cc', 'mes_inicio', 'mes_saida', 'observacao', 'quantidade', 'salario_mensal', 'versao']);
   });
 
   it('sgo_sync: nada no orc', async () => expect(await privilegios('sgo_sync')).toEqual({}));

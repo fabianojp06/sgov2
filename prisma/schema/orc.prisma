@@ -42,6 +42,7 @@ model PosicaoOrcada {
   origem        String
   importacaoId  String?             @map("importacao_id") @db.Uuid
   importacao    ImportacaoPlanilha? @relation(fields: [importacaoId], references: [id], onDelete: Restrict)
+  versao        Int                 @default(0)
   linhas        LinhaOrcada[]
 
   @@index([exercicioId, cc])
