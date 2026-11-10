@@ -61,26 +61,27 @@ model PerfilPermissao {
 
 // Usuário (UC02.11–UC02.14). Status e bloqueio são independentes (RN0063, RN0524).
 model Usuario {
-  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nome                  String
   email                 String
   login                 String
-  loginNormalizado      String          @unique @map("login_normalizado")
-  ativo                 Boolean         @default(true)
-  bloqueado             Boolean         @default(false)
-  tentativasFalhas      Int             @default(0) @map("tentativas_falhas")
-  senhaHash             String          @map("senha_hash")
-  trocaSenhaObrigatoria Boolean         @default(true) @map("troca_senha_obrigatoria")
-  senhaExpiraEm         DateTime?       @map("senha_expira_em") @db.Timestamptz(6)
+  loginNormalizado      String            @unique @map("login_normalizado")
+  ativo                 Boolean           @default(true)
+  bloqueado             Boolean           @default(false)
+  tentativasFalhas      Int               @default(0) @map("tentativas_falhas")
+  senhaHash             String            @map("senha_hash")
+  trocaSenhaObrigatoria Boolean           @default(true) @map("troca_senha_obrigatoria")
+  senhaExpiraEm         DateTime?         @map("senha_expira_em") @db.Timestamptz(6)
   // CC raiz de escopo do Gestor de Diretoria (C25, R8): classificação do CC, validada no P6.
-  ccEscopo              String?         @map("cc_escopo")
+  ccEscopo              String?           @map("cc_escopo")
   // Incrementado quando o acesso muda (perfis, inativação, reset, desbloqueio): derruba as sessões.
-  acessoVersao          Int             @default(0) @map("acesso_versao")
-  versao                Int             @default(0)
-  criadoEm              DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  atualizadoEm          DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  acessoVersao          Int               @default(0) @map("acesso_versao")
+  versao                Int               @default(0)
+  criadoEm              DateTime          @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm          DateTime          @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
   perfis                UsuarioPerfil[]
   sessoes               SessaoUsuario[]
+  sessoesEncerradas     SessaoEncerrada[]
   unidades              UsuarioUnidade[]
 
   @@map("usuario")

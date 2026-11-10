@@ -147,3 +147,66 @@ describe('criarProvedorContexto', () => {
     }
   });
 });
+
+describe('sessão encerrada por novo acesso (US-028, RN0519)', () => {
+  it('o segundo login grava a marca da sessão anterior, com o prazo dela; motivoAusencia devolve NOVO_ACESSO', async () => {
+    await criarUsuario('estacao1');
+    const antigo = await logar('estacao1');
+    const sessaoAntiga = await migrator.sessaoUsuario.findFirstOrThrow({ where: { usuario: { login: 'estacao1' } } });
+    agora = new Date(agora.getTime() + 60_000);
+    await logar('estacao1');
+    const marca = await migrator.sessaoEncerrada.findUniqueOrThrow({ where: { tokenHash: sessaoAntiga.tokenHash } });
+    expect(marca).toMatchObject({ motivo: 'NOVO_ACESSO', expiraEm: sessaoAntiga.expiraEm });
+    cookie = antigo;
+    expect(await provedor().obter()).toBeNull();
+    // A leitura não apaga a marca: o layout e a página leem na mesma requisição.
+    expect(await provedor().motivoAusencia!()).toBe('NOVO_ACESSO');
+    expect(await provedor().motivoAusencia!()).toBe('NOVO_ACESSO');
+  });
+
+  it('sem cookie, token desconhecido ou marca vencida → null; um login depois do prazo apaga as marcas vencidas', async () => {
+    await criarUsuario('estacao2');
+    const antigo = await logar('estacao2');
+    await logar('estacao2');
+    expect(await provedor().motivoAusencia!()).toBeNull();
+    cookie = 'desconhecido';
+    expect(await provedor().motivoAusencia!()).toBeNull();
+    cookie = antigo;
+    agora = new Date(agora.getTime() + 13 * 60 * 60 * 1000); // passa do teto de 12 h da sessão encerrada
+    expect(await provedor().motivoAusencia!()).toBeNull();
+    await logar('estacao2');
+    const u = await migrator.usuario.findFirstOrThrow({ where: { login: 'estacao2' } });
+    // A marca antiga venceu e saiu; a sessão do login anterior também já tinha vencido (teto de 12 h),
+    // então este login não marca nada.
+    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(0);
+  });
+
+  it('sessão já parada por inatividade não recebe a marca: a estação vê "Sessão expirada"', async () => {
+    await criarUsuario('estacao4');
+    await logar('estacao4');
+    agora = new Date(agora.getTime() + 31 * 60 * 1000);
+    await logar('estacao4');
+    const u = await migrator.usuario.findFirstOrThrow({ where: { login: 'estacao4' } });
+    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(0);
+  });
+
+  it('sequência A, B, C: o aviso de A continua valendo depois do login de C', async () => {
+    await criarUsuario('estacao5');
+    const a = await logar('estacao5');
+    agora = new Date(agora.getTime() + 60_000);
+    await logar('estacao5');
+    agora = new Date(agora.getTime() + 60_000);
+    await logar('estacao5');
+    cookie = a;
+    expect(await provedor().motivoAusencia!()).toBe('NOVO_ACESSO');
+  });
+
+  it('a troca de senha rotaciona o token sem marca de novo acesso', async () => {
+    await criarUsuario('estacao3');
+    await logar('estacao3');
+    const u = await migrator.usuario.findFirstOrThrow({ where: { login: 'estacao3' } });
+    const { emitirSessao } = await import('./sessao');
+    await app.$transaction((tx) => emitirSessao(tx, { usuarioId: u.id, acessoVersao: u.acessoVersao, trocaSenhaPendente: false, ip: null, agora, maximoHoras: 12, inatividadeMin: 30, motivoAnteriores: null }));
+    expect(await migrator.sessaoEncerrada.count({ where: { usuarioId: u.id } })).toBe(0);
+  });
+});
