@@ -9,6 +9,12 @@ Cenários do k6 do plano do P7 (Task 3). As metas de servidor da §10.3 são med
 - **Um processo pesado por vez:** o `rodar.sh` pega o mesmo lock do `test:int` e do `test:e2e`.
 - **Usuário:** um usuário do ambiente com o perfil das páginas medidas. Login e senha vêm do ambiente na hora, nunca de arquivo.
 
+## Plano de contas de 5.000 linhas (D-P7-3)
+
+- **Gerar:** `npx tsx ops/carga/gerar-plano.ts plano-sintetico.xlsx 5000`. O arquivo tem o plano oficial inteiro mais o ramo `9`, e o script não toca banco.
+- **Importar:** pela tela do plano de contas, com um usuário GFIN. O worker processa a carga.
+- **Atenção:** a seed com `CARGA_DADOS_REFERENCIA=1` (`npm run db:seed` no dev e todo deploy do `migracao` em hml) recarrega só o plano oficial e **inativa o ramo `9`**. Não semear nem implantar entre a importação e a medição. Antes de cada rodada, conferir na tela que o ramo `9` ("CARGA SINTÉTICA") está ativo; se não estiver, importar o arquivo de novo.
+
 ## Como rodar
 
 ```bash
@@ -32,4 +38,4 @@ Registrar aqui cada rodada: data, destino, commit, número de usuários virtuais
 | --- | --- | --- | --- | --- | --- | --- |
 | 04/11/2026 | dev local (`next start`, 127.0.0.1:3200, banco 56432) | `36b5bca` | 20 (2 min de patamar) | geral 149; `/inicio` 146, `/cad/plano-contas` 143, `/cad/centros-custo` 135, `/cad/cargos` 167, `/orc/orcamento` 134, `/rel/conferencia-carga` 169 | 0 de 2.730 | 5.235 MB (5.597 antes) |
 
-Login de ponta a ponta (`sessao.mjs`, uma vez): 253 ms até a tela principal. Perfil GFIN, num banco de dev com o plano oficial, a minuta de CC e os cargos sintéticos (não a base de referência da D-P7-3, que vem com o gerador de massa).
+Login de ponta a ponta (`sessao.mjs`, uma vez): 253 ms até a tela principal. Perfil GFIN, num banco de dev com o plano oficial, a minuta de CC e os cargos sintéticos (não a base de referência da D-P7-3: o plano de 5.000 linhas vem do `gerar-plano.ts`, e os exercícios do orçamento, da importação do `orc`).
