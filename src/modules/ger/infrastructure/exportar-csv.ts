@@ -1,6 +1,6 @@
 import { Dinheiro, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
 import { CELULA_INVALIDA, formatarCelula, type TipoColuna, type ValorCelula } from '../domain/celula';
-import { linhasIdentificacao, validarPlanilhas, type PlanilhaExportacao } from './exportacao';
+import { linhasIdentificacao, validarPlanilhas, type OpcoesGeracao, type PlanilhaExportacao } from './exportacao';
 
 // Contrato C3: exportação para CSV (issue #233, R17 do P6), na mesma forma do XLSX (uma aba).
 // Formato do Excel em pt-BR: BOM UTF-8, separador ";", vírgula decimal, linhas com \r\n e todo
@@ -11,8 +11,8 @@ import { linhasIdentificacao, validarPlanilhas, type PlanilhaExportacao } from '
 // ou \r (e as formas de largura total). Todo texto (dados e títulos) que começa assim, mesmo depois
 // de espaços ou quebras de linha (que o LibreOffice e o Google Sheets podem aparar), ganha um apóstrofo na frente e é lido como texto. Dinheiro e percentual saem do
 // kernel, nunca do texto livre, então o "-" de um valor negativo não é escapado.
-export function exportarCsv(planilha: PlanilhaExportacao): Resultado<Uint8Array> {
-  const v = validarPlanilhas([planilha]);
+export function exportarCsv(planilha: PlanilhaExportacao, opcoes: OpcoesGeracao = {}): Resultado<Uint8Array> {
+  const v = validarPlanilhas([planilha], opcoes.limite);
   if (!v.ok) return falha(v.erros);
   // US-024: o cabeçalho legível (filtros, operador e rastreio) vem antes da tabela, um campo por
   // linha e uma linha vazia depois, com o mesmo escape de fórmula do resto.

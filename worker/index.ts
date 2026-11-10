@@ -1,9 +1,9 @@
 import { rmSync, writeFileSync } from 'node:fs';
-import { registrarTrabalhadoresGer } from '@/modules/ger/servidor';
+import { limparExportacoes, registrarTrabalhadoresGer } from '@/modules/ger/servidor';
 import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
-import { iniciarProcessadorCargas } from '@/modules/cad/servidor';
+import { GERADORES_EXPORTACAO_CAD, iniciarProcessadorCargas } from '@/modules/cad/servidor';
 import { lerConfiguracaoWorker } from './configuracao';
 import { criarObterNomeExibicao } from './nome-exibicao';
 
@@ -24,6 +24,8 @@ const SINAL_ATE_MS = 60_000;
 // Encerramento com conexão presa (fila.parar, $disconnect): sai assim mesmo, antes do SIGKILL
 // do stop_grace_period de 10 s.
 const LIMITE_ENCERRAR_MS = 9_000;
+// Limpeza das exportações em segundo plano (US-024): sem resposta vira falha, vencida é apagada.
+const INTERVALO_LIMPEZA_MS = 15 * 60_000;
 
 function marcarVivo(): void {
   try {
@@ -45,12 +47,26 @@ async function iniciar(): Promise<void> {
 
   const prisma = criarPrisma(env.DATABASE_URL);
   const fila = await criarFila(env.FILA_DATABASE_URL);
-  await registrarTrabalhadoresGer(fila, { cliente: prisma, obterNomeExibicao: criarObterNomeExibicao(prisma) });
+  // Exportação assíncrona (US-024): os geradores vêm dos módulos donos das listagens.
+  await registrarTrabalhadoresGer(fila, {
+    cliente: prisma,
+    obterNomeExibicao: criarObterNomeExibicao(prisma),
+    geradoresExportacao: { ...GERADORES_EXPORTACAO_CAD },
+  });
   // Merge das cargas de estrutura (plano do P4, R6): só o worker tem o sgo_sync. Sem a variável,
   // o processador avisa [CARGA_SEM_SYNC] e os lotes ficam PENDENTE, visíveis na tela.
   const urlSync = process.env.SYNC_DATABASE_URL;
   const clienteSync = urlSync ? criarPrisma(urlSync) : null;
   const cargas = iniciarProcessadorCargas({ clienteSync });
+
+  const limpar = () =>
+    limparExportacoes(prisma, new Date())
+      .then((r) => {
+        if (r.semResposta > 0 || r.apagados > 0) console.log('[EXPORTACOES_LIMPAS]', r);
+      })
+      .catch((erro: unknown) => console.error('[EXPORTACOES_LIMPEZA_FALHOU]', resumo(erro)));
+  void limpar();
+  const temporizadorLimpeza = setInterval(() => void limpar(), INTERVALO_LIMPEZA_MS);
 
   let emCurso: Promise<unknown> | null = null;
   let inicioCiclo = 0;
@@ -94,6 +110,7 @@ async function iniciar(): Promise<void> {
       process.exit(codigo || 1);
     }, LIMITE_ENCERRAR_MS).unref();
     clearInterval(temporizador);
+    clearInterval(temporizadorLimpeza);
     try {
       if (drenar) await emCurso; // drena a publicação em andamento antes de fechar as conexões
       await Promise.all([cargas.parar(), fila.parar()]);

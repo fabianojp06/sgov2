@@ -17,3 +17,6 @@ export { COLUNAS_PLANO_CONTAS } from './domain/plano-contas';
 
 // Parâmetros sem guarda (R10, R22): nome de exibição para o e-mail e a versão única do ano.
 export { obterParametroSistema, tocarVersaoExercicio, type ChaveParametroSistema } from './infrastructure/parametro-sistema';
+
+// Geradores da exportação assíncrona (US-024): o worker os entrega ao trabalhador do ger.
+export { GERADORES_EXPORTACAO_CAD } from './application/planilha-estrutura';

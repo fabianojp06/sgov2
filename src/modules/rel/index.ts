@@ -9,3 +9,6 @@ export {
   type TelaConferencia,
 } from './application/conferencia-carga';
 export type { LinhaConferencia } from './application/linhas-conferencia';
+
+// Minhas exportações (US-024): os pedidos em segundo plano da própria pessoa e o download.
+export { baixarExportacao, DIAS_DISPONIVEL, listarMinhasExportacoes, type ArquivoPedido, type PedidoTela, type SituacaoPedido } from './application/minhas-exportacoes';

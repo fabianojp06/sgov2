@@ -27,6 +27,13 @@ describe('bundle do worker', () => {
     expect(entradas).toContain('src/modules/ger/infrastructure/trabalhador-email.ts');
   });
 
+  // US-024: o trabalhador da exportação assíncrona e os geradores do cad (sem os casos de uso com authz).
+  it('leva a exportação assíncrona do ger e os geradores do cad', () => {
+    expect(entradas).toContain('src/modules/ger/infrastructure/exportacao-assincrona.ts');
+    expect(entradas).toContain('src/modules/cad/application/planilha-estrutura.ts');
+    expect(entradas).not.toContain('src/modules/cad/application/exportar-estrutura.ts');
+  });
+
   // E-N4: o nome de exibição sai do cad pelo servidor.ts, sem puxar os casos de uso (que exigem permissão).
   it('leva o obterParametroSistema do cad, sem os casos de uso dos parâmetros', () => {
     expect(entradas).toContain('worker/nome-exibicao.ts');

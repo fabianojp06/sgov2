@@ -57,4 +57,4 @@ export { BlocoEncargo } from './ui/bloco-encargo';
 export { listarAnosExercicio, resumirCadastrosParaConferencia } from './application/conferencia-cadastros';
 
 // Exportação das listagens do plano de contas e dos CCs (US-024 parte 2), pelas rotas GET das telas.
-export { exportarCentrosCusto, exportarPlanoContas, type OpcoesExportacao } from './application/exportar-estrutura';
+export { exportarCentrosCusto, exportarPlanoContas, type ExportacaoEstrutura, type OpcoesExportacao } from './application/exportar-estrutura';

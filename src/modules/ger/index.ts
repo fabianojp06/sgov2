@@ -57,4 +57,12 @@ export {
 export { enviarEmail } from './application/email';
 
 // Download das exportações pelas rotas GET das telas (US-024): origem, tipos e a resposta.
-export { ehFormatoArquivo, origemDeExportacaoValida, respostaDeArquivo, respostaDeErro, TIPOS_ARQUIVO, type FormatoArquivo } from './application/download';
+export {
+  ehFormatoArquivo,
+  origemDeExportacaoValida,
+  respostaDeAgendamento,
+  respostaDeArquivo,
+  respostaDeErro,
+  TIPOS_ARQUIVO,
+  type FormatoArquivo,
+} from './application/download';

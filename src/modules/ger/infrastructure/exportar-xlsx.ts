@@ -1,6 +1,6 @@
 import { Competencia, Dinheiro, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
 import { CELULA_INVALIDA, lerDataIso, type TipoColuna, type ValorCelula } from '../domain/celula';
-import { linhasIdentificacao, validarPlanilhas, type PlanilhaExportacao } from './exportacao';
+import { linhasIdentificacao, validarPlanilhas, type OpcoesGeracao, type PlanilhaExportacao } from './exportacao';
 
 // Contrato C3: exportação para XLSX (US-021, R21). Só pelo servidor.ts (R22): o index.ts do ger é
 // importado por componentes cliente e não pode alcançar o ExcelJS, nem por import dinâmico.
@@ -8,8 +8,8 @@ import { linhasIdentificacao, validarPlanilhas, type PlanilhaExportacao } from '
 // Injeção de fórmula (M2): todo texto de dado é gravado como valor de texto (cell.value = string),
 // nunca como { formula } nem { hyperlink }, inclusive o que começa com = + - @ \t ou \r. Dinheiro vai
 // como número com #,##0.00, convertido do texto decimal (nunca por cálculo em number).
-export async function exportarXlsx(planilhas: readonly PlanilhaExportacao[]): Promise<Resultado<Uint8Array>> {
-  const v = validarPlanilhas(planilhas);
+export async function exportarXlsx(planilhas: readonly PlanilhaExportacao[], opcoes: OpcoesGeracao = {}): Promise<Resultado<Uint8Array>> {
+  const v = validarPlanilhas(planilhas, opcoes.limite);
   if (!v.ok) return falha(v.erros);
   try {
     return ok(await gerar(planilhas));
