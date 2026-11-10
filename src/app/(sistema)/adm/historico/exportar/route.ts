@@ -1,4 +1,4 @@
-import { consultaDaUrl, exportarHistorico, lerFiltroHistorico } from '@/modules/adm';
+import { avisoDaRecusa, consultaDaUrl, exportarHistorico, lerFiltroHistorico } from '@/modules/adm';
 import { definirRota } from '@/shared/authz';
 
 // Download do Histórico em XLSX (US-040), com os filtros da tela na URL. É um GET que grava no
@@ -13,8 +13,13 @@ export const GET = definirRota({ funcionalidade: 'adm.historico', acao: 'exporta
   const url = new URL(req.url);
   const { filtro, valores } = lerFiltroHistorico(Object.fromEntries(url.searchParams), new Date());
   const r = await exportarHistorico(ctx, filtro);
-  // O Exportar é um link: a recusa volta à tela com o aviso, em vez de um JSON cru.
-  if (!r.ok) return Response.redirect(new URL(`/adm/historico?${consultaDaUrl(valores, { aviso: 'exportacao-recusada' })}`, url), 303);
+  // O Exportar é um link: a recusa e o agendamento voltam à tela com o aviso, em vez de um JSON cru.
+  // Location relativo: atrás do proxy, o host da requisição pode ser o interno.
+  const voltar = (extra: Record<string, string>) =>
+    new Response(null, { status: 303, headers: { Location: `/adm/historico?${consultaDaUrl(valores, extra)}`, 'Cache-Control': 'no-store' } });
+  if (!r.ok) return voltar({ aviso: avisoDaRecusa(r.erros) });
+  // Acima de 5.000 linhas, o pedido foi para o worker (US-024): a tela aponta para Minhas exportações.
+  if (r.valor.tipo === 'agendada') return voltar({ aviso: 'exportacao-agendada', pedido: r.valor.pedidoId });
   return new Response(r.valor.bytes as BodyInit, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

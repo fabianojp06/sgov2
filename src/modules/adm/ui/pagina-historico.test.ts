@@ -53,4 +53,22 @@ describe('página do Histórico', () => {
     expect(h).toContain('href="/adm/historico/exportar?usuario=ana&amp;de=2026-11-01&amp;ate=2026-11-04"');
     expect(h).toContain('>Imprimir<');
   });
+
+  it('exportação agendada (US-024): aviso com o link para o pedido em Minhas exportações; pedido inválido não vira link', async () => {
+    contexto = ctx(['adm.historico:consultar', 'adm.historico:exportar']);
+    const id = '0b7f9c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e';
+    const h = await html({ aviso: 'exportacao-agendada', pedido: id });
+    expect(h).toContain('está sendo gerada em segundo plano');
+    expect(h).toContain(`href="/rel/exportacoes?pedido=${id}"`);
+    expect(h).toContain('>Abrir Minhas exportações<');
+    const ruim = await html({ aviso: 'exportacao-agendada', pedido: 'https://exemplo.org' });
+    expect(ruim).not.toContain('/rel/exportacoes');
+  });
+
+  it('recusas da exportação: acima do teto e pedidos demais em geração', async () => {
+    contexto = ctx(['adm.historico:consultar', 'adm.historico:exportar']);
+    expect(await html({ aviso: 'exportacao-recusada' })).toContain('passa de 100.000 linhas');
+    expect(await html({ aviso: 'exportacao-pendentes' })).toContain('exportações em geração');
+    expect(await html({ aviso: 'toString' })).not.toContain('role="alert"');
+  });
 });

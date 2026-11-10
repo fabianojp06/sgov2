@@ -1,11 +1,25 @@
-import type { Prisma, PrismaClient } from '@/generated/prisma/client';
+import type { PrismaClient } from '@/generated/prisma/client';
 import { auditar, type TipoOperacao } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
-import { exportarXlsx } from '@/modules/ger/servidor';
+import { agendarExportacao, exportarXlsx, LIMITE_EXPORTACAO_ASSINCRONA, MENSAGEM_MUITOS_PENDENTES } from '@/modules/ger/servidor';
 import { LIMITE_EXPORTACAO_SINCRONA } from '@/modules/ger';
 import { prisma } from '@/shared/db';
-import { falha, ok, type Resultado } from '@/shared/kernel';
-import { carregarPermissoes } from './login';
+import { falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
+import {
+  CAMPOS_EXPORTACAO,
+  COLUNAS_HISTORICO,
+  descreverFiltros,
+  diaBrasilia,
+  filtroDoHistorico,
+  FUNCIONALIDADE_HISTORICO,
+  linhaDaExportacao,
+  MENSAGEM_PERIODO,
+  parametrosDoPedido,
+  periodoValido,
+  TITULO_HISTORICO,
+  validarFiltroHistorico,
+  type FiltroHistorico,
+} from './planilha-historico';
 
 // Consulta do Histórico de Operações (US-040, UC02.24; REQ00100 a REQ00103): só leitura, com filtro
 // e paginação no banco. O Administrador vê tudo; os outros perfis veem só as funcionalidades do
@@ -14,68 +28,24 @@ import { carregarPermissoes } from './login';
 // Administrador e o Auditor, perfis globais, têm adm.historico; o recorte por TP fica para a US-007
 // nas tabelas de TP (pendência registrada). Só os campos da listagem
 // do UC02.24: sem antes/depois, que ainda não têm a máscara por perfil (D-P8-10). A consulta tem
-// nível Avançado (§5) e grava um CONSULTA com os filtros.
+// nível Avançado (§5) e grava um CONSULTA com os filtros. O alcance, os filtros e as colunas ficam no
+// planilha-historico.ts, que o worker também usa.
 export type DepsHistorico = { cliente: PrismaClient };
 
-export type FiltroHistorico = { usuario?: string; funcionalidade?: string; tipo?: TipoOperacao; de: Date; ate: Date; pagina: number };
 export type LinhaHistorico = { id: string; descricao: string; usuario: string; funcionalidade: string; ocorridoEm: Date; tipo: TipoOperacao };
 export type PaginaHistorico = { linhas: LinhaHistorico[]; total: number; pagina: number; porPagina: number };
+export { FUNCIONALIDADE_HISTORICO, MENSAGEM_PERIODO, MENSAGEM_USUARIO_FILTRO, type FiltroHistorico } from './planilha-historico';
 
-export const FUNCIONALIDADE_HISTORICO = 'adm.historico';
 export const POR_PAGINA = 50;
-const PERIODO_MAXIMO_MS = 366 * 24 * 60 * 60 * 1000;
-// [PROVISÓRIO]
-export const MENSAGEM_PERIODO = 'O período pode ter no máximo 366 dias, com a data inicial antes da final.';
-export const MENSAGEM_USUARIO_FILTRO = 'O filtro de usuário pode ter no máximo 120 caracteres.';
-const MAXIMO_USUARIO = 120;
-
-const escaparLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
-
-async function ehAdministrador(cliente: PrismaClient, usuarioId: string): Promise<boolean> {
-  return (await cliente.usuarioPerfil.count({ where: { usuarioId, perfil: { codigo: 'ADMINISTRADOR', ativo: true } } })) > 0;
-}
-
-// O `where` da consulta e da exportação (US-040, Task 7).
-export async function filtroDoHistorico(ctx: ContextoRequisicao, f: FiltroHistorico, cliente: PrismaClient): Promise<Prisma.HistoricoOperacaoWhereInput> {
-  const alcance = (await ehAdministrador(cliente, ctx.usuarioId))
-    ? {}
-    : { funcionalidade: { in: [...new Set([...(await carregarPermissoes(cliente, ctx.usuarioId))].map((p) => p.split(':')[0]!))] } };
-  return {
-    AND: [
-      alcance,
-      { ocorridoEm: { gte: f.de, lte: f.ate } },
-      ...(f.funcionalidade ? [{ funcionalidade: f.funcionalidade }] : []),
-      ...(f.tipo ? [{ tipoOperacao: f.tipo }] : []),
-      ...(f.usuario ? [{ usuarioRotulo: { contains: escaparLike(f.usuario), mode: 'insensitive' as const } }] : []),
-    ],
-  };
-}
-
-export function periodoValido(f: Pick<FiltroHistorico, 'de' | 'ate'>): boolean {
-  if (Number.isNaN(f.de.getTime()) || Number.isNaN(f.ate.getTime())) return false;
-  return f.de.getTime() <= f.ate.getTime() && f.ate.getTime() - f.de.getTime() <= PERIODO_MAXIMO_MS;
-}
-
-// Dia civil em Brasília (en-CA formata como AAAA-MM-DD): o fim do dia de 04/11 é 05/11 em UTC.
-const DIA_BRASILIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
-export const diaBrasilia = (d: Date) => DIA_BRASILIA.format(d);
-
-export const descreverFiltros = (f: Omit<FiltroHistorico, 'pagina'>) =>
-  [
-    `período ${diaBrasilia(f.de)} a ${diaBrasilia(f.ate)}`,
-    ...(f.usuario ? [`usuário "${f.usuario}"`] : []),
-    ...(f.funcionalidade ? [`funcionalidade ${f.funcionalidade}`] : []),
-    ...(f.tipo ? [`tipo ${f.tipo}`] : []),
-  ].join(', ');
 
 export async function consultarHistorico(ctx: ContextoRequisicao, f: FiltroHistorico, deps: Partial<DepsHistorico> = {}): Promise<Resultado<PaginaHistorico>> {
   exigir(ctx, FUNCIONALIDADE_HISTORICO, 'consultar');
   const cliente = deps.cliente ?? prisma;
-  if (!periodoValido(f)) return falha([{ campo: 'de', mensagem: MENSAGEM_PERIODO }]);
-  if ((f.usuario?.length ?? 0) > MAXIMO_USUARIO) return falha([{ campo: 'usuario', mensagem: MENSAGEM_USUARIO_FILTRO }]);
+  const v = validarFiltroHistorico(f);
+  if (!v.ok) return v;
   // Página fora do número (NaN, Infinity) vira a primeira, sem chegar ao banco.
   const pagina = Number.isFinite(f.pagina) ? Math.min(Math.max(1, Math.trunc(f.pagina)), 1_000_000) : 1;
-  const where = await filtroDoHistorico(ctx, f, cliente);
+  const where = await filtroDoHistorico(ctx.usuarioId, f, cliente);
   return cliente.$transaction(async (tx) => {
     const [linhas, total] = await Promise.all([
       tx.historicoOperacao.findMany({
@@ -102,47 +72,57 @@ export async function consultarHistorico(ctx: ContextoRequisicao, f: FiltroHisto
   });
 }
 
-// [PROVISÓRIO] (D-P8-11): a exportação assíncrona e o PDF são da US-024.
-export const MENSAGEM_EXPORTACAO_LIMITE = 'A exportação passa de 5.000 linhas. Reduza o período ou os filtros.';
-const HORA_BRASILIA = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+// [PROVISÓRIO] (D-P8-11): acima do teto da exportação assíncrona (US-024), recusa. O PDF é da US-024.
+export const MENSAGEM_EXPORTACAO_LIMITE = `A exportação passa de ${LIMITE_EXPORTACAO_ASSINCRONA.toLocaleString('pt-BR')} linhas. Reduza o período ou os filtros.`;
+// [PROVISÓRIO] Acima de 5.000 linhas (RF_IMP_003), o pedido vai para o worker; a tela aponta para Minhas exportações.
+export const MENSAGEM_EXPORTACAO_AGENDADA = 'A exportação passa de 5.000 linhas e está sendo gerada em segundo plano. O arquivo fica disponível em Minhas exportações.';
 const contexto = (ctx: ContextoRequisicao) => ({ usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null });
 
+export type ExportacaoHistorico = { tipo: 'arquivo'; bytes: Uint8Array; nome: string } | { tipo: 'agendada'; pedidoId: string };
+// limiteSincrono: só para os testes da exportação assíncrona.
+type DepsExportacao = Partial<DepsHistorico> & { limiteSincrono?: number };
+
+// Os avisos da tela depois de uma recusa (a rota volta à tela com ?aviso=).
+export const AVISOS_EXPORTACAO_HISTORICO: Readonly<Record<string, string>> = {
+  'exportacao-recusada': MENSAGEM_EXPORTACAO_LIMITE,
+  'exportacao-pendentes': MENSAGEM_MUITOS_PENDENTES,
+};
+export const avisoDaRecusa = (erros: readonly ErroCampo[]): string => (erros.some((e) => e.mensagem === MENSAGEM_MUITOS_PENDENTES) ? 'exportacao-pendentes' : 'exportacao-recusada');
+
 // Exportar (UC0.05; RN_LOG_EXP): XLSX até o limite síncrono, com os filtros na primeira linha (RN0011),
-// e um EXPORTACAO no Histórico com a quantidade e os filtros.
-export async function exportarHistorico(
-  ctx: ContextoRequisicao,
-  f: Omit<FiltroHistorico, 'pagina'>,
-  deps: Partial<DepsHistorico> = {},
-): Promise<Resultado<{ bytes: Uint8Array; nome: string }>> {
+// e um EXPORTACAO no Histórico com a quantidade e os filtros. Acima dele (RF_IMP_003), vira um pedido
+// para o worker, na mesma transação da contagem: o gerador (planilha-historico.ts) refaz o alcance e
+// a permissão de quem pediu na hora de gerar, e o worker registra o EXPORTACAO quando o arquivo fica
+// pronto. Acima do teto assíncrono, recusa sem pedido.
+export async function exportarHistorico(ctx: ContextoRequisicao, f: Omit<FiltroHistorico, 'pagina'>, deps: DepsExportacao = {}): Promise<Resultado<ExportacaoHistorico>> {
   exigir(ctx, FUNCIONALIDADE_HISTORICO, 'exportar');
   const cliente = deps.cliente ?? prisma;
-  if (!periodoValido(f)) return falha([{ campo: 'de', mensagem: MENSAGEM_PERIODO }]);
-  if ((f.usuario?.length ?? 0) > MAXIMO_USUARIO) return falha([{ campo: 'usuario', mensagem: MENSAGEM_USUARIO_FILTRO }]);
-  const where = await filtroDoHistorico(ctx, { ...f, pagina: 1 }, cliente);
-  return cliente.$transaction(async (tx) => {
+  const v = validarFiltroHistorico(f);
+  if (!v.ok) return v;
+  const where = await filtroDoHistorico(ctx.usuarioId, f, cliente);
+  return cliente.$transaction(async (tx): Promise<Resultado<ExportacaoHistorico>> => {
     const total = await tx.historicoOperacao.count({ where });
-    // A linha dos filtros conta no limite do ger: cabem LIMITE − 1 registros.
-    if (total > LIMITE_EXPORTACAO_SINCRONA - 1) return falha([{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }]);
-    const linhas = await tx.historicoOperacao.findMany({
-      where,
-      orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }],
-      select: { descricao: true, usuarioRotulo: true, funcionalidade: true, ocorridoEm: true, tipoOperacao: true },
-    });
+    if (total > LIMITE_EXPORTACAO_ASSINCRONA) return falha([{ campo: '_', mensagem: MENSAGEM_EXPORTACAO_LIMITE }]);
+    const nome = `historico-${diaBrasilia(f.de)}-a-${diaBrasilia(f.ate)}.xlsx`;
+    // A linha dos filtros conta no limite do ger: cabem LIMITE − 1 registros no arquivo da hora.
+    if (total > (deps.limiteSincrono ?? LIMITE_EXPORTACAO_SINCRONA) - 1) {
+      const pedido = await agendarExportacao(tx, {
+        contexto: { usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip },
+        funcionalidade: FUNCIONALIDADE_HISTORICO,
+        titulo: TITULO_HISTORICO,
+        formato: 'xlsx',
+        nomeArquivo: nome,
+        parametros: parametrosDoPedido(ctx.usuarioId, f),
+      });
+      return pedido.ok ? ok({ tipo: 'agendada', pedidoId: pedido.valor }) : falha(pedido.erros);
+    }
+    const linhas = await tx.historicoOperacao.findMany({ where, orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }], select: CAMPOS_EXPORTACAO });
     const filtros = descreverFiltros(f);
     const arquivo = await exportarXlsx([
       {
-        nome: 'Histórico de Operações',
-        colunas: [
-          { titulo: 'Data da Operação', tipo: 'texto', largura: 18 },
-          { titulo: 'Usuário', tipo: 'texto', largura: 24 },
-          { titulo: 'Funcionalidade', tipo: 'texto', largura: 24 },
-          { titulo: 'Tipo de Operação', tipo: 'texto', largura: 16 },
-          { titulo: 'Descrição', tipo: 'texto', largura: 80 },
-        ],
-        linhas: [
-          [`Filtros: ${filtros}`, null, null, null, null],
-          ...linhas.map((l) => [HORA_BRASILIA.format(l.ocorridoEm), l.usuarioRotulo, l.funcionalidade, l.tipoOperacao, l.descricao]),
-        ],
+        nome: TITULO_HISTORICO,
+        colunas: COLUNAS_HISTORICO,
+        linhas: [[`Filtros: ${filtros}`, null, null, null, null], ...linhas.map(linhaDaExportacao)],
       },
     ]);
     if (!arquivo.ok) return arquivo;
@@ -152,7 +132,7 @@ export async function exportarHistorico(
       tipo: 'EXPORTACAO',
       descricao: `Exportou ${linhas.length} registro(s) do Histórico: ${filtros}`,
     });
-    return ok({ bytes: arquivo.valor, nome: `historico-${diaBrasilia(f.de)}-a-${diaBrasilia(f.ate)}.xlsx` });
+    return ok({ tipo: 'arquivo', bytes: arquivo.valor, nome });
   });
 }
 

@@ -22,6 +22,7 @@ export function TelaHistorico({
   pagina,
   valores,
   erro,
+  agendada,
   hrefPagina,
   hrefExportar,
   imprimir,
@@ -29,6 +30,8 @@ export function TelaHistorico({
   pagina: PaginaHistorico | null;
   valores: ValoresFiltro;
   erro?: string | undefined;
+  // Exportação acima de 5.000 linhas, agendada para o worker (US-024): o aviso e o link para o pedido.
+  agendada?: { mensagem: string; href: string } | undefined;
   hrefPagina: (n: number) => string;
   hrefExportar?: string | undefined;
   imprimir?: React.ReactNode;
@@ -62,6 +65,11 @@ export function TelaHistorico({
         {hrefExportar && <a href={hrefExportar}>Exportar</a>} {imprimir}
       </p>
       {erro && <p role="alert">{erro}</p>}
+      {agendada && (
+        <p role="status" className="sem-impressao">
+          {agendada.mensagem} <a href={agendada.href}>Abrir Minhas exportações</a>
+        </p>
+      )}
       {pagina && (
         <>
           <p role="status">{`${pagina.total} registro(s) · página ${pagina.pagina} de ${ultima}`}</p>
