@@ -20,7 +20,7 @@ export const usuarioAlertaTentativasV1: VersaoModelo<'usuario.alerta_tentativas'
     {
       tipo: 'texto',
       texto: d.bloqueado
-        ? 'Confirme com o usuário se as tentativas foram dele. Sendo o caso, desbloqueie o acesso em Administração → Usuários.'
+        ? 'Confirme com o usuário se as tentativas foram dele. Se for o caso, desbloqueie o acesso em Administração → Usuários. Se não foram, mantenha o bloqueio e consulte o Histórico de Operações.'
         : 'Se as tentativas não foram do usuário, verifique o acesso em Administração → Usuários.',
     },
     { tipo: 'link', texto: 'Abrir Administração → Usuários', url: d.urlAcesso },
