@@ -5,7 +5,8 @@ import { lerEnvAcesso, nomeCookieSessao, nomeCookieUnidade } from '@/shared/conf
 // Proxy (o middleware do Next 16), da frente A (spec §12.3). Só confere se o cookie existe: quem
 // valida a sessão é o provedor de contexto do aut. Também resolve o IP do cliente, limpa os
 // cookies no logoff e aplica os cabeçalhos de segurança (plano do P5, Task 2b).
-const PUBLICAS = new Set(['/', '/login']);
+// /int/saude: saúde do sistema para o monitor externo, sem sessão (US-017, frente B, pedido na #138).
+const PUBLICAS = new Set(['/', '/login', '/int/saude']);
 // O mesmo nome de CABECALHO_IP de @/shared/authz (que carrega o Prisma e fica fora do proxy).
 const CABECALHO_IP = 'x-sgo-ip';
 // O mesmo nome de CABECALHO_SEM_RENOVACAO de @/shared/authz: a consulta periódica do aviso de

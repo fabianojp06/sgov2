@@ -30,6 +30,18 @@ describe('proxy.ts', () => {
 
   it('/login sem cookie passa', () => expect(proxy(req('/login')).status).toBe(200));
 
+  it('/int/saude sem cookie passa (GET, HEAD, com query), com cabeçalhos de segurança e CSP', () => {
+    const r = proxy(req('/int/saude'));
+    expect(r.status).toBe(200);
+    expect(r.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(diretiva(r, 'script-src')).toMatch(/'nonce-/);
+    expect(proxy(req('/int/saude', { metodo: 'HEAD' })).status).toBe(200);
+    expect(proxy(req('/int/saude?x=1')).status).toBe(200);
+  });
+
+  it.each([['/int/saude/x'], ['/int/saude/'], ['/INT/SAUDE'], ['/int%2Fsaude']])('%s sem cookie continua fechado', (caminho) =>
+    expect(proxy(req(caminho)).status).toBe(307));
+
   // D-P9-4: a consulta periódica do aviso de desativação não renova a sessão.
   const semRenovacao = (r: Response) => r.headers.get('x-middleware-request-x-sgo-sem-renovacao');
   it('x-sgo-sem-renovacao só na rota do aviso, posto pelo proxy', () => {
