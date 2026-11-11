@@ -185,7 +185,7 @@ describe('R4: posição sem benefício', () => {
     );
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ tipo: 'POSICAO_SEM_BENEFICIO', posicoes: ['w', 'x'], pacotes: [], par: null, salario: false });
-    expect(r[0]!.texto).toBe('Cargo Analista de orçamento: 2 posições sem benefício no exercício (o cargo não tem benefício ativo).');
+    expect(r[0]!.texto).toBe('Cargo Analista de orçamento: 2 posições sem benefício calculável no exercício.');
   });
 
   it('uma posição: singular; conjunto vazio: nenhum achado', () => {

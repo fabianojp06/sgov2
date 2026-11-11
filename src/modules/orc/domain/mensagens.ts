@@ -146,4 +146,8 @@ export const MENSAGENS_ORC = {
     n === 1
       ? '1 posição sem cargo do cadastro ficou fora das regras de benefício e de faixa salarial.'
       : `${n} posições sem cargo do cadastro ficaram fora das regras de benefício e de faixa salarial.`,
+  REVISAO_CARGO_FORA_DO_CADASTRO: (n: number) =>
+    n === 1
+      ? '1 posição ligada a cargo que não está mais no cadastro ficou fora das regras de pessoal.'
+      : `${n} posições ligadas a cargo que não está mais no cadastro ficaram fora das regras de pessoal.`,
 } as const;

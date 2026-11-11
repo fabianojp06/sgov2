@@ -184,7 +184,7 @@ const porCc = (a: PosicaoRegra, b: PosicaoRegra) => a.cc.localeCompare(b.cc) || 
 
 /**
  * R4 (plano do P15, D-P15-4): posições de cargo sem benefício no exercício (`semBeneficio`: os cargoId
- * cujo beneficiosDoCargo não tem benefício). Um achado por cargo, com as posições em ordem de CC.
+ * cujo beneficiosDoCargo não tem benefício: nenhum escolhido, ou nenhum com valor na Tabela Mestre). Um achado por cargo, com as posições em ordem de CC.
  */
 export function regraSemBeneficio(posicoes: readonly PosicaoRegra[], semBeneficio: ReadonlySet<string>): AchadoRegra[] {
   const porCargo = new Map<string, PosicaoRegra[]>();
@@ -194,7 +194,7 @@ export function regraSemBeneficio(posicoes: readonly PosicaoRegra[], semBenefici
     .sort((a, b) => a[0]!.cargoNome.localeCompare(b[0]!.cargoNome, 'pt-BR') || a[0]!.cargoId.localeCompare(b[0]!.cargoId))
     .map((g) => ({
       tipo: 'POSICAO_SEM_BENEFICIO' as const,
-      texto: `Cargo ${g[0]!.cargoNome}: ${g.length === 1 ? '1 posição' : `${g.length} posições`} sem benefício no exercício (o cargo não tem benefício ativo).`,
+      texto: `Cargo ${g[0]!.cargoNome}: ${g.length === 1 ? '1 posição' : `${g.length} posições`} sem benefício calculável no exercício.`,
       pacotes: [],
       posicoes: g.map((p) => p.id),
       par: null,

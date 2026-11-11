@@ -661,7 +661,7 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
     const achados = regras((await revisao(id)).achados);
     expect(achados.map((a) => a.tipo)).toEqual(['POSICAO_SEM_BENEFICIO', 'SALARIO_FORA_DA_FAIXA']);
     expect(achados[0]).toMatchObject({
-      texto: 'Cargo Técnico de manutenção: 1 posição sem benefício no exercício (o cargo não tem benefício ativo).',
+      texto: 'Cargo Técnico de manutenção: 1 posição sem benefício calculável no exercício.',
       links: [{ href: `/orc/posicoes?ano=${e.ano}&cc=4.4&editar=${e.posicoes[1]!.id}`, tipo: 'posicao' }],
     });
     expect(achados[0]!.links[0]!.salario).toBeUndefined();
@@ -692,7 +692,33 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
     await processarRevisao(id, depsRev({ custoPessoal: custoPessoalFalso([], cargosExemplo()) }));
     const r = await revisao(id);
     expect(regras(r.achados).map((a) => a.tipo)).toEqual(['SALARIO_FORA_DA_FAIXA']);
-    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano)}`, MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    // O aviso revela que há posição com cargo: só para quem consulta posições, sem o prefixo.
+    expect((await tela(p.id, e, [...APROVACAO, perm('orc.posicoes', 'consultar')]))!.avisos).toContain(MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano));
+    expect((await tela(p.id, e, APROVACAO))!.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+  });
+
+  it('cargo que não está mais no cadastro: fora das regras, com aviso próprio, separado do de posição sem cargo', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const sumido = { ...C001!, id: '00000000-0000-4000-8000-0000000000ff', nome: 'Cargo sumido' };
+    const e = await exercicioPessoal([
+      { cc: '4.3.0', cargo: sumido, salario: '1.00' },
+      { cc: '4.4', cargo: null, salario: '1.00' },
+    ]);
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custoDe(e.ano) }));
+    const r = await revisao(id);
+    expect(regras(r.achados)).toEqual([]);
+    expect(r.avisos).toEqual([
+      MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1),
+      `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(1)}`,
+      `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(1)}`,
+      MENSAGENS_ORC.REVISAO_IA_DESLIGADA,
+    ]);
+    expect(MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(1)).toBe('1 posição ligada a cargo que não está mais no cadastro ficou fora das regras de pessoal.');
+    expect(MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(2)).toBe('2 posições ligadas a cargo que não está mais no cadastro ficaram fora das regras de pessoal.');
+    expect((await tela(p.id, e, APROVACAO))!.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
   });
 
   describe('IA (Review Focus 1)', () => {
@@ -718,8 +744,8 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
       expect(m).toContain('POS-1 | 4.3.0 | <<<Analista de orçamento>>> | 1 | 1 | 12');
       expect(m).not.toContain('Texto antigo do cargo');
       for (const proibido of ['faixa', 'Faixa', '7.000,00', '7000', '4.200,00', '4200', '7.500,00', '7500', '9.800,00', '9800', 'abaixo', 'acima do', 'Salário fora']) expect(m).not.toContain(proibido);
-      // O único "acima" é o do texto fixo do P14 ("os ids acima").
-      expect(m.match(/acima/g)).toHaveLength(1);
+      expect(m).not.toContain('acima do máximo');
+      expect(m).not.toContain('abaixo do mínimo');
     });
 
     it('sem orc.posicoes:consultar de quem pediu: a linha da R4 também não vai', async () => {
@@ -757,7 +783,7 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
       const base = [...APROVACAO, perm('orc.posicoes', 'consultar')];
       const textos = async (permissoes: string[]) => (await tela(p.id, e, permissoes))!.achados.map((a) => a.texto);
       const consulta = await textos(base);
-      expect(consulta).toEqual(['Cargo Técnico de manutenção: 1 posição sem benefício no exercício (o cargo não tem benefício ativo).', 'Sobre outra posição.']);
+      expect(consulta).toEqual(['Cargo Técnico de manutenção: 1 posição sem benefício calculável no exercício.', 'Sobre outra posição.']);
       expect(await textos([...base, perm('orc.posicoes', 'alterar')])).toEqual(consulta);
       expect(await textos([...base, CAD_SALARIOS])).toEqual(consulta);
       const tudo = await textos([...base, perm('orc.posicoes', 'alterar'), CAD_SALARIOS]);

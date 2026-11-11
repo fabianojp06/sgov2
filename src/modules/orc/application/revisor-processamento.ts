@@ -276,14 +276,19 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
         if ((await deps.custoPessoal.beneficiosDoCargo(c, e.ano, cargoId)).beneficios.length === 0) semBeneficio.add(cargoId);
       }
       r4 = regraSemBeneficio(posicoesRegra, semBeneficio);
-    } else avisos.push(MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano));
+    } else {
+      // Com o prefixo: o aviso revela que há posição com cargo (só para quem consulta posições).
+      avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano)}`);
+    }
   }
   const r5 = regraForaDaFaixa(posicoesRegra, new Map([...cargos.values()].map((k) => [k.id, k.faixa])));
   registrar([...r4, ...r5]);
-  // Sem cargo do cadastro (ou com um que não está mais nele): fora das duas. O aviso só aparece a quem
-  // consulta posições (B3; ultimaRevisao).
-  const foraDasRegras = posicoes.length - posicoesRegra.length;
-  if (foraDasRegras > 0) avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(foraDasRegras)}`);
+  // Sem cargo do cadastro, ou com um que não está mais nele: fora das duas, cada caso com o seu aviso, que
+  // só aparece a quem consulta posições (B3; ultimaRevisao).
+  const semCargo = posicoes.filter((p) => p.cargoId === null).length;
+  const cargoSumido = posicoes.filter((p) => p.cargoId !== null && !cargos.has(p.cargoId)).length;
+  if (semCargo > 0) avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(semCargo)}`);
+  if (cargoSumido > 0) avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(cargoSumido)}`);
   const regras = [...r1, ...r2, ...r3, ...r4];
   // Posições da R5: todo achado da IA que cita uma delas leva a marca de salário (D-P15-4).
   const posicoesR5 = new Set(r5.flatMap((a) => a.posicoes));
