@@ -33,6 +33,8 @@ export {
   type ServicoIA,
 } from './governanca';
 export { MODELOS_IA } from './precos';
+// Embeddings (US-020): só a porta e o falso até haver provedor (GAP-IA-002).
+export { criarProvedorEmbeddingsFalso, DIMENSOES_FALSO, type ProvedorEmbeddings, type VetorEmbedding } from './embeddings';
 // Para os testes dos módulos: um provedor com roteiro, entregue ao criarServicoIA.
 export { criarProvedorIAFalso, type ProvedorIAFalso, type RoteiroIAFalso } from './falso';
 
