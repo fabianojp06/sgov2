@@ -1,25 +1,41 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// A IA só pela governança (US-019): fora de src/shared/ia, ninguém cria o provedor nem importa os
-// arquivos internos; os módulos usam o servicoIA (ou o criarServicoIA nos testes).
+// A IA só pela governança (US-019). Fora de src/shared/ia:
+// - ninguém cria o provedor, importa os arquivos internos (com alias ou relativo) nem o SDK;
+// - o provedor falso só nos testes (uma resposta falsa nunca chega a um usuário real);
+// - o SISTEMA_IA (sem permissão nem limite por minuto) só no worker e nos trabalhadores de fila.
 const RAIZ = process.cwd();
-const PROIBIDO = /criarProvedorIA\b|criarProvedorAnthropic|@\/shared\/ia\/(?!index\b)|@anthropic-ai\/sdk/;
+const PASTAS = ['src', 'worker', 'prisma', 'scripts', 'e2e', 'tests'];
+const INTERNO = /criarProvedorIA\b|criarProvedorAnthropic|shared\/ia\/(?!index\b)[\w-]+|@anthropic-ai\/sdk/;
+const TESTE = /\.(test|test-util|int\.test)\.ts$|^tests\/|^e2e\//;
+const TRABALHADOR = /^worker\/|^src\/modules\/[a-z]+\/infrastructure\//;
 
 function arquivos(dir: string): string[] {
+  if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const caminho = join(dir, e.name);
-    if (e.isDirectory()) return e.name === 'node_modules' || e.name === 'generated' ? [] : arquivos(caminho);
+    if (e.isDirectory()) return e.name === 'node_modules' || e.name === 'generated' || e.name === 'migrations' ? [] : arquivos(caminho);
     return /\.(ts|tsx|mjs)$/.test(e.name) ? [caminho] : [];
   });
 }
 
+const FORA = PASTAS.flatMap((p) => arquivos(join(RAIZ, p)))
+  .map((a) => relative(RAIZ, a))
+  .filter((a) => !a.startsWith('src/shared/ia/'))
+  .map((a) => ({ a, texto: readFileSync(join(RAIZ, a), 'utf8') }));
+
 describe('fronteira da IA', () => {
-  it('fora de src/shared/ia, nada cria o provedor nem importa o SDK', () => {
-    const violacoes = [...arquivos(join(RAIZ, 'src')), ...arquivos(join(RAIZ, 'worker'))]
-      .map((a) => relative(RAIZ, a))
-      .filter((a) => !a.startsWith('src/shared/ia/') && PROIBIDO.test(readFileSync(join(RAIZ, a), 'utf8')));
-    expect(violacoes).toEqual([]);
+  it('nada cria o provedor nem importa os arquivos internos ou o SDK', () => {
+    expect(FORA.filter((f) => INTERNO.test(f.texto)).map((f) => f.a)).toEqual([]);
+  });
+
+  it('o provedor falso só nos testes', () => {
+    expect(FORA.filter((f) => !TESTE.test(f.a) && f.texto.includes('criarProvedorIAFalso')).map((f) => f.a)).toEqual([]);
+  });
+
+  it('SISTEMA_IA só no worker e nos trabalhadores de fila (infrastructure dos módulos)', () => {
+    expect(FORA.filter((f) => !TESTE.test(f.a) && !TRABALHADOR.test(f.a) && f.texto.includes('SISTEMA_IA')).map((f) => f.a)).toEqual([]);
   });
 });

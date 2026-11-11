@@ -20,7 +20,8 @@ model IaConfiguracao {
 model IaCasoUso {
   codigo          String      @id
   nome            String
-  funcionalidade  String
+  // Permissão própria do caso: uma funcionalidade por caso.
+  funcionalidade  String      @unique
   versaoInstrucao Int         @map("versao_instrucao")
   guardarTexto    Boolean     @default(false) @map("guardar_texto")
   ativo           Boolean     @default(false)
@@ -29,6 +30,7 @@ model IaCasoUso {
   maxTokens       Int         @default(4000) @map("max_tokens")
   tetoMensalUsd   Decimal     @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
   chamadas        IaChamada[]
+  reservas        IaReserva[]
 
   @@map("ia_caso_uso")
 }
@@ -76,4 +78,19 @@ model IaChamadaTexto {
 
   @@index([criadoEm])
   @@map("ia_chamada_texto")
+}
+
+// Chamada em curso (entre a conferência e o registro), com o custo máximo estimado: o limite por
+// minuto e o teto contam as reservas abertas, para pedidos simultâneos não passarem todos. Apagada no
+// registro; a de um processo que caiu deixa de contar depois de 15 minutos e sai na limpeza.
+model IaReserva {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  casoUsoCodigo  String    @map("caso_uso_codigo")
+  casoUso        IaCasoUso @relation(fields: [casoUsoCodigo], references: [codigo], onDelete: Restrict)
+  usuarioId      String?   @map("usuario_id") @db.Uuid
+  custoMaximoUsd Decimal   @map("custo_maximo_usd") @db.Decimal(16, 8)
+  criadoEm       DateTime  @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+
+  @@index([criadoEm])
+  @@map("ia_reserva")
 }

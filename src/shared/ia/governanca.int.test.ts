@@ -6,7 +6,7 @@ import { seedAdm } from '@/modules/adm';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../tests/integracao/banco';
 import { criarProvedorIAFalso } from './falso';
-import { criarServicoIA, instalarCasosUsoIA, limparTextosIA, SISTEMA_IA, type DefinicaoCasoUsoIA, type QuemPedeIA } from './governanca';
+import { criarServicoIA, instalarCasosUsoIA, limparIA, SISTEMA_IA, type DefinicaoCasoUsoIA, type QuemPedeIA } from './governanca';
 import { ErroIA, type EventoStreamIA, type ProvedorIA } from './porta';
 
 // Governança da IA (US-019, spec §4.4) num Postgres real (Testcontainers, D12): tudo nasce
@@ -24,8 +24,8 @@ const CASO: DefinicaoCasoUsoIA = {
   versaoInstrucao: 2,
   instrucaoSistema: 'Você responde testes.',
 };
-const COM_TEXTO: DefinicaoCasoUsoIA = { ...CASO, codigo: 'rel.teste_ia_texto', nome: 'Com texto', guardarTexto: true };
-const TETO: DefinicaoCasoUsoIA = { ...CASO, codigo: 'rel.teste_ia_teto', nome: 'Teto' };
+const COM_TEXTO: DefinicaoCasoUsoIA = { ...CASO, codigo: 'rel.teste_ia_texto', funcionalidade: 'rel.teste_ia_texto', nome: 'Com texto', guardarTexto: true };
+const TETO: DefinicaoCasoUsoIA = { ...CASO, codigo: 'rel.teste_ia_teto', funcionalidade: 'rel.teste_ia_teto', nome: 'Teto' };
 
 // "funcionalidade:ação" literal parece usuário:senha para o GitGuardian: a permissão sai daqui.
 const PERMISSAO = [CASO.funcionalidade, 'executar'].join(':');
@@ -59,14 +59,17 @@ beforeAll(async () => {
   migrator = new pg.Client({ connectionString: banco.urlMigrator });
   await migrator.connect();
   // A funcionalidade do caso, fora do menu, só com a ação executar (a do caso real vem da seed do módulo).
-  await migrator.query(
-    `INSERT INTO funcionalidade (codigo, modulo_codigo, grupo, nome, rota, ordem, acoes, exibir_no_menu)
-     VALUES ('rel.teste_ia', 'RELATORIOS', 'Testes', 'Teste da IA', '/rel/teste-ia', 99, ARRAY['executar'], false)`,
-  );
+  for (const [i, f] of [CASO, COM_TEXTO, TETO].map((c) => c.funcionalidade).entries()) {
+    await migrator.query(
+      `INSERT INTO funcionalidade (codigo, modulo_codigo, grupo, nome, rota, ordem, acoes, exibir_no_menu)
+       VALUES ($1, 'RELATORIOS', 'Testes', $1, '/rel/teste-ia', $2, ARRAY['executar'], false)`,
+      [f, 90 + i],
+    );
+  }
   await executarSeeds(m, [{ nome: 'ia-teste', executar: (tx) => instalarCasosUsoIA(tx, [CASO, COM_TEXTO, TETO]) }]);
   await m.$disconnect();
   app = criarPrisma(banco.urlApp);
-  for (const login of ['ana', 'bia', 'caio', 'davi']) {
+  for (const login of ['ana', 'bia', 'caio', 'davi', 'eva']) {
     const { rows } = await migrator.query(
       `INSERT INTO usuario (nome, email, login, login_normalizado, senha_hash) VALUES ($1, $2, $1, $1, 'x') RETURNING id`,
       [login, `${login}@exemplo.org`],
@@ -135,11 +138,27 @@ describe('ligada', () => {
     expect((await migrator.query('SELECT count(*)::int AS n FROM ia_chamada_texto')).rows[0].n).toBe(0);
   });
 
-  it('estruturado e erro do provedor: o erro também fica no registro', async () => {
+  it('erro do provedor sem o uso: fica no registro com a estimativa da reserva, que erra para cima', async () => {
     const s = servico(criarProvedorIAFalso({ estruturado: { conta: 1 } }));
     expect(await codigo(s.gerarEstruturado(pessoa(2), CASO, 'x', z.object({ conta: z.string() })))).toBe('ia.saida_invalida');
     const ultima = (await chamadas(CASO.codigo)).at(-1);
-    expect(ultima).toMatchObject({ usuario_id: usuarios[2], erro: 'ia.saida_invalida', custo_estimado_usd: '0.00000000' });
+    // Entrada: 21 + 1 caracteres; saída: o max_tokens (500). 22 × 400 + 500 × 2000.
+    expect(ultima).toMatchObject({ usuario_id: usuarios[2], erro: 'ia.saida_invalida', tokens_saida: 500, custo_estimado_usd: '0.01008800' });
+  });
+
+  it('pedido recusado pela API antes de gerar (400) não custa; produção sem chave nem entra no registro', async () => {
+    const recusado = (erro: 'ia.requisicao_invalida' | 'ia.desabilitada'): ProvedorIA => ({
+      ...falso,
+      gerarTexto: async () => {
+        throw new ErroIA(erro);
+      },
+    });
+    expect(await codigo(servico(recusado('ia.requisicao_invalida')).gerarTexto(SISTEMA_IA, CASO, 'x'))).toBe('ia.requisicao_invalida');
+    expect((await chamadas(CASO.codigo)).at(-1)).toMatchObject({ erro: 'ia.requisicao_invalida', custo_estimado_usd: '0.00000000' });
+    const antes = (await chamadas(CASO.codigo)).length;
+    expect(await codigo(servico(recusado('ia.desabilitada')).gerarTexto(SISTEMA_IA, CASO, 'x'))).toBe('ia.desabilitada');
+    expect(await chamadas(CASO.codigo)).toHaveLength(antes);
+    expect((await migrator.query('SELECT count(*)::int AS n FROM ia_reserva')).rows[0].n).toBe(0);
   });
 
   it('o erro com uso (recusa, corte) registra os tokens gastos', async () => {
@@ -160,7 +179,8 @@ describe('ligada', () => {
     expect(eventos.at(-1)?.tipo).toBe('fim');
     expect((await chamadas(CASO.codigo)).at(-1)).toMatchObject({ erro: null, motivo_parada: 'end_turn' });
     for await (const e of s.gerarStream(pessoa(2), CASO, 'stream')) if (e.tipo === 'texto') break;
-    expect((await chamadas(CASO.codigo)).at(-1)).toMatchObject({ erro: 'ia.cancelada', custo_estimado_usd: '0.00000000' });
+    // Sem o uso real, a estimativa: entrada 21 + 6 caracteres, saída o max_tokens. 27 × 400 + 500 × 2000.
+    expect((await chamadas(CASO.codigo)).at(-1)).toMatchObject({ erro: 'ia.cancelada', custo_estimado_usd: '0.01010800' });
   });
 
   it('limite por minuto da pessoa: ia.limite_usuario, temporário; outra pessoa segue', async () => {
@@ -174,13 +194,36 @@ describe('ligada', () => {
     await expect(s.gerarTexto(SISTEMA_IA, CASO, 'sistema')).resolves.toBeTruthy();
   });
 
+  it('pedidos simultâneos: as reservas contam no limite, e só passam os 3 do minuto', async () => {
+    let soltar: () => void = () => {};
+    const portao = new Promise<void>((r) => (soltar = r));
+    const lento: ProvedorIA = {
+      ...falso,
+      gerarTexto: async (p) => {
+        await portao;
+        return falso.gerarTexto(p);
+      },
+    };
+    const s = servico(lento);
+    const pedidos = Array.from({ length: 6 }, (_, i) => s.gerarTexto(pessoa(4), CASO, `p${i}`));
+    // Os recusados saem já na conferência; os liberados esperam o provedor.
+    const recusados = await Promise.all(pedidos.map((p) => Promise.race([codigo(p), new Promise((r) => setTimeout(() => r('esperando'), 1500))])));
+    expect(recusados.filter((r) => r === 'ia.limite_usuario')).toHaveLength(3);
+    expect((await migrator.query('SELECT count(*)::int AS n FROM ia_reserva WHERE usuario_id = $1', [usuarios[4]])).rows[0].n).toBe(3);
+    soltar();
+    const finais = await Promise.all(pedidos.map(codigo));
+    expect(finais.filter((r) => r === 'sem erro')).toHaveLength(3);
+    expect((await migrator.query('SELECT count(*)::int AS n FROM ia_reserva')).rows[0].n).toBe(0);
+  });
+
   it('guardarTexto: entrada e saída em ia_chamada_texto; a retenção apaga só o texto com mais de 90 dias', async () => {
-    await servico().gerarTexto(SISTEMA_IA, COM_TEXTO, 'Texto completo');
+    // O caractere nulo (que o PostgreSQL recusa em TEXT) sai antes de gravar.
+    await servico().gerarTexto(SISTEMA_IA, COM_TEXTO, 'Texto\u0000 completo');
     const [linha] = await chamadas(COM_TEXTO.codigo);
     const { rows } = await migrator.query('SELECT entrada, saida FROM ia_chamada_texto WHERE chamada_id = $1', [linha!.id]);
     expect(rows).toEqual([{ entrada: 'Texto completo', saida: 'Sugestão de teste.' }]);
-    expect(await limparTextosIA(app, new Date(Date.now() + 89 * 86_400_000))).toBe(0);
-    expect(await limparTextosIA(app, new Date(Date.now() + 91 * 86_400_000))).toBe(1);
+    expect((await limparIA(app, new Date(Date.now() + 89 * 86_400_000))).textos).toBe(0);
+    expect((await limparIA(app, new Date(Date.now() + 91 * 86_400_000))).textos).toBe(1);
     expect(await chamadas(COM_TEXTO.codigo)).toHaveLength(1);
   });
 });
@@ -228,7 +271,8 @@ describe('banco', () => {
     await expect(app.iaConfiguracao.update({ where: { id: 1 }, data: { limitePorMinuto: 5, alteradoEm: new Date() } })).resolves.toBeTruthy();
     await expect(app.iaCasoUso.update({ where: { codigo: CASO.codigo }, data: { maxTokens: 1000, modelo: 'claude-opus-5' } })).resolves.toBeTruthy();
     await expect(app.iaCasoUso.update({ where: { codigo: CASO.codigo }, data: { versaoInstrucao: 9 } })).rejects.toThrow();
-    await expect(app.iaCasoUso.create({ data: { codigo: 'rel.forjado', nome: 'x', funcionalidade: 'rel.teste_ia', versaoInstrucao: 1 } })).rejects.toThrow();
+    await expect(app.iaCasoUso.create({ data: { codigo: 'rel.forjado', nome: 'x', funcionalidade: 'rel.forjado', versaoInstrucao: 1 } })).rejects.toThrow();
+    await expect(app.iaReserva.create({ data: { casoUsoCodigo: CASO.codigo, custoMaximoUsd: '0', criadoEm: new Date('2020-01-01') } })).rejects.toThrow();
     await expect(
       app.iaChamada.create({
         data: {
@@ -252,6 +296,10 @@ describe('banco', () => {
     await expect(migrator.query(`UPDATE ia_caso_uso SET esforco = 'turbo' WHERE codigo = $1`, [CASO.codigo])).rejects.toThrow(/check/);
     await expect(migrator.query('UPDATE ia_configuracao SET limite_por_minuto = 0')).rejects.toThrow(/check/);
     await expect(migrator.query('INSERT INTO ia_configuracao (id) VALUES (2)')).rejects.toThrow(/check/);
+    // Permissão própria por caso: dois casos não dividem a funcionalidade.
+    await expect(
+      migrator.query(`INSERT INTO ia_caso_uso (codigo, nome, funcionalidade, versao_instrucao) VALUES ('rel.outro', 'x', $1, 1)`, [CASO.funcionalidade]),
+    ).rejects.toThrow(/unique|duplicate/);
   });
 
   it('instalar de novo atualiza o que vem do código e preserva a configuração da tela', async () => {

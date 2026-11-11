@@ -58,6 +58,20 @@ CREATE TABLE "ia_chamada_texto" (
     CONSTRAINT "ia_chamada_texto_pkey" PRIMARY KEY ("chamada_id")
 );
 
+-- CreateTable
+CREATE TABLE "ia_reserva" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "caso_uso_codigo" TEXT NOT NULL,
+    "usuario_id" UUID,
+    "custo_maximo_usd" DECIMAL(16,8) NOT NULL,
+    "criado_em" TIMESTAMPTZ(6) NOT NULL DEFAULT clock_timestamp(),
+
+    CONSTRAINT "ia_reserva_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ia_caso_uso_funcionalidade_key" ON "ia_caso_uso"("funcionalidade");
+
 -- CreateIndex
 CREATE INDEX "ia_chamada_caso_uso_codigo_criado_em_idx" ON "ia_chamada"("caso_uso_codigo", "criado_em");
 
@@ -70,11 +84,17 @@ CREATE INDEX "ia_chamada_criado_em_idx" ON "ia_chamada"("criado_em");
 -- CreateIndex
 CREATE INDEX "ia_chamada_texto_criado_em_idx" ON "ia_chamada_texto"("criado_em");
 
+-- CreateIndex
+CREATE INDEX "ia_reserva_criado_em_idx" ON "ia_reserva"("criado_em");
+
 -- AddForeignKey
 ALTER TABLE "ia_chamada" ADD CONSTRAINT "ia_chamada_caso_uso_codigo_fkey" FOREIGN KEY ("caso_uso_codigo") REFERENCES "ia_caso_uso"("codigo") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ia_chamada_texto" ADD CONSTRAINT "ia_chamada_texto_chamada_id_fkey" FOREIGN KEY ("chamada_id") REFERENCES "ia_chamada"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ia_reserva" ADD CONSTRAINT "ia_reserva_caso_uso_codigo_fkey" FOREIGN KEY ("caso_uso_codigo") REFERENCES "ia_caso_uso"("codigo") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
 -- Regras que o schema do Prisma não expressa (US-019, spec §4.4).
@@ -120,10 +140,10 @@ CREATE TRIGGER ia_chamada_sem_truncate
   FOR EACH STATEMENT EXECUTE FUNCTION ia_chamada_somente_insercao();
 
 -- Privilégios. O app (tela e worker): lê tudo; altera só a configuração (a tela de cadastro); registra
--- chamadas; o texto completo é inserido e apagado (retenção de 90 dias). Os casos de uso são
+-- chamadas; o texto completo é inserido e apagado (retenção de 90 dias); a reserva, inserida e apagada. Os casos de uso são
 -- instalados pelas seeds (migrator). O sgo_sync não toca.
-REVOKE ALL ON "ia_configuracao", "ia_caso_uso", "ia_chamada", "ia_chamada_texto" FROM sgo_app, sgo_sync;
-GRANT SELECT ON "ia_configuracao", "ia_caso_uso", "ia_chamada", "ia_chamada_texto" TO sgo_app;
+REVOKE ALL ON "ia_configuracao", "ia_caso_uso", "ia_chamada", "ia_chamada_texto", "ia_reserva" FROM sgo_app, sgo_sync;
+GRANT SELECT ON "ia_configuracao", "ia_caso_uso", "ia_chamada", "ia_chamada_texto", "ia_reserva" TO sgo_app;
 GRANT UPDATE ("habilitada", "limite_por_minuto", "teto_mensal_usd", "alterado_em") ON "ia_configuracao" TO sgo_app;
 GRANT UPDATE ("ativo", "modelo", "esforco", "max_tokens", "teto_mensal_usd") ON "ia_caso_uso" TO sgo_app;
 GRANT INSERT ("caso_uso_codigo", "versao_instrucao", "usuario_id", "unidade_id", "modelo", "modelo_resposta",
@@ -131,3 +151,6 @@ GRANT INSERT ("caso_uso_codigo", "versao_instrucao", "usuario_id", "unidade_id",
   "latencia_ms", "motivo_parada", "erro", "hash_entrada")
   ON "ia_chamada" TO sgo_app;
 GRANT INSERT ("chamada_id", "entrada", "saida"), DELETE ON "ia_chamada_texto" TO sgo_app;
+-- Reserva: criada na conferência e apagada no registro (ou na limpeza), sem forjar id nem data.
+GRANT INSERT ("caso_uso_codigo", "usuario_id", "custo_maximo_usd"), DELETE ON "ia_reserva" TO sgo_app;
+ALTER TABLE "ia_reserva" ADD CONSTRAINT "ia_reserva_custo_check" CHECK ("custo_maximo_usd" >= 0);

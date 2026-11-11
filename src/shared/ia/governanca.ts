@@ -10,15 +10,19 @@ import { custoEmUnidades, unidadesParaUsd, usdParaUnidades } from './precos';
 // (ia.habilitada) e pelo ativo do caso, pelo limite de chamadas por minuto da pessoa e pelo teto
 // mensal de custo (do caso e global); depois vai ao provedor e fica no registro (ia_chamada), com
 // sucesso ou erro. Tudo nasce desligado: a migration cria a chave geral desligada, e a seed instala o
-// caso inativo e com teto zero. O teto é conferido antes da chamada: uma chamada em curso pode passar
-// um pouco dele, e a seguinte já é recusada. IA sugere, não grava: nada aqui toca em dado oficial.
+// caso inativo e com teto zero. IA sugere, não grava: nada aqui toca em dado oficial.
+//
+// Chamadas simultâneas: antes do provedor, a chamada entra em ia_reserva com o custo máximo estimado,
+// sob uma trava do banco; o limite por minuto e o teto contam as reservas abertas com as chamadas
+// registradas. Assim, N pedidos em paralelo não passam todos pela mesma conferência. O excesso sobre o
+// teto fica limitado a uma chamada em curso (a que passa dele entra; a seguinte já é recusada).
 
 /** Um caso de uso de IA, declarado no código do módulo dono (a instrução é versionada como os modelos de e-mail). */
 export type DefinicaoCasoUsoIA = {
   /** "<módulo>.<nome>", ex.: "cad.sugerir_conta". */
   codigo: string;
   nome: string;
-  /** Funcionalidade do catálogo com a ação "executar": a permissão do caso. */
+  /** Funcionalidade do catálogo com a ação "executar": a permissão própria do caso (uma por caso). */
   funcionalidade: string;
   /** Sobe a cada mudança da instrução; vai para o registro de cada chamada. */
   versaoInstrucao: number;
@@ -27,7 +31,10 @@ export type DefinicaoCasoUsoIA = {
   guardarTexto?: boolean;
 };
 
-/** Chamada do worker, sem pessoa: não confere permissão nem o limite por minuto. */
+/**
+ * Chamada do worker, sem pessoa: não confere permissão nem o limite por minuto (chaves e tetos
+ * valem). Só nos trabalhadores de fila: o teste de fronteira recusa o uso numa tela ou Server Action.
+ */
 export const SISTEMA_IA = Object.freeze({ sistema: true as const });
 
 /** Quem pede: a pessoa da requisição (o ContextoRequisicao serve) ou o Sistema. */
@@ -47,9 +54,15 @@ export type DependenciasServicoIA = {
 };
 
 export const DIAS_RETENCAO_TEXTO = 90;
+// Reserva aberta há mais que isto é de um processo que caiu: deixa de contar. Cobre o tempo limite
+// do adaptador (2 min por tentativa, 4 tentativas) com folga.
+export const MINUTOS_RESERVA = 15;
 const USO_ZERO: UsoIA = { entrada: 0, saida: 0, cacheLeitura: 0, cacheEscrita: 0 };
+// Recusados pela API antes de gerar (pedido inválido, credencial): não custam nada.
+const SEM_CUSTO: ReadonlySet<CodigoErroIA> = new Set(['ia.requisicao_invalida', 'ia.autenticacao']);
 
 type Caso = { modelo: string; esforco: string; maxTokens: number };
+type Liberada = { caso: Caso; reservaId: string; estimativa: UsoIA };
 type Desfecho = { latenciaMs: number; modelo?: string | undefined; uso?: UsoIA | undefined; motivoParada?: string | undefined; erro?: CodigoErroIA; saida?: string };
 
 export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
@@ -59,7 +72,7 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
   // Um aviso de teto por escopo e mês, por processo: o log não repete a cada chamada recusada.
   const avisados = new Set<string>();
 
-  async function liberar(quem: QuemPedeIA, def: DefinicaoCasoUsoIA): Promise<Caso> {
+  async function liberar(quem: QuemPedeIA, def: DefinicaoCasoUsoIA, mensagem: string): Promise<Liberada> {
     const pessoa = 'sistema' in quem ? null : quem;
     if (pessoa && !pessoa.permissoes.has(`${def.funcionalidade}:executar`)) throw new ErroIA('ia.sem_permissao');
     const [config, caso] = await Promise.all([
@@ -68,65 +81,97 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
     ]);
     if (!caso) throw new Error(`caso de uso de IA não instalado: ${def.codigo}`);
     if (!config?.habilitada || !caso.ativo || config.tetoMensalUsd.isZero() || caso.tetoMensalUsd.isZero()) throw new ErroIA('ia.desligada');
+    // Teto superior do gasto: cada token tem ao menos um caractere, e a saída não passa do max_tokens.
+    const estimativa: UsoIA = { ...USO_ZERO, entrada: def.instrucaoSistema.length + mensagem.length, saida: caso.maxTokens };
     const momento = agora();
-    if (pessoa) {
-      const recentes = await cliente.iaChamada.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: new Date(momento.getTime() - 60_000) } } });
-      if (recentes >= config.limitePorMinuto) throw new ErroIA('ia.limite_usuario');
-    }
     const desde = inicioDoMes(momento);
-    const [doCaso, global] = await Promise.all([gastoDesde(desde, def.codigo), gastoDesde(desde)]);
-    const estourado =
-      doCaso >= usdParaUnidades(caso.tetoMensalUsd.toFixed(2)) ? def.codigo : global >= usdParaUnidades(config.tetoMensalUsd.toFixed(2)) ? 'global' : null;
-    if (estourado) {
-      const chave = `${estourado}:${desde.toISOString()}`;
-      if (!avisados.has(chave)) {
-        avisados.add(chave);
-        console.warn('[IA_TETO_ATINGIDO]', { escopo: estourado, desde: desde.toISOString() });
+    const reservasDesde = new Date(momento.getTime() - MINUTOS_RESERVA * 60_000);
+
+    const reservaId = await cliente.$transaction(async (tx) => {
+      // Uma conferência por vez em todo o sistema (é curta): as reservas tornam a contagem exata.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('sgo.ia.reserva'))::text`;
+      if (pessoa) {
+        const [feitas, abertas] = await Promise.all([
+          tx.iaChamada.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: new Date(momento.getTime() - 60_000) } } }),
+          tx.iaReserva.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: reservasDesde } } }),
+        ]);
+        if (feitas + abertas >= config.limitePorMinuto) throw new ErroIA('ia.limite_usuario');
       }
-      throw new ErroIA('ia.teto_atingido');
-    }
-    return caso;
-  }
-
-  async function gastoDesde(desde: Date, casoUsoCodigo?: string): Promise<bigint> {
-    const r = await cliente.iaChamada.aggregate({
-      _sum: { custoEstimadoUsd: true },
-      where: { criadoEm: { gte: desde }, ...(casoUsoCodigo ? { casoUsoCodigo } : {}) },
+      const [doCaso, global] = await Promise.all([gasto(tx, desde, reservasDesde, def.codigo), gasto(tx, desde, reservasDesde)]);
+      const estourado =
+        doCaso >= usdParaUnidades(caso.tetoMensalUsd.toFixed(2)) ? def.codigo : global >= usdParaUnidades(config.tetoMensalUsd.toFixed(2)) ? 'global' : null;
+      if (estourado) {
+        const chave = `${estourado}:${desde.toISOString()}`;
+        if (!avisados.has(chave)) {
+          avisados.add(chave);
+          console.warn('[IA_TETO_ATINGIDO]', { escopo: estourado, desde: desde.toISOString() });
+        }
+        throw new ErroIA('ia.teto_atingido');
+      }
+      const { id } = await tx.iaReserva.create({
+        data: { casoUsoCodigo: def.codigo, usuarioId: pessoa?.usuarioId ?? null, custoMaximoUsd: unidadesParaUsd(custoEmUnidades(caso.modelo, estimativa)) },
+        select: { id: true },
+      });
+      return id;
     });
-    // toFixed, e não toString: o decimal.js escreve valores pequenos em notação científica.
-    return usdParaUnidades(r._sum.custoEstimadoUsd?.toFixed(8) ?? '0');
+    return { caso, reservaId, estimativa };
   }
 
-  async function registrar(quem: QuemPedeIA, def: DefinicaoCasoUsoIA, caso: Caso, mensagem: string, x: Desfecho): Promise<void> {
-    const uso = x.uso ?? USO_ZERO;
+  /** Gasto do mês (chamadas registradas) mais o custo máximo das reservas abertas. */
+  async function gasto(tx: TxCliente, desde: Date, reservasDesde: Date, casoUsoCodigo?: string): Promise<bigint> {
+    const doCaso = casoUsoCodigo ? { casoUsoCodigo } : {};
+    const [feitas, abertas] = await Promise.all([
+      tx.iaChamada.aggregate({ _sum: { custoEstimadoUsd: true }, where: { criadoEm: { gte: desde }, ...doCaso } }),
+      tx.iaReserva.aggregate({ _sum: { custoMaximoUsd: true }, where: { criadoEm: { gt: reservasDesde }, ...doCaso } }),
+    ]);
+    // toFixed, e não toString: o decimal.js escreve valores pequenos em notação científica.
+    return usdParaUnidades(feitas._sum.custoEstimadoUsd?.toFixed(8) ?? '0') + usdParaUnidades(abertas._sum.custoMaximoUsd?.toFixed(8) ?? '0');
+  }
+
+  async function registrar(quem: QuemPedeIA, def: DefinicaoCasoUsoIA, l: Liberada, mensagem: string, x: Desfecho): Promise<void> {
     const pessoa = 'sistema' in quem ? null : quem;
     try {
-      await cliente.$transaction(async (tx) => {
-        const { id } = await tx.iaChamada.create({
+      // Produção sem chave: nada chegou a um provedor; só libera a reserva.
+      if (x.erro === 'ia.desabilitada') return;
+      // Sem o uso real (tempo esgotado, stream interrompido): a estimativa da reserva, que erra para cima.
+      const uso = x.uso ?? (x.erro && SEM_CUSTO.has(x.erro) ? USO_ZERO : l.estimativa);
+      // Com fallback, parte veio do modelo pedido e parte do outro: o preço maior dos dois.
+      const custo = [l.caso.modelo, x.modelo ?? l.caso.modelo].map((m) => custoEmUnidades(m, uso)).reduce((a, b) => (a > b ? a : b));
+      let id: string;
+      try {
+        ({ id } = await cliente.iaChamada.create({
           data: {
             casoUsoCodigo: def.codigo,
             versaoInstrucao: def.versaoInstrucao,
             usuarioId: pessoa?.usuarioId ?? null,
             unidadeId: pessoa?.unidadeId ?? null,
-            modelo: caso.modelo,
+            modelo: l.caso.modelo,
             modeloResposta: x.modelo ?? null,
             tokensEntrada: uso.entrada,
             tokensSaida: uso.saida,
             tokensCacheLeitura: uso.cacheLeitura,
             tokensCacheEscrita: uso.cacheEscrita,
-            custoEstimadoUsd: unidadesParaUsd(custoEmUnidades(x.modelo ?? caso.modelo, uso)),
+            custoEstimadoUsd: unidadesParaUsd(custo),
             latenciaMs: Math.max(0, Math.round(x.latenciaMs)),
             motivoParada: x.motivoParada ?? null,
             erro: x.erro ?? null,
             hashEntrada: hashEntrada(def, mensagem),
           },
           select: { id: true },
-        });
-        if (def.guardarTexto) await tx.iaChamadaTexto.create({ data: { chamadaId: id, entrada: mensagem, saida: x.saida ?? null } });
-      });
-    } catch (e) {
-      // O registro não desfaz a resposta já paga; a falha fica no log (sem o texto).
-      console.error('[IA_REGISTRO_FALHOU]', { caso: def.codigo, erro: e instanceof Error ? e.message : String(e) });
+        }));
+      } catch (e) {
+        // O registro não desfaz a resposta já paga; a falha fica no log (sem o texto).
+        console.error('[IA_REGISTRO_FALHOU]', { caso: def.codigo, ...resumoErro(e) });
+        return;
+      }
+      // O texto à parte: se ele falhar, o registro (e o custo no teto) fica.
+      if (def.guardarTexto) {
+        await cliente.iaChamadaTexto
+          .create({ data: { chamadaId: id, entrada: semNulo(mensagem), saida: x.saida === undefined ? null : semNulo(x.saida) } })
+          .catch((e: unknown) => console.error('[IA_TEXTO_NAO_GUARDADO]', { caso: def.codigo, ...resumoErro(e) }));
+      }
+    } finally {
+      await cliente.iaReserva.delete({ where: { id: l.reservaId } }).catch((e: unknown) => console.error('[IA_RESERVA_NAO_LIBERADA]', resumoErro(e)));
     }
   }
 
@@ -146,15 +191,15 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
   };
 
   async function chamar<T>(quem: QuemPedeIA, def: DefinicaoCasoUsoIA, mensagem: string, fazer: (p: PedidoIA) => Promise<RespostaIA<T>>, sinal?: AbortSignal) {
-    const caso = await liberar(quem, def);
+    const l = await liberar(quem, def, mensagem);
     const inicio = relogio();
     try {
-      const r = await fazer(pedido(def, caso, mensagem, sinal));
+      const r = await fazer(pedido(def, l.caso, mensagem, sinal));
       const saida = typeof r.valor === 'string' ? r.valor : JSON.stringify(r.valor);
-      await registrar(quem, def, caso, mensagem, { latenciaMs: r.latenciaMs, modelo: r.modelo, uso: r.uso, motivoParada: r.motivoParada, saida });
+      await registrar(quem, def, l, mensagem, { latenciaMs: r.latenciaMs, modelo: r.modelo, uso: r.uso, motivoParada: r.motivoParada, saida });
       return r;
     } catch (e) {
-      await registrar(quem, def, caso, mensagem, falhou(e, inicio));
+      await registrar(quem, def, l, mensagem, falhou(e, inicio));
       throw e;
     }
   }
@@ -164,12 +209,12 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
     gerarEstruturado: (quem, def, mensagem, schema, sinal) => chamar(quem, def, mensagem, (p) => d.obterProvedor().gerarEstruturado(p, schema), sinal),
 
     async *gerarStream(quem, def, mensagem, sinal) {
-      const caso = await liberar(quem, def);
+      const l = await liberar(quem, def, mensagem);
       const inicio = relogio();
       let fim: RespostaIA<string> | null = null;
       let falha: unknown = null;
       try {
-        for await (const ev of d.obterProvedor().gerarStream(pedido(def, caso, mensagem, sinal))) {
+        for await (const ev of d.obterProvedor().gerarStream(pedido(def, l.caso, mensagem, sinal))) {
           if (ev.tipo === 'fim') fim = ev.resposta;
           yield ev;
         }
@@ -177,11 +222,12 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
         falha = e;
         throw e;
       } finally {
-        // Sem o fim e sem erro: quem consumia parou no meio (saiu da tela); conta como cancelada.
+        // Sem o fim e sem erro: quem consumia parou no meio (saiu da tela); conta como cancelada, com o
+        // custo estimado (o provedor cobra o que já gerou).
         await registrar(
           quem,
           def,
-          caso,
+          l,
           mensagem,
           fim
             ? { latenciaMs: fim.latenciaMs, modelo: fim.modelo, uso: fim.uso, motivoParada: fim.motivoParada, saida: fim.valor }
@@ -199,6 +245,16 @@ function hashEntrada(def: DefinicaoCasoUsoIA, mensagem: string): string {
   return createHash('sha256').update(JSON.stringify([def.codigo, def.versaoInstrucao, def.instrucaoSistema, mensagem])).digest('hex');
 }
 
+// O PostgreSQL não aceita o caractere nulo em TEXT.
+const semNulo = (t: string) => t.replaceAll('\u0000', '');
+
+// Só o tipo e o código: a mensagem de erro do Prisma pode trazer os argumentos (o texto da chamada).
+function resumoErro(e: unknown): { nome: string; codigo?: string } {
+  if (!(e instanceof Error)) return { nome: typeof e };
+  const codigo = (e as { code?: unknown }).code;
+  return typeof codigo === 'string' ? { nome: e.name, codigo } : { nome: e.name };
+}
+
 /** Início do mês em America/Sao_Paulo, sem horário de verão desde 2019: UTC-3 fixo. */
 export function inicioDoMes(agora: Date): Date {
   const local = new Date(agora.getTime() - 3 * 3_600_000);
@@ -210,7 +266,8 @@ const CODIGO_CASO = /^[a-z]+\.[a-z0-9_]+$/;
 /**
  * Instala os casos de uso na seed do módulo dono: o caso novo entra inativo e com teto zero; nos já
  * instalados, atualiza só o que vem do código (nome, funcionalidade, versão e guardarTexto), sem
- * mexer na configuração da tela. A funcionalidade precisa existir com a ação "executar".
+ * mexer na configuração da tela. A funcionalidade precisa existir com a ação "executar" e é só do
+ * caso (o banco recusa duas iguais).
  */
 export async function instalarCasosUsoIA(tx: TxCliente, casos: readonly DefinicaoCasoUsoIA[]): Promise<void> {
   for (const c of casos) {
@@ -222,9 +279,14 @@ export async function instalarCasosUsoIA(tx: TxCliente, casos: readonly Definica
   }
 }
 
-/** Retenção (spec §4.4): apaga o texto completo das chamadas com mais de 90 dias; o registro fica. */
-export async function limparTextosIA(cliente: PrismaClient, agora: Date): Promise<number> {
-  const limite = new Date(agora.getTime() - DIAS_RETENCAO_TEXTO * 86_400_000);
-  const { count } = await cliente.iaChamadaTexto.deleteMany({ where: { criadoEm: { lt: limite } } });
-  return count;
+/**
+ * Limpeza do worker: o texto completo das chamadas com mais de 90 dias (spec §4.4; o registro fica) e
+ * as reservas de processos que caíram.
+ */
+export async function limparIA(cliente: PrismaClient, agora: Date): Promise<{ textos: number; reservas: number }> {
+  const [textos, reservas] = await Promise.all([
+    cliente.iaChamadaTexto.deleteMany({ where: { criadoEm: { lt: new Date(agora.getTime() - DIAS_RETENCAO_TEXTO * 86_400_000) } } }),
+    cliente.iaReserva.deleteMany({ where: { criadoEm: { lt: new Date(agora.getTime() - MINUTOS_RESERVA * 60_000) } } }),
+  ]);
+  return { textos: textos.count, reservas: reservas.count };
 }
