@@ -3,7 +3,7 @@ import { Dinheiro } from '@/shared/kernel';
 import type { ListaPacotes, OpcoesPacote, PacoteTela } from '../application/pacotes';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { valorParaTela } from '../domain/valor-tela';
-import { FormPacote, type AcaoSugerirJustificativa } from './form-pacote';
+import { FormPacote, type AcaoSugerirContaCc, type AcaoSugerirJustificativa } from './form-pacote';
 
 // Tela dos pacotes base zero (US-057; plano do P11, Task 2). Server Component: escolha do CC (só os
 // do escopo), lista dos pacotes do CC com Alterar e Excluir na linha e o formulário de inclusão ou
@@ -41,6 +41,7 @@ export function TelaPacotes({
   acoes,
   aviso,
   iaJustificativa = false,
+  iaSugestaoConta = false,
   gravacao,
 }: {
   ano: number;
@@ -50,10 +51,12 @@ export function TelaPacotes({
   ccAtual: string | null;
   emEdicao: string | null;
   permissoes: PermissoesPacote;
-  acoes: { incluir: AcaoFormulario; alterar: AcaoFormulario; excluir: AcaoFormulario; sugerirJustificativa?: AcaoSugerirJustificativa };
+  acoes: { incluir: AcaoFormulario; alterar: AcaoFormulario; excluir: AcaoFormulario; sugerirJustificativa?: AcaoSugerirJustificativa; sugerirContaCc?: AcaoSugerirContaCc };
   aviso?: string | undefined;
   // Ajuda da IA na justificativa (US-063): a página decide pela permissão do caso (D-P14-5).
   iaJustificativa?: boolean;
+  // Sugestão de conta e CC (US-062): a página decide por iaLiberada(ctx, 'sugestaoConta') (D-P14-5).
+  iaSugestaoConta?: boolean;
   // Id da última gravação (?salvo=): muda a key do formulário de inclusão, que recomeça do zero.
   gravacao?: string | undefined;
 }) {
@@ -67,6 +70,7 @@ export function TelaPacotes({
   const editando = editavel && permissoes.podeAlterar ? (pacotes.find((k) => k.id === emEdicao) ?? null) : null;
   const totalCc = pacotes.length > 0 ? Dinheiro.somarTodos(pacotes.map((k) => k.valorAnual)) : null;
   const sugerirJustificativa = iaJustificativa ? acoes.sugerirJustificativa : undefined;
+  const sugerirContaCc = iaSugestaoConta ? acoes.sugerirContaCc : undefined;
   return (
     <>
       {aviso && <p role="status">{aviso}</p>}
@@ -178,6 +182,7 @@ export function TelaPacotes({
               salvar={acoes.alterar}
               cancelarPara={rota('')}
               sugerirJustificativa={sugerirJustificativa}
+              sugerirContaCc={sugerirContaCc}
             />
           ) : (
             permissoes.podeIncluir &&
@@ -194,6 +199,7 @@ export function TelaPacotes({
                 salvar={acoes.incluir}
                 cancelarPara={rota('')}
                 sugerirJustificativa={sugerirJustificativa}
+                sugerirContaCc={sugerirContaCc}
               />
             )
           )}

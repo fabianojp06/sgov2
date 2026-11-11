@@ -18,7 +18,10 @@ vi.mock('@/modules/orc', async (original) => {
   return {
     ...(await original<typeof import('@/modules/orc')>()),
     // servicoIA.disponivel (#390): permissão do caso e IA ligada (chave geral, caso ativo e tetos).
-    iaLiberada: async (c: ContextoRequisicao, nome: string) => caso.iaLigada && nome === 'justificativa' && c.permissoes.has(['orc.ia_justificativa', 'executar'].join(':')),
+    iaLiberada: async (c: ContextoRequisicao, nome: string) => {
+      const funcionalidade = { justificativa: 'orc.ia_justificativa', sugestaoConta: 'orc.ia_sugestao_conta' }[nome];
+      return caso.iaLigada && funcionalidade !== undefined && c.permissoes.has([funcionalidade, 'executar'].join(':'));
+    },
     listarExercicios: async () => [{ id: 'e1', ano: 2027, situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', versao: 0 }],
     listarPacotes: async () => ({ pacotes: [k()], editavel: editavel() }),
     opcoesPacote: async () => ({
@@ -109,6 +112,29 @@ describe('página de pacotes base zero', () => {
       expect(h).toContain('Pedir ajuda da IA na justificativa');
       expect(h).toContain('Não escreva nomes de pessoas no texto enviado à IA.');
       // O selo só aparece com uma resposta; a marca da sugestão só depois de um "Usar …".
+      expect(h).not.toContain('Gerado com IA – revisar');
+      expect(h).not.toContain('name="sugestaoIa"');
+    }
+  });
+
+  it('sugestão de conta e CC (US-062, D-P14-5): o botão aparece perto do seletor de conta só com a IA disponível, na inclusão e na alteração', async () => {
+    caso.iaLigada = true;
+    contexto = ctx([...TUDO, ['orc.ia_justificativa', 'executar'].join(':')]);
+    expect(await html()).not.toContain('Sugerir conta e CC');
+    contexto = ctx([...TUDO, ['orc.ia_sugestao_conta', 'executar'].join(':')]);
+    caso.iaLigada = false;
+    expect(await html()).not.toContain('Sugerir conta e CC');
+    caso.iaLigada = true;
+    for (const busca of [{}, { editar: 'p1' }]) {
+      const h = await html(busca);
+      expect(h).toContain('Sugerir conta e CC');
+      // Só este caso ligado: o painel da justificativa não aparece.
+      expect(h).not.toContain('Pedir ajuda da IA na justificativa');
+      // Logo depois do seletor de conta e antes da justificativa.
+      const conta = h.indexOf('name="conta"');
+      expect(conta).toBeGreaterThan(-1);
+      expect(h.indexOf('Sugerir conta e CC')).toBeGreaterThan(conta);
+      expect(h.indexOf('Sugerir conta e CC')).toBeLessThan(h.indexOf('name="justificativa"'));
       expect(h).not.toContain('Gerado com IA – revisar');
       expect(h).not.toContain('name="sugestaoIa"');
     }

@@ -5,7 +5,7 @@ import { ErroDoCampo, Formulario } from '@/modules/ger';
 import type { AcaoFormulario } from '@/modules/ger';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { previaPacote, type CamposPrevia } from '../domain/previa-pacote';
-import { deveMarcarSugestao, ROTULO_FALTANDO, ROTULO_PRIORIDADE, type SugestaoJustificativa, type SugestoesAceitas } from '../domain/sugestao-ia';
+import { deveMarcarSugestao, ROTULO_FALTANDO, ROTULO_PRIORIDADE, type SugestaoContaCc, type SugestaoJustificativa, type SugestoesAceitas } from '../domain/sugestao-ia';
 import { valorParaTela } from '../domain/valor-tela';
 import { PainelIA, type RespostaIaTela } from './painel-ia';
 
@@ -22,6 +22,8 @@ const PRIORIDADES = [
 export type OpcaoPacote = { classificacao: string; descricao: string };
 // Ajuda da IA na justificativa (US-063): a Server Action do orc, por props.
 export type AcaoSugerirJustificativa = (entrada: Record<string, string>) => Promise<RespostaIaTela<SugestaoJustificativa>>;
+// Sugestão de conta e CC pela descrição do gasto (US-062): a Server Action do orc, por props.
+export type AcaoSugerirContaCc = (entrada: Record<string, string>) => Promise<RespostaIaTela<SugestaoContaCc>>;
 
 export type PacoteEmEdicao = {
   id: string;
@@ -58,6 +60,7 @@ export function FormPacote({
   salvar,
   cancelarPara,
   sugerirJustificativa,
+  sugerirContaCc,
 }: {
   ano: number;
   exercicioId: string;
@@ -71,12 +74,15 @@ export function FormPacote({
   salvar: AcaoFormulario;
   cancelarPara: string;
   sugerirJustificativa?: AcaoSugerirJustificativa | undefined;
+  sugerirContaCc?: AcaoSugerirContaCc | undefined;
 }) {
   // CC fora das opções: o seletor começa vazio, para o pacote não mudar de CC sem o usuário escolher.
   const ccInicial = ccs.some((c) => c.classificacao === (pacote?.cc ?? ccAtual)) ? (pacote?.cc ?? ccAtual) : '';
   const [campos, setCampos] = useState<CamposPrevia>(() => camposIniciais(pacote));
   const campoRef = useRef<HTMLDivElement>(null);
   const justificativaRef = useRef<HTMLTextAreaElement>(null);
+  const ccRef = useRef<HTMLSelectElement>(null);
+  const contaRef = useRef<HTMLSelectElement>(null);
   const aceitas = useRef<SugestoesAceitas>({});
   const [marcada, setMarcada] = useState(false);
   const lerFormulario = () => {
@@ -85,7 +91,8 @@ export function FormPacote({
     return (k: string) => (typeof d.get(k) === 'string' ? (d.get(k) as string) : '');
   };
   // A marca sugestaoIa vai junto enquanto algum campo continua com o valor aceito (D-P14-3).
-  const conferirMarca = (t: (k: string) => string) => setMarcada(deveMarcarSugestao(aceitas.current, { justificativa: t('justificativa'), prioridade: t('prioridade') }));
+  const conferirMarca = (t: (k: string) => string) =>
+    setMarcada(deveMarcarSugestao(aceitas.current, { justificativa: t('justificativa'), prioridade: t('prioridade'), conta: t('conta'), cc: t('cc') }));
   // A prévia acompanha o que está digitado: lê o formulário inteiro a cada mudança.
   const aoMudar = () => {
     const t = lerFormulario();
@@ -120,6 +127,20 @@ export function FormPacote({
     conferirMarca(lerFormulario());
     radio.focus();
   };
+  // A descrição do gasto é o texto da justificativa (D-P14-2).
+  const pedirContaCc = () => sugerirContaCc!({ exercicioId, descricao: lerFormulario()('justificativa') });
+  // "Usar esta conta" e "Usar este CC" trocam o seletor, que continua editável (D-P14-3). As opções da
+  // IA já vieram conferidas contra as mesmas listas dos seletores; a lista de contas não depende do CC.
+  const usarNoSeletor = (seletor: HTMLSelectElement | null, campo: 'conta' | 'cc', valor: string) => {
+    if (!seletor || ![...seletor.options].some((o) => o.value === valor)) return;
+    // A sugerida já era a escolhida: nada veio da IA, e a entrada não leva a marca.
+    if (seletor.value !== valor) {
+      seletor.value = valor;
+      aceitas.current = { ...aceitas.current, [campo]: valor };
+    }
+    conferirMarca(lerFormulario());
+    seletor.focus();
+  };
   const previa = previaPacote(campos, ipca, quantidadeMaxima);
   const pontual = campos.distribuicao === 'Pontual';
   const prefixo = pacote ? 'alterar-pacote' : 'novo-pacote';
@@ -143,7 +164,7 @@ export function FormPacote({
         <div onChange={aoMudar} ref={campoRef}>
           <p>
             <label htmlFor={`${prefixo}-cc`}>Centro de custo</label>
-            <select id={`${prefixo}-cc`} name="cc" defaultValue={ccInicial} aria-describedby="erro-cc">
+            <select id={`${prefixo}-cc`} ref={ccRef} name="cc" defaultValue={ccInicial} aria-describedby="erro-cc">
               {ccInicial === '' && <option value="" disabled>Escolha o centro de custo</option>}
               {ccs.map((c) => (
                 <option key={c.classificacao} value={c.classificacao}>{`${c.classificacao} – ${c.descricao}`}</option>
@@ -153,7 +174,7 @@ export function FormPacote({
           </p>
           <p>
             <label htmlFor={`${prefixo}-conta`}>Conta</label>
-            <select id={`${prefixo}-conta`} name="conta" defaultValue={pacote?.conta ?? ''} aria-describedby="erro-conta">
+            <select id={`${prefixo}-conta`} ref={contaRef} name="conta" defaultValue={pacote?.conta ?? ''} aria-describedby="erro-conta">
               <option value="">Escolha a conta</option>
               {contas.map((c) => (
                 <option key={c.classificacao} value={c.classificacao}>{`${c.classificacao} – ${c.descricao}`}</option>
@@ -161,6 +182,41 @@ export function FormPacote({
             </select>
             <ErroDoCampo campo="conta" />
           </p>
+          {sugerirContaCc && (
+            <PainelIA<SugestaoContaCc>
+              id={`${prefixo}-ia-conta`}
+              titulo="Sugestão de conta e CC pela IA"
+              rotuloBotao="Sugerir conta e CC"
+              aviso={MENSAGENS_ORC.IA_SUGESTAO_CONTA_AVISO}
+              pedir={pedirContaCc}
+            >
+              {(s) => (
+                <>
+                  <p>Contas sugeridas, da mais provável para a menos provável:</p>
+                  <ol>
+                    {s.contas.map((c) => (
+                      <li key={c.conta}>
+                        <strong>{`${c.conta} – ${c.descricao}`}</strong>. {c.motivo}{' '}
+                        <button type="button" aria-label={`Usar esta conta: ${c.conta}`} onClick={() => usarNoSeletor(contaRef.current, 'conta', c.conta)}>
+                          Usar esta conta
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                  {s.cc ? (
+                    <p>
+                      Centro de custo sugerido: <strong>{`${s.cc.cc} – ${s.cc.descricao}`}</strong>. {s.cc.motivo}{' '}
+                      <button type="button" onClick={() => usarNoSeletor(ccRef.current, 'cc', s.cc!.cc)}>
+                        Usar este CC
+                      </button>
+                    </p>
+                  ) : (
+                    <p>A IA não sugeriu centro de custo.</p>
+                  )}
+                </>
+              )}
+            </PainelIA>
+          )}
           <p>
             <label htmlFor={`${prefixo}-justificativa`}>Atividade / justificativa (mín. 10 caracteres)</label>
             <textarea

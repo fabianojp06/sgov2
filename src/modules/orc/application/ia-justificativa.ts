@@ -8,7 +8,7 @@ import { FALTANDO_JUSTIFICATIVA, ROTULO_PRIORIDADE, type SugestaoJustificativa }
 import { errosNaoEditavel } from './calculo-linhas';
 import { contasVetadasEmPacote } from './contas-vetadas';
 import { CASOS_IA_ORC } from './ia-casos';
-import { resolverDepsIa, type DepsIaOrc } from './ia-deps';
+import { mensagemErroIA, resolverDepsIa, type DepsIaOrc } from './ia-deps';
 import { resolverEscopo } from './escopo';
 
 // Ajuda da IA na justificativa do pacote base zero (US-063; plano do P14, Task 1). Só leitura: a
@@ -106,9 +106,6 @@ export function montarMensagemJustificativa(d: DadosMensagem): string {
   return linhas.join('\n');
 }
 
-// Tempo limite da chamada (D-P14-4): o sinal abortou pelo AbortSignal.timeout.
-const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError';
-
 export async function sugerirJustificativa(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsIaOrc> = {}): Promise<Resultado<SugestaoJustificativa>> {
   // A governança também confere; aqui, antes de qualquer leitura, com a mensagem do ErroIA.
   if (!ctx.permissoes.has(PERMISSAO_IA)) return erro('_', new ErroIA('ia.sem_permissao').message);
@@ -167,6 +164,6 @@ export async function sugerirJustificativa(ctx: ContextoRequisicao, bruto: unkno
   } catch (x) {
     // definirAcao só traduz ErroDominio: o ErroIA vira aqui a mensagem fixa dele (sem detalhe do provedor).
     if (!(x instanceof ErroIA)) throw x;
-    return erro('_', x.codigo === 'ia.cancelada' && tempoEsgotado(sinal) ? MENSAGENS_ORC.IA_TEMPO_ESGOTADO : x.message);
+    return erro('_', mensagemErroIA(x, sinal));
   }
 }
