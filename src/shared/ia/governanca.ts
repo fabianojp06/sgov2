@@ -29,6 +29,8 @@ export type DefinicaoCasoUsoIA = {
   instrucaoSistema: string;
   /** Guarda o texto da entrada e da saída por 90 dias (ia_chamada_texto). Padrão: só o hash. */
   guardarTexto?: boolean;
+  /** Tem avaliador de qualidade registrado no worker (fila ia.avaliar): a tela mostra o botão "Avaliar". */
+  avaliavel?: boolean;
   /** Configuração inicial, só na primeira instalação; depois vale a da tela de cadastro. */
   padrao?: { modelo?: string; esforco?: EsforcoIA; maxTokens?: number };
 };
@@ -311,7 +313,13 @@ export async function instalarCasosUsoIA(tx: TxCliente, casos: readonly Definica
     const p = c.padrao ?? {};
     if (p.modelo !== undefined && !MODELOS_IA.includes(p.modelo)) throw new Error(`caso de uso de IA ${c.codigo}: modelo fora da tabela de preços: ${p.modelo}`);
     if (p.maxTokens !== undefined && !(Number.isInteger(p.maxTokens) && p.maxTokens >= 1 && p.maxTokens <= 128_000)) throw new Error(`caso de uso de IA ${c.codigo}: maxTokens inválido`);
-    const doCodigo = { nome: c.nome, funcionalidade: c.funcionalidade, versaoInstrucao: c.versaoInstrucao, guardarTexto: c.guardarTexto ?? false };
+    const doCodigo = {
+      nome: c.nome,
+      funcionalidade: c.funcionalidade,
+      versaoInstrucao: c.versaoInstrucao,
+      guardarTexto: c.guardarTexto ?? false,
+      avaliavel: c.avaliavel ?? false,
+    };
     const inicial = { ...(p.modelo ? { modelo: p.modelo } : {}), ...(p.esforco ? { esforco: p.esforco } : {}), ...(p.maxTokens ? { maxTokens: p.maxTokens } : {}) };
     await tx.iaCasoUso.upsert({ where: { codigo: c.codigo }, create: { codigo: c.codigo, ...doCodigo, ...inicial }, update: doCodigo });
   }

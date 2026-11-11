@@ -20,20 +20,23 @@ model IaConfiguracao {
 // e o schema de saída ficam no código, versionados; aqui ficam a versão instalada e a configuração
 // (modelo, esforço, max_tokens, teto). A permissão é "<funcionalidade>:executar".
 model IaCasoUso {
-  codigo          String      @id
+  codigo          String        @id
   nome            String
   // Permissão própria do caso: uma funcionalidade por caso.
-  funcionalidade  String      @unique
-  versaoInstrucao Int         @map("versao_instrucao")
-  guardarTexto    Boolean     @default(false) @map("guardar_texto")
-  ativo           Boolean     @default(false)
-  modelo          String      @default("claude-opus-5-5")
-  esforco         String      @default("medium")
-  maxTokens       Int         @default(4000) @map("max_tokens")
-  tetoMensalUsd   Decimal     @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
-  versao          Int         @default(1)
+  funcionalidade  String        @unique
+  versaoInstrucao Int           @map("versao_instrucao")
+  guardarTexto    Boolean       @default(false) @map("guardar_texto")
+  // Tem avaliador de qualidade registrado pelo módulo dono (botão "Avaliar" na tela).
+  avaliavel       Boolean       @default(false)
+  ativo           Boolean       @default(false)
+  modelo          String        @default("claude-opus-5-5")
+  esforco         String        @default("medium")
+  maxTokens       Int           @default(4000) @map("max_tokens")
+  tetoMensalUsd   Decimal       @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
+  versao          Int           @default(1)
   chamadas        IaChamada[]
   reservas        IaReserva[]
+  avaliacoes      IaAvaliacao[]
 
   @@map("ia_caso_uso")
 }
@@ -106,4 +109,30 @@ model SinalVida {
   atualizadoEm DateTime @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
 
   @@map("sinal_vida")
+}
+
+enum SituacaoAvaliacaoIA {
+  PENDENTE
+  CONCLUIDA
+  FALHOU
+}
+
+// Avaliação de qualidade de um caso de uso (fila ia.avaliar): o Administrador pede pela tela, e o
+// worker roda o avaliador que o módulo dono registrou, como a pessoa que pediu (as chamadas passam pela
+// governança: custo no teto e no registro). O resumo não leva texto de usuário.
+model IaAvaliacao {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  casoUsoCodigo String              @map("caso_uso_codigo")
+  casoUso       IaCasoUso           @relation(fields: [casoUsoCodigo], references: [codigo], onDelete: Restrict)
+  usuarioId     String              @map("usuario_id") @db.Uuid
+  situacao      SituacaoAvaliacaoIA @default(PENDENTE)
+  total         Int?
+  acertos       Int?
+  resumo        Json?
+  erro          String?
+  criadoEm      DateTime            @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  concluidoEm   DateTime?           @map("concluido_em") @db.Timestamptz(6)
+
+  @@index([casoUsoCodigo, criadoEm])
+  @@map("ia_avaliacao")
 }

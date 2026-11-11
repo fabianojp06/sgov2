@@ -1,7 +1,7 @@
 // API pública do módulo int (spec §4.1): integrações externas. Por ora, o cadastro da IA (US-019).
 // Código só de servidor sem guarda (seed) sai pelo servidor.ts.
-export { acaoAlterarCasoUsoIA, acaoAlterarConfiguracaoIA } from './application/acoes-ia';
-export { obterTelaIA, type CasoUsoTela, type TelaIA } from './application/ia';
+export { acaoAlterarCasoUsoIA, acaoAlterarConfiguracaoIA, acaoPedirAvaliacaoIA } from './application/acoes-ia';
+export { obterTelaIA, type AvaliacaoTela, type CasoUsoTela, type TelaIA } from './application/ia';
 export { CadastroIA } from './ui/cadastro-ia';
 // Saúde do sistema (US-017), para o endpoint público /int/saude.
 export { verificarSaude, type EstadoSaude } from './application/saude';

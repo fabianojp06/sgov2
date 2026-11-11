@@ -3,7 +3,8 @@ import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
-import { ESFORCOS_IA, inicioDoMes, MINUTOS_RESERVA, MODELOS_IA, type EsforcoIA } from '@/shared/ia';
+import { registrarNoOutbox } from '@/shared/filas';
+import { ESFORCOS_IA, FILA_AVALIACAO_IA, inicioDoMes, MINUTOS_RESERVA, MODELOS_IA, type EsforcoIA } from '@/shared/ia';
 import { ConflitoConcorrencia, ErroDominio, exigirUmaLinha, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { inteiroEntre, lerDolar } from '../domain/valores';
 
@@ -30,6 +31,18 @@ export type CasoUsoTela = ConsumoIA & {
   esforco: string;
   maxTokens: number;
   tetoMensalUsd: string;
+  avaliavel: boolean;
+  ultimaAvaliacao: AvaliacaoTela | null;
+};
+
+/** A última avaliação de qualidade do caso (fila ia.avaliar). Datas em ISO. */
+export type AvaliacaoTela = {
+  situacao: 'PENDENTE' | 'CONCLUIDA' | 'FALHOU';
+  criadoEm: string;
+  concluidoEm: string | null;
+  total: number | null;
+  acertos: number | null;
+  erro: string | null;
 };
 
 export type TelaIA = {
@@ -46,7 +59,7 @@ export async function obterTelaIA(ctx: ContextoRequisicao, deps: Deps = {}): Pro
   const cliente = deps.cliente ?? prisma;
   const momento = (deps.agora ?? (() => new Date()))();
   const desde = inicioDoMes(momento);
-  const [config, casos, porCaso, errosPorCaso, reservas] = await Promise.all([
+  const [config, casos, porCaso, errosPorCaso, reservas, avaliacoes] = await Promise.all([
     cliente.iaConfiguracao.findUniqueOrThrow({ where: { id: 1 } }),
     cliente.iaCasoUso.findMany({ orderBy: { codigo: 'asc' } }),
     cliente.iaChamada.groupBy({ by: ['casoUsoCodigo'], where: { criadoEm: { gte: desde } }, _sum: { custoEstimadoUsd: true }, _count: { _all: true } }),
@@ -57,7 +70,10 @@ export async function obterTelaIA(ctx: ContextoRequisicao, deps: Deps = {}): Pro
       where: { criadoEm: { gt: new Date(momento.getTime() - MINUTOS_RESERVA * 60_000) } },
       _sum: { custoMaximoUsd: true },
     }),
+    // A última avaliação de cada caso.
+    cliente.iaAvaliacao.findMany({ distinct: ['casoUsoCodigo'], orderBy: [{ casoUsoCodigo: 'asc' }, { criadoEm: 'desc' }] }),
   ]);
+  const ultimas = new Map(avaliacoes.map((a) => [a.casoUsoCodigo, a]));
   const gastos = new Map(porCaso.map((g) => [g.casoUsoCodigo, g]));
   const erros = new Map(errosPorCaso.map((g) => [g.casoUsoCodigo, g._count._all]));
   type Dec = Prisma.Decimal;
@@ -100,6 +116,8 @@ export async function obterTelaIA(ctx: ContextoRequisicao, deps: Deps = {}): Pro
         chamadasMes: g?._count._all ?? 0,
         errosMes: erros.get(c.codigo) ?? 0,
         tetoAtingido: atingido(g?._sum.custoEstimadoUsd, emCurso.get(c.codigo) ?? ZERO, c.tetoMensalUsd),
+        avaliavel: c.avaliavel,
+        ultimaAvaliacao: avaliacaoTela(ultimas.get(c.codigo)),
       };
     }),
     modelos: MODELOS_IA,
@@ -211,4 +229,58 @@ export async function alterarCasoUsoIA(ctx: ContextoRequisicao, bruto: unknown, 
     });
     return ok({ versao: e.data.versao + 1 });
   });
+}
+
+function avaliacaoTela(
+  a: { situacao: AvaliacaoTela['situacao']; criadoEm: Date; concluidoEm: Date | null; total: number | null; acertos: number | null; erro: string | null } | undefined,
+): AvaliacaoTela | null {
+  if (!a) return null;
+  return { situacao: a.situacao, criadoEm: a.criadoEm.toISOString(), concluidoEm: a.concluidoEm?.toISOString() ?? null, total: a.total, acertos: a.acertos, erro: a.erro };
+}
+
+export const MSG_AVALIACAO_EM_CURSO = 'Já há uma avaliação deste caso de uso em andamento. Aguarde o resultado.';
+export const MSG_NAO_AVALIAVEL = 'Este caso de uso não tem avaliação de qualidade.';
+const esquemaAvaliacao = z.object({ codigo: z.string().max(100) }).strict();
+
+/**
+ * Pede a avaliação de qualidade de um caso de uso (fila ia.avaliar; pedido da frente A na #138): grava o
+ * pedido e o outbox na mesma transação, com Histórico. Uma pendente por caso (índice único parcial). As
+ * chamadas da avaliação passam pela governança: com a IA desligada, ela falha com o motivo.
+ */
+export async function pedirAvaliacaoIA(ctx: ContextoRequisicao, bruto: unknown, deps: Deps = {}): Promise<Resultado<{ avaliacaoId: string }>> {
+  exigir(ctx, FUNCIONALIDADE_IA, 'alterar');
+  const e = esquemaAvaliacao.safeParse(bruto);
+  if (!e.success) return falha([{ campo: '', mensagem: MSG_ENTRADA }]);
+  const codigo = e.data.codigo;
+  try {
+    return await (deps.cliente ?? prisma).$transaction(async (tx) => {
+      const caso = await tx.iaCasoUso.findUnique({ where: { codigo }, select: { avaliavel: true } });
+      if (!caso?.avaliavel) return falha([{ campo: '', mensagem: MSG_NAO_AVALIAVEL }]);
+      // INSERT explícito: o Prisma mandaria a situação padrão, e o app só insere caso e usuário (nasce
+      // pendente pelo default do banco; não dá para criar uma avaliação já concluída).
+      const [criada] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "ia_avaliacao" ("caso_uso_codigo", "usuario_id")
+        VALUES (${codigo}, ${ctx.usuarioId}::uuid) RETURNING "id"`;
+      const id = criada!.id;
+      await registrarNoOutbox(tx, FILA_AVALIACAO_IA, { avaliacaoId: id });
+      await auditar(tx, {
+        contexto: contextoDe(ctx),
+        funcionalidade: FUNCIONALIDADE_IA,
+        tipo: 'INSERCAO',
+        registroId: id,
+        descricao: `Avaliação de qualidade do caso de uso de IA ${codigo} pedida`,
+        depois: { casoUsoCodigo: codigo },
+      });
+      return ok({ avaliacaoId: id });
+    });
+  } catch (erro) {
+    // Índice único parcial: já há uma pendente para o caso (23505 no SQL explícito).
+    if (violouUnicidade(erro)) return falha([{ campo: '', mensagem: MSG_AVALIACAO_EM_CURSO }]);
+    throw erro;
+  }
+}
+
+// No SQL explícito, o Prisma (com o adapter do pg) devolve o código do Postgres só na mensagem.
+function violouUnicidade(e: unknown): boolean {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return true;
+  return e instanceof Error && /\b23505\b/.test(e.message) && e.message.includes('ia_avaliacao_pendente_key');
 }
