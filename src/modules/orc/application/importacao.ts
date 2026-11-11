@@ -9,10 +9,14 @@ import { Dinheiro, falha, ok, type ErroCampo, type Resultado } from '@/shared/ke
 import { editavel } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import {
+  ABA_INSTRUCOES,
+  ABAS,
+  CELULA_LAYOUT,
   COLUNAS_PACOTES,
   COLUNAS_PESSOAL,
   COLUNAS_RECEITAS,
   LAYOUT,
+  LINHA_CABECALHO_MAX,
   validarPlanilha,
   type Aba,
   type ErroPlanilha,
@@ -30,11 +34,8 @@ export type ResumoCc = { cc: string; posicoes: number; pacotes: number; total: D
 export type ResultadoImportacao = { posicoes: number; pacotes: number; ccs: number; receitas: number; resumoPorCc: readonly ResumoCc[]; mensagem: string };
 export type DepsImportacao = DepsOrc & { lerPlanilhas: typeof lerPlanilhasSegura };
 
-const ABAS: readonly { aba: Aba; colunas: readonly string[] }[] = [
-  { aba: 'Pessoal', colunas: COLUNAS_PESSOAL },
-  { aba: 'Pacotes base zero', colunas: COLUNAS_PACOTES },
-  { aba: 'Receitas', colunas: COLUNAS_RECEITAS },
-];
+const COLUNAS_POR_ABA: Record<Aba, readonly string[]> = { Pessoal: COLUNAS_PESSOAL, 'Pacotes base zero': COLUNAS_PACOTES, Receitas: COLUNAS_RECEITAS };
+const LEITURA_ABAS = ABAS.map((aba) => ({ aba, colunas: COLUNAS_POR_ABA[aba] }));
 
 const erroGeral = (mensagem: string): Resultado<never> => falha([{ campo: '_', mensagem }]);
 // Erros por linha: o relatório agrupa por aba, na ordem das linhas, com teto (a resposta não cresce
@@ -88,19 +89,19 @@ export async function importarPlanilha(
   const errosCelula: ErroPlanilha[] = [];
   let nomeArquivo = entrada.arquivo.nome;
   const r = await lerPlanilhas(entrada.arquivo, [
-    { aba: 'Instruções', colunas: [], linhaCabecalhoMax: 1, celulas: ['E1'] },
-    ...ABAS.map(({ aba, colunas }) => ({ aba, colunas, linhaCabecalhoMax: 4 })),
+    { aba: ABA_INSTRUCOES, colunas: [], linhaCabecalhoMax: 1, celulas: [CELULA_LAYOUT] },
+    ...LEITURA_ABAS.map(({ aba, colunas }) => ({ aba, colunas, linhaCabecalhoMax: LINHA_CABECALHO_MAX })),
   ]);
   if (!r.ok) {
     // Sem a aba Instruções: fora do layout. Outro erro nela (prazo, limite, arquivo malformado) vem
     // como o leitor disse.
     if (r.indiceAba === 0 && r.erros.every((e) => e.mensagem.startsWith('A aba "'))) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
-    const pedido = r.indiceAba === null || r.indiceAba === 0 ? undefined : ABAS[r.indiceAba - 1];
+    const pedido = r.indiceAba === null || r.indiceAba === 0 ? undefined : LEITURA_ABAS[r.indiceAba - 1];
     return falha(r.erros.map((e) => ({ campo: 'arquivo', mensagem: pedido ? erroDeArquivo(pedido.aba, pedido.colunas, e.mensagem) : e.mensagem })));
   }
   const [instrucoes, ...abas] = r.valor;
-  if (instrucoes!.celulasAvulsas?.E1?.trim() !== LAYOUT) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
-  for (const [i, { aba }] of ABAS.entries()) {
+  if (instrucoes!.celulasAvulsas?.[CELULA_LAYOUT]?.trim() !== LAYOUT) return falha([{ campo: 'arquivo', mensagem: MENSAGENS_ORC.VERSAO_LAYOUT }]);
+  for (const [i, { aba }] of LEITURA_ABAS.entries()) {
     lidas[aba] = abas[i]!.linhas;
     nomeArquivo = abas[i]!.nomeArquivo;
     errosCelula.push(...abas[i]!.errosCelula.map((e) => ({ ...e, aba })));
@@ -126,7 +127,7 @@ export async function importarPlanilha(
   // A célula com erro do leitor chega como null: a validação não repete o erro na mesma célula.
   const comErroDoLeitor = new Set(errosCelula.map((e) => `${e.aba}|${e.linha}|${e.coluna}`));
   const errosValidacao = validacao.ok ? [] : validacao.erros.filter((e) => !comErroDoLeitor.has(`${e.aba}|${e.linha}|${e.coluna}`));
-  const erros = [...errosCelula, ...errosValidacao].sort((a, b) => ABAS.findIndex((x) => x.aba === a.aba) - ABAS.findIndex((x) => x.aba === b.aba) || a.linha - b.linha);
+  const erros = [...errosCelula, ...errosValidacao].sort((a, b) => ABAS.indexOf(a.aba) - ABAS.indexOf(b.aba) || a.linha - b.linha);
   if (escopo.tipo !== 'TOTAL' && lidas.Receitas.length > 0) return erroGeral(MENSAGENS_ORC.RECEITAS_SO_ESCOPO_TOTAL);
   if (erros.length > 0 || !validacao.ok) return falha(comoCampos(erros));
   const { posicoes, pacotes, receitas } = validacao.conteudo;
