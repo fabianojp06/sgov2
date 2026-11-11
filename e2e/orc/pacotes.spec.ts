@@ -22,8 +22,8 @@ test.describe.serial(`pacotes base zero ${ANO}`, () => {
   test.afterAll(async () => {
     // Deixa o banco do teste como estava (o Histórico é imutável e fica). Depende das tabelas por ano
     // da frente B que a criação do exercício preenche (garantirPremissasExercicio do cad):
-    // parametros_exercicio, encargo_exercicio, conta_componente_exercicio e beneficio_mestre. Se o cad
-    // passar a gravar outra tabela por ano, ela entra aqui.
+    // parametros_exercicio, encargo_exercicio, conta_componente_exercicio, beneficio_mestre e
+    // beneficio_cargo (copiada do ano-base). Se o cad passar a gravar outra tabela por ano, ela entra aqui.
     const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
     await cliente.connect();
     try {
@@ -33,7 +33,7 @@ test.describe.serial(`pacotes base zero ${ANO}`, () => {
       await cliente.query(`DELETE FROM orc_pacote WHERE exercicio_id IN ${ex}`);
       await cliente.query(`DELETE FROM orc_posicao WHERE exercicio_id IN ${ex}`);
       await cliente.query(`DELETE FROM orc_exercicio WHERE ano = ${ANO}`);
-      for (const tabela of ['beneficio_mestre', 'encargo_exercicio', 'conta_componente_exercicio', 'parametros_exercicio']) {
+      for (const tabela of ['beneficio_cargo', 'beneficio_mestre', 'encargo_exercicio', 'conta_componente_exercicio', 'parametros_exercicio']) {
         await cliente.query(`DELETE FROM ${tabela} WHERE ano = ${ANO}`);
       }
       await cliente.query('COMMIT');

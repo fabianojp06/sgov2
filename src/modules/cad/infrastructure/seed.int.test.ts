@@ -10,7 +10,7 @@ import { seedDadosReferenciaCad } from './seed-referencia';
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let cliente: ReturnType<typeof criarPrisma>;
 
-const TABELAS = ['funcionalidade', 'perfil_permissao', 'permissao_padrao_aplicada', 'conta_contabil', 'carga_estrutura', 'historico_operacao', 'cargo'];
+const TABELAS = ['funcionalidade', 'perfil_permissao', 'permissao_padrao_aplicada', 'conta_contabil', 'carga_estrutura', 'historico_operacao', 'cargo', 'beneficio_cargo'];
 
 // Retrato ordenado do conteúdo (não só da contagem): pega UPDATE indevido na segunda execução.
 async function retrato(): Promise<Record<string, unknown[]>> {
@@ -138,8 +138,8 @@ describe('seedDadosReferenciaCad', () => {
     vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
     vi.stubEnv('AMBIENTE', 'dev');
     vi.stubEnv('NODE_ENV', undefined);
-    // O teste anterior apagou os benefícios de 2027; a Fonte Ativa e a faixa ficaram da primeira carga.
-    await executarSeeds(cliente, [seedDadosReferenciaCad]);
+    // Com o seedCad junto, o 2027 e a Tabela Mestre existem mesmo rodando este teste sozinho.
+    await executarSeeds(cliente, [seedCad, seedDadosReferenciaCad]);
     const cargos = await cliente.$transaction((tx) => listarCargosSemSalarioCifrado(tx));
     const util = cargos.filter((c) => c.salarioFonteAtiva !== null);
     expect(util.map((c) => [c.codigo, c.fonteAtiva, c.salarioFonteAtiva?.paraString(), c.faixa?.minimo.paraString(), c.faixa?.maximo.paraString()])).toEqual([
@@ -158,5 +158,27 @@ describe('seedDadosReferenciaCad', () => {
     await executarSeeds(cliente, [seedDadosReferenciaCad]);
     expect(await retrato()).toEqual(antes);
     expect((await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao).toBe(versao);
+  });
+
+  it('cargo sintético editado (Fonte Ativa ou faixa) não ganha os benefícios de 2027 da seed', async () => {
+    vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
+    vi.stubEnv('AMBIENTE', 'dev');
+    vi.stubEnv('NODE_ENV', undefined);
+    await executarSeeds(cliente, [seedCad, seedDadosReferenciaCad]);
+    await cliente.$executeRawUnsafe(`DELETE FROM beneficio_cargo WHERE ano = 2027`);
+    await cliente.$executeRawUnsafe(`UPDATE cargo SET fonte_ativa = 'MAXIMO' WHERE codigo = 'SINT-002'`);
+    await cliente.$executeRawUnsafe(`UPDATE cargo SET mercado_maximo = 9000 WHERE codigo = 'SINT-003'`);
+    await executarSeeds(cliente, [seedDadosReferenciaCad]);
+    const r = await cliente.$queryRaw<{ codigo: string; n: number }[]>`
+      SELECT c.codigo, count(b.codigo)::int AS n FROM cargo c LEFT JOIN beneficio_cargo b ON b.cargo_id = c.id AND b.ano = 2027
+      WHERE c.codigo IN ('SINT-001', 'SINT-002', 'SINT-003') GROUP BY 1 ORDER BY 1`;
+    expect(r).toEqual([
+      { codigo: 'SINT-001', n: 3 },
+      { codigo: 'SINT-002', n: 0 },
+      { codigo: 'SINT-003', n: 0 },
+    ]);
+    // A Fonte Ativa e a faixa editadas ficam como estão.
+    expect((await cliente.cargo.findUnique({ where: { codigo: 'SINT-002' } }))!.fonteAtiva).toBe('MAXIMO');
+    expect((await cliente.cargo.findUnique({ where: { codigo: 'SINT-003' } }))!.mercadoMaximo!.toFixed(2)).toBe('9000.00');
   });
 });
