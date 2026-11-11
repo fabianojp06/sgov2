@@ -24,10 +24,23 @@ export type CargoExercicio = Readonly<{
   adicional: AdicionalTrabalhista | null;
 }>;
 
-export type OpcoesCargosExercicio = { incluirInativos?: boolean; cifra?: CifraSalarios };
+export type OpcoesCargosExercicio = { incluirInativos?: boolean };
 
-/** Cargos do cadastro (únicos para todo exercício), em ordem de código; por padrão, só os ativos. */
+/**
+ * Cargos do cadastro (únicos para todo exercício), em ordem de código; por padrão, só os ativos. Esta é a
+ * versão do servidor.ts (worker e casos de uso sem a cifra): a Fonte Ativa cifrada (REAL, DEFINIDO,
+ * TOTAL) sai sem salário, porque a chave só existe no app. Pelo index.ts (app), o salário sai decifrado.
+ */
 export async function listarCargosExercicio(tx: TxCliente, opcoes: OpcoesCargosExercicio = {}): Promise<readonly CargoExercicio[]> {
+  return listarCargosComCifra(tx, opcoes, () => null);
+}
+
+/** Com a cifra (o app injeta). */
+export async function listarCargosComCifra(
+  tx: TxCliente,
+  opcoes: OpcoesCargosExercicio,
+  obterCifra: () => CifraSalarios | null,
+): Promise<readonly CargoExercicio[]> {
   const linhas = await tx.cargo.findMany({
     where: opcoes.incluirInativos ? {} : { ativo: true },
     orderBy: { codigo: 'asc' },
@@ -50,7 +63,7 @@ export async function listarCargosExercicio(tx: TxCliente, opcoes: OpcoesCargosE
   return linhas.map((c) => {
     let salario: Dinheiro | null;
     try {
-      salario = salarioFonteAtiva(c, opcoes.cifra);
+      salario = salarioFonteAtiva(c, obterCifra);
     } catch (e) {
       // Envelope ilegível ou chave ausente: o cargo fica sem salário (a posição não o usa), sem derrubar a lista.
       if (!(e instanceof ErroDominio && ['cad.cifra_invalida', 'cad.cifra_indisponivel'].includes(e.codigo))) throw e;

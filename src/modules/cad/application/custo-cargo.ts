@@ -7,7 +7,7 @@ import { Dinheiro, ErroDominio, falha, ok, Percentual, type Resultado } from '@/
 import type { CustoCargoTela } from '../domain/cargo-tela';
 import type { SerieMensalComponentes } from '../domain/custo-pessoal';
 import { calcularCustoPosicao, calcularEncargo } from '../domain/motor-custo-pessoal';
-import type { CifraSalarios } from '../infrastructure/cifra-salarios';
+import { criarCifraSalarios, type CifraSalarios } from '../infrastructure/cifra-salarios';
 import { salarioFonteAtiva } from '../infrastructure/fonte-ativa';
 import { obterPremissasExercicio } from '../infrastructure/premissas';
 
@@ -84,7 +84,7 @@ export async function calcularCustoCargo(ctx: ContextoRequisicao, cargoId: strin
     // Só decifra o que a fonte usa (o envelope ilegível de outro campo não impede o cálculo).
     let fonte: Dinheiro | null;
     try {
-      fonte = salarioFonteAtiva(c, deps.cifra ?? null);
+      fonte = salarioFonteAtiva(c, () => deps.cifra ?? criarCifraSalarios());
     } catch (e) {
       // Envelope ilegível ou sem a chave: mensagem na tela, nunca erro (spec §5).
       if (e instanceof ErroDominio && ['cad.cifra_invalida', 'cad.cifra_indisponivel'].includes(e.codigo)) return falha([{ campo: '_', mensagem: e.message }]);

@@ -5,7 +5,8 @@ import { seedAdm } from '@/modules/adm';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
-import { beneficiosDoCargo, listarCargosExercicio } from './cargos-exercicio';
+import { listarCargosExercicio } from '../application/cargos-exercicio';
+import { beneficiosDoCargo, listarCargosExercicio as listarSemCifra } from './cargos-exercicio';
 import { criarCifraSalarios } from './cifra-salarios';
 import { CHAVE_TESTE_CIFRA, ID_CHAVE_TESTE } from './cifra-teste';
 import { seedCad } from './seed';
@@ -78,6 +79,15 @@ describe('listarCargosExercicio', () => {
     const lista = await listarCargosExercicio(app, { cifra, incluirInativos: true });
     expect(lista.find((c) => c.codigo === 'ZZ5')).toMatchObject({ ativo: false, fonteAtiva: 'MAXIMO' });
     expect(lista.find((c) => c.codigo === 'ZZ5')!.salarioFonteAtiva?.paraString()).toBe('3500.00');
+  });
+});
+
+describe('listarCargosExercicio do servidor.ts (worker, sem a chave)', () => {
+  it('a Fonte Ativa cifrada sai sem salário; a de mercado, a faixa e o adicional continuam', async () => {
+    const lista = await listarSemCifra(app);
+    expect(lista.find((c) => c.codigo === 'ZZ1')!.salarioFonteAtiva?.paraString()).toBe('5000.00');
+    expect(lista.find((c) => c.codigo === 'ZZ2')).toMatchObject({ fonteAtiva: 'REAL', salarioFonteAtiva: null, adicional: { tipo: 'INSALUBRIDADE', grau: 'MEDIO' } });
+    expect(lista.find((c) => c.codigo === 'ZZ1')!.faixa?.maximo.paraString()).toBe('6000.00');
   });
 });
 

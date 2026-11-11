@@ -43,13 +43,9 @@ export {
   obterPremissasExercicio,
 } from './infrastructure/premissas';
 // C2, acréscimo de C&S (resto da US-056 e US-064; combinado na #138 em 11/11): cargos com o salário
-// da Fonte Ativa, a faixa de mercado e os benefícios do cargo no exercício.
-export {
-  beneficiosDoCargo,
-  listarCargosExercicio,
-  type CargoExercicio,
-  type OpcoesCargosExercicio,
-} from './infrastructure/cargos-exercicio';
+// da Fonte Ativa, a faixa de mercado e os benefícios do cargo no exercício. O listarCargosExercicio sai
+// por cada entrada: no index.ts (app), com o salário decifrado; no servidor.ts (worker), sem a cifra.
+export { beneficiosDoCargo, type CargoExercicio, type OpcoesCargosExercicio } from './infrastructure/cargos-exercicio';
 export type { FonteAtiva } from './domain/cargo';
 
 export {

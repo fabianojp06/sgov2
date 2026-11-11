@@ -1,5 +1,7 @@
 // API pública do cad (spec §4.1). Código só de servidor sem guarda também sai pelo servidor.ts (R22).
 export * from './contrato';
+// C2, acréscimo de C&S: com o salário da Fonte Ativa decifrado (a chave só existe no app).
+export { listarCargosExercicio } from './application/cargos-exercicio';
 
 // Tabela Mestre de Benefícios (US-050): ações e tela.
 export { alterarBeneficio, incluirBeneficio } from './application/acoes-beneficios';
