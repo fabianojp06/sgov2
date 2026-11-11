@@ -135,7 +135,7 @@ A imagem traz a seed (`prisma/seed.ts` em bundle, `/app/seed/seed.mjs`): configu
   - alerta por e-mail ao PO quando a resposta não for 200 em 2 checagens seguidas.
 
   Um alerta de dentro da VPS cairia junto com ela. A conta e o e-mail do monitor não entram no repositório.
-- **Em andamento:** a rota em si entra em seguida, depois de dois passos: a lista de rotas públicas no teste de arquitetura (PR `compartilhado`) e a liberação de `/int/saude` no `PUBLICAS` do `src/proxy.ts` (frente A, #138). Já estão na `main` o sinal de vida e a verificação.
+- **Sem sessão, só esse caminho exato:** o `src/proxy.ts` libera só `/int/saude` (#401), e o teste de arquitetura aceita nele só o `GET` sem `definirRota` (#402).
 
 ## A imagem
 
