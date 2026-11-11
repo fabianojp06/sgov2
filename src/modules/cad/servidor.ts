@@ -2,6 +2,8 @@
 // Páginas e componentes usam o index.ts (o lint proíbe app/ e ui/ de importar este arquivo).
 // Nada aqui importa @/shared/authz nem next/ (o worker/bundle.test.ts reprova).
 export * from './contrato';
+// C2, acréscimo de C&S: sem a cifra (worker): a Fonte Ativa cifrada sai sem salário.
+export { listarCargosSemSalarioCifrado } from './infrastructure/cargos-exercicio';
 
 // Merge das cargas de estrutura (R6): o worker roda o processador; a seed chama o núcleo.
 export { aplicarCarga, ErroCargaLinhas, type ResultadoCarga } from './infrastructure/aplicar-carga';
