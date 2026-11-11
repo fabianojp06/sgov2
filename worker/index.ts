@@ -6,6 +6,7 @@ import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
 import { GERADORES_EXPORTACAO_CAD, iniciarProcessadorCargas } from '@/modules/cad/servidor';
+import { registrarSinalVida } from '@/modules/int/servidor';
 import { registrarTrabalhadoresOrc } from '@/modules/orc/servidor';
 import { lerConfiguracaoWorker } from './configuracao';
 import { criarObterNomeExibicao } from './nome-exibicao';
@@ -104,6 +105,8 @@ async function iniciar(): Promise<void> {
         falhasSeguidas = 0;
         publicouUmaVez = true;
         marcarVivo();
+        // Sinal de vida no banco para o endpoint de saúde (US-017); falha aqui só vai ao log.
+        void registrarSinalVida(prisma).catch((erro: unknown) => console.error('[SINAL_VIDA_FALHOU]', resumo(erro)));
       })
       .catch((erro: unknown) => {
         falhasSeguidas++;

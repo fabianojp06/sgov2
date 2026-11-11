@@ -121,6 +121,22 @@ A imagem traz a seed (`prisma/seed.ts` em bundle, `/app/seed/seed.mjs`): configu
 
   Um e-mail com falha definitiva se recupera redefinindo a senha do usuário.
 
+## Saúde e alerta de indisponibilidade (US-017)
+
+- **Endpoint:** `GET https://<host>/int/saude`, público, sem sessão.
+  - Responde `200 {"status":"ok","banco":"ok","worker":"ok"}`, ou `503` com o componente que falhou: `banco: "falha"` (sem resposta em 2 s), ou `worker: "parado"` (sem sinal de vida há mais de 60 s).
+  - Não mostra versão, dado nem erro, e nunca vai para cache.
+- **Sinal de vida do worker:** o worker grava `sinal_vida` a cada ciclo do outbox (10 s) que dá certo, com a hora do banco.
+  - Um worker que sobe mas não publica fica "parado" aqui, como no *healthcheck* do contêiner.
+  - Logo depois de um deploy, o `503` por até 1 minuto é esperado, até o primeiro ciclo.
+- **Alerta por e-mail (PO, uma vez por ambiente):** num monitor externo à VPS, que avisa mesmo com a VPS inteira fora (por exemplo, um plano gratuito de serviço de *uptime*):
+  - um monitor HTTP para `https://<host>/int/saude`;
+  - intervalo de 1 a 5 min;
+  - alerta por e-mail ao PO quando a resposta não for 200 em 2 checagens seguidas.
+
+  Um alerta de dentro da VPS cairia junto com ela. A conta e o e-mail do monitor não entram no repositório.
+- **Em andamento:** a rota em si entra em seguida, depois de dois passos: a lista de rotas públicas no teste de arquitetura (PR `compartilhado`) e a liberação de `/int/saude` no `PUBLICAS` do `src/proxy.ts` (frente A, #138). Já estão na `main` o sinal de vida e a verificação.
+
 ## A imagem
 
 - `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`), a seed (bundle em `/app/seed/seed.mjs`, `docker/seed/build.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
