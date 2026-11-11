@@ -362,6 +362,26 @@
 - [ ] PO: o GitGuardian abriu o incidente 39920249 ("Username Password") num teste do #380 (`{ login: 'otto', senha: ERRADA }`, constante de teste). Falso positivo; o branch foi reescrito sem a linha, mas o incidente segue aberto no painel e pode ser marcado como falso positivo.
 - [ ] Lição: num teste, não escrever `login: '<literal>', senha: <algo>` no mesmo objeto (o GitGuardian acusa); usar variável para o login.
 
+**Frente A (11/11), P14: IA onda 1** (plano no #387)
+- [x] PO liberou o GAP-IA-001 para a onda 1 (IA-01, IA-02 e IA-03); a label `bloqueada-por-gap` saiu de #84, #85 e #86.
+- [x] **Coordenação com a frente B pela #138:** a frente A propôs a interface e recebeu a US-019 parte 1 (#386), a parte 2 (#388), o #389 e o `servicoIA.disponivel`, com o `padrao` de esforço por caso (#390). A frente A avisou antes do toque no worker e da `ANTHROPIC_API_KEY` no contêiner do worker.
+- [x] #393 (US-063, #85 fechada): ajuda na justificativa do pacote.
+  - O selo é "Gerado com IA – revisar", e o "Usar …" só preenche o campo.
+  - O Histórico marca `origem = SUGESTAO_IA` (`deveMarcarSugestao`).
+  - O botão aparece por `servicoIA.disponivel`.
+  - Os 3 casos são instalados inativos, com esforço `medium`, `medium` e `low`.
+- [x] #394 (US-062, `Refs #84`): sugestão de conta e CC.
+  - O servidor confere a resposta contra as listas do `opcoesPacote`.
+  - `avaliarSugestaoConta` e os 30 casos sintéticos estão em `orc/infrastructure/avaliacao`.
+- [x] #395 (US-064, `Refs #86`): revisor antes do envio.
+  - Roda no worker (fila `orc.revisar`, `orc_revisao`, migration `202611111600_orc_revisao`).
+  - Regras R1 a R3 com `Dinheiro`. A IA chama como a pessoa, recebe apelidos `PAC-n`/`POS-n` e nada de pessoal.
+  - A leitura filtra pelo que quem vê pode consultar.
+  - O PR tocou o `worker/index.ts`, com `toca-outra-frente`.
+- [ ] PO: autorizar a criação da issue "Avaliação em hml da sugestão de conta (IA-01)": job do worker disparado pelo Administrador, acerto de pelo menos 80 % no top-3 [PROVISÓRIO], troca dos casos sintéticos por reais. A #84 fecha com ela.
+- [ ] PO: validar os desvios da §4.4 (Server Action sem stream na IA-01/02; o revisor sem notificação no fim, com a página atualizando a cada 5 s) e os textos [PROVISÓRIOS] de #393, #394 e #395. Conferir também a conta do caso "licença do software de BI" (4.1.1.6.007).
+- [ ] Depois de 30/11 (C&S): "posição sem benefício" e "salário fora da faixa do cargo" no revisor, para fechar a #86.
+
 **Frente B (03/11)**
 - [ ] PO:
   - incluir o check **E2E** nos obrigatórios da `main` depois de algumas rodadas verdes (#292);
@@ -443,6 +463,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 11/11/2026 | A | P14 (IA onda 1): plano revisado (#387); GAP-IA-001 liberado pelo PO; US-063 (#393), US-062 (#394) e US-064 (#395), cada uma com revisão 12.12 por agente independente e ressalvas corrigidas antes do merge; coordenação proativa com a frente B na #138 (interface da US-019, `servicoIA.disponivel` no #390, aviso do worker e da chave da IA) |
 | 10/11/2026 | A | CI de volta (cobrança regularizada pelo PO); P8 inteiro na `main` (#325 a #335), com os empilhados por *squash* na branch-pai e os conflitos resolvidos como na integração local; memória de 04/11 (#336); PO valida as decisões do P8 pelas recomendações (D-P8-2, 5, 6, 8 e 9, limite da recuperação, #64, textos provisórios, CSP no `proxy.ts` e HSTS no Traefik; #345); CSP completa com *nonce* (#347); P9 planejado e revisado (#349) e implementado com dois agentes em paralelo: US-011 (#350), US-035 (#351), US-036 e US-033 (#352), cada um com revisão 12.12 e ressalvas corrigidas; memória (#353); P10 planejado e revisado (#356) e implementado em paralelo: US-039 (#357) e US-041 parte 1 (#358), com revisão 12.12 e ressalvas corrigidas; memória (#359); "de acordo" no #354 da frente B (fila `exportacao.gerar`); P11 planejado e revisado (#361) e US-057 (#362), com revisão 12.12 e ressalvas corrigidas; memória (#363); à noite, PO segue as recomendações para a US-056 e autoriza merge e commit; P12 planejado e revisado (#364) e US-056 (#365), com revisão 12.12 e ressalvas corrigidas (inclusive no formulário de pacotes); memória (#366); P13 planejado e revisado (#368) e US-037 (#369), com revisão 12.12 e ressalvas corrigidas; aviso à frente B na #137 sobre a contagem de usuários por perfil; memória (#370); pedido do modelo de e-mail do bloqueio na #49; pedidos da frente B na #138: resposta sobre a importação, #372 (exportação assíncrona do Histórico) e #373 (meta do recálculo), com revisão 12.12; memória (#374); depois das respostas da frente B (#376, #377 e #137): #380 (US-027 completa), #381 e #382, com revisão 12.12 |
 | 04/11/2026 | A | Manhã: R10, semáforo real, leitor seguro, AcaoConfirmada do ger, Playwright no CI, credenciais e trava do Histórico (#309 a #312, #314 a #316); GitHub instável e, desde 10:22, CI parado por cobrança; P8 (base de R0/R1) planejado (#325, duas rodadas de revisão) e implementado: US-028 (#326), US-042 (#327, #328), US-040 (#329, #330), US-007 (#331), US-029 (#332 a #334) e pedidos da frente B (#335), cada um com revisão 12.12 e ressalvas corrigidas; revisão de bloco; integração local verde; merges esperando o CI |
 | 10/11/2026 | B | Noite, pedidos da frente A: #137 respondido (a contagem por perfil passa a `codigo: string` com todos os perfis; o `rel` não muda); modelo de e-mail `usuario.alerta_tentativas` para a US-027 (#376, pedido na #49); dono do pedido no `GeradorExportacao` e bundle do worker com o gerador do Histórico (#377, pedidos do #372 na #138); PR `compartilhado` das dependências do PDF e da IA (#378). O PO autorizou a frente B a seguir de forma autônoma pelas próprias recomendações |
