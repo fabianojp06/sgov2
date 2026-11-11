@@ -1,5 +1,5 @@
 // Nomes das filas do sistema: novos nomes entram nesta lista (US-010).
-export const NOMES_FILA = ['teste.eco', 'email.enviar', 'outbox.publicar', 'exportacao.gerar'] as const;
+export const NOMES_FILA = ['teste.eco', 'email.enviar', 'outbox.publicar', 'exportacao.gerar', 'orc.revisar'] as const;
 export type NomeFila = (typeof NOMES_FILA)[number];
 
 // Regra para quem enfileira: job e outbox carregam o mínimo necessário. Dado sensível (ex.: a

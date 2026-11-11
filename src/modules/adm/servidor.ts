@@ -12,3 +12,9 @@ export { MENSAGENS_ALCADA, type FluxoAprovacao } from './domain/alcada';
 // Exportação assíncrona do Histórico (US-040, US-024): o gerador que o worker passa ao ger. Sem
 // sessão no worker, ele refaz a permissão e o alcance de quem pediu.
 export { GERADORES_EXPORTACAO_ADM } from './application/planilha-historico';
+// Revisor do orçamento (US-064; plano do P14, D-P14-6): o worker remonta quem pediu, sem sessão, com
+// as mesmas leituras do provedor de contexto (usuário ativo e sem bloqueio, sistema ativo, permissões
+// do perfil) e o CC de escopo.
+export { carregarPermissoes, obterUsuarioParaSessao } from './application/login';
+export { manutencaoEfetiva, obterConfiguracaoAcesso } from './application/configuracao';
+export { obterEscopoCentroCusto } from './application/escopo-cc';

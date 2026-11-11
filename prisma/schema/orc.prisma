@@ -23,6 +23,7 @@ model OrcamentoExercicio {
   importacoes       ImportacaoPlanilha[]
   tramites          TramiteExercicio[]
   snapshot          SnapshotExercicio?
+  revisoes          RevisaoOrcamento[]
 
   @@map("orc_exercicio")
 }
@@ -153,4 +154,24 @@ model SnapshotExercicio {
   conteudo    Json
 
   @@map("orc_snapshot")
+}
+
+// Revisor de consistência antes do envio (US-064; plano do P14, Task 3): pedida na tela, processada no
+// worker (fila orc.revisar). Sai de PENDENTE uma vez só, para CONCLUIDA ou FALHOU (trigger).
+model RevisaoOrcamento {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercicioId     String             @map("exercicio_id") @db.Uuid
+  exercicio       OrcamentoExercicio @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
+  // Versão do exercício no pedido: diferente da atual, a revisão está desatualizada.
+  versaoExercicio Int                @map("versao_exercicio")
+  situacao        String             @default("PENDENTE")
+  achados         Json               @default("[]")
+  avisos          String[]           @default([])
+  solicitadoPor   String             @map("solicitado_por") @db.Uuid
+  solicitante     Usuario            @relation(fields: [solicitadoPor], references: [id], onDelete: Restrict)
+  criadoEm        DateTime           @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  concluidoEm     DateTime?          @map("concluido_em") @db.Timestamptz(6)
+
+  @@index([exercicioId, criadoEm(sort: Desc)])
+  @@map("orc_revisao")
 }

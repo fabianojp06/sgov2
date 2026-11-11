@@ -31,6 +31,7 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_importacao: ['INSERT', 'SELECT'],
   orc_tramite: ['INSERT', 'SELECT'],
   orc_snapshot: ['INSERT', 'SELECT'],
+  orc_revisao: ['SELECT'], // INSERT e UPDATE só por coluna (US-064)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -77,6 +78,19 @@ describe('privilégios do orc', () => {
        WHERE grantee = 'sgo_app' AND table_name = 'orc_posicao' AND privilege_type = 'UPDATE' ORDER BY 1`,
     );
     expect(r.rows.map((x) => x.coluna)).toEqual(['cargo', 'cc', 'mes_inicio', 'mes_saida', 'observacao', 'quantidade', 'salario_mensal', 'versao']);
+  });
+
+  it('sgo_app pede a revisão só com o exercício, a versão e quem pede, e conclui só com a situação, os achados, os avisos e a data (US-064)', async () => {
+    const colunas = async (privilegio: string) =>
+      (
+        await migrator.query<{ coluna: string }>(
+          `SELECT column_name AS coluna FROM information_schema.column_privileges
+           WHERE grantee = 'sgo_app' AND table_name = 'orc_revisao' AND privilege_type = $1 ORDER BY 1`,
+          [privilegio],
+        )
+      ).rows.map((x) => x.coluna);
+    expect(await colunas('INSERT')).toEqual(['exercicio_id', 'solicitado_por', 'versao_exercicio']);
+    expect(await colunas('UPDATE')).toEqual(['achados', 'avisos', 'concluido_em', 'situacao']);
   });
 
   it('sgo_sync: nada no orc', async () => expect(await privilegios('sgo_sync')).toEqual({}));

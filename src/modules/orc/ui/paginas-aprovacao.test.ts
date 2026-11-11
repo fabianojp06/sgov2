@@ -4,7 +4,7 @@ import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/a
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 
 vi.mock('next/server', () => ({ connection: async () => undefined }));
-const caso = vi.hoisted(() => ({ comEscopo: false }));
+const caso = vi.hoisted(() => ({ comEscopo: false, revisoes: 0 }));
 vi.mock('@/modules/orc', async (original) => {
   const { ErroPermissao } = await import('@/shared/authz');
   return {
@@ -13,6 +13,10 @@ vi.mock('@/modules/orc', async (original) => {
     listarTramites: async () => {
       if (caso.comEscopo) throw new ErroPermissao('orc.aprovacao', 'consultar');
       return [];
+    },
+    ultimaRevisao: async () => {
+      caso.revisoes++;
+      return null;
     },
   };
 });
@@ -23,6 +27,7 @@ let contexto: ContextoRequisicao;
 let negacoes: string[];
 beforeEach(() => {
   caso.comEscopo = false;
+  caso.revisoes = 0;
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -47,5 +52,15 @@ describe('página de envio e aprovação', () => {
     expect(negacoes).toContain('orc.aprovacao');
     caso.comEscopo = false;
     expect(await digest(Pagina({ searchParams }))).toBe('sem erro');
+  });
+
+  // US-064: o revisor só para quem envia (orc.aprovacao:executar); a DIREX nem lê a revisão.
+  it('a revisão só é lida para quem tem orc.aprovacao:executar', async () => {
+    contexto = ctx(['orc.aprovacao:consultar', 'orc.aprovacao:aprovar']);
+    expect(await digest(Pagina({ searchParams }))).toBe('sem erro');
+    expect(caso.revisoes).toBe(0);
+    contexto = ctx(['orc.aprovacao:consultar', 'orc.aprovacao:executar']);
+    expect(await digest(Pagina({ searchParams }))).toBe('sem erro');
+    expect(caso.revisoes).toBe(1);
   });
 });

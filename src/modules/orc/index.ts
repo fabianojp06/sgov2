@@ -1,6 +1,6 @@
 // Entrada pública do orc (orçamento da Administração Central, UC04.17).
 export { avancar, criar } from './application/acoes-exercicios';
-export { aprovarAcao, enviarAcao, rejeitarAcao } from './application/acoes-aprovacao';
+export { aprovarAcao, enviarAcao, pedirRevisaoAcao, rejeitarAcao } from './application/acoes-aprovacao';
 export { importarPlanilhaAcao } from './application/acoes-importacao';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
@@ -10,6 +10,8 @@ export { iaLiberada } from './application/ia-deps';
 export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
+export { ultimaRevisao } from './application/revisor';
+export type { Achado, RevisaoTela } from './domain/revisor-regras';
 export { obterVisaoExercicio, type VisaoExercicio } from './application/consolidacao';
 export { listarExercicios, sugerirAno, type ResumoExercicio } from './application/exercicios';
 export { listarPacotes, opcoesPacote, type ListaPacotes, type OpcoesPacote, type PacoteTela } from './application/pacotes';
@@ -22,6 +24,7 @@ export { FormReceita, type ReceitaFormulario } from './ui/form-receita';
 export { TelaPacotes, textoAvisoPacote } from './ui/tela-pacotes';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';
+export { PainelRevisao } from './ui/painel-revisao';
 export { FormExercicio } from './ui/form-exercicio';
 export { FormImportacao } from './ui/form-importacao';
 export { ListaExercicios, textoAviso } from './ui/lista-exercicios';
