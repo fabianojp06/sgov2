@@ -19,7 +19,7 @@ let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let migrator: ReturnType<typeof criarPrisma>;
 let app: ReturnType<typeof criarPrisma>;
 let perfilGfin = '';
-// Premissas (falsas) só para 2090; 2091, mais novo, fica sem. Os exercícios nascem no 1º describe.
+// Premissas (falsas) só para 2090; 2091, mais novo, fica sem.
 const ANO = 2090;
 
 const CASO = CASOS_IA_ORC.sugestaoConta.codigo;
@@ -90,7 +90,11 @@ beforeAll(async () => {
   await migrator.$executeRawUnsafe(`UPDATE ia_caso_uso SET ativo = true, teto_mensal_usd = 10 WHERE codigo = $1`, CASO);
 }, 120_000);
 
-beforeEach(() => {
+// Cada teste monta os próprios exercícios: o banco é só deste arquivo, e nada aqui depende da ordem.
+const exercicios = (...anos: number[]) => migrator.orcamentoExercicio.createMany({ data: anos.map((ano) => ({ ano })) });
+
+beforeEach(async () => {
+  await migrator.orcamentoExercicio.deleteMany();
   falso.roteiro.estruturado = RESPOSTA;
   delete falso.roteiro.erro;
   falso.chamadas.length = 0;
@@ -104,7 +108,6 @@ afterAll(async () => {
   }
 });
 
-// Vem primeiro: o banco começa sem exercício; o segundo teste cria 2090 e 2091, que os demais usam.
 describe('contas vetadas: premissas do maior ano que as tem', () => {
   // 4.1.1.8.003 só é vetada pelas premissas; 4.1.1.1.001, pela raiz de pessoal.
   const VETADAS = [
@@ -113,7 +116,6 @@ describe('contas vetadas: premissas do maior ano que as tem', () => {
   ];
 
   it('nenhum exercício: vetadas só as raízes de pessoal; foraDaLista conta a esperada fora da lista', async () => {
-    expect(await migrator.orcamentoExercicio.count()).toBe(0);
     const r = await criarAvaliadorSugestaoConta(deps({ casos: VETADAS }))(pedido(await gfin()));
     expect(r.resumo).toMatchObject({ foraDaLista: 1 });
     const m = falso.chamadas.at(-1)!.mensagem;
@@ -122,7 +124,7 @@ describe('contas vetadas: premissas do maior ano que as tem', () => {
   });
 
   it('dois exercícios, o mais novo sem premissas: valem as do anterior', async () => {
-    await migrator.orcamentoExercicio.createMany({ data: [{ ano: ANO }, { ano: ANO + 1 }] });
+    await exercicios(ANO, ANO + 1);
     const r = await criarAvaliadorSugestaoConta(deps({ casos: VETADAS }))(pedido(await gfin()));
     expect(r.resumo).toMatchObject({ foraDaLista: 2 });
     const m = falso.chamadas.at(-1)!.mensagem;
@@ -165,6 +167,7 @@ describe('avaliadorSugestaoConta', () => {
   });
 
   it('listas do formulário com escopo TOTAL: sem as vetadas (raiz de pessoal e premissas do exercício mais recente), com todos os CCs analíticos', async () => {
+    await exercicios(ANO);
     const id = await gfin();
     await criarAvaliadorSugestaoConta(deps({ casos: CASOS.slice(0, 1) }))(pedido(id));
     const m = falso.chamadas.at(-1)!.mensagem;
