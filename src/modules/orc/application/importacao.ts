@@ -152,6 +152,10 @@ export async function importarPlanilha(
       // R7: substitui só os CCs do arquivo (as linhas saem em cascata) e as receitas dos TPs do arquivo.
       // Os pacotes e as posições lançados pela tela (origem TELA) sobrevivem à reimportação (planos do
       // P11 e do P12).
+      // [PROVISÓRIO] D-P15-6: a posição importada ou copiada que foi ligada a um cargo do cadastro pela
+      // tela também é substituída (e perde o vínculo); a importação avisa quantas.
+      const comCargo = await tx.posicaoOrcada.count({ where: { exercicioId: e.id, cc: { in: ccs }, origem: { not: 'TELA' }, cargoId: { not: null } } });
+      const avisos = comCargo > 0 ? [MENSAGENS_ORC.POSICOES_COM_CARGO_SUBSTITUIDAS(comCargo)] : [];
       await tx.posicaoOrcada.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs }, origem: { not: 'TELA' } } });
       await tx.pacoteBaseZero.deleteMany({ where: { exercicioId: e.id, cc: { in: ccs }, origem: { not: 'TELA' } } });
       await tx.posicaoOrcada.createMany({
@@ -204,6 +208,7 @@ export async function importarPlanilha(
           versaoPremissas: recalculo.versaoPremissas,
           linhas: recalculo.linhas,
           mantidosDaTela: daTela,
+          ...(avisos.length > 0 ? { avisos } : {}),
         },
       });
       return ok({
@@ -218,6 +223,7 @@ export async function importarPlanilha(
             ...(g.posicoes > 0 ? [MENSAGENS_ORC.POSICOES_DA_TELA_MANTIDAS(g.cc, g.posicoes)] : []),
             ...(g.pacotes > 0 ? [MENSAGENS_ORC.PACOTES_DA_TELA_MANTIDOS(g.cc, g.pacotes)] : []),
           ]),
+          ...avisos,
         ].join(' '),
       });
     });

@@ -95,6 +95,22 @@ export const MENSAGENS_ORC = {
   POSICOES_DA_TELA_MANTIDAS: (cc: string, n: number) => `O CC ${cc} mantém ${n} posição(ões) lançada(s) pela tela.`,
   CONFIRMA_EXCLUSAO_POSICAO: (cargo: string, cc: string) => `Deseja realmente excluir a posição ${cargo} do CC ${cc}?`,
   PREVIA_POSICAO_INCOMPLETA: 'Preencha a quantidade, o salário mensal e os meses de início e de saída para ver a prévia.',
+  // Cargo do cadastro de C&S na posição (US-056; plano do P15, D-P15-1 a D-P15-6) [PROVISÓRIOS]. Nenhum
+  // cita salário, Fonte Ativa nem faixa.
+  CARGO_INATIVO: 'Este cargo está inativo. Escolha outro.',
+  CARGO_SEM_FONTE_ATIVA: 'Este cargo está sem salário na Fonte Ativa. Escolha outro ou peça ao GRH para completar o cadastro.',
+  CARGO_NAO_ENCONTRADO: 'Cargo não encontrado no cadastro.',
+  CARGO_FORA_DO_CADASTRO: 'o cargo não está mais no cadastro.',
+  SEM_CARGO_DO_CADASTRO: 'Não há cargo do cadastro disponível; informe o cargo em texto.',
+  FONTE_ATIVA_INDISPONIVEL: 'O salário da Fonte Ativa está indisponível no momento. Informe o salário mensal.',
+  FONTE_ATIVA_SEM_PERFIL: 'O salário da Fonte Ativa não aparece para o seu perfil. Informe o salário mensal.',
+  CARGO_INATIVO_ROTULO: '(inativo)',
+  CARGO_TEXTO_LIVRE: 'Outro cargo (texto livre)',
+  CARGO_MANTER_TEXTO: (cargo: string) => `Manter o cargo em texto: ${cargo}`,
+  POSICOES_COM_CARGO_SUBSTITUIDAS: (n: number) =>
+    n === 1
+      ? '1 posição ligada a cargo do cadastro foi substituída por esta importação.'
+      : `${n} posições ligadas a cargo do cadastro foram substituídas por esta importação.`,
   // Ajuda da IA (US-063; plano do P14) [PROVISÓRIOS]. O selo é o da spec §6.8 (princípio 3).
   SELO_IA: 'Gerado com IA – revisar',
   IA_CONSULTANDO: 'Consultando a IA…',

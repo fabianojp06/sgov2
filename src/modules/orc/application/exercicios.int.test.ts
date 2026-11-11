@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
+import { cargosExemplo, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
 import { Dinheiro, falha, Percentual } from '@/shared/kernel';
@@ -191,6 +191,19 @@ describe('criarExercicio copiando o anterior', () => {
     const r = await criarExercicio(ctx(), { ano: 2081, forma: 'COPIA' }, deps({ custoPessoal: comErro }).d);
     expect(r.ok).toBe(false);
     expect(await migrator.orcamentoExercicio.findUnique({ where: { ano: 2081 } })).toBeNull();
+  });
+
+  it('a cópia leva o cargo do cadastro (cargo_id) da posição; o texto livre continua sem cargo (P15)', async () => {
+    const origem = await exercicioComLancamentos(2084);
+    const c001 = cargosExemplo()[0]!.id;
+    await migrator.posicaoOrcada.updateMany({ where: { exercicioId: origem.id, cargo: 'Analista' }, data: { cargoId: c001 } });
+    const r = await criarExercicio(ctx(), { ano: 2085, forma: 'COPIA' }, deps({ custoPessoal: custoPessoalFalso([premissasExemplo(2085)]) }).d);
+    if (!r.ok) throw new Error('esperava sucesso');
+    const copiadas = await migrator.posicaoOrcada.findMany({ where: { exercicioId: r.valor.id }, orderBy: { cargo: 'asc' } });
+    expect(copiadas.map((p) => [p.cargo, p.cargoId])).toEqual([
+      ['Analista', c001],
+      ['Assessor', null],
+    ]);
   });
 });
 
