@@ -133,6 +133,10 @@ jobs:
           fi
       - name: Papéis de banco
         run: psql postgresql://postgres@localhost:56432/postgres -v ON_ERROR_STOP=1 -f docker/postgres/init/01-papeis.sql
+      # Como em hml e prod (deploy/postgres/01-papeis-ambiente.sql): o superusuário instala o pgvector e
+      # fixa os privilégios padrão antes das migrations; o migrator só declara a extensão (US-020).
+      - name: Privilégios e extensões (superusuário)
+        run: psql postgresql://postgres@localhost:56432/postgres -v ON_ERROR_STOP=1 -f docker/postgres/init/03-privilegios.sql
       - run: npm ci
       - name: Aplicar as migrations
         run: npm run db:deploy
