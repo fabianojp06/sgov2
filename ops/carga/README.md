@@ -15,6 +15,23 @@ Cenários do k6 do plano do P7 (Task 3). As metas de servidor da §10.3 são med
 - **Importar:** pela tela do plano de contas, com um usuário GFIN. O worker processa a carga.
 - **Atenção:** a seed com `CARGA_DADOS_REFERENCIA=1` (`npm run db:seed` no dev e todo deploy do `migracao` em hml) recarrega só o plano oficial e **inativa o ramo `9`**. Não semear nem implantar entre a importação e a medição. Antes de cada rodada, conferir na tela que o ramo `9` ("CARGA SINTÉTICA") está ativo; se não estiver, importar o arquivo de novo.
 
+## Orçamento de 5 exercícios da Adm. Central (D-P7-3)
+
+- **Gerar:** `npx tsx ops/carga/gerar-orcamento.ts orcamento-sintetico/`. São 5 arquivos (2027 a 2031), um por exercício, no layout ADMC-ORC v1.0. Cada um tem 216 posições, 675 pacotes e 5 receitas (cerca de 900 linhas analíticas) e pesa cerca de 46 KiB, bem abaixo de 1 MiB. O gerador é determinístico (o mesmo ano dá o mesmo arquivo) e não toca banco.
+- **Regras seguidas** (resposta da frente A na #138, 10/11):
+  - CCs analíticos da minuta;
+  - contas analíticas do plano oficial fora de `4.1.1.1`, `4.1.1.2` e `4.1.1.8`, onde ficam as contas das premissas, vetadas em pacote; o ramo `9` fica de fora;
+  - limites do leitor seguro respeitados;
+  - nenhum texto começando com `=`, `+`, `-` ou `@`.
+- **Importar:**
+  1. A GFIN cria cada exercício pelo **Novo exercício**, o que também cria as premissas do ano.
+  2. Importa o arquivo do ano pela tela de importação do `orc`, com escopo TOTAL (as receitas exigem esse escopo), com o exercício em Rascunho ou Em Elaboração.
+  3. A importação recalcula o exercício. Se der erro, nada é gravado.
+- **Conferido em 11/11:** os 5 arquivos passam no leitor seguro do `ger` e na validação da planilha do `orc`, sem nenhum erro.
+- **Atenção:**
+  - se um benefício cadastrado pela tela usar conta de `4.1.1.3` a `4.1.1.7` ou `4.1.1.9`, a importação recusa os pacotes dessa conta (ela vira vetada pelas premissas);
+  - o banco precisa da minuta de CC e do plano oficial (`CARGA_DADOS_REFERENCIA=1`).
+
 ## Como rodar
 
 ```bash
