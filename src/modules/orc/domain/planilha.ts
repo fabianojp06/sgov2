@@ -53,7 +53,14 @@ export type PosicaoValidada = {
 export type PacoteValidado = { linha: number; cc: string; conta: string; justificativa: string; prioridade: Prioridade } & DadosPacote;
 export type ReceitaValidada = { linha: number; tp: string; descricao: string; situacao: 'CONFIRMADO' | 'PREVISTO'; meses: readonly Dinheiro[] };
 export type ConteudoPlanilha = { posicoes: readonly PosicaoValidada[]; pacotes: readonly PacoteValidado[]; receitas: readonly ReceitaValidada[] };
-export type Aba = 'Pessoal' | 'Pacotes base zero' | 'Receitas';
+// Abas de dados, na ordem em que a importação as lê e o relatório de erros as agrupa (contrato do
+// servidor.ts para o gerador da carga, frente B). A aba de instruções traz a versão do layout numa
+// célula; o cabeçalho de cada aba de dados fica numa das primeiras linhas.
+export const ABAS = ['Pessoal', 'Pacotes base zero', 'Receitas'] as const;
+export type Aba = (typeof ABAS)[number];
+export const ABA_INSTRUCOES = 'Instruções';
+export const CELULA_LAYOUT = 'E1';
+export const LINHA_CABECALHO_MAX = 4;
 export type ErroPlanilha = ErroLinha & { aba: Aba };
 
 const SALARIO_LIMITE = Dinheiro.de('1000000');
@@ -297,8 +304,7 @@ export function validarPlanilha(
     for (const linha of linhas) lista.push({ aba: 'Receitas', linha, coluna: 'TP / versão', mensagem: M.TP_REPETIDO(linhas) });
   }
   if (lista.length > 0) {
-    const ordem: Record<Aba, number> = { Pessoal: 0, 'Pacotes base zero': 1, Receitas: 2 };
-    return { ok: false, erros: lista.map((x, i) => ({ x, i })).sort((a, b) => ordem[a.x.aba] - ordem[b.x.aba] || a.x.linha - b.x.linha || a.i - b.i).map(({ x }) => x) };
+    return { ok: false, erros: lista.map((x, i) => ({ x, i })).sort((a, b) => ABAS.indexOf(a.x.aba) - ABAS.indexOf(b.x.aba) || a.x.linha - b.x.linha || a.i - b.i).map(({ x }) => x) };
   }
   return { ok: true, conteudo: { posicoes, pacotes, receitas } };
 }

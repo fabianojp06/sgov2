@@ -5,6 +5,21 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import type { FilaGerenciada } from '@/shared/filas';
 import { registrarTrabalhadorRevisor } from './infrastructure/trabalhador-revisor';
 
+// Layout da planilha-modelo ADMC-ORC v1.0 (US-121): o gerador dos 5 exercícios da carga (P7, frente B,
+// pedido na #138) usa os mesmos cabeçalhos da importação, sem copiá-los. Constantes puras do domínio.
+export {
+  ABA_INSTRUCOES,
+  ABAS,
+  CELULA_LAYOUT,
+  COLUNAS_PACOTES,
+  COLUNAS_PESSOAL,
+  COLUNAS_RECEITAS,
+  LAYOUT,
+  LINHA_CABECALHO_MAX,
+  RAIZES_CONTAS_PESSOAL,
+  type Aba,
+} from './domain/planilha';
+
 /**
  * Registra os trabalhadores do orc no worker: o do revisor antes do envio (fila orc.revisar, US-064). A
  * IA vai pelo servicoIA padrão, com o cliente do app; as leituras do orçamento, pelo cliente do worker.

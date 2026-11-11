@@ -22,3 +22,28 @@ describe('registrarTrabalhadoresOrc', () => {
     expect(logs).toEqual(['[ORC_REVISAO_PEDIDO_INVALIDO]']);
   });
 });
+
+describe('contrato do layout (gerador da carga, #138)', () => {
+  it('expõe o layout ADMC-ORC v1.0, as abas na ordem e os cabeçalhos da importação', async () => {
+    const s = await import('./servidor');
+    expect(s.LAYOUT).toBe('ADMC-ORC v1.0');
+    expect(s.ABAS).toEqual(['Pessoal', 'Pacotes base zero', 'Receitas']);
+    expect(s.ABA_INSTRUCOES).toBe('Instruções');
+    expect(s.CELULA_LAYOUT).toBe('E1');
+    expect(s.LINHA_CABECALHO_MAX).toBe(4);
+    expect(s.COLUNAS_PESSOAL).toEqual(['CC analítico', 'Cargo', 'Quantidade', 'Salário mensal (R$)', 'Mês de início (1–12)', 'Mês de saída (1–12)', 'Observação']);
+    expect(s.COLUNAS_PACOTES).toEqual([
+      'CC analítico',
+      'Conta analítica',
+      'Atividade / justificativa (mín. 10 caracteres)',
+      'Prioridade',
+      'Quantidade',
+      'Valor unitário (R$)',
+      'Corrigir pelo IPCA?',
+      'Distribuição',
+      'Mês (se pontual)',
+    ]);
+    expect(s.COLUNAS_RECEITAS[0]).toBe('TP / versão');
+    expect(s.RAIZES_CONTAS_PESSOAL).toEqual(['4.1.1.1', '4.1.1.2']);
+  });
+});
