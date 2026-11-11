@@ -100,7 +100,12 @@ describe('resumo dos cadastros para a conferência (P7, Task 2)', () => {
     const sinteticos = Number((await migrator.query(`SELECT count(*) FROM cargo WHERE codigo NOT LIKE 'CONF%' AND ativo`)).rows[0].count);
     expect(r.cargos).toMatchObject({ ativos: sinteticos + 3, inativos: 1, comSalarioReal: 3 });
     expect(r.faixasSalariaisAtivas).toBe(1);
-    expect(r.exercicio).toMatchObject({ ano: 2027, beneficiosCargoAtivos: 1, congelado: false });
+    // A seed de referência ativa benefícios de 2027 em cargos sintéticos (E2E do P15).
+    const daSeed = Number(
+      (await migrator.query(`SELECT count(*) FROM beneficio_cargo b JOIN cargo c ON c.id = b.cargo_id WHERE b.ano = 2027 AND b.ativo AND c.codigo NOT LIKE 'CONF%'`)).rows[0].count,
+    );
+    expect(daSeed).toBe(2);
+    expect(r.exercicio).toMatchObject({ ano: 2027, beneficiosCargoAtivos: daSeed + 1, congelado: false });
   });
 
   it('sem cad.salarios: nada é decifrado e não há consulta no Histórico', async () => {

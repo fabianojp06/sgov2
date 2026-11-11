@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { seedAdm } from '@/modules/adm';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
+import { beneficiosDoCargo, listarCargosSemSalarioCifrado } from './cargos-exercicio';
 import { seedCad } from './seed';
 import { seedDadosReferenciaCad } from './seed-referencia';
 
@@ -123,11 +124,39 @@ describe('seedDadosReferenciaCad', () => {
   });
 
   it('2027 já existente sem Tabela Mestre ganha os 7 itens, com a versão do ano e o Histórico', async () => {
+    // Os benefícios dos cargos sintéticos (seed de referência) apontam para a Tabela Mestre.
+    await cliente.$executeRawUnsafe(`DELETE FROM beneficio_cargo WHERE ano = 2027`);
     await cliente.$executeRawUnsafe(`DELETE FROM beneficio_mestre WHERE ano = 2027`);
     const antes = (await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao;
     await executarSeeds(cliente, [seedCad]);
     expect(await cliente.beneficioMestre.count({ where: { ano: 2027 } })).toBe(7);
     expect((await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao).toBe(antes + 1);
     expect(await cliente.historicoOperacao.count({ where: { funcionalidade: 'cad.beneficios', descricao: { contains: 'Tabela Mestre de 2027' } } })).toBe(1);
+  });
+
+  it('cargos utilizáveis (#138, E2E do P15): Fonte Ativa e faixa em 3 sintéticos; em 2027, um benefício nos 2 primeiros e nenhum no terceiro; a segunda vez não grava nada', async () => {
+    vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
+    vi.stubEnv('AMBIENTE', 'dev');
+    vi.stubEnv('NODE_ENV', undefined);
+    // O teste anterior apagou os benefícios de 2027; a Fonte Ativa e a faixa ficaram da primeira carga.
+    await executarSeeds(cliente, [seedDadosReferenciaCad]);
+    const cargos = await cliente.$transaction((tx) => listarCargosSemSalarioCifrado(tx));
+    const util = cargos.filter((c) => c.salarioFonteAtiva !== null);
+    expect(util.map((c) => [c.codigo, c.fonteAtiva, c.salarioFonteAtiva?.paraString(), c.faixa?.minimo.paraString(), c.faixa?.maximo.paraString()])).toEqual([
+      ['SINT-001', 'MINIMO', '4500.00', '4500.00', '7200.00'],
+      ['SINT-002', 'MINIMO', '2800.00', '2800.00', '4100.00'],
+      ['SINT-003', 'MAXIMO', '8000.00', '5000.00', '8000.00'],
+    ]);
+    const beneficios = await cliente.$transaction(async (tx) => Promise.all(util.map((c) => beneficiosDoCargo(tx, 2027, c.id))));
+    expect(beneficios.map((b) => [b.beneficios.map((x) => x.componente), b.avisos])).toEqual([
+      [['beneficio.seguro_vida'], []],
+      [['beneficio.seguro_vida'], []],
+      [[], []],
+    ]);
+    const versao = (await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao;
+    const antes = await retrato();
+    await executarSeeds(cliente, [seedDadosReferenciaCad]);
+    expect(await retrato()).toEqual(antes);
+    expect((await cliente.parametrosExercicio.findUnique({ where: { ano: 2027 } }))!.versao).toBe(versao);
   });
 });

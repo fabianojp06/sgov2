@@ -1,5 +1,5 @@
 import { lerAmbiente } from '@/modules/ger/servidor';
-import type { ContextoAuditoria } from '@/shared/audit';
+import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { Seed, TxCliente } from '@/shared/db';
 import { sanearDescricao } from '../application/saneamento';
 import { planejarCarga } from '../domain/carga';
@@ -8,6 +8,7 @@ import { validarCargosRubi } from '../domain/cargo';
 import { validarCentrosCusto } from '../domain/centros-custo';
 import { aplicarCarga, aplicarCargaCentrosCusto, comoNova, comoNovoCentroCusto, lerCentrosCustoAtuais, lerContasAtuais } from './aplicar-carga';
 import { aplicarCargaCargos, paraStaging } from './aplicar-carga-cargos';
+import { tocarVersaoExercicio } from './parametro-sistema';
 import cargosSinteticos from './dados/cargos-sinteticos.json';
 import minuta from './dados/cc-minuta-rev23102026.json';
 import oficial from './dados/plano-contas-oficial.json';
@@ -88,6 +89,79 @@ async function carregarCargosSinteticos(tx: TxCliente): Promise<void> {
   });
 }
 
+// Cargos sintéticos utilizáveis pela posição (pedido da frente A na #138, E2E do P15): Fonte Ativa de
+// mercado (sem cifra) e faixa. Em 2027, os dois primeiros têm um benefício com valor (seguro de vida,
+// manual) e o terceiro nenhum (R4 do revisor); os outros itens padrão ficam inativos, para não gerarem
+// o aviso de benefício sem valor. Só em cargo da seed ainda sem Fonte Ativa, faixa nem benefícios de
+// 2027: nunca sobrescreve o que alguém editou, e a segunda execução não grava nada.
+const ANO_BENEFICIOS = 2027;
+const CARGOS_UTILIZAVEIS = [
+  { codigo: 'SINT-001', fonteAtiva: 'MINIMO', minimo: '4500.00', maximo: '7200.00', seguroVida: '35.00' },
+  { codigo: 'SINT-002', fonteAtiva: 'MINIMO', minimo: '2800.00', maximo: '4100.00', seguroVida: '35.00' },
+  { codigo: 'SINT-003', fonteAtiva: 'MAXIMO', minimo: '5000.00', maximo: '8000.00', seguroVida: null },
+] as const;
+
+async function prepararCargosUtilizaveis(tx: TxCliente): Promise<void> {
+  const cargos = await tx.cargo.findMany({
+    where: { codigo: { in: CARGOS_UTILIZAVEIS.map((c) => c.codigo) }, carga: { arquivoNome: 'Seed: cargos sintéticos' } },
+    select: { id: true, codigo: true, fonteAtiva: true, mercadoMinimo: true, mercadoMaximo: true },
+  });
+  for (const c of cargos) {
+    const def = CARGOS_UTILIZAVEIS.find((d) => d.codigo === c.codigo)!;
+    if (c.fonteAtiva !== null || c.mercadoMinimo !== null || c.mercadoMaximo !== null) continue;
+    const depois = { fonteAtiva: def.fonteAtiva, mercadoMinimo: def.minimo, mercadoMaximo: def.maximo };
+    await tx.cargo.update({
+      where: { id: c.id },
+      data: { ...depois, origemMercado: 'MANUAL', origemMercadoRotulo: 'Seed: dados sintéticos', versao: { increment: 1 } },
+    });
+    await auditar(tx, {
+      contexto: SISTEMA,
+      origem: 'SISTEMA',
+      funcionalidade: 'cad.cargos',
+      tipo: 'ALTERACAO',
+      registroId: c.codigo,
+      descricao: `Seed: Fonte Ativa e faixa de mercado do cargo sintético ${c.codigo}`,
+      antes: { fonteAtiva: null, mercadoMinimo: null, mercadoMaximo: null },
+      depois,
+    });
+  }
+
+  // Benefícios de 2027: só com a Tabela Mestre do ano (a seed do cad roda antes) e o ano aberto.
+  const ano = await tx.parametrosExercicio.findUnique({ where: { ano: ANO_BENEFICIOS }, select: { congeladoEm: true } });
+  if (!ano || ano.congeladoEm) return;
+  const padrao = await tx.beneficioMestre.findMany({ where: { ano: ANO_BENEFICIOS, padraoPosicao: true }, select: { codigo: true } });
+  if (padrao.length === 0) return;
+  const comEscolha = new Set(
+    (await tx.beneficioCargo.findMany({ where: { ano: ANO_BENEFICIOS, cargoId: { in: cargos.map((c) => c.id) } }, select: { cargoId: true } })).map((b) => b.cargoId),
+  );
+  const linhas: { cargoId: string; codigoCargo: string; codigo: string; ativo: boolean; valorManual: string | null }[] = [];
+  for (const c of cargos) {
+    if (comEscolha.has(c.id)) continue;
+    const def = CARGOS_UTILIZAVEIS.find((d) => d.codigo === c.codigo)!;
+    for (const { codigo } of padrao) {
+      const vida = codigo === 'beneficio.seguro_vida' && def.seguroVida !== null;
+      linhas.push({ cargoId: c.id, codigoCargo: c.codigo, codigo, ativo: vida, valorManual: vida ? def.seguroVida : null });
+    }
+  }
+  if (linhas.length === 0) return;
+  // Escrita numa tabela do ano: versão única (R10) e Histórico, como qualquer outra.
+  await tocarVersaoExercicio(tx, ANO_BENEFICIOS);
+  await tx.beneficioCargo.createMany({
+    data: linhas.map((l) => ({ cargoId: l.cargoId, ano: ANO_BENEFICIOS, codigo: l.codigo, ativo: l.ativo, valorManual: l.valorManual, origem: l.valorManual ? 'MANUAL' : 'MESTRE' })),
+  });
+  const porCargo: Record<string, { codigo: string; ativo: boolean; valorManual: string | null }[]> = {};
+  for (const l of linhas) (porCargo[l.codigoCargo] ??= []).push({ codigo: l.codigo, ativo: l.ativo, valorManual: l.valorManual });
+  await auditar(tx, {
+    contexto: SISTEMA,
+    origem: 'SISTEMA',
+    funcionalidade: 'cad.cargos',
+    tipo: 'INSERCAO',
+    registroId: String(ANO_BENEFICIOS),
+    descricao: `Seed: benefícios de ${ANO_BENEFICIOS} de ${Object.keys(porCargo).length} cargo(s) sintético(s)`,
+    depois: porCargo,
+  });
+}
+
 export const seedDadosReferenciaCad: Seed = {
   nome: 'cad (dados de referência)',
   async executar(tx) {
@@ -97,5 +171,6 @@ export const seedDadosReferenciaCad: Seed = {
     await carregarPlanoOficial(tx);
     await carregarMinutaCentrosCusto(tx);
     await carregarCargosSinteticos(tx);
+    await prepararCargosUtilizaveis(tx);
   },
 };
