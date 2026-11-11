@@ -80,7 +80,7 @@ test.describe.serial(`pacotes base zero ${ANO}`, () => {
     const parcelas = page.getByRole('table', { name: /^Parcelas mensais/ });
     await expect(parcelas.getByRole('cell')).toHaveText([...Array(11).fill('308,64'), '308,67']);
     await page.getByRole('button', { name: 'Incluir pacote' }).click();
-    await expect(page).toHaveURL(new RegExp(`/orc/pacotes\\?ano=${ANO}&cc=${CC_DEP.replaceAll('.', '\\.')}&aviso=incluido$`));
+    await expect(page).toHaveURL(new RegExp(`/orc/pacotes\\?ano=${ANO}&cc=${CC_DEP.replaceAll('.', '\\.')}&aviso=incluido&salvo=[0-9a-f-]{36}$`));
     await expect(page.getByText('Pacote incluído. O orçamento foi recalculado.')).toBeVisible();
     const linha = page.getByRole('row', { name: new RegExp(`^${CONTA.classificacao.replaceAll('.', '\\.')} `) });
     await expect(linha).toContainText('3.703,71');

@@ -214,6 +214,26 @@ describe('incluirPacote', () => {
   });
 });
 
+describe('marca de sugestão da IA no Histórico (D-P14-3)', () => {
+  it('com sugestaoIa: origem SUGESTAO_IA na inclusão e na alteração; sem a marca, USUARIO; valor diferente de "true" é entrada inválida', async () => {
+    const e = await exercicio();
+    const comIa = idDe(await incluirPacote(ctx(), { ...dados(), exercicioId: e.id, sugestaoIa: 'true' }, e.deps()));
+    const semIa = idDe(await incluirPacote(ctx(), { ...dados(), exercicioId: e.id }, e.deps()));
+    const origem = async (registroId: string, tipoOperacao: 'INSERCAO' | 'ALTERACAO') =>
+      (await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'orc.pacotes', registroId, tipoOperacao } })).origem;
+    expect(await origem(comIa, 'INSERCAO')).toBe('SUGESTAO_IA');
+    expect(await origem(semIa, 'INSERCAO')).toBe('USUARIO');
+    expect((await alterarPacote(ctx(), { ...dados({ quantidade: '4' }), id: semIa, versao: '0', sugestaoIa: 'true' }, e.deps())).ok).toBe(true);
+    expect(await origem(semIa, 'ALTERACAO')).toBe('SUGESTAO_IA');
+    expect((await alterarPacote(ctx(), { ...dados({ quantidade: '5' }), id: comIa, versao: '0' }, e.deps())).ok).toBe(true);
+    expect(await origem(comIa, 'ALTERACAO')).toBe('USUARIO');
+    expect(await incluirPacote(ctx(), { ...dados(), exercicioId: e.id, sugestaoIa: 'sim' }, e.deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'Dados do pacote inválidos. Recarregue a tela.' }],
+    });
+  });
+});
+
 describe('alterarPacote e excluirPacote', () => {
   it('altera para pontual com a versão; versão velha → conflito; antes e depois no Histórico', async () => {
     const e = await exercicio();

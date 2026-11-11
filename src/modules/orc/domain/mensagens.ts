@@ -95,4 +95,10 @@ export const MENSAGENS_ORC = {
   POSICOES_DA_TELA_MANTIDAS: (cc: string, n: number) => `O CC ${cc} mantém ${n} posição(ões) lançada(s) pela tela.`,
   CONFIRMA_EXCLUSAO_POSICAO: (cargo: string, cc: string) => `Deseja realmente excluir a posição ${cargo} do CC ${cc}?`,
   PREVIA_POSICAO_INCOMPLETA: 'Preencha a quantidade, o salário mensal e os meses de início e de saída para ver a prévia.',
+  // Ajuda da IA (US-063; plano do P14) [PROVISÓRIOS]. O selo é o da spec §6.8 (princípio 3).
+  SELO_IA: 'Gerado com IA – revisar',
+  IA_CONSULTANDO: 'Consultando a IA…',
+  IA_TEMPO_ESGOTADO: 'A IA demorou demais para responder. Tente de novo.',
+  IA_SEM_NOMES: 'Não escreva nomes de pessoas no texto enviado à IA.',
+  IA_FALHA_CONSULTA: 'Não foi possível consultar a IA. Tente de novo.',
 } as const;

@@ -4,7 +4,8 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedOrc } from './seed';
 
-// Seed do orc (contrato C6; plano do P6, Task 1; P11; P12): 7 funcionalidades no menu Administração Central.
+// Seed do orc (contrato C6; plano do P6, Task 1; P11; P12; P14): 7 funcionalidades no menu Administração
+// Central e as 3 dos casos de IA, fora do menu.
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let cliente: ReturnType<typeof criarPrisma>;
 
@@ -28,9 +29,17 @@ afterAll(async () => {
 });
 
 describe('seedOrc', () => {
-  it('7 funcionalidades no módulo ADM_CENTRAL, com ajuda', async () => {
+  it('10 funcionalidades no módulo ADM_CENTRAL, com ajuda; as 3 da IA fora do menu, só com executar', async () => {
     const fs = await cliente.funcionalidade.findMany({ where: { codigo: { startsWith: 'orc.' } }, orderBy: { ordem: 'asc' } });
-    expect(fs.map((f) => f.codigo)).toEqual(['orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao']);
+    expect(fs.map((f) => f.codigo)).toEqual([
+      'orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao',
+      'orc.ia_justificativa', 'orc.ia_sugestao_conta', 'orc.ia_revisor',
+    ]);
+    expect(fs.filter((f) => !f.exibirNoMenu).map((f) => [f.codigo, f.rota, f.acoes])).toEqual([
+      ['orc.ia_justificativa', '/orc/pacotes', ['executar']],
+      ['orc.ia_sugestao_conta', '/orc/pacotes', ['executar']],
+      ['orc.ia_revisor', '/orc/aprovacao', ['executar']],
+    ]);
     expect(fs.every((f) => f.moduloCodigo === 'ADM_CENTRAL' && f.grupo === 'Orçamento da Adm. Central')).toBe(true);
     expect(fs.every((f) => (f.ajuda ?? '').trim().length > 0)).toBe(true);
   });
@@ -39,6 +48,7 @@ describe('seedOrc', () => {
     expect(await permissoes('GFIN')).toEqual([
       'orc.aprovacao:consultar', 'orc.aprovacao:executar',
       'orc.exercicios:alterar', 'orc.exercicios:consultar', 'orc.exercicios:incluir',
+      'orc.ia_justificativa:executar', 'orc.ia_revisor:executar', 'orc.ia_sugestao_conta:executar',
       'orc.importacao:consultar', 'orc.importacao:executar',
       'orc.orcamento:alterar', 'orc.orcamento:consultar',
       'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
@@ -52,6 +62,7 @@ describe('seedOrc', () => {
       'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar', 'orc.receitas:consultar',
     ]);
     expect(await permissoes('GESTOR_DIRETORIA')).toEqual([
+      'orc.ia_justificativa:executar', 'orc.ia_sugestao_conta:executar',
       'orc.orcamento:consultar', 'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.posicoes:alterar', 'orc.posicoes:consultar', 'orc.posicoes:excluir', 'orc.posicoes:incluir',
     ]);
