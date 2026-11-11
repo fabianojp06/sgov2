@@ -1,12 +1,12 @@
 'use client';
 
 import { ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
-import type { CasoUsoTela, TelaIA } from '../application/ia';
+import type { AvaliacaoTela, CasoUsoTela, TelaIA } from '../application/ia';
 
 // Cadastro da IA (US-019 parte 2): a configuração geral e os casos de uso, com o consumo do mês e o
-// aviso de teto atingido. Um caso de uso é editado por vez (?caso=): na página há no máximo dois
-// formulários, sem campo de mesmo nome, e os ids de erro (erro-<campo>) não se repetem. Sem a
-// permissão de alterar, só leitura.
+// aviso de teto atingido. Um caso de uso é editado por vez (?caso=): os campos com erro por campo
+// (erro-<campo>) ficam em no máximo dois formulários e não se repetem; os de "Avaliar", um por caso
+// avaliável, só têm o código escondido e erro geral. Sem a permissão de alterar, só leitura.
 
 const ESFORCOS: Readonly<Record<string, string>> = { low: 'Baixo', medium: 'Médio', high: 'Alto', xhigh: 'Muito alto', max: 'Máximo' };
 const numero = new Intl.NumberFormat('pt-BR');
@@ -44,7 +44,49 @@ function Consumo({ c, mes }: { c: { gastoMesUsd: string; chamadasMes: number; er
   );
 }
 
-function Caso({ c, tela, editar, podeAlterar, alterar }: { c: CasoUsoTela; tela: TelaIA; editar: boolean; podeAlterar: boolean; alterar: AcaoFormulario }) {
+const dataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+
+/** Texto da última avaliação de qualidade (fila ia.avaliar). */
+export function textoAvaliacao(a: AvaliacaoTela | null): string {
+  if (!a) return 'Ainda não avaliado.';
+  if (a.situacao === 'PENDENTE' && a.vencida) return `A avaliação pedida em ${dataHora(a.criadoEm)} não terminou a tempo. Peça de novo.`;
+  if (a.situacao === 'PENDENTE') return `Avaliação pedida em ${dataHora(a.criadoEm)}, em andamento.`;
+  if (a.situacao === 'FALHOU') return `A avaliação de ${dataHora(a.criadoEm)} falhou: ${a.erro ?? 'sem motivo registrado.'}`;
+  const total = a.total ?? 0;
+  const acertos = a.acertos ?? 0;
+  const pct = total === 0 ? '—' : `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format((acertos * 100) / total)}%`;
+  return `Última avaliação (${dataHora(a.concluidoEm ?? a.criadoEm)}): ${numero.format(acertos)} de ${numero.format(total)} acertos (${pct}).`;
+}
+
+function Avaliacao({ c, podeAlterar, avaliar }: { c: CasoUsoTela; podeAlterar: boolean; avaliar: AcaoFormulario }) {
+  return (
+    <div>
+      <p>{textoAvaliacao(c.ultimaAvaliacao)}</p>
+      {podeAlterar && !(c.ultimaAvaliacao?.situacao === 'PENDENTE' && !c.ultimaAvaliacao.vencida) && (
+        <Formulario acao={avaliar} textoEnviar="Avaliar a qualidade" mensagemSucesso="Avaliação pedida. Recarregue a tela em alguns minutos para ver o resultado.">
+          <input type="hidden" name="codigo" value={c.codigo} />
+          <p>A avaliação usa a IA como você, com custo no teto do caso, e só funciona com a IA ligada.</p>
+        </Formulario>
+      )}
+    </div>
+  );
+}
+
+function Caso({
+  c,
+  tela,
+  editar,
+  podeAlterar,
+  alterar,
+  avaliar,
+}: {
+  c: CasoUsoTela;
+  tela: TelaIA;
+  editar: boolean;
+  podeAlterar: boolean;
+  alterar: AcaoFormulario;
+  avaliar: AcaoFormulario;
+}) {
   const id = (campo: string) => `caso-${c.codigo.replace('.', '-')}-${campo}`;
   const foraDaTabela = !tela.modelos.includes(c.modelo);
   return (
@@ -58,6 +100,7 @@ function Caso({ c, tela, editar, podeAlterar, alterar }: { c: CasoUsoTela; tela:
       </p>
       <Consumo c={c} mes={tela.mes} />
       {c.tetoAtingido && <p role="status">{mensagemTeto(tela.mes, c.nome)}</p>}
+      {c.avaliavel && <Avaliacao c={c} podeAlterar={podeAlterar} avaliar={avaliar} />}
       {editar ? (
         <Formulario acao={alterar} textoEnviar="Salvar caso de uso" mensagemSucesso={`Caso de uso "${c.nome}" salvo.`}>
           <input type="hidden" name="codigo" value={c.codigo} />
@@ -129,6 +172,7 @@ export function CadastroIA({
   podeAlterar,
   alterarConfiguracao,
   alterarCaso,
+  avaliar,
 }: {
   tela: TelaIA;
   /** Código do caso de uso em edição (?caso=), ou null. */
@@ -136,6 +180,7 @@ export function CadastroIA({
   podeAlterar: boolean;
   alterarConfiguracao: AcaoFormulario;
   alterarCaso: AcaoFormulario;
+  avaliar: AcaoFormulario;
 }) {
   const g = tela.configuracao;
   return (
@@ -182,7 +227,15 @@ export function CadastroIA({
           <p>Nenhum caso de uso instalado. Cada função com IA instala o seu caso desligado, para ser ligado aqui.</p>
         ) : (
           tela.casos.map((c) => (
-            <Caso key={c.codigo} c={c} tela={tela} editar={podeAlterar && editando === c.codigo} podeAlterar={podeAlterar} alterar={alterarCaso} />
+            <Caso
+              key={c.codigo}
+              c={c}
+              tela={tela}
+              editar={podeAlterar && editando === c.codigo}
+              podeAlterar={podeAlterar}
+              alterar={alterarCaso}
+              avaliar={avaliar}
+            />
           ))
         )}
       </section>

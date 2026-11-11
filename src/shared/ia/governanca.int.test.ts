@@ -208,6 +208,10 @@ describe('ligada', () => {
     await expect(s.gerarTexto(pessoa(0), CASO, 'outra')).resolves.toBeTruthy();
     // O Sistema (worker) não tem limite por minuto.
     await expect(s.gerarTexto(SISTEMA_IA, CASO, 'sistema')).resolves.toBeTruthy();
+    // A avaliação de qualidade (isentoLimitePorMinuto) também não, mas é registrada como a pessoa.
+    const isento = { ...(pessoa(3) as { usuarioId: string; permissoes: ReadonlySet<string> }), isentoLimitePorMinuto: true as const };
+    await expect(s.gerarTexto(isento, CASO, 'avaliação')).resolves.toBeTruthy();
+    expect((await chamadas(CASO.codigo)).at(-1)).toMatchObject({ usuario_id: usuarios[3] });
   });
 
   it('pedidos simultâneos: as reservas contam no limite, e só passam os 3 do minuto', async () => {

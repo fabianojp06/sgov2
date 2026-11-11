@@ -6,7 +6,7 @@ import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
 import { GERADORES_EXPORTACAO_CAD, iniciarProcessadorCargas } from '@/modules/cad/servidor';
-import { registrarSinalVida } from '@/modules/int/servidor';
+import { registrarSinalVida, registrarTrabalhadoresInt } from '@/modules/int/servidor';
 import { registrarTrabalhadoresOrc } from '@/modules/orc/servidor';
 import { lerConfiguracaoWorker } from './configuracao';
 import { criarObterNomeExibicao } from './nome-exibicao';
@@ -59,6 +59,8 @@ async function iniciar(): Promise<void> {
   });
   // Revisor do orçamento antes do envio (US-064, frente A): fila orc.revisar.
   await registrarTrabalhadoresOrc(fila, { cliente: prisma });
+  // Avaliação de qualidade da IA (fila ia.avaliar): cada módulo entrega os avaliadores dos seus casos.
+  await registrarTrabalhadoresInt(fila, { cliente: prisma, avaliadores: {} });
   // Merge das cargas de estrutura (plano do P4, R6): só o worker tem o sgo_sync. Sem a variável,
   // o processador avisa [CARGA_SEM_SYNC] e os lotes ficam PENDENTE, visíveis na tela.
   const urlSync = process.env.SYNC_DATABASE_URL;

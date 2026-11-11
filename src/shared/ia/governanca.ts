@@ -29,6 +29,8 @@ export type DefinicaoCasoUsoIA = {
   instrucaoSistema: string;
   /** Guarda o texto da entrada e da saída por 90 dias (ia_chamada_texto). Padrão: só o hash. */
   guardarTexto?: boolean;
+  /** Tem avaliador de qualidade registrado no worker (fila ia.avaliar): a tela mostra o botão "Avaliar". */
+  avaliavel?: boolean;
   /** Configuração inicial, só na primeira instalação; depois vale a da tela de cadastro. */
   padrao?: { modelo?: string; esforco?: EsforcoIA; maxTokens?: number };
 };
@@ -39,8 +41,15 @@ export type DefinicaoCasoUsoIA = {
  */
 export const SISTEMA_IA = Object.freeze({ sistema: true as const });
 
-/** Quem pede: a pessoa da requisição (o ContextoRequisicao serve) ou o Sistema. */
-export type QuemPedeIA = { usuarioId: string; unidadeId?: string | null; permissoes: ReadonlySet<string> } | typeof SISTEMA_IA;
+/**
+ * Quem pede: a pessoa da requisição (o ContextoRequisicao serve) ou o Sistema. `isentoLimitePorMinuto`:
+ * só na avaliação de qualidade (fila ia.avaliar), que faz muitas chamadas seguidas pela mesma pessoa;
+ * permissão, chaves, teto e registro continuam valendo. O teste de fronteira só o aceita no worker e nos
+ * trabalhadores (infrastructure), como o SISTEMA_IA.
+ */
+export type QuemPedeIA =
+  | { usuarioId: string; unidadeId?: string | null; permissoes: ReadonlySet<string>; isentoLimitePorMinuto?: true }
+  | typeof SISTEMA_IA;
 
 export interface ServicoIA {
   /**
@@ -121,7 +130,7 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
     const reservaId = await cliente.$transaction(async (tx) => {
       // Uma conferência por vez em todo o sistema (é curta): as reservas tornam a contagem exata.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('sgo.ia.reserva'))::text`;
-      if (pessoa) {
+      if (pessoa && !pessoa.isentoLimitePorMinuto) {
         const [feitas, abertas] = await Promise.all([
           tx.iaChamada.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: new Date(momento.getTime() - 60_000) } } }),
           tx.iaReserva.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: reservasDesde } } }),
@@ -311,7 +320,13 @@ export async function instalarCasosUsoIA(tx: TxCliente, casos: readonly Definica
     const p = c.padrao ?? {};
     if (p.modelo !== undefined && !MODELOS_IA.includes(p.modelo)) throw new Error(`caso de uso de IA ${c.codigo}: modelo fora da tabela de preços: ${p.modelo}`);
     if (p.maxTokens !== undefined && !(Number.isInteger(p.maxTokens) && p.maxTokens >= 1 && p.maxTokens <= 128_000)) throw new Error(`caso de uso de IA ${c.codigo}: maxTokens inválido`);
-    const doCodigo = { nome: c.nome, funcionalidade: c.funcionalidade, versaoInstrucao: c.versaoInstrucao, guardarTexto: c.guardarTexto ?? false };
+    const doCodigo = {
+      nome: c.nome,
+      funcionalidade: c.funcionalidade,
+      versaoInstrucao: c.versaoInstrucao,
+      guardarTexto: c.guardarTexto ?? false,
+      avaliavel: c.avaliavel ?? false,
+    };
     const inicial = { ...(p.modelo ? { modelo: p.modelo } : {}), ...(p.esforco ? { esforco: p.esforco } : {}), ...(p.maxTokens ? { maxTokens: p.maxTokens } : {}) };
     await tx.iaCasoUso.upsert({ where: { codigo: c.codigo }, create: { codigo: c.codigo, ...doCodigo, ...inicial }, update: doCodigo });
   }

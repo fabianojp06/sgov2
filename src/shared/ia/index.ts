@@ -33,6 +33,12 @@ export {
   type ServicoIA,
 } from './governanca';
 export { MODELOS_IA } from './precos';
+// Avaliação de qualidade (fila ia.avaliar): o tipo do avaliador que cada módulo registra no worker.
+export {
+  FILA_AVALIACAO_IA,
+  MINUTOS_AVALIACAO_IA,
+  MINUTOS_AVALIACAO_VENCIDA,
+  type AvaliadorCasoIA, type PedidoAvaliacaoIA, type ResultadoAvaliacaoIA } from './avaliacao';
 // Embeddings (US-020): só a porta e o falso até haver provedor (GAP-IA-002).
 export { criarProvedorEmbeddingsFalso, DIMENSOES_FALSO, type ProvedorEmbeddings, type VetorEmbedding } from './embeddings';
 // Para os testes dos módulos: um provedor com roteiro, entregue ao criarServicoIA.
