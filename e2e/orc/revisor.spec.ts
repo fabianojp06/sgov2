@@ -76,8 +76,8 @@ test.describe.serial(`revisor antes do envio ${ANO}`, () => {
   test('2. A revisão concluída (como o worker grava) aparece com o achado e o link para a linha', async ({ page }) => {
     const href = `/orc/pacotes?ano=${ANO}&cc=4.3.0&editar=${pacoteId}`;
     const achados = [
-      { origem: 'REGRA', tipo: 'DUPLICADO', texto: '2 pacotes iguais no CC 4.3.0, conta 4.1.1.5.005.', links: [{ rotulo: 'Pacote 4.3.0 · 4.1.1.5.005', href }] },
-      { origem: 'IA', tipo: 'JUSTIFICATIVA_FRACA', texto: 'A justificativa não diz a quantidade.', links: [{ rotulo: 'Pacote 4.3.0 · 4.1.1.5.005', href }] },
+      { origem: 'REGRA', tipo: 'DUPLICADO', texto: '2 pacotes iguais no CC 4.3.0, conta 4.1.1.5.005.', links: [{ rotulo: 'Pacote 4.3.0 · 4.1.1.5.005', href, tipo: 'pacote' }] },
+      { origem: 'IA', tipo: 'JUSTIFICATIVA_FRACA', texto: 'A justificativa não diz a quantidade.', links: [{ rotulo: 'Pacote 4.3.0 · 4.1.1.5.005', href, tipo: 'pacote' }] },
     ];
     await comBanco((c) =>
       c.query(`UPDATE orc_revisao SET situacao = 'CONCLUIDA', achados = $2::jsonb, avisos = $3, concluido_em = now() WHERE exercicio_id = $1 AND situacao = 'PENDENTE'`, [

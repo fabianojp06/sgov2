@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Dinheiro } from '@/shared/kernel';
-import { normalizarJustificativa, regraAumento, regraDesejaveis, regraDuplicados, type PacoteRegra, type TotalPar } from './revisor-regras';
+import { filtrarAchados, normalizarJustificativa, regraAumento, regraDesejaveis, regraDuplicados, type Achado, type PacoteRegra, type TotalPar } from './revisor-regras';
 
 // Regras do revisor (US-064; plano do P14, D-P14-7), com os valores de limite do plano.
 const d = (v: string) => Dinheiro.de(v);
@@ -50,6 +50,12 @@ describe('R2: aumento sobre o ano anterior', () => {
     expect(regraAumento([par('150000.01')], [par('100000.00')])).toHaveLength(1);
   });
 
+  it('sem arredondamento no limite: anterior 20.000,01 e atual 30.000,02 passa de 50 %', () => {
+    // 20.000,01 × 1,5 = 30.000,015, que arredondado viraria 30.000,02 e esconderia o achado.
+    expect(regraAumento([par('30000.02')], [par('20000.01')])).toHaveLength(1);
+    expect(regraAumento([par('30000.01')], [par('20000.01')])).toEqual([]);
+  });
+
   it('anterior 1.000,00 e atual 9.000,00: nenhum (diferença menor que 10.000)', () => {
     expect(regraAumento([par('9000.00')], [par('1000.00')])).toEqual([]);
     // Diferença de exatamente 10.000,00: passa.
@@ -78,5 +84,24 @@ describe('R3: desejáveis acima do teto', () => {
     const desejavel = pacote('x', { prioridade: 'DESEJAVEL' });
     expect(regraDesejaveis(d('100.00'), d('120.00'), [desejavel])).toEqual([]);
     expect(regraDesejaveis(d('120.00'), d('120.00'), [desejavel])).toEqual([]);
+  });
+});
+
+describe('filtro dos achados por quem vê', () => {
+  const link = (tipo: 'pacote' | 'posicao' | 'par', pessoal?: boolean) => ({ rotulo: tipo, href: '/orc/x', tipo, ...(pessoal === undefined ? {} : { pessoal }) });
+  const achados: Achado[] = [
+    { origem: 'REGRA', tipo: 'DUPLICADO', texto: 'pacotes', links: [link('pacote'), link('pacote')] },
+    { origem: 'IA', tipo: 'OUTRO', texto: 'posição', links: [link('posicao')] },
+    { origem: 'IA', tipo: 'OUTRO', texto: 'os dois', links: [link('pacote'), link('posicao')] },
+    { origem: 'REGRA', tipo: 'AUMENTO_ANO_ANTERIOR', texto: 'par de pessoal', links: [link('par', true)] },
+    { origem: 'REGRA', tipo: 'AUMENTO_ANO_ANTERIOR', texto: 'par sem pessoal', links: [link('par', false)] },
+    { origem: 'REGRA', tipo: 'DESEJAVEIS_ACIMA_DO_TETO', texto: 'teto', links: [] },
+  ];
+  const textos = (a: { pacotes: boolean; posicoes: boolean; salario: boolean }) => filtrarAchados(achados, a).map((x) => x.texto);
+
+  it('tudo para quem vê tudo; sem pacotes, sem posições e sem salário, só o que não cita linha proibida', () => {
+    expect(textos({ pacotes: true, posicoes: true, salario: true })).toEqual(achados.map((a) => a.texto));
+    expect(textos({ pacotes: false, posicoes: true, salario: true })).toEqual(['posição', 'par de pessoal', 'par sem pessoal', 'teto']);
+    expect(textos({ pacotes: true, posicoes: false, salario: false })).toEqual(['pacotes', 'par sem pessoal', 'teto']);
   });
 });

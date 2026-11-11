@@ -109,6 +109,8 @@ export const MENSAGENS_ORC = {
   REVISAO_SO_EM_ELABORACAO: 'A revisão é só para o orçamento Em Elaboração.',
   REVISAO_PEDIDA: 'Revisão pedida. Os achados aparecem aqui quando ela terminar.',
   REVISAO_EM_ANDAMENTO: 'Revisão em andamento…',
+  REVISAO_FALHOU: 'A revisão falhou.',
+  REVISAO_CONCLUIDA: (n: number) => (n === 1 ? 'Revisão concluída com 1 achado.' : `Revisão concluída com ${n} achados.`),
   REVISAO_NENHUMA: 'Nenhuma revisão pedida para este exercício.',
   REVISAO_SEM_ACHADOS: 'Nenhum achado.',
   REVISAO_PARADA: 'A revisão não terminou. Peça de novo.',

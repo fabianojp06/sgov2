@@ -12,8 +12,10 @@ import {
   regraDesejaveis,
   regraDuplicados,
   TIPOS_ACHADO_IA,
+  REVISAO_PARADA_MS,
   type Achado,
   type AchadoRegra,
+  type LinkAchado,
   type PacoteRegra,
 } from '../domain/revisor-regras';
 import { ROTULO_PRIORIDADE } from '../domain/sugestao-ia';
@@ -37,6 +39,8 @@ import { mensagemErroIA } from './ia-erros';
 export const FILA_REVISAO = 'orc.revisar' as const;
 export const LIMITE_ITENS_IA = 1500;
 export const MAXIMO_ACHADOS_IA = 30;
+export const MAXIMO_REFERENCIAS_IA = 50;
+export const MAXIMO_TEXTO_IA = 1000;
 // Chamada longa no worker (§4.4): mais folga que a da tela.
 export const TEMPO_LIMITE_REVISOR_MS = 120_000;
 const CASO = CASOS_IA_ORC.revisor;
@@ -67,17 +71,24 @@ export function resolverDepsRevisor(d: Partial<DepsRevisor> & Pick<DepsRevisor, 
   };
 }
 
-// Resposta da IA (D-P14-8): fora do schema, o provedor devolve ErroIA('ia.saida_invalida').
+// Resposta da IA (D-P14-8): fora do formato, o provedor devolve ErroIA('ia.saida_invalida'). Os limites
+// (achados, referências e texto) estão na instrução; o que passar deles é cortado aqui, e não reprovado.
+// overwrite, e não transform: o schema continua representável em JSON Schema (saída estruturada).
+const primeiros = <T>(n: number) => (xs: T[]) => xs.slice(0, n);
 export const RESPOSTA_REVISOR = z.object({
   achados: z
     .array(
       z.object({
         tipo: z.enum(TIPOS_ACHADO_IA),
-        referencias: z.array(z.object({ tipo: z.enum(['pacote', 'posicao']), id: z.string().max(40) })).max(50),
-        texto: z.string().trim().min(1).max(1000),
+        referencias: z.array(z.object({ tipo: z.enum(['pacote', 'posicao']), id: z.string() })).overwrite(primeiros(MAXIMO_REFERENCIAS_IA)),
+        texto: z
+          .string()
+          .trim()
+          .min(1)
+          .overwrite((t) => [...t].slice(0, MAXIMO_TEXTO_IA).join('')),
       }),
     )
-    .max(MAXIMO_ACHADOS_IA),
+    .overwrite(primeiros(MAXIMO_ACHADOS_IA)),
 });
 
 const din = (v: { toString(): string }) => Dinheiro.de(v.toString());
@@ -107,6 +118,8 @@ async function quemPediu(usuarioId: string, deps: DepsRevisor): Promise<Pessoa |
   // A mesma guarda do pedido: orc.aprovacao:executar e sem CC de escopo (R15).
   if (!permissoes.has('orc.aprovacao:executar')) return null;
   if ((await deps.pessoa.obterEscopo(c, usuarioId)) !== null) return null;
+  // Sem unidade: o orçamento da Adm. Central não é de nenhum TP (o Histórico do orc também grava unidade
+  // nula, contextoAuditoria), então a chamada à IA vai só com a pessoa.
   return { usuarioId, unidadeId: null, permissoes };
 }
 
@@ -174,7 +187,8 @@ export function montarMensagemRevisor(d: DadosMensagem): string {
 
 type Revisada = { achados: Achado[]; avisos: string[] };
 
-async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: DepsRevisor): Promise<Revisada> {
+// `parcial` recebe os achados das regras assim que ficam prontos: um erro depois delas não os perde.
+async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: DepsRevisor, parcial: Revisada): Promise<Revisada> {
   const c = deps.cliente;
   const e = await c.orcamentoExercicio.findUniqueOrThrow({ where: { id: r.exercicioId } });
   const [pacotesDb, posicoes, linhasDb, receitas, anterior, arvoreContas, arvoreCcs] = await Promise.all([
@@ -191,7 +205,7 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
     deps.estrutura.listarArvoreContas(c, { incluirInativos: true }),
     deps.estrutura.listarArvoreCentrosCusto(c, { incluirInativos: true }),
   ]);
-  const avisos: string[] = [];
+  const avisos = parcial.avisos;
   const pacotes: PacoteLido[] = pacotesDb.map((k) => ({
     id: k.id,
     cc: k.cc,
@@ -219,15 +233,22 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   const porId = new Map(pacotes.map((p) => [p.id, p]));
   const linkPacote = (id: string) => {
     const p = porId.get(id)!;
-    return { rotulo: `Pacote ${p.cc} · ${p.conta}`, href: hrefPacote(e.ano, p.cc, p.id) };
+    return { rotulo: `Pacote ${p.cc} · ${p.conta}`, href: hrefPacote(e.ano, p.cc, p.id), tipo: 'pacote' as const };
   };
+  // Par com linha de pessoal, no ano ou no anterior: a tela só o mostra a quem vê salário, e a IA nunca o recebe.
+  const comPessoal = new Set([...linhas, ...(linhasAnteriores ?? [])].filter((l) => l.origem === 'PESSOAL').map((l) => `${l.cc}|${l.conta}`));
   const regras = [...r1, ...r2, ...r3];
-  const achados: Achado[] = regras.map((a) => ({
-    origem: 'REGRA',
-    tipo: a.tipo,
-    texto: a.texto,
-    links: a.par ? [{ rotulo: `Visão do CC ${a.par.cc}`, href: hrefVisao(e.ano, a.par.cc) }] : a.pacotes.map(linkPacote),
-  }));
+  for (const a of regras) {
+    parcial.achados.push({
+      origem: 'REGRA',
+      tipo: a.tipo,
+      texto: a.texto,
+      links: a.par
+        ? [{ rotulo: `Visão do CC ${a.par.cc}`, href: hrefVisao(e.ano, a.par.cc), tipo: 'par', pessoal: comPessoal.has(`${a.par.cc}|${a.par.conta}`) }]
+        : a.pacotes.map(linkPacote),
+    });
+  }
+  const achados = parcial.achados;
 
   // A parte da IA (D-P14-6, D-P14-8).
   const quem = await quemPediu(r.solicitadoPor, deps);
@@ -250,7 +271,7 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   const pacotesIa = vePacotes
     ? pacotes.map((p, i) => {
         const apelido = `PAC-${i + 1}`;
-        apelidos.set(apelido, { tipo: 'pacote', id: p.id, ...linkPacote(p.id) });
+        apelidos.set(apelido, { ...linkPacote(p.id), id: p.id });
         return { ...p, apelido };
       })
     : null;
@@ -265,7 +286,6 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
 
   // Totais sem pessoal: fora qualquer par com linha de pessoal, no ano ou no anterior. Vão só com os
   // pacotes (as linhas que sobram são deles).
-  const comPessoal = new Set([...linhas, ...(linhasAnteriores ?? [])].filter((l) => l.origem === 'PESSOAL').map((l) => `${l.cc}|${l.conta}`));
   const somar = (ls: readonly LinhaLida[]) => {
     const m = new Map<string, { cc: string; conta: string; total: Dinheiro }>();
     for (const l of ls) {
@@ -308,12 +328,12 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
     for (const a of valor.achados) {
       // Conferência (Review Focus 3): só ids enviados, do tipo certo, sem repetir.
       const vistos = new Set<string>();
-      const links: { rotulo: string; href: string }[] = [];
+      const links: LinkAchado[] = [];
       for (const ref of a.referencias) {
         const alvo = apelidos.get(ref.id.trim());
         if (!alvo || alvo.tipo !== ref.tipo || vistos.has(alvo.id)) continue;
         vistos.add(alvo.id);
-        links.push({ rotulo: alvo.rotulo, href: alvo.href });
+        links.push({ rotulo: alvo.rotulo, href: alvo.href, tipo: alvo.tipo });
       }
       if (links.length > 0) achados.push({ origem: 'IA', tipo: a.tipo, texto: a.texto, links });
     }
@@ -339,13 +359,19 @@ export async function processarRevisao(revisaoId: string, depsParciais: Partial<
   if (!UUID.safeParse(revisaoId).success) return;
   const r = await deps.cliente.revisaoOrcamento.findUnique({ where: { id: revisaoId } });
   if (!r || r.situacao !== 'PENDENTE') return;
+  // Parada há mais de 15 minutos: a tela já a mostra como FALHOU e aceitou um pedido novo; não processa.
+  if (deps.agora().getTime() - r.criadoEm.getTime() > REVISAO_PARADA_MS) {
+    await concluir(deps.cliente, r.id, 'FALHOU', { achados: [], avisos: [MENSAGENS_ORC.REVISAO_PARADA] }, deps.agora());
+    return;
+  }
+  const parcial: Revisada = { achados: [], avisos: [] };
   let revisada: Revisada;
   try {
-    revisada = await revisar(r, deps);
+    revisada = await revisar(r, deps, parcial);
   } catch (erro) {
-    // Sem a mensagem: pode ter dado do orçamento.
+    // Sem a mensagem: pode ter dado do orçamento. Os achados das regras já prontos ficam.
     console.error('[ORC_REVISAO_FALHOU]', { revisaoId, erro: erro instanceof Error ? erro.name : typeof erro });
-    await concluir(deps.cliente, r.id, 'FALHOU', { achados: [], avisos: [MENSAGENS_ORC.REVISAO_PARADA] }, deps.agora());
+    await concluir(deps.cliente, r.id, 'FALHOU', { achados: parcial.achados, avisos: [...parcial.avisos, MENSAGENS_ORC.REVISAO_PARADA] }, deps.agora());
     return;
   }
   await concluir(deps.cliente, r.id, 'CONCLUIDA', revisada, deps.agora());

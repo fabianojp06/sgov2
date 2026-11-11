@@ -5,10 +5,11 @@ import type { Prioridade } from './pacote';
 // regras determinísticas, aqui, sem IA (§6.8, princípio 1); a IA só acrescenta achados de texto e
 // coerência. Funções puras, com Dinheiro. Valores [PROVISÓRIOS].
 
-/** R2: aumento de mais de 50 % sobre o ano anterior... */
-export const FATOR_AUMENTO = '1.5';
-/** ...e diferença de pelo menos R$ 10.000,00. */
+/** R2: aumento de mais de 50 % sobre o ano anterior (atual × 2 > anterior × 3, sem arredondar) e diferença de pelo menos R$ 10.000,00. */
 export const DIFERENCA_MINIMA = '10000.00';
+/** PENDENTE há mais tempo que isto: aparece como FALHOU, libera um pedido novo e o worker não a processa. */
+export const MINUTOS_REVISAO_PARADA = 15;
+export const REVISAO_PARADA_MS = MINUTOS_REVISAO_PARADA * 60_000;
 
 export const SITUACOES_REVISAO = ['PENDENTE', 'CONCLUIDA', 'FALHOU'] as const;
 export type SituacaoRevisao = (typeof SITUACOES_REVISAO)[number];
@@ -18,8 +19,27 @@ export type TipoRegra = (typeof TIPOS_REGRA)[number];
 export const TIPOS_ACHADO_IA = ['DUPLICADO_PROVAVEL', 'JUSTIFICATIVA_FRACA', 'CONTA_INCOERENTE', 'OUTRO'] as const;
 export type TipoAchadoIA = (typeof TIPOS_ACHADO_IA)[number];
 
+/**
+ * Link de um achado para a linha do exercício revisado, com o alvo: o tipo (pacote, posição ou par CC ×
+ * conta) e, no par, se ele tem linha de pessoal. Com o alvo, a tela filtra pelo que quem vê pode
+ * consultar (filtrarAchados).
+ */
+export type LinkAchado = { rotulo: string; href: string; tipo: 'pacote' | 'posicao' | 'par'; pessoal?: boolean };
 /** O que a tela mostra: o achado já com os links para as linhas do exercício revisado. */
-export type Achado = { origem: 'REGRA' | 'IA'; tipo: string; texto: string; links: readonly { rotulo: string; href: string }[] };
+export type Achado = { origem: 'REGRA' | 'IA'; tipo: string; texto: string; links: readonly LinkAchado[] };
+
+/** O que quem vê a revisão pode consultar (D-P12-3: o salário, e o total de pessoal, só com incluir ou alterar posição). */
+export type AlcanceRevisao = { pacotes: boolean; posicoes: boolean; salario: boolean };
+
+/**
+ * Os achados que quem vê pode ver: o achado sai inteiro quando cita uma linha que a pessoa não pode
+ * consultar (o texto pode falar dela): pacote sem orc.pacotes:consultar, posição sem
+ * orc.posicoes:consultar, par com pessoal sem ver salário.
+ */
+export function filtrarAchados(achados: readonly Achado[], alcance: AlcanceRevisao): Achado[] {
+  const pode = (l: LinkAchado) => (l.tipo === 'pacote' ? alcance.pacotes : l.tipo === 'posicao' ? alcance.posicoes : !l.pessoal || alcance.salario);
+  return achados.filter((a) => a.links.every(pode));
+}
 export type RevisaoTela = {
   situacao: SituacaoRevisao;
   achados: readonly Achado[];
@@ -95,7 +115,7 @@ export function regraAumento(atual: readonly TotalPar[], anterior: readonly Tota
     const base = antes.get(`${p.cc}|${p.conta}`)?.total;
     if (!base || base.ehZero() || base.ehNegativo()) continue;
     const diferenca = p.total.subtrair(base);
-    if (p.total.comparar(base.multiplicar(FATOR_AUMENTO)) <= 0 || diferenca.comparar(minimo) < 0) continue;
+    if (p.total.multiplicar('2').comparar(base.multiplicar('3')) <= 0 || diferenca.comparar(minimo) < 0) continue;
     const pct = Percentual.razao(diferenca, base);
     achados.push({
       tipo: 'AUMENTO_ANO_ANTERIOR',

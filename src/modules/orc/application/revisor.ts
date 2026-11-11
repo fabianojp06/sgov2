@@ -3,7 +3,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { registrarNoOutbox } from '@/shared/filas';
 import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
 import { MENSAGENS_ORC } from '../domain/mensagens';
-import type { Achado, RevisaoTela, SituacaoRevisao } from '../domain/revisor-regras';
+import { filtrarAchados, REVISAO_PARADA_MS, type Achado, type AlcanceRevisao, type RevisaoTela, type SituacaoRevisao } from '../domain/revisor-regras';
 import { travarExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
@@ -14,9 +14,6 @@ import { FILA_REVISAO } from './revisor-processamento';
 // e o worker a processa (processarRevisao). O revisor não bloqueia o envio.
 
 const FUNCIONALIDADE = 'orc.aprovacao';
-/** PENDENTE há mais tempo que isto: aparece como FALHOU e libera um pedido novo. */
-export const MINUTOS_REVISAO_PARADA = 15;
-const PARADA_MS = MINUTOS_REVISAO_PARADA * 60_000;
 const ENTRADA = z.object({ id: z.string(), versao: z.coerce.number().int().min(0) }).strict();
 
 class ErroPedido extends ErroDominio {
@@ -40,7 +37,7 @@ export async function pedirRevisao(ctx: ContextoRequisicao, bruto: unknown, deps
         if (ex.versao !== entrada.versao) throw new ErroPedido(MENSAGENS_ORC.ALTERADO_POR_OUTRO);
         if (ex.situacao !== 'EM_ELABORACAO') throw new ErroPedido(MENSAGENS_ORC.REVISAO_SO_EM_ELABORACAO);
         const recente = await tx.revisaoOrcamento.findFirst({
-          where: { exercicioId: ex.id, situacao: 'PENDENTE', criadoEm: { gt: new Date(deps.agora().getTime() - PARADA_MS) } },
+          where: { exercicioId: ex.id, situacao: 'PENDENTE', versaoExercicio: ex.versao, criadoEm: { gt: new Date(deps.agora().getTime() - REVISAO_PARADA_MS) } },
           orderBy: { criadoEm: 'desc' },
           select: { id: true },
         });
@@ -61,11 +58,18 @@ export async function pedirRevisao(ctx: ContextoRequisicao, bruto: unknown, deps
   }
 }
 
+const alcance = (ctx: ContextoRequisicao): AlcanceRevisao => ({
+  pacotes: ctx.permissoes.has('orc.pacotes:consultar'),
+  posicoes: ctx.permissoes.has('orc.posicoes:consultar'),
+  // D-P12-3: o salário (e o total de pessoal, que o revela) só para quem inclui ou altera posição.
+  salario: ctx.permissoes.has('orc.posicoes:incluir') || ctx.permissoes.has('orc.posicoes:alterar'),
+});
+
 const ACHADO = z.object({
   origem: z.enum(['REGRA', 'IA']),
   tipo: z.string(),
   texto: z.string(),
-  links: z.array(z.object({ rotulo: z.string(), href: z.string().startsWith('/orc/') })),
+  links: z.array(z.object({ rotulo: z.string(), href: z.string().startsWith('/orc/'), tipo: z.enum(['pacote', 'posicao', 'par']), pessoal: z.boolean().optional() })),
 });
 
 /** A última revisão do exercício, para quem pode pedir; null sem revisão (ou com CC de escopo). */
@@ -79,11 +83,12 @@ export async function ultimaRevisao(ctx: ContextoRequisicao, exercicioId: string
     deps.cliente.orcamentoExercicio.findUnique({ where: { id: exercicioId }, select: { versao: true } }),
   ]);
   if (!r || !ex) return null;
-  const parada = r.situacao === 'PENDENTE' && deps.agora().getTime() - r.criadoEm.getTime() > PARADA_MS;
+  const parada = r.situacao === 'PENDENTE' && deps.agora().getTime() - r.criadoEm.getTime() > REVISAO_PARADA_MS;
   const lidos = z.array(ACHADO).safeParse(r.achados);
   return {
     situacao: parada ? 'FALHOU' : (r.situacao as SituacaoRevisao),
-    achados: lidos.success ? (lidos.data as Achado[]) : [],
+    // Só o que quem vê pode consultar (a revisão foi feita com o alcance de quem pediu).
+    achados: lidos.success ? filtrarAchados(lidos.data as Achado[], alcance(ctx)) : [],
     avisos: parada ? [MENSAGENS_ORC.REVISAO_PARADA] : r.avisos,
     desatualizada: r.versaoExercicio !== ex.versao,
     concluidaEm: r.concluidoEm,

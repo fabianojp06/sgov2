@@ -49,10 +49,18 @@ export function ItemAchado({ achado }: { achado: Achado }) {
   );
 }
 
-/** O estado da revisão (puro: testável sem DOM). */
+/** O resumo do estado, para a região viva (sempre presente, para o leitor de tela anunciar a mudança). */
+export function resumoRevisao(revisao: RevisaoTela | null): string {
+  if (!revisao) return '';
+  if (revisao.situacao === 'PENDENTE') return MENSAGENS_ORC.REVISAO_EM_ANDAMENTO;
+  if (revisao.situacao === 'FALHOU') return MENSAGENS_ORC.REVISAO_FALHOU;
+  return MENSAGENS_ORC.REVISAO_CONCLUIDA(revisao.achados.length);
+}
+
+/** O estado da revisão (puro: testável sem DOM). A região viva fica no PainelRevisao. */
 export function ConteudoRevisao({ revisao }: { revisao: RevisaoTela | null }) {
   if (!revisao) return <p>{MENSAGENS_ORC.REVISAO_NENHUMA}</p>;
-  if (revisao.situacao === 'PENDENTE') return <p role="status">{MENSAGENS_ORC.REVISAO_EM_ANDAMENTO}</p>;
+  if (revisao.situacao === 'PENDENTE') return null;
   return (
     <>
       {revisao.situacao === 'CONCLUIDA' && revisao.concluidaEm && <p>{`Revisão concluída em ${dataHora(revisao.concluidaEm)}.`}</p>}
@@ -97,6 +105,9 @@ export function PainelRevisao({
           <input type="hidden" name="versao" value={exercicio.versao} />
         </Formulario>
       )}
+      <p role="status" aria-live="polite">
+        {resumoRevisao(revisao)}
+      </p>
       <ConteudoRevisao revisao={revisao} />
       {pendente && <AtualizarEnquantoPendente />}
     </section>

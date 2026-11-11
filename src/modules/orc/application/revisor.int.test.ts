@@ -3,7 +3,8 @@ import { seedAdm } from '@/modules/adm';
 import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
-import { criarProvedorIAFalso, criarServicoIA, ErroIA, type CodigoErroIA } from '@/shared/ia';
+import { criarProvedorIAFalso, criarServicoIA, ErroIA, type CodigoErroIA, type ProvedorIA } from '@/shared/ia';
+import { carregarPermissoes, manutencaoEfetiva, obterConfiguracaoAcesso, obterEscopoCentroCusto, obterUsuarioParaSessao } from '@/modules/adm/servidor';
 import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_ORC } from '../domain/mensagens';
@@ -43,6 +44,8 @@ const CASO = CASOS_IA_ORC.revisor.codigo;
 const perm = (f: string, a: string) => [f, a].join(':');
 const APROVACAO = [perm('orc.aprovacao', 'consultar'), perm('orc.aprovacao', 'executar')];
 const PACOTES = ['consultar', 'incluir', 'alterar', 'excluir'].map((a) => perm('orc.pacotes', a));
+// Quem vê tudo na revisão: pacotes, posições e salário (D-P12-3).
+const VE_TUDO = [...APROVACAO, perm('orc.pacotes', 'consultar'), perm('orc.posicoes', 'consultar'), perm('orc.posicoes', 'alterar')];
 // Salário de valor único, numa posição sozinha no CC 4.4: nenhum valor dela pode ir para a IA.
 const SALARIO = '7777.77';
 
@@ -201,6 +204,26 @@ describe('pedirRevisao', () => {
     expect(await migrator.revisaoOrcamento.count({ where: { exercicioId: e2.id } })).toBe(0);
   });
 
+  it('dois pedidos simultâneos geram uma revisão só', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id, anterior: false });
+    const v = String(await e.versao());
+    const deps = { cliente: app, obterEscopo: async () => null };
+    const [a, b] = await Promise.all([pedirRevisao(ctx(p.id), { id: e.id, versao: v }, deps), pedirRevisao(ctx(p.id), { id: e.id, versao: v }, deps)]);
+    expect(a.ok && b.ok && a.valor.revisaoId === b.valor.revisaoId).toBe(true);
+    expect(await migrator.revisaoOrcamento.count({ where: { exercicioId: e.id } })).toBe(1);
+  });
+
+  it('a PENDENTE só é reaproveitada na mesma versão do exercício', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id, anterior: false });
+    const id = await pedir(e, p.id);
+    await migrator.$executeRaw`UPDATE orc_exercicio SET versao = versao + 1 WHERE id = ${e.id}::uuid`;
+    const nova = await pedir(e, p.id);
+    expect(nova).not.toBe(id);
+    expect(await revisao(nova)).toMatchObject({ versaoExercicio: await e.versao() });
+  });
+
   it('PENDENTE há mais de 15 minutos: aparece como FALHOU e aceita um pedido novo', async () => {
     const p = await gfin();
     const e = await exercicio({ solicitante: p.id, anterior: false });
@@ -239,7 +262,7 @@ describe('processarRevisao', () => {
     expect(r.concluidoEm).not.toBeNull();
     expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
     expect(falso.chamadas).toHaveLength(0);
-    const tela = await ultimaRevisao(ctx(p.id), e.id, { cliente: app, obterEscopo: async () => null });
+    const tela = await ultimaRevisao(ctx(p.id, VE_TUDO), e.id, { cliente: app, obterEscopo: async () => null });
     expect(tela?.achados.map((a) => [a.origem, a.tipo])).toEqual([
       ['REGRA', 'DUPLICADO'],
       ['REGRA', 'AUMENTO_ANO_ANTERIOR'],
@@ -249,8 +272,9 @@ describe('processarRevisao', () => {
     const [dup, aumento, , teto] = tela!.achados;
     expect(dup!.links.map((l) => l.href).sort()).toEqual([e.k1.id, e.k2.id].map((k) => `/orc/pacotes?ano=${e.ano}&cc=4.3.0&editar=${k}`).sort());
     expect(aumento!.texto).toContain('CC 4.3.2.11, conta 4.1.1.5.005');
-    expect(aumento!.links).toEqual([{ rotulo: 'Visão do CC 4.3.2.11', href: `/orc/orcamento?ano=${e.ano}&cc=4.3.2.11` }]);
-    expect(teto!.links).toEqual([{ rotulo: 'Pacote 4.3.2.11 · 4.1.1.5.005', href: `/orc/pacotes?ano=${e.ano}&cc=4.3.2.11&editar=${e.k3.id}` }]);
+    expect(aumento!.links).toEqual([{ rotulo: 'Visão do CC 4.3.2.11', href: `/orc/orcamento?ano=${e.ano}&cc=4.3.2.11`, tipo: 'par', pessoal: false }]);
+    expect(tela!.achados[2]!.links).toEqual([{ rotulo: 'Visão do CC 4.4', href: `/orc/orcamento?ano=${e.ano}&cc=4.4`, tipo: 'par', pessoal: true }]);
+    expect(teto!.links).toEqual([{ rotulo: 'Pacote 4.3.2.11 · 4.1.1.5.005', href: `/orc/pacotes?ano=${e.ano}&cc=4.3.2.11&editar=${e.k3.id}`, tipo: 'pacote' }]);
     expect(tela!.desatualizada).toBe(false);
 
     // Depois de alterar um pacote, a revisão fica desatualizada.
@@ -294,13 +318,13 @@ describe('processarRevisao', () => {
         origem: 'IA',
         tipo: 'JUSTIFICATIVA_FRACA',
         texto: 'A justificativa não diz quantas cadeiras.',
-        links: [{ rotulo: 'Pacote 4.3.2.11 · 4.1.1.5.005', href: `/orc/pacotes?ano=${e.ano}&cc=4.3.2.11&editar=${e.k3.id}` }],
+        links: [{ rotulo: 'Pacote 4.3.2.11 · 4.1.1.5.005', href: `/orc/pacotes?ano=${e.ano}&cc=4.3.2.11&editar=${e.k3.id}`, tipo: 'pacote' }],
       },
       {
         origem: 'IA',
         tipo: 'CONTA_INCOERENTE',
         texto: 'Cargo sem relação com o CC.',
-        links: [{ rotulo: 'Posição 4.4 · Analista', href: `/orc/posicoes?ano=${e.ano}&cc=4.4&editar=${e.posicao.id}` }],
+        links: [{ rotulo: 'Posição 4.4 · Analista', href: `/orc/posicoes?ano=${e.ano}&cc=4.4&editar=${e.posicao.id}`, tipo: 'posicao' }],
       },
     ]);
     // A chamada vai em nome da pessoa, nunca do sistema.
@@ -374,7 +398,119 @@ describe('processarRevisao', () => {
     expect((r.achados as unknown[]).length).toBe(4);
   });
 
-  it.each<CodigoErroIA>(['ia.indisponivel', 'ia.teto_atingido', 'ia.limite_tokens', 'ia.saida_invalida'])('%s: CONCLUIDA com as regras e o aviso com a mensagem do erro', async (codigo) => {
+  it.each<[string, (p: { id: string }) => Promise<unknown>, string[]]>([
+    ['bloqueada', (p) => migrator.usuario.update({ where: { id: p.id }, data: { bloqueado: true } }), []],
+    ['que perdeu orc.aprovacao:executar', (p) => migrator.usuarioExcecao.create({ data: { usuarioId: p.id, perfilId: perfilGfin, funcionalidadeCodigo: 'orc.aprovacao' } }), []],
+    ['que ganhou CC de escopo', (p) => migrator.usuario.update({ where: { id: p.id }, data: { ccEscopo: '4.3' } }), []],
+  ])('pessoa %s entre o pedido e o processamento: sem chamada, só as regras, com o aviso', async (_nome, mudar) => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id });
+    const id = await pedir(e, p.id);
+    await mudar(p);
+    await processarRevisao(id, depsRev());
+    expect(falso.chamadas).toHaveLength(0);
+    expect(await revisao(id)).toMatchObject({ situacao: 'CONCLUIDA', avisos: [MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
+  });
+
+  it('sistema em manutenção: sem chamada, só as regras, com o aviso', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id });
+    const id = await pedir(e, p.id);
+    await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: true } });
+    try {
+      await processarRevisao(id, depsRev());
+    } finally {
+      await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: false } });
+    }
+    expect(falso.chamadas).toHaveLength(0);
+    expect(await revisao(id)).toMatchObject({ situacao: 'CONCLUIDA', avisos: [MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
+  });
+
+  it('sem orc.pacotes:consultar: nem pacotes nem totais na mensagem, com o aviso', async () => {
+    const p = await gfin(['orc.pacotes']);
+    const e = await exercicio({ solicitante: p.id });
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev());
+    expect(falso.chamadas).toHaveLength(1);
+    const m = falso.chamadas[0]!.mensagem;
+    expect(m).not.toContain('PAC-');
+    expect(m).not.toContain('Totais por CC');
+    expect(m).not.toContain('Cadeiras novas');
+    expect(m).toContain('POS-1');
+    expect((await revisao(id)).avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_PACOTES]);
+  });
+
+  it('tempo esgotado: CONCLUIDA com o aviso do tempo, não o do cancelamento', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id, anterior: false });
+    // Provedor lento: responde depois do tempo limite; a governança e o provedor real dão ia.cancelada.
+    const lento: ProvedorIA = {
+      ...falso,
+      async gerarEstruturado(pedido, schema) {
+        await new Promise((r) => setTimeout(r, 200));
+        if (pedido.sinal?.aborted) throw new ErroIA('ia.cancelada');
+        return falso.gerarEstruturado(pedido, schema);
+      },
+    };
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ ia: criarServicoIA({ cliente: app, obterProvedor: () => lento }), sinalIa: () => AbortSignal.timeout(20) }));
+    expect((await revisao(id)).avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_ERRO_IA(MENSAGENS_ORC.IA_TEMPO_ESGOTADO)]);
+  });
+
+  it('PENDENTE parada há mais de 15 minutos: o worker conclui como FALHOU, sem chamar a IA', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id, anterior: false });
+    const id = await pedir(e, p.id);
+    await migrator.$executeRaw`UPDATE orc_revisao SET criado_em = criado_em - interval '16 minutes' WHERE id = ${id}::uuid`;
+    await processarRevisao(id, depsRev());
+    expect(falso.chamadas).toHaveLength(0);
+    expect(await revisao(id)).toMatchObject({ situacao: 'FALHOU', avisos: [MENSAGENS_ORC.REVISAO_PARADA], achados: [] });
+  });
+
+  it('erro depois das regras: FALHOU, mas com os achados das regras', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id, anterior: false });
+    const id = await pedir(e, p.id);
+    const pessoa = {
+      obterUsuarioParaSessao,
+      manutencaoEfetiva,
+      obterConfiguracaoAcesso,
+      obterEscopo: obterEscopoCentroCusto,
+      carregarPermissoes: (async () => Promise.reject(new Error('banco fora'))) as unknown as typeof carregarPermissoes,
+    };
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await processarRevisao(id, depsRev({ pessoa }));
+    erro.mockRestore();
+    const r = await revisao(id);
+    expect(r).toMatchObject({ situacao: 'FALHOU', avisos: [MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_PARADA] });
+    expect((r.achados as { tipo: string }[]).map((a) => a.tipo)).toEqual(['DUPLICADO', 'DESEJAVEIS_ACIMA_DO_TETO']);
+  });
+
+  it('a tela filtra pelo alcance de quem vê: duas pessoas, achados diferentes', async () => {
+    const p = await gfin();
+    const e = await exercicio({ solicitante: p.id });
+    falso.roteiro.estruturado = {
+      achados: [
+        { tipo: 'JUSTIFICATIVA_FRACA', referencias: [{ tipo: 'pacote', id: 'PAC-3' }], texto: 'Pacote sem quantidade.' },
+        { tipo: 'CONTA_INCOERENTE', referencias: [{ tipo: 'posicao', id: 'POS-1' }], texto: 'Posição estranha.' },
+      ],
+    };
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev());
+    const ver = async (permissoes: string[]) => (await ultimaRevisao(ctx(p.id, permissoes), e.id, { cliente: app, obterEscopo: async () => null }))!.achados.map((a) => a.texto);
+    const tudo = await ver(VE_TUDO);
+    expect(tudo).toHaveLength(6);
+    expect(tudo).toEqual(expect.arrayContaining(['Pacote sem quantidade.', 'Posição estranha.']));
+    // Consulta pacotes e posições, mas não vê salário: sai a R2 do par de pessoal (CC 4.4).
+    const semSalario = await ver([...APROVACAO, perm('orc.pacotes', 'consultar'), perm('orc.posicoes', 'consultar')]);
+    expect(semSalario).toHaveLength(5);
+    expect(semSalario.some((t) => t.startsWith('CC 4.4,'))).toBe(false);
+    // Só a aprovação: fica a R2 do par sem pessoal (os pacotes e as posições saem).
+    const so = await ver(APROVACAO);
+    expect(so).toEqual([expect.stringMatching(/^CC 4\.3\.2\.11, conta 4\.1\.1\.5\.005:/)]);
+  });
+
+  it.each<CodigoErroIA>(['ia.indisponivel', 'ia.teto_atingido', 'ia.limite_tokens', 'ia.saida_invalida', 'ia.desabilitada'])('%s: CONCLUIDA com as regras e o aviso com a mensagem do erro', async (codigo) => {
     const p = await gfin();
     const e = await exercicio({ solicitante: p.id, anterior: false });
     if (codigo === 'ia.saida_invalida') falso.roteiro.estruturado = { achados: [{ tipo: 'INVENTADO', referencias: [], texto: '' }] };

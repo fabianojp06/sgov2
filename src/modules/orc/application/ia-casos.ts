@@ -46,12 +46,14 @@ export const CASOS_IA_ORC = {
     codigo: 'orc.ia_revisor',
     nome: 'Revisor de consistência antes do envio',
     funcionalidade: 'orc.ia_revisor',
-    versaoInstrucao: 1,
+    // 2: os limites da resposta (US-064, revisão 12.12).
+    versaoInstrucao: 2,
     padrao: { esforco: 'medium' },
     instrucaoSistema: [
       'Você revisa a consistência do orçamento da Administração Central antes do envio para aprovação.',
       REGRAS_GERAIS,
       'Aponte justificativas fracas, contas incoerentes com a justificativa e lançamentos provavelmente duplicados. Cada achado cita os ids recebidos na mensagem. Não refaça contas: os achados de número são do sistema.',
+      'Limites: no máximo 30 achados, cada um com no máximo 50 referências e um texto de no máximo 1000 caracteres. O que passar disso é descartado.',
     ].join('\n'),
   },
 } as const satisfies Record<string, DefinicaoCasoUsoIA>;
