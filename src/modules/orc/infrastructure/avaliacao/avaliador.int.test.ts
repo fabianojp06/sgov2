@@ -5,12 +5,11 @@ import { registrarTrabalhadoresInt } from '@/modules/int/servidor';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import type { FilaGerenciada } from '@/shared/filas';
 import { criarProvedorIAFalso, criarServicoIA, ErroIA, FILA_AVALIACAO_IA, type AvaliadorCasoIA } from '@/shared/ia';
-import { ErroDominio } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../../tests/integracao/banco';
 import { CASOS_IA_ORC } from '../../application/ia-casos';
 import { FUNCOES_PESSOA_IA } from '../../application/ia-pessoa';
 import { seedOrc } from '../seed';
-import { criarAvaliadorSugestaoConta, MSG_AVALIACAO_SEM_ACESSO, type DepsAvaliadorSugestaoConta } from './avaliador';
+import { criarAvaliadorSugestaoConta, type DepsAvaliadorSugestaoConta } from './avaliador';
 
 // Avaliador da sugestão de conta na fila ia.avaliar (US-062, #403), num Postgres real: a pessoa
 // remontada do banco (perfil GFIN da seed), a governança da frente B (servicoIA) com o provedor falso e
@@ -183,7 +182,7 @@ describe('avaliadorSugestaoConta', () => {
     expect(await criarAvaliadorSugestaoConta(deps())(pedido(id))).toEqual({ total: 3, acertos: 0, resumo: { errosIa: 3, taxa: 0, foraDaLista: 0 } });
   });
 
-  it('pessoa inativa, bloqueada, sem a permissão do caso ou com CC de escopo: erro de domínio, sem chamar a IA', async () => {
+  it('pessoa inativa, bloqueada, sem a permissão do caso ou com CC de escopo: ErroIA ia.sem_permissao, sem chamar a IA', async () => {
     const inativa = await gfin();
     await migrator.usuario.update({ where: { id: inativa }, data: { ativo: false } });
     const bloqueada = await gfin();
@@ -195,9 +194,18 @@ describe('avaliadorSugestaoConta', () => {
     const antes = await chamadas();
     for (const [av, id] of [[avaliar, inativa], [avaliar, bloqueada], [avaliar, semPermissao], [escopo, comEscopo], [avaliar, '00000000-0000-0000-0000-000000000009']] as [AvaliadorCasoIA, string][]) {
       const p = av(pedido(id));
-      await expect(p).rejects.toBeInstanceOf(ErroDominio);
-      await expect(p).rejects.toThrow(MSG_AVALIACAO_SEM_ACESSO);
+      await expect(p).rejects.toBeInstanceOf(ErroIA);
+      await expect(p).rejects.toMatchObject({ codigo: 'ia.sem_permissao' });
     }
+    expect(falso.chamadas).toHaveLength(0);
+    expect(await chamadas()).toBe(antes);
+  });
+
+  it('sem conta oferecida (plano de contas vazio): nenhum acerto e nenhuma chamada à IA', async () => {
+    const id = await gfin();
+    const antes = await chamadas();
+    const r = await criarAvaliadorSugestaoConta(deps({ estrutura: estruturaFinanceiraFalsa({ contas: [] }) }))(pedido(id));
+    expect(r).toEqual({ total: 3, acertos: 0, resumo: { errosIa: 0, taxa: 0, foraDaLista: 3 } });
     expect(falso.chamadas).toHaveLength(0);
     expect(await chamadas()).toBe(antes);
   });
@@ -226,13 +234,12 @@ describe('no trabalhador da fila ia.avaliar (int)', () => {
     expect(a).toMatchObject({ situacao: 'CONCLUIDA', total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3 }, erro: null });
   });
 
-  it('pessoa sem a permissão: FALHOU com a mensagem genérica, sem o texto do erro', async () => {
+  it('pessoa sem a permissão: FALHOU com a mensagem fixa de sem permissão da IA', async () => {
     const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
     const a = await rodar(await gfin([CASOS_IA_ORC.sugestaoConta.funcionalidade]));
     erro.mockRestore();
     expect(a.situacao).toBe('FALHOU');
-    expect(a.erro).not.toBe(MSG_AVALIACAO_SEM_ACESSO);
-    expect(a.erro).toMatch(/A avaliação falhou/);
+    expect(a.erro).toBe(new ErroIA('ia.sem_permissao').message);
     expect(falso.chamadas).toHaveLength(0);
   });
 });

@@ -1,7 +1,6 @@
 import { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas, obterPremissasExercicio } from '@/modules/cad/servidor';
 import { prisma } from '@/shared/db';
-import { servicoIA, type AvaliadorCasoIA, type ServicoIA } from '@/shared/ia';
-import { ErroDominio } from '@/shared/kernel';
+import { ErroIA, servicoIA, type AvaliadorCasoIA, type ServicoIA } from '@/shared/ia';
 import type { DepsOrc } from '../../application/deps';
 import { CASOS_IA_ORC } from '../../application/ia-casos';
 import { FUNCOES_PESSOA_IA, remontarPessoaIA, type DepsPessoaIA } from '../../application/ia-pessoa';
@@ -19,8 +18,6 @@ import casosJson from './sugestao-conta.casos.json';
 
 const CASO = CASOS_IA_ORC.sugestaoConta;
 const PERMISSAO = `${CASO.funcionalidade}:executar`;
-// [PROVISÓRIO] O trabalhador do int mostra na tela só a mensagem do ErroIA; esta fica no log pelo nome.
-export const MSG_AVALIACAO_SEM_ACESSO = 'Quem pediu a avaliação não pode usar a sugestão de conta da IA.';
 
 export type DepsAvaliadorSugestaoConta = DepsPessoaIA & {
   ia: ServicoIA;
@@ -62,7 +59,8 @@ export function criarAvaliadorSugestaoConta(depsParciais: Partial<DepsAvaliadorS
   return async ({ usuarioId, sinal }) => {
     const deps = resolver(depsParciais);
     const pessoa = await remontarPessoaIA(usuarioId, PERMISSAO, deps);
-    if (!pessoa) throw new ErroDominio('orc.avaliacao_sem_acesso', MSG_AVALIACAO_SEM_ACESSO);
+    // ErroIA: o trabalhador do int mostra a mensagem fixa dele na tela (repetir não adianta), sem dado pessoal.
+    if (!pessoa) throw new ErroIA('ia.sem_permissao');
     // Muitas chamadas seguidas da mesma pessoa: fora do limite por minuto (permissão, chaves, teto e
     // registro continuam). A marca só vale em infrastructure/ e no worker (fronteira da IA).
     const quem = { ...pessoa, isentoLimitePorMinuto: true as const };
@@ -78,6 +76,8 @@ export function criarAvaliadorSugestaoConta(depsParciais: Partial<DepsAvaliadorS
     // Casos que não podem acertar: a conta esperada não está na lista oferecida (vetada, inativa ou fora
     // do plano). Ficam no total e aparecem no resumo, para a taxa ser lida com eles à vista.
     const foraDaLista = deps.casos.filter((x) => !oferecidas.has(x.contaEsperada)).length;
+    // Sem conta oferecida (plano de contas ainda não carregado), nenhum caso pode acertar: não chama a IA.
+    if (listas.contas.length === 0) return { total: deps.casos.length, acertos: 0, resumo: { errosIa: 0, taxa: 0, foraDaLista } };
     const r = await avaliarSugestaoConta(deps.ia, quem, deps.casos, { ...listas, ...deps.opcoes, sinalGeral: sinal });
     return { total: r.total, acertos: r.acertosTop3, resumo: { errosIa: r.errosIa, taxa: r.taxa, foraDaLista } };
   };
