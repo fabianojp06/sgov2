@@ -119,6 +119,9 @@ describe('criarProvedorAnthropic', () => {
     })();
     const e = await erro(consumir);
     expect([e.codigo, e.temporario]).toEqual(['ia.indisponivel', true]);
+    // O uso já informado no message_start vai no erro, para o registro do custo.
+    expect(e.detalhes.uso?.entrada).toBe(120);
+    expect(e.detalhes.modelo).toBe('claude-opus-5-5');
   });
 
   it('resposta ilegível: ia.indisponivel, sem copiar o corpo na mensagem', async () => {

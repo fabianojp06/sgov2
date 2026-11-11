@@ -56,9 +56,14 @@ export type CodigoErroIA =
   | 'ia.indisponivel' // 429, 5xx, rede ou tempo esgotado, depois das novas tentativas
   | 'ia.requisicao_invalida' // 400, 404, 422: erro de quem chamou, sem nova tentativa
   | 'ia.autenticacao' // 401, 403: chave inválida ou sem permissão
-  | 'ia.cancelada';
+  | 'ia.cancelada'
+  // Governança (US-019): recusas antes de chamar o provedor.
+  | 'ia.desligada' // chave geral, caso de uso inativo ou teto não definido
+  | 'ia.sem_permissao' // sem "<funcionalidade>:executar"
+  | 'ia.limite_usuario' // chamadas por minuto da pessoa
+  | 'ia.teto_atingido'; // teto mensal de custo (do caso ou global): desligada até o próximo mês
 
-const TEMPORARIOS: ReadonlySet<CodigoErroIA> = new Set(['ia.indisponivel']);
+const TEMPORARIOS: ReadonlySet<CodigoErroIA> = new Set(['ia.indisponivel', 'ia.limite_usuario']);
 
 /**
  * Erro tipado da IA. A mensagem é fixa por código: nunca leva o texto enviado nem a resposta do
@@ -68,7 +73,8 @@ export class ErroIA extends Error {
   readonly temporario: boolean;
   constructor(
     readonly codigo: CodigoErroIA,
-    readonly detalhes: { status?: number; categoria?: string | null } = {},
+    // uso e modelo: quando a resposta chegou (recusa, corte, saída inválida), para o registro do custo.
+    readonly detalhes: { status?: number; categoria?: string | null; uso?: UsoIA; modelo?: string } = {},
   ) {
     super(MENSAGENS[codigo]);
     this.name = 'ErroIA';
@@ -85,4 +91,8 @@ const MENSAGENS: Record<CodigoErroIA, string> = {
   'ia.requisicao_invalida': 'O pedido à IA é inválido.',
   'ia.autenticacao': 'A credencial da IA é inválida.',
   'ia.cancelada': 'O pedido à IA foi cancelado.',
+  'ia.desligada': 'A IA está desligada para esta função.',
+  'ia.sem_permissao': 'Você não tem permissão para usar a IA nesta função.',
+  'ia.limite_usuario': 'Muitos pedidos à IA em pouco tempo. Aguarde um minuto e tente de novo.',
+  'ia.teto_atingido': 'O limite mensal de custo da IA foi atingido. As funções de IA ficam desligadas até o próximo mês; o resto do sistema segue normal.',
 };

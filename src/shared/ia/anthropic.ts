@@ -87,7 +87,7 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
         );
         conferir(m);
         const lido = schema.safeParse(jsonOuNada(texto(m)));
-        if (!lido.success) throw new ErroIA('ia.saida_invalida');
+        if (!lido.success) throw new ErroIA('ia.saida_invalida', { uso: uso(m.usage), modelo: m.model });
         return resposta(m, lido.data as z.infer<S>, inicio);
       } catch (e) {
         return traduzir(e);
@@ -96,9 +96,13 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
 
     async *gerarStream(p): AsyncGenerator<EventoStreamIA> {
       const inicio = agora();
+      // Uso acumulado: num erro ou cancelamento no meio, vai no ErroIA, para o registro do custo.
+      let parcial: { uso: UsoIA; modelo: string } | null = null;
       try {
         const stream = cliente.beta.messages.stream({ ...parametros(p), output_config: { effort: p.esforco ?? ESFORCO_PADRAO } }, opcoes(p));
         for await (const ev of stream) {
+          if (ev.type === 'message_start') parcial = { uso: uso(ev.message.usage), modelo: ev.message.model };
+          if (ev.type === 'message_delta' && parcial) parcial = { ...parcial, uso: { ...parcial.uso, saida: ev.usage.output_tokens } };
           if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') yield { tipo: 'texto', texto: ev.delta.text };
           // O modelo principal recusou no meio e o de fallback continua: a tela descarta o que já mostrou.
           if (ev.type === 'content_block_start' && ev.content_block.type === 'fallback') yield { tipo: 'reinicio' };
@@ -107,7 +111,12 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
         conferir(m);
         yield { tipo: 'fim', resposta: resposta(m, texto(m), inicio) };
       } catch (e) {
-        traduzir(e);
+        try {
+          traduzir(e);
+        } catch (x) {
+          if (x instanceof ErroIA && parcial && !x.detalhes.uso) throw new ErroIA(x.codigo, { ...x.detalhes, ...parcial });
+          throw x;
+        }
       }
     },
   };
@@ -115,8 +124,9 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
 
 /** Recusa e corte antes de ler o conteúdo. */
 function conferir(m: Mensagem): void {
-  if (m.stop_reason === 'refusal') throw new ErroIA('ia.recusa', { categoria: m.stop_details?.category ?? null });
-  if (m.stop_reason === 'max_tokens' || m.stop_reason === 'model_context_window_exceeded') throw new ErroIA('ia.limite_tokens');
+  const gasto = { uso: uso(m.usage), modelo: m.model };
+  if (m.stop_reason === 'refusal') throw new ErroIA('ia.recusa', { categoria: m.stop_details?.category ?? null, ...gasto });
+  if (m.stop_reason === 'max_tokens' || m.stop_reason === 'model_context_window_exceeded') throw new ErroIA('ia.limite_tokens', gasto);
 }
 
 function jsonOuNada(t: string): unknown {
