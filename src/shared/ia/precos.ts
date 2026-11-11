@@ -14,6 +14,9 @@ const PRECOS: Readonly<Record<string, Preco>> = {
 };
 const MAIS_CARO = PRECOS['claude-fable-5-1']!;
 
+/** Os modelos que a tela de cadastro oferece: os da tabela de preços (o custo estimado é exato). */
+export const MODELOS_IA: readonly string[] = Object.keys(PRECOS);
+
 const CASAS = 8;
 const ESCALA = 10n ** BigInt(CASAS);
 

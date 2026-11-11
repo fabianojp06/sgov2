@@ -1,0 +1,15 @@
+import { describe, expect, it } from 'vitest';
+import { formatarDolar, mensagemTeto } from './cadastro-ia';
+
+describe('cadastro da IA: textos', () => {
+  it('formata dólar em pt-BR a partir do texto canônico', () => {
+    expect(formatarDolar('1234.5')).toBe('US$ 1.234,50');
+    expect(formatarDolar('0.00')).toBe('US$ 0,00');
+    expect(formatarDolar('9999999999.99')).toBe('US$ 9.999.999.999,99');
+  });
+
+  it('aviso de teto: global desliga tudo; do caso, só ele', () => {
+    expect(mensagemTeto('11/2026', 'global')).toMatch(/todas as funções de IA estão desligadas até o próximo mês\. O resto do sistema segue normal\./);
+    expect(mensagemTeto('11/2026', 'Sugestão de conta')).toMatch(/"Sugestão de conta" foi atingido em 11\/2026/);
+  });
+});
