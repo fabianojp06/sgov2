@@ -97,3 +97,13 @@ model IaReserva {
   @@index([criadoEm])
   @@map("ia_reserva")
 }
+
+// Sinal de vida dos processos (US-017): o worker grava o seu a cada ciclo do outbox que dá certo, e o
+// endpoint de saúde (/int/saude) o considera parado quando o sinal tem mais de 60 s. A hora é sempre a
+// do banco (clock_timestamp), para não depender do relógio de cada contêiner.
+model SinalVida {
+  componente   String   @id
+  atualizadoEm DateTime @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@map("sinal_vida")
+}

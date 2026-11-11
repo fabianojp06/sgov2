@@ -3,3 +3,5 @@
 export { acaoAlterarCasoUsoIA, acaoAlterarConfiguracaoIA } from './application/acoes-ia';
 export { obterTelaIA, type CasoUsoTela, type TelaIA } from './application/ia';
 export { CadastroIA } from './ui/cadastro-ia';
+// Saúde do sistema (US-017), para o endpoint público /int/saude.
+export { verificarSaude, type EstadoSaude } from './application/saude';
