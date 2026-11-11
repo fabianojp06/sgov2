@@ -162,17 +162,6 @@ export function problemasDePagina(texto: string): string[] {
   const problemas = assincrona && guardada ? [] : ['a página do sistema precisa começar com await exigirPagina(...)'];
   if (!importaExigirPagina(arquivo)) problemas.push("exigirPagina precisa ser importado de '@/shared/authz'");
   for (const s of arquivo.statements) {
-    // Reexportação (`export { POST } from …`, `export { x as POST }`, `export * from …`): conta o nome
-    // exportado; `export *` não deixa ver os nomes, então é reprovado.
-    if (ts.isExportDeclaration(s)) {
-      if (!s.exportClause) problemas.push('rota pública não pode usar export *');
-      else if (ts.isNamedExports(s.exportClause)) {
-        for (const e of s.exportClause.elements) {
-          if (METODOS.has(e.name.text) && e.name.text !== 'GET') problemas.push(`rota pública só com GET: ${e.name.text} precisa de definirRota`);
-        }
-      } else problemas.push('rota pública não pode usar export * as');
-      continue;
-    }
     if (!exportado(s)) continue;
     const nomes = ts.isVariableStatement(s)
       ? s.declarationList.declarations.map((d) => d.name.getText(arquivo))
@@ -191,6 +180,17 @@ export function problemasDeRotaPublica(texto: string): string[] {
   const arquivo = analisar(texto);
   const problemas: string[] = [];
   for (const s of arquivo.statements) {
+    // Reexportação (`export { POST } from …`, `export { x as POST }`, `export * from …`): conta o nome
+    // exportado; `export *` não deixa ver os nomes, então é reprovado.
+    if (ts.isExportDeclaration(s)) {
+      if (!s.exportClause) problemas.push('rota pública não pode usar export *');
+      else if (ts.isNamedExports(s.exportClause)) {
+        for (const e of s.exportClause.elements) {
+          if (METODOS.has(e.name.text) && e.name.text !== 'GET') problemas.push(`rota pública só com GET: ${e.name.text} precisa de definirRota`);
+        }
+      } else problemas.push('rota pública não pode usar export * as');
+      continue;
+    }
     if (!exportado(s)) continue;
     const nomes = ts.isVariableStatement(s)
       ? s.declarationList.declarations.map((d) => d.name.getText(arquivo))
