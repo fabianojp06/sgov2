@@ -65,7 +65,7 @@ const deps = (extra: Partial<DepsAvaliadorSugestaoConta> = {}): Partial<DepsAval
   opcoes: { esperar: async () => undefined },
   ...extra,
 });
-const pedido = (usuarioId: string) => ({ avaliacaoId: '00000000-0000-0000-0000-000000000000', casoUsoCodigo: CASO, usuarioId });
+const pedido = (usuarioId: string) => ({ avaliacaoId: '00000000-0000-0000-0000-000000000000', casoUsoCodigo: CASO, usuarioId, sinal: new AbortController().signal });
 const chamadas = async () =>
   (await migrator.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM ia_chamada WHERE caso_uso_codigo = $1`, CASO))[0]!.n;
 
@@ -124,6 +124,18 @@ describe('avaliadorSugestaoConta', () => {
     expect(falso.chamadas).toHaveLength(3);
   });
 
+  it('isenta do limite por minuto: com limite 1, os 3 casos passam e ficam registrados', async () => {
+    const id = await gfin();
+    const antes = await chamadas();
+    await migrator.$executeRawUnsafe(`UPDATE ia_configuracao SET limite_por_minuto = 1`);
+    try {
+      expect(await criarAvaliadorSugestaoConta(deps())(pedido(id))).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3 } });
+    } finally {
+      await migrator.$executeRawUnsafe(`UPDATE ia_configuracao SET limite_por_minuto = 1000`);
+    }
+    expect(await chamadas()).toBe(antes + 3);
+  });
+
   it('listas do formulário com escopo TOTAL: sem as vetadas (raiz de pessoal e premissas do exercício mais recente), com todos os CCs analíticos', async () => {
     const id = await gfin();
     await criarAvaliadorSugestaoConta(deps({ casos: CASOS.slice(0, 1) }))(pedido(id));
@@ -161,8 +173,7 @@ describe('avaliadorSugestaoConta', () => {
 
   it('sinal da avaliação abortado: para com ErroIA ia.cancelada, sem contar os casos como erro da IA', async () => {
     const id = await gfin();
-    const sinal = AbortSignal.abort();
-    const p = criarAvaliadorSugestaoConta(deps())({ ...pedido(id), sinal } as Parameters<AvaliadorCasoIA>[0]);
+    const p = criarAvaliadorSugestaoConta(deps())({ ...pedido(id), sinal: AbortSignal.abort() });
     await expect(p).rejects.toBeInstanceOf(ErroIA);
     await expect(p).rejects.toMatchObject({ codigo: 'ia.cancelada' });
     expect(falso.chamadas).toHaveLength(0);

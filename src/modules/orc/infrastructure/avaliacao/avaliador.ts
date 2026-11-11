@@ -1,6 +1,6 @@
 import { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas, obterPremissasExercicio } from '@/modules/cad/servidor';
 import { prisma } from '@/shared/db';
-import { servicoIA, type AvaliadorCasoIA, type PedidoAvaliacaoIA, type ServicoIA } from '@/shared/ia';
+import { servicoIA, type AvaliadorCasoIA, type ServicoIA } from '@/shared/ia';
 import { ErroDominio } from '@/shared/kernel';
 import type { DepsOrc } from '../../application/deps';
 import { CASOS_IA_ORC } from '../../application/ia-casos';
@@ -12,7 +12,7 @@ import casosJson from './sugestao-conta.casos.json';
 // Avaliador da sugestão de conta na avaliação genérica de casos de IA (US-062, #403; fila ia.avaliar do
 // int, US-019). O Administrador pede na tela /int/ia; o worker roda este avaliador em nome de quem
 // pediu, remontado do banco como no revisor: ativa, sem bloqueio, sistema fora de manutenção, sem CC de
-// escopo e com a permissão do caso. As listas são as do formulário do pacote com escopo TOTAL (contas
+// escopo e com a permissão do caso (o ADMINISTRADOR a tem pela seed). Uma execução só por avaliação. As listas são as do formulário do pacote com escopo TOTAL (contas
 // analíticas ativas sem as vetadas e todos os CCs analíticos ativos), sem a guarda de página. As
 // vetadas usam as premissas do exercício mais recente (sem exercício, só as raízes de pessoal). O
 // resultado leva só números: nenhum texto dos casos vai para a tela.
@@ -45,13 +45,14 @@ function resolver(d: Partial<DepsAvaliadorSugestaoConta>): DepsAvaliadorSugestao
 }
 
 export function criarAvaliadorSugestaoConta(depsParciais: Partial<DepsAvaliadorSugestaoConta> = {}): AvaliadorCasoIA {
-  return async (pedido) => {
+  // sinal: o da avaliação inteira (15 min, do trabalhador do int), combinado com o de cada caso.
+  return async ({ usuarioId, sinal }) => {
     const deps = resolver(depsParciais);
-    const { usuarioId } = pedido;
-    // O sinal da avaliação inteira (15 min, do trabalhador do int), quando o pedido o traz.
-    const sinalGeral = (pedido as PedidoAvaliacaoIA & { sinal?: AbortSignal }).sinal;
-    const quem = await remontarPessoaIA(usuarioId, PERMISSAO, deps);
-    if (!quem) throw new ErroDominio('orc.avaliacao_sem_acesso', MSG_AVALIACAO_SEM_ACESSO);
+    const pessoa = await remontarPessoaIA(usuarioId, PERMISSAO, deps);
+    if (!pessoa) throw new ErroDominio('orc.avaliacao_sem_acesso', MSG_AVALIACAO_SEM_ACESSO);
+    // Muitas chamadas seguidas da mesma pessoa: fora do limite por minuto (permissão, chaves, teto e
+    // registro continuam). A marca só vale em infrastructure/ e no worker (fronteira da IA).
+    const quem = { ...pessoa, isentoLimitePorMinuto: true as const };
     const c = deps.cliente;
     const [indice, ccs, contas, recente] = await Promise.all([
       deps.estrutura.carregarIndiceEstrutura(c),
@@ -61,7 +62,7 @@ export function criarAvaliadorSugestaoConta(depsParciais: Partial<DepsAvaliadorS
     ]);
     const premissas = recente ? await deps.obterPremissasExercicio(c, recente.ano) : null;
     const listas = listasPacote(indice, { ccs, contas }, premissas);
-    const r = await avaliarSugestaoConta(deps.ia, quem, deps.casos, { ...listas, ...deps.opcoes, ...(sinalGeral ? { sinalGeral } : {}) });
+    const r = await avaliarSugestaoConta(deps.ia, quem, deps.casos, { ...listas, ...deps.opcoes, sinalGeral: sinal });
     return { total: r.total, acertos: r.acertosTop3, resumo: { errosIa: r.errosIa, taxa: r.taxa } };
   };
 }
