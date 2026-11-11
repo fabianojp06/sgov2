@@ -8,7 +8,7 @@ import { instalarCasosUsoIA } from '@/shared/ia';
 import { ConflitoConcorrencia } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedInt } from '../infrastructure/seed';
-import { alterarCasoUsoIA, alterarConfiguracaoIA, MSG_LIMITE, MSG_MAX_TOKENS, MSG_TETO, obterTelaIA } from './ia';
+import { alterarCasoUsoIA, alterarConfiguracaoIA, MSG_LIMITE, MSG_MAX_TOKENS, MSG_ORIGEM_BLINDADA, MSG_TETO, obterTelaIA } from './ia';
 
 // Cadastro da IA (US-019 parte 2) num Postgres real (Testcontainers, D12): a tela lê a configuração,
 // os casos e o consumo do mês; as alterações conferem a versão e vão ao Histórico.
@@ -103,33 +103,46 @@ describe('tela', () => {
     expect(t.casos[0]).toMatchObject({ gastoMesUsd: '1.01', chamadasMes: 2, errosMes: 1, tetoAtingido: true });
     expect(t.configuracao).toMatchObject({ gastoMesUsd: '1.01', chamadasMes: 2, errosMes: 1, tetoAtingido: false });
   });
+
+  it('reserva aberta conta no teto, como na governança; vencida (mais de 15 min) não', async () => {
+    await migrator.query(`UPDATE ia_caso_uso SET teto_mensal_usd = 2`);
+    await migrator.query(`INSERT INTO ia_reserva (caso_uso_codigo, custo_maximo_usd, criado_em) VALUES ($1, 5, clock_timestamp() - interval '20 minutes')`, [CASO.codigo]);
+    expect((await obterTelaIA(ctx('consultar'), { cliente: app, agora: AGORA })).casos[0]!.tetoAtingido).toBe(false);
+    await migrator.query(`INSERT INTO ia_reserva (caso_uso_codigo, custo_maximo_usd) VALUES ($1, 1)`, [CASO.codigo]);
+    expect((await obterTelaIA(ctx('consultar'), { cliente: app, agora: AGORA })).casos[0]!.tetoAtingido).toBe(true);
+    await migrator.query('DELETE FROM ia_reserva');
+  });
 });
 
 describe('alterar a configuração geral', () => {
   it('sem alterar: ErroPermissao', async () => {
-    await expect(alterarConfiguracaoIA(ctx('consultar'), { versao: '1', limitePorMinuto: '5', tetoMensalUsd: '1' }, { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
+    await expect(alterarConfiguracaoIA(ctx('consultar'), { versao: '1', limitePorMinuto: '5', tetoGlobalUsd: '1' }, { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
   });
 
   it('valores inválidos: erro por campo, sem gravar', async () => {
-    const r = await alterarConfiguracaoIA(ADMIN(), { versao: '1', habilitada: 'sim', limitePorMinuto: '0', tetoMensalUsd: '-3' }, { cliente: app });
+    const r = await alterarConfiguracaoIA(ADMIN(), { versao: '1', habilitada: 'sim', limitePorMinuto: '0', tetoGlobalUsd: '-3' }, { cliente: app });
     expect(r).toEqual({
       ok: false,
       erros: [
         { campo: 'limitePorMinuto', mensagem: MSG_LIMITE },
-        { campo: 'tetoMensalUsd', mensagem: MSG_TETO },
+        { campo: 'tetoGlobalUsd', mensagem: MSG_TETO },
       ],
     });
     expect((await app.iaConfiguracao.findUniqueOrThrow({ where: { id: 1 } })).habilitada).toBe(false);
   });
 
-  it('campo a mais (origem blindada): recusado', async () => {
-    const r = await alterarConfiguracaoIA(ADMIN(), { versao: '1', limitePorMinuto: '5', tetoMensalUsd: '1', gastoMesUsd: '0' }, { cliente: app });
-    expect(r.ok).toBe(false);
+  it('campo calculado no pedido (origem blindada): erro de domínio, auditado, sem gravar', async () => {
+    await expect(
+      alterarConfiguracaoIA(ADMIN(), { versao: '1', limitePorMinuto: '5', tetoGlobalUsd: '1', gastoMesUsd: '0' }, { cliente: app }),
+    ).rejects.toMatchObject({ codigo: 'int.violacao_governanca', message: MSG_ORIGEM_BLINDADA });
+    expect((await historico()).at(-1)).toMatchObject({ registro_id: 'configuracao', depois: { campos: ['gastoMesUsd'] } });
+    const r = await alterarConfiguracaoIA(ADMIN(), { versao: '1', limitePorMinuto: '5', tetoGlobalUsd: '1', outro: 'x' }, { cliente: app });
+    expect(r).toEqual({ ok: false, erros: [{ campo: '', mensagem: 'Os dados enviados não são válidos. Recarregue a tela.' }] });
   });
 
   it('liga a IA, sobe a versão e vai ao Histórico; a versão velha é conflito', async () => {
     const versao = (await app.iaConfiguracao.findUniqueOrThrow({ where: { id: 1 } })).versao;
-    const r = await alterarConfiguracaoIA(ADMIN(), { versao: String(versao), habilitada: 'sim', limitePorMinuto: '1.000', tetoMensalUsd: '1.234,5' }, { cliente: app });
+    const r = await alterarConfiguracaoIA(ADMIN(), { versao: String(versao), habilitada: 'sim', limitePorMinuto: '1.000', tetoGlobalUsd: '1.234,5' }, { cliente: app });
     expect(r).toEqual({ ok: true, valor: { versao: versao + 1 } });
     expect(await app.iaConfiguracao.findUniqueOrThrow({ where: { id: 1 } })).toMatchObject({ habilitada: true, limitePorMinuto: 1000, versao: versao + 1 });
     expect((await historico()).at(-1)).toMatchObject({
@@ -138,14 +151,14 @@ describe('alterar a configuração geral', () => {
       antes: { habilitada: false, limitePorMinuto: 10, tetoMensalUsd: '100.00' },
       depois: { habilitada: true, limitePorMinuto: 1000, tetoMensalUsd: '1234.50' },
     });
-    await expect(alterarConfiguracaoIA(ADMIN(), { versao: String(versao), limitePorMinuto: '5', tetoMensalUsd: '1' }, { cliente: app })).rejects.toBeInstanceOf(
+    await expect(alterarConfiguracaoIA(ADMIN(), { versao: String(versao), limitePorMinuto: '5', tetoGlobalUsd: '1' }, { cliente: app })).rejects.toBeInstanceOf(
       ConflitoConcorrencia,
     );
   });
 
   it('desmarcar a caixa desliga', async () => {
     const versao = (await app.iaConfiguracao.findUniqueOrThrow({ where: { id: 1 } })).versao;
-    await alterarConfiguracaoIA(ADMIN(), { versao: String(versao), limitePorMinuto: '10', tetoMensalUsd: '100' }, { cliente: app });
+    await alterarConfiguracaoIA(ADMIN(), { versao: String(versao), limitePorMinuto: '10', tetoGlobalUsd: '100' }, { cliente: app });
     expect((await app.iaConfiguracao.findUniqueOrThrow({ where: { id: 1 } })).habilitada).toBe(false);
     expect((await historico()).at(-1)).toMatchObject({ descricao: 'IA desligada (chave geral)' });
   });
@@ -165,6 +178,14 @@ describe('alterar um caso de uso', () => {
     const r = await alterarCasoUsoIA(ADMIN(), { ...base, versao: '2', modelo: 'gpt', esforco: 'turbo', maxTokens: '200000', tetoMensalUsd: 'x' }, { cliente: app });
     expect(r.ok ? [] : r.erros.map((e) => e.campo)).toEqual(['modelo', 'esforco', 'maxTokens', 'tetoMensalUsd']);
     expect(r.ok ? null : r.erros.find((e) => e.campo === 'maxTokens')?.mensagem).toBe(MSG_MAX_TOKENS);
+  });
+
+  it('nome, permissão ou guardarTexto no pedido (vêm do código): auditado e recusado', async () => {
+    await expect(alterarCasoUsoIA(ADMIN(), { ...base, versao: '2', guardarTexto: 'sim', funcionalidade: 'adm.usuarios' }, { cliente: app })).rejects.toMatchObject({
+      codigo: 'int.violacao_governanca',
+    });
+    expect((await historico()).at(-1)).toMatchObject({ registro_id: CASO.codigo, depois: { campos: ['funcionalidade', 'guardarTexto'] } });
+    expect((await app.iaCasoUso.findUniqueOrThrow({ where: { codigo: CASO.codigo } })).versao).toBe(2);
   });
 
   it('versão velha: conflito; caso inexistente: erro geral', async () => {

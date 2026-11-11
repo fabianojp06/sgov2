@@ -10,10 +10,10 @@ export function lerDolar(texto: string): string | null {
   return `${BigInt(inteiro)}.${(m[2] ?? '').padEnd(2, '0')}`;
 }
 
-/** Inteiro de min a max, aceitando o ponto de milhar ("1.000"). */
+/** Inteiro de min a max, aceitando o ponto só como separador de milhar ("1.000"; "1.5" é recusado). */
 export function inteiroEntre(texto: string, min: number, max: number): number | null {
-  const t = texto.trim().replaceAll('.', '');
-  if (!/^\d{1,6}$/.test(t)) return null;
-  const n = Number(t);
+  const t = texto.trim();
+  if (!/^(\d{1,3}(?:\.\d{3})+|\d{1,6})$/.test(t)) return null;
+  const n = Number(t.replaceAll('.', ''));
   return n >= min && n <= max ? n : null;
 }

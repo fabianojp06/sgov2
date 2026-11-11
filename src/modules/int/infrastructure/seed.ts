@@ -16,7 +16,7 @@ export const FUNCIONALIDADES_INT: readonly DeclaracaoFuncionalidade[] = [
       'Liga e desliga a IA (chave geral e cada caso de uso), define o limite de pedidos por minuto de cada pessoa e os tetos ' +
       'mensais de custo, e mostra o consumo do mês. Tudo nasce desligado; ao atingir um teto, só a IA desliga até o mês seguinte.',
     acoes: ['consultar', 'alterar'],
-    nivelLog: 'AVANCADO',
+    // Simples: a consulta não vai ao Histórico; as alterações vão sempre (RN0104/RN0105).
     // Spec §4.4: configuração da IA é do Administrador; o Auditor confere o consumo.
     perfisPadrao: { ADMINISTRADOR: ['consultar', 'alterar'], AUDITOR: ['consultar'] },
   },

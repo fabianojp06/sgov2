@@ -27,5 +27,7 @@ describe('inteiroEntre', () => {
     expect(inteiroEntre('1001', 1, 1000)).toBeNull();
     expect(inteiroEntre('1,5', 1, 1000)).toBeNull();
     expect(inteiroEntre('dez', 1, 1000)).toBeNull();
+    // O ponto só separa milhar: decimal com ponto não vira dez vezes o valor.
+    for (const t of ['1.5', '4.5', '1.0.0', '.10.', '10.']) expect(inteiroEntre(t, 1, 128_000), t).toBeNull();
   });
 });
