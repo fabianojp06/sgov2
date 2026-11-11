@@ -29,12 +29,14 @@ model OrcamentoExercicio {
 }
 
 // Posição de pessoal (driver): cargo em texto livre na trilha (C34); salário sem cifra (D-P6-1).
+// cargoId: cargo do cadastro de C&S (P15, D-P15-1), sem FK (§12.7: a tabela cargo é da frente B).
 model PosicaoOrcada {
   id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   exercicioId   String              @map("exercicio_id") @db.Uuid
   exercicio     OrcamentoExercicio  @relation(fields: [exercicioId], references: [id], onDelete: Restrict)
   cc            String
   cargo         String
+  cargoId       String?             @map("cargo_id") @db.Uuid
   quantidade    Int
   salarioMensal Decimal             @map("salario_mensal") @db.Decimal(15, 2)
   mesInicio     Int                 @map("mes_inicio")
