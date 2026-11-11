@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { TxCliente } from '@/shared/db';
 import { ErroIA, type CodigoErroIA, type EsforcoIA, type EventoStreamIA, type PedidoIA, type ProvedorIA, type RespostaIA, type UsoIA } from './porta';
-import { custoEmUnidades, unidadesParaUsd, usdParaUnidades } from './precos';
+import { custoEmUnidades, MODELOS_IA, unidadesParaUsd, usdParaUnidades } from './precos';
 
 // Governança da IA (spec §4.4, US-019): o caminho dos módulos até a IA. Cada chamada passa, nesta
 // ordem, pela permissão RBAC do caso de uso ("<funcionalidade>:executar"), pela chave geral
@@ -29,6 +29,8 @@ export type DefinicaoCasoUsoIA = {
   instrucaoSistema: string;
   /** Guarda o texto da entrada e da saída por 90 dias (ia_chamada_texto). Padrão: só o hash. */
   guardarTexto?: boolean;
+  /** Configuração inicial, só na primeira instalação; depois vale a da tela de cadastro. */
+  padrao?: { modelo?: string; esforco?: EsforcoIA; maxTokens?: number };
 };
 
 /**
@@ -41,6 +43,12 @@ export const SISTEMA_IA = Object.freeze({ sistema: true as const });
 export type QuemPedeIA = { usuarioId: string; unidadeId?: string | null; permissoes: ReadonlySet<string> } | typeof SISTEMA_IA;
 
 export interface ServicoIA {
+  /**
+   * Se o caso responderia agora a quem pede: permissão, chave geral, caso ativo e tetos definidos e não
+   * atingidos. Não reserva nem registra; o limite por minuto fica de fora (é passageiro). Para a tela
+   * mostrar ou esconder o botão; a chamada confere tudo de novo.
+   */
+  disponivel(quem: QuemPedeIA, caso: DefinicaoCasoUsoIA): Promise<boolean>;
   gerarTexto(quem: QuemPedeIA, caso: DefinicaoCasoUsoIA, mensagem: string, sinal?: AbortSignal): Promise<RespostaIA<string>>;
   gerarEstruturado<S extends z.ZodType>(quem: QuemPedeIA, caso: DefinicaoCasoUsoIA, mensagem: string, schema: S, sinal?: AbortSignal): Promise<RespostaIA<z.infer<S>>>;
   gerarStream(quem: QuemPedeIA, caso: DefinicaoCasoUsoIA, mensagem: string, sinal?: AbortSignal): AsyncIterable<EventoStreamIA>;
@@ -72,15 +80,38 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
   // Um aviso de teto por escopo e mês, por processo: o log não repete a cada chamada recusada.
   const avisados = new Set<string>();
 
-  async function liberar(quem: QuemPedeIA, def: DefinicaoCasoUsoIA, mensagem: string): Promise<Liberada> {
-    const pessoa = 'sistema' in quem ? null : quem;
-    if (pessoa && !pessoa.permissoes.has(`${def.funcionalidade}:executar`)) throw new ErroIA('ia.sem_permissao');
+  const pessoaDe = (quem: QuemPedeIA) => ('sistema' in quem ? null : quem);
+  const permitido = (quem: QuemPedeIA, def: DefinicaoCasoUsoIA) => {
+    const pessoa = pessoaDe(quem);
+    return !pessoa || pessoa.permissoes.has(`${def.funcionalidade}:executar`);
+  };
+
+  /** A configuração e o caso, se a IA está ligada para ele (chave geral, caso ativo e tetos definidos); senão, null. */
+  async function ligado(def: DefinicaoCasoUsoIA) {
     const [config, caso] = await Promise.all([
       cliente.iaConfiguracao.findUnique({ where: { id: 1 } }),
       cliente.iaCasoUso.findUnique({ where: { codigo: def.codigo } }),
     ]);
     if (!caso) throw new Error(`caso de uso de IA não instalado: ${def.codigo}`);
-    if (!config?.habilitada || !caso.ativo || config.tetoMensalUsd.isZero() || caso.tetoMensalUsd.isZero()) throw new ErroIA('ia.desligada');
+    if (!config?.habilitada || !caso.ativo || config.tetoMensalUsd.isZero() || caso.tetoMensalUsd.isZero()) return null;
+    return { config, caso };
+  }
+
+  /** O escopo do teto atingido (o código do caso ou "global"), contando as reservas abertas; senão, null. */
+  async function tetoEstourado(tx: TxCliente, def: DefinicaoCasoUsoIA, l: NonNullable<Awaited<ReturnType<typeof ligado>>>, momento: Date): Promise<string | null> {
+    const desde = inicioDoMes(momento);
+    const reservasDesde = new Date(momento.getTime() - MINUTOS_RESERVA * 60_000);
+    const [doCaso, global] = await Promise.all([gasto(tx, desde, reservasDesde, def.codigo), gasto(tx, desde, reservasDesde)]);
+    if (doCaso >= usdParaUnidades(l.caso.tetoMensalUsd.toFixed(2))) return def.codigo;
+    return global >= usdParaUnidades(l.config.tetoMensalUsd.toFixed(2)) ? 'global' : null;
+  }
+
+  async function liberar(quem: QuemPedeIA, def: DefinicaoCasoUsoIA, mensagem: string): Promise<Liberada> {
+    const pessoa = pessoaDe(quem);
+    if (!permitido(quem, def)) throw new ErroIA('ia.sem_permissao');
+    const l = await ligado(def);
+    if (!l) throw new ErroIA('ia.desligada');
+    const { config, caso } = l;
     // Teto superior do gasto: cada token tem ao menos um caractere, e a saída não passa do max_tokens.
     const estimativa: UsoIA = { ...USO_ZERO, entrada: def.instrucaoSistema.length + mensagem.length, saida: caso.maxTokens };
     const momento = agora();
@@ -97,9 +128,7 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
         ]);
         if (feitas + abertas >= config.limitePorMinuto) throw new ErroIA('ia.limite_usuario');
       }
-      const [doCaso, global] = await Promise.all([gasto(tx, desde, reservasDesde, def.codigo), gasto(tx, desde, reservasDesde)]);
-      const estourado =
-        doCaso >= usdParaUnidades(caso.tetoMensalUsd.toFixed(2)) ? def.codigo : global >= usdParaUnidades(config.tetoMensalUsd.toFixed(2)) ? 'global' : null;
+      const estourado = await tetoEstourado(tx, def, l, momento);
       if (estourado) {
         const chave = `${estourado}:${desde.toISOString()}`;
         if (!avisados.has(chave)) {
@@ -205,6 +234,11 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
   }
 
   return {
+    async disponivel(quem, def) {
+      if (!permitido(quem, def)) return false;
+      const l = await ligado(def);
+      return l !== null && (await tetoEstourado(cliente, def, l, agora())) === null;
+    },
     gerarTexto: (quem, def, mensagem, sinal) => chamar(quem, def, mensagem, (p) => d.obterProvedor().gerarTexto(p), sinal),
     gerarEstruturado: (quem, def, mensagem, schema, sinal) => chamar(quem, def, mensagem, (p) => d.obterProvedor().gerarEstruturado(p, schema), sinal),
 
@@ -274,8 +308,12 @@ export async function instalarCasosUsoIA(tx: TxCliente, casos: readonly Definica
     if (!CODIGO_CASO.test(c.codigo) || !Number.isInteger(c.versaoInstrucao) || c.versaoInstrucao < 1) throw new Error(`caso de uso de IA inválido: ${c.codigo}`);
     const f = await tx.funcionalidade.findUnique({ where: { codigo: c.funcionalidade }, select: { acoes: true } });
     if (!f?.acoes.includes('executar')) throw new Error(`caso de uso de IA ${c.codigo}: a funcionalidade ${c.funcionalidade} não existe ou não tem a ação "executar"`);
+    const p = c.padrao ?? {};
+    if (p.modelo !== undefined && !MODELOS_IA.includes(p.modelo)) throw new Error(`caso de uso de IA ${c.codigo}: modelo fora da tabela de preços: ${p.modelo}`);
+    if (p.maxTokens !== undefined && !(Number.isInteger(p.maxTokens) && p.maxTokens >= 1 && p.maxTokens <= 128_000)) throw new Error(`caso de uso de IA ${c.codigo}: maxTokens inválido`);
     const doCodigo = { nome: c.nome, funcionalidade: c.funcionalidade, versaoInstrucao: c.versaoInstrucao, guardarTexto: c.guardarTexto ?? false };
-    await tx.iaCasoUso.upsert({ where: { codigo: c.codigo }, create: { codigo: c.codigo, ...doCodigo }, update: doCodigo });
+    const inicial = { ...(p.modelo ? { modelo: p.modelo } : {}), ...(p.esforco ? { esforco: p.esforco } : {}), ...(p.maxTokens ? { maxTokens: p.maxTokens } : {}) };
+    await tx.iaCasoUso.upsert({ where: { codigo: c.codigo }, create: { codigo: c.codigo, ...doCodigo, ...inicial }, update: doCodigo });
   }
 }
 

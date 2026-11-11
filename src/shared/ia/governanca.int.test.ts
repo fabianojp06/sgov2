@@ -59,7 +59,7 @@ beforeAll(async () => {
   migrator = new pg.Client({ connectionString: banco.urlMigrator });
   await migrator.connect();
   // A funcionalidade do caso, fora do menu, só com a ação executar (a do caso real vem da seed do módulo).
-  for (const [i, f] of [CASO, COM_TEXTO, TETO].map((c) => c.funcionalidade).entries()) {
+  for (const [i, f] of [CASO, COM_TEXTO, TETO].map((c) => c.funcionalidade).concat('rel.teste_ia_padrao').entries()) {
     await migrator.query(
       `INSERT INTO funcionalidade (codigo, modulo_codigo, grupo, nome, rota, ordem, acoes, exibir_no_menu)
        VALUES ($1, 'RELATORIOS', 'Testes', $1, '/rel/teste-ia', $2, ARRAY['executar'], false)`,
@@ -92,6 +92,11 @@ describe('tudo desligado por padrão', () => {
     expect(caso!.tetoMensalUsd.isZero()).toBe(true);
   });
 
+  it('desligada: disponivel é false, para a tela esconder o botão', async () => {
+    expect(await servico().disponivel(pessoa(0), CASO)).toBe(false);
+    expect(await servico().disponivel(SISTEMA_IA, CASO)).toBe(false);
+  });
+
   it('desligada: ia.desligada, sem chamar o provedor nem registrar', async () => {
     const antes = falso.chamadas.length;
     expect(await codigo(servico().gerarTexto(pessoa(0), CASO, 'oi'))).toBe('ia.desligada');
@@ -118,6 +123,17 @@ describe('ligada', () => {
   beforeAll(async () => {
     await ligar('UPDATE ia_configuracao SET habilitada = true, teto_mensal_usd = 1000, limite_por_minuto = 3');
     await ligar(`UPDATE ia_caso_uso SET ativo = true, teto_mensal_usd = 100 WHERE codigo IN ($1, $2)`, [CASO.codigo, COM_TEXTO.codigo]);
+  });
+
+  it('disponivel: com a permissão e tudo ligado, true; sem a permissão, false; não reserva nem registra', async () => {
+    const antes = (await migrator.query('SELECT count(*)::int AS n FROM ia_chamada')).rows[0].n;
+    expect(await servico().disponivel(pessoa(1), CASO)).toBe(true);
+    expect(await servico().disponivel(SISTEMA_IA, CASO)).toBe(true);
+    expect(await servico().disponivel(pessoa(1, ['rel.teste_ia:consultar']), CASO)).toBe(false);
+    // Caso inativo (o TETO ainda está desligado aqui).
+    expect(await servico().disponivel(SISTEMA_IA, TETO)).toBe(false);
+    expect((await migrator.query('SELECT count(*)::int AS n FROM ia_chamada')).rows[0].n).toBe(antes);
+    expect((await migrator.query('SELECT count(*)::int AS n FROM ia_reserva')).rows[0].n).toBe(0);
   });
 
   it('sem a permissão do caso: ia.sem_permissao, antes de olhar o banco', async () => {
@@ -246,7 +262,9 @@ describe('teto mensal', () => {
     await s.gerarTexto(SISTEMA_IA, TETO, 'um'); // US$ 20
     await s.gerarTexto(SISTEMA_IA, TETO, 'dois'); // US$ 40: passou de 30
     expect(await codigo(s.gerarTexto(SISTEMA_IA, TETO, 'três'))).toBe('ia.teto_atingido');
+    expect(await s.disponivel(SISTEMA_IA, TETO)).toBe(false);
     await expect(s.gerarTexto(SISTEMA_IA, CASO, 'outro caso')).resolves.toBeTruthy();
+    expect(await s.disponivel(SISTEMA_IA, CASO)).toBe(true);
   });
 
   it('global: a soma de todos os casos no mês desliga todos', async () => {
@@ -256,6 +274,7 @@ describe('teto mensal', () => {
     await ligar('UPDATE ia_configuracao SET teto_mensal_usd = floor($1::numeric)', [rows[0].s]);
     expect(await codigo(servico().gerarTexto(SISTEMA_IA, CASO, 'x'))).toBe('ia.teto_atingido');
     expect(await codigo(servico().gerarTexto(SISTEMA_IA, COM_TEXTO, 'x'))).toBe('ia.teto_atingido');
+    expect(await servico().disponivel(SISTEMA_IA, CASO)).toBe(false);
     await ligar('UPDATE ia_configuracao SET teto_mensal_usd = 1000');
   });
 });
@@ -311,5 +330,24 @@ describe('banco', () => {
     });
     await m.$disconnect();
     expect(await app.iaCasoUso.findUnique({ where: { codigo: CASO.codigo } })).toMatchObject({ nome: 'Novo nome', versaoInstrucao: 3, ativo: true, maxTokens: 1000 });
+  });
+
+  it('padrao da declaração: vale na primeira instalação; depois, a configuração da tela fica', async () => {
+    const m = criarPrisma(banco.urlMigrator);
+    const PADRAO: DefinicaoCasoUsoIA = {
+      ...CASO,
+      codigo: 'rel.teste_ia_padrao',
+      funcionalidade: 'rel.teste_ia_padrao',
+      padrao: { modelo: 'claude-opus-5', esforco: 'low', maxTokens: 2000 },
+    };
+    await executarSeeds(m, [{ nome: 'ia-padrao-1', executar: (tx) => instalarCasosUsoIA(tx, [PADRAO]) }]);
+    expect(await app.iaCasoUso.findUnique({ where: { codigo: PADRAO.codigo } })).toMatchObject({ modelo: 'claude-opus-5', esforco: 'low', maxTokens: 2000, ativo: false });
+    await executarSeeds(m, [{ nome: 'ia-padrao-2', executar: (tx) => instalarCasosUsoIA(tx, [{ ...PADRAO, padrao: { esforco: 'max', maxTokens: 9000 } }]) }]);
+    expect(await app.iaCasoUso.findUnique({ where: { codigo: PADRAO.codigo } })).toMatchObject({ esforco: 'low', maxTokens: 2000 });
+    const ruim = { ...PADRAO, codigo: 'rel.teste_ia_ruim', padrao: { modelo: 'gpt' } };
+    await expect(executarSeeds(m, [{ nome: 'ia-padrao-3', executar: (tx) => instalarCasosUsoIA(tx, [ruim]) }])).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: expect.stringMatching(/fora da tabela de preços/) }),
+    });
+    await m.$disconnect();
   });
 });
