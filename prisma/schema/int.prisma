@@ -9,6 +9,8 @@ model IaConfiguracao {
   habilitada      Boolean  @default(false)
   limitePorMinuto Int      @default(10) @map("limite_por_minuto")
   tetoMensalUsd   Decimal  @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
+  // Concorrência otimista da tela de cadastro (US-011).
+  versao          Int      @default(1)
   alteradoEm      DateTime @default(dbgenerated("clock_timestamp()")) @map("alterado_em") @db.Timestamptz(6)
 
   @@map("ia_configuracao")
@@ -29,6 +31,7 @@ model IaCasoUso {
   esforco         String      @default("medium")
   maxTokens       Int         @default(4000) @map("max_tokens")
   tetoMensalUsd   Decimal     @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
+  versao          Int         @default(1)
   chamadas        IaChamada[]
   reservas        IaReserva[]
 

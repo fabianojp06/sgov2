@@ -9,7 +9,8 @@ import type { z } from 'zod';
 /** Modelo padrão (spec §4.4). Cada caso de uso poderá trocar por configuração (US-019). */
 export const MODELO_PADRAO = 'claude-opus-5-5';
 
-export type EsforcoIA = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export const ESFORCOS_IA = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type EsforcoIA = (typeof ESFORCOS_IA)[number];
 
 export type PedidoIA = {
   /** Instrução do sistema (estável por caso de uso): vai em cache no prefixo. */

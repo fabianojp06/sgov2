@@ -9,6 +9,7 @@ import { criarProvedorIA } from './provedor';
 // Só no servidor e no worker: o SDK e a chave nunca vão ao navegador.
 export {
   ErroIA,
+  ESFORCOS_IA,
   MODELO_PADRAO,
   type CodigoErroIA,
   type EsforcoIA,
@@ -21,6 +22,7 @@ export {
 export {
   criarServicoIA,
   DIAS_RETENCAO_TEXTO,
+  inicioDoMes,
   instalarCasosUsoIA,
   limparIA,
   MINUTOS_RESERVA,
@@ -30,6 +32,7 @@ export {
   type QuemPedeIA,
   type ServicoIA,
 } from './governanca';
+export { MODELOS_IA } from './precos';
 // Para os testes dos módulos: um provedor com roteiro, entregue ao criarServicoIA.
 export { criarProvedorIAFalso, type ProvedorIAFalso, type RoteiroIAFalso } from './falso';
 
