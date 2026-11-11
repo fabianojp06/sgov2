@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { QUANTIDADE_MAXIMA, type IndiceEstruturaFinanceira, type NoCentroCusto, type NoConta, type PremissasExercicio } from '@/modules/cad/servidor';
+import { QUANTIDADE_MAXIMA, type IndiceEstruturaFinanceira, type PremissasExercicio } from '@/modules/cad/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import type { TxCliente } from '@/shared/db';
@@ -13,6 +13,7 @@ import { contextoAuditoria, ErroRecalculo, errosNaoEditavel, recalcularExercicio
 import { contasVetadasEmPacote } from './contas-vetadas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { resolverEscopo, type Escopo } from './escopo';
+import { listasPacote, type OpcaoEstrutura } from './opcoes-estrutura';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 // Pacotes base zero pela tela (US-057; plano do P11, Task 1). O Gestor de Diretoria lança só nos
@@ -47,7 +48,7 @@ export type PacoteTela = {
   meses: readonly Dinheiro[];
 };
 export type ListaPacotes = { pacotes: readonly PacoteTela[]; editavel: boolean };
-export type OpcaoEstrutura = { classificacao: string; descricao: string };
+export type { OpcaoEstrutura };
 export type OpcoesPacote = {
   ccs: readonly OpcaoEstrutura[];
   contas: readonly OpcaoEstrutura[];
@@ -105,11 +106,6 @@ export async function listarPacotes(ctx: ContextoRequisicao, exercicioId: string
   return { pacotes, editavel: editavel(e.situacao) };
 }
 
-// Analíticos ativos da árvore, em ordem (a árvore já vem ordenada pela classificação).
-function analiticos<T extends { classificacao: string; descricao: string; filhos: readonly T[] }>(nos: readonly T[], ehAnalitico: (n: T) => boolean): OpcaoEstrutura[] {
-  return nos.flatMap((n) => [...(ehAnalitico(n) ? [{ classificacao: n.classificacao, descricao: n.descricao }] : []), ...analiticos(n.filhos, ehAnalitico)]);
-}
-
 // Opções do formulário: CCs analíticos do escopo, contas permitidas (D-P11-3) e o IPCA do exercício.
 export async function opcoesPacote(ctx: ContextoRequisicao, exercicioId: string, depsParciais: Partial<DepsOrc> = {}): Promise<OpcoesPacote> {
   exigir(ctx, FUNCIONALIDADE, 'consultar');
@@ -122,10 +118,10 @@ export async function opcoesPacote(ctx: ContextoRequisicao, exercicioId: string,
     deps.estrutura.listarArvoreContas(deps.cliente),
     deps.custoPessoal.obterPremissasExercicio(deps.cliente, e.ano),
   ]);
-  const vetadas = contasVetadasEmPacote(indice, premissas);
+  const listas = listasPacote(indice, { ccs: arvoreCcs, contas: arvoreContas }, premissas);
   return {
-    ccs: analiticos<NoCentroCusto>(arvoreCcs, (n) => n.tipo === 'ANALITICO' && indice.centroCustoAnalitico(n.classificacao)).filter((c) => noEscopo(escopo, c.classificacao)),
-    contas: analiticos<NoConta>(arvoreContas, (n) => n.tipo === 'ANALITICA' && indice.contaAnaliticaAtiva(n.classificacao)).filter((c) => !vetadas.has(c.classificacao)),
+    ccs: listas.ccs.filter((c) => noEscopo(escopo, c.classificacao)),
+    contas: listas.contas,
     ipca: premissas ? premissas.ipca.paraString() : null,
     quantidadeMaxima: QUANTIDADE_MAXIMA,
     situacao: e.situacao,

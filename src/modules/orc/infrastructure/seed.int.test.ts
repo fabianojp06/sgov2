@@ -71,6 +71,15 @@ describe('seedOrc', () => {
     }
   });
 
+  it('casos de IA: só a sugestão de conta é avaliável (fila ia.avaliar, #403)', async () => {
+    const casos = await cliente.iaCasoUso.findMany({ where: { codigo: { startsWith: 'orc.' } }, select: { codigo: true, avaliavel: true }, orderBy: { codigo: 'asc' } });
+    expect(casos).toEqual([
+      { codigo: 'orc.ia_justificativa', avaliavel: false },
+      { codigo: 'orc.ia_revisor', avaliavel: false },
+      { codigo: 'orc.ia_sugestao_conta', avaliavel: true },
+    ]);
+  });
+
   it('segunda execução não muda nada', async () => {
     const antes = await cliente.$queryRawUnsafe(`SELECT count(*)::int AS n FROM historico_operacao`);
     await executarSeeds(cliente, [seedAdm, seedOrc]);

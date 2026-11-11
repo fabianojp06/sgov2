@@ -5,6 +5,11 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import type { FilaGerenciada } from '@/shared/filas';
 import { registrarTrabalhadorRevisor } from './infrastructure/trabalhador-revisor';
 
+// Avaliação de qualidade da sugestão de conta (US-062, #403): o worker registra o avaliador na fila
+// ia.avaliar do int, com o código do caso como chave.
+export { CASOS_IA_ORC } from './application/ia-casos';
+export { avaliadorSugestaoConta } from './infrastructure/avaliacao/avaliador';
+
 // Layout da planilha-modelo ADMC-ORC v1.0 (US-121): o gerador dos 5 exercícios da carga (P7, frente B,
 // pedido na #138) usa os mesmos cabeçalhos da importação, sem copiá-los. Constantes puras do domínio.
 export {
