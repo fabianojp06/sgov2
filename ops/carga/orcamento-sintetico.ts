@@ -1,4 +1,14 @@
 import ExcelJS from 'exceljs';
+import {
+  ABA_INSTRUCOES,
+  ABAS,
+  CELULA_LAYOUT,
+  COLUNAS_PACOTES,
+  COLUNAS_PESSOAL,
+  COLUNAS_RECEITAS,
+  LAYOUT,
+  LINHA_CABECALHO_MAX,
+} from '../../src/modules/orc/servidor';
 import minuta from '../../src/modules/cad/infrastructure/dados/cc-minuta-rev23102026.json';
 import oficial from '../../src/modules/cad/infrastructure/dados/plano-contas-oficial.json';
 
@@ -8,31 +18,10 @@ import oficial from '../../src/modules/cad/infrastructure/dados/plano-contas-ofi
 // vetadas, limites do leitor seguro (1 MiB, 20.000 linhas por aba) e texto que não começa com
 // = + - @. Determinístico: o mesmo ano dá o mesmo arquivo. Não toca banco nenhum.
 
-// Cabeçalhos da linha 4, iguais aos de src/modules/orc/domain/planilha.ts (pedido de contrato do orc
-// na #138: quando o servidor.ts do orc exportar as colunas, este arquivo passa a usá-las).
-export const LAYOUT = 'ADMC-ORC v1.0';
-export const COLUNAS_PESSOAL = [
-  'CC analítico',
-  'Cargo',
-  'Quantidade',
-  'Salário mensal (R$)',
-  'Mês de início (1–12)',
-  'Mês de saída (1–12)',
-  'Observação',
-] as const;
-export const COLUNAS_PACOTES = [
-  'CC analítico',
-  'Conta analítica',
-  'Atividade / justificativa (mín. 10 caracteres)',
-  'Prioridade',
-  'Quantidade',
-  'Valor unitário (R$)',
-  'Corrigir pelo IPCA?',
-  'Distribuição',
-  'Mês (se pontual)',
-] as const;
-const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] as const;
-export const COLUNAS_RECEITAS = ['TP / versão', 'Descrição', 'Situação', ...MESES] as const;
+// O layout vem do contrato do orc (servidor.ts, #398, pedido na #138): o gerador não copia nenhuma regra
+// da importação.
+export { COLUNAS_PACOTES, COLUNAS_PESSOAL, COLUNAS_RECEITAS, LAYOUT };
+const MESES = COLUNAS_RECEITAS.slice(3);
 
 type Celula = string | number;
 export type Linha = Record<string, Celula>;
@@ -143,19 +132,20 @@ export function gerarOrcamentoSintetico(ano: number, o: OpcoesOrcamento = {}): O
 
 function aba(wb: ExcelJS.Workbook, nome: string, colunas: readonly string[], linhas: readonly Linha[]): void {
   const ws = wb.addWorksheet(nome);
-  // Como a planilha-modelo: título e instrução nas linhas 1 e 2, cabeçalho na 4, dados da 5 em diante.
+  // Como a planilha-modelo: título e instrução nas linhas 1 e 2, cabeçalho na linha do contrato, dados logo abaixo.
   ws.getCell('A1').value = `${nome} — orçamento sintético`;
   ws.getCell('A2').value = 'Carga de referência gerada por ops/carga/gerar-orcamento.ts.';
-  colunas.forEach((c, i) => (ws.getCell(4, i + 1).value = c));
-  linhas.forEach((l, j) => colunas.forEach((c, i) => l[c] !== undefined && (ws.getCell(5 + j, i + 1).value = l[c]!)));
+  colunas.forEach((c, i) => (ws.getCell(LINHA_CABECALHO_MAX, i + 1).value = c));
+  linhas.forEach((l, j) => colunas.forEach((c, i) => l[c] !== undefined && (ws.getCell(LINHA_CABECALHO_MAX + 1 + j, i + 1).value = l[c]!)));
 }
 
 /** O .xlsx do exercício no layout ADMC-ORC v1.0. */
 export async function montarArquivo(o: OrcamentoSintetico): Promise<Uint8Array> {
   const wb = new ExcelJS.Workbook();
-  wb.addWorksheet('Instruções').getCell('E1').value = LAYOUT;
-  aba(wb, 'Pessoal', COLUNAS_PESSOAL, o.pessoal);
-  aba(wb, 'Pacotes base zero', COLUNAS_PACOTES, o.pacotes);
-  aba(wb, 'Receitas', COLUNAS_RECEITAS, o.receitas);
+  wb.addWorksheet(ABA_INSTRUCOES).getCell(CELULA_LAYOUT).value = LAYOUT;
+  const [pessoal, pacotes, receitas] = ABAS;
+  aba(wb, pessoal, COLUNAS_PESSOAL, o.pessoal);
+  aba(wb, pacotes, COLUNAS_PACOTES, o.pacotes);
+  aba(wb, receitas, COLUNAS_RECEITAS, o.receitas);
   return new Uint8Array((await wb.xlsx.writeBuffer()) as ArrayBuffer);
 }
