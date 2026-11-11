@@ -87,7 +87,7 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
         );
         conferir(m);
         const lido = schema.safeParse(jsonOuNada(texto(m)));
-        if (!lido.success) throw new ErroIA('ia.saida_invalida');
+        if (!lido.success) throw new ErroIA('ia.saida_invalida', { uso: uso(m.usage), modelo: m.model });
         return resposta(m, lido.data as z.infer<S>, inicio);
       } catch (e) {
         return traduzir(e);
@@ -115,8 +115,9 @@ export function criarProvedorAnthropic(o: OpcoesAnthropic): ProvedorIA {
 
 /** Recusa e corte antes de ler o conteúdo. */
 function conferir(m: Mensagem): void {
-  if (m.stop_reason === 'refusal') throw new ErroIA('ia.recusa', { categoria: m.stop_details?.category ?? null });
-  if (m.stop_reason === 'max_tokens' || m.stop_reason === 'model_context_window_exceeded') throw new ErroIA('ia.limite_tokens');
+  const gasto = { uso: uso(m.usage), modelo: m.model };
+  if (m.stop_reason === 'refusal') throw new ErroIA('ia.recusa', { categoria: m.stop_details?.category ?? null, ...gasto });
+  if (m.stop_reason === 'max_tokens' || m.stop_reason === 'model_context_window_exceeded') throw new ErroIA('ia.limite_tokens', gasto);
 }
 
 function jsonOuNada(t: string): unknown {

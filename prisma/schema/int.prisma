@@ -1,0 +1,79 @@
+// Modelos das integrações externas (frente B, spec §12.3). Por ora, a governança da API de IA
+// (spec §4.4, US-019); o componente é o src/shared/ia. Regras que o Prisma não expressa (CHECK,
+// trigger e privilégios) ficam na migration, à mão.
+
+// Chave geral (ia.habilitada) e limites globais: uma linha só (id 1), criada pela migration com a IA
+// desligada. Teto 0 vale como teto não definido: a IA fica desligada.
+model IaConfiguracao {
+  id              Int      @id @default(1)
+  habilitada      Boolean  @default(false)
+  limitePorMinuto Int      @default(10) @map("limite_por_minuto")
+  tetoMensalUsd   Decimal  @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
+  alteradoEm      DateTime @default(dbgenerated("clock_timestamp()")) @map("alterado_em") @db.Timestamptz(6)
+
+  @@map("ia_configuracao")
+}
+
+// Caso de uso de IA: instalado pela seed do módulo dono (inativo), configurado pela tela. A instrução
+// e o schema de saída ficam no código, versionados; aqui ficam a versão instalada e a configuração
+// (modelo, esforço, max_tokens, teto). A permissão é "<funcionalidade>:executar".
+model IaCasoUso {
+  codigo          String      @id
+  nome            String
+  funcionalidade  String
+  versaoInstrucao Int         @map("versao_instrucao")
+  guardarTexto    Boolean     @default(false) @map("guardar_texto")
+  ativo           Boolean     @default(false)
+  modelo          String      @default("claude-opus-5-5")
+  esforco         String      @default("medium")
+  maxTokens       Int         @default(4000) @map("max_tokens")
+  tetoMensalUsd   Decimal     @default(0) @map("teto_mensal_usd") @db.Decimal(12, 2)
+  chamadas        IaChamada[]
+
+  @@map("ia_caso_uso")
+}
+
+// Registro de chamadas (append-only): uma linha por chamada que chegou ao provedor, com sucesso ou
+// erro. Sem o texto: só o hash da entrada. O custo é estimado pela tabela de preços do código.
+model IaChamada {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  casoUsoCodigo      String          @map("caso_uso_codigo")
+  casoUso            IaCasoUso       @relation(fields: [casoUsoCodigo], references: [codigo], onDelete: Restrict)
+  versaoInstrucao    Int             @map("versao_instrucao")
+  // Nulo nas chamadas do worker, sem pessoa (Sistema).
+  usuarioId          String?         @map("usuario_id") @db.Uuid
+  unidadeId          String?         @map("unidade_id") @db.Uuid
+  // O modelo pedido e o que respondeu (outro, quando o fallback do servidor entra).
+  modelo             String
+  modeloResposta     String?         @map("modelo_resposta")
+  tokensEntrada      Int             @map("tokens_entrada")
+  tokensSaida        Int             @map("tokens_saida")
+  tokensCacheLeitura Int             @map("tokens_cache_leitura")
+  tokensCacheEscrita Int             @map("tokens_cache_escrita")
+  custoEstimadoUsd   Decimal         @map("custo_estimado_usd") @db.Decimal(16, 8)
+  latenciaMs         Int             @map("latencia_ms")
+  motivoParada       String?         @map("motivo_parada")
+  // Nulo no sucesso; o código do ErroIA na falha.
+  erro               String?
+  hashEntrada        String          @map("hash_entrada")
+  criadoEm           DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  texto              IaChamadaTexto?
+
+  @@index([casoUsoCodigo, criadoEm])
+  @@index([usuarioId, criadoEm])
+  @@index([criadoEm])
+  @@map("ia_chamada")
+}
+
+// Texto completo da chamada, só quando o caso de uso pede (guardarTexto). Fica à parte para a
+// retenção de 90 dias apagar o texto sem tocar no registro, que é append-only.
+model IaChamadaTexto {
+  chamadaId String    @id @map("chamada_id") @db.Uuid
+  chamada   IaChamada @relation(fields: [chamadaId], references: [id], onDelete: Restrict)
+  entrada   String
+  saida     String?
+  criadoEm  DateTime  @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+
+  @@index([criadoEm])
+  @@map("ia_chamada_texto")
+}

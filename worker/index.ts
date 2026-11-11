@@ -1,6 +1,7 @@
 import { rmSync, writeFileSync } from 'node:fs';
 import { GERADORES_EXPORTACAO_ADM } from '@/modules/adm/servidor';
 import { limparExportacoes, registrarTrabalhadoresGer } from '@/modules/ger/servidor';
+import { limparTextosIA } from '@/shared/ia';
 import { lerEnv } from '@/shared/config/env';
 import { criarPrisma } from '@/shared/db';
 import { criarFila, publicarOutbox } from '@/shared/filas';
@@ -66,8 +67,19 @@ async function iniciar(): Promise<void> {
         if (r.semResposta > 0 || r.apagados > 0) console.log('[EXPORTACOES_LIMPAS]', r);
       })
       .catch((erro: unknown) => console.error('[EXPORTACOES_LIMPEZA_FALHOU]', resumo(erro)));
+  // Retenção do texto das chamadas de IA (US-019): 90 dias; o registro fica.
+  const limparIA = () =>
+    limparTextosIA(prisma, new Date())
+      .then((apagados) => {
+        if (apagados > 0) console.log('[IA_TEXTOS_LIMPOS]', { apagados });
+      })
+      .catch((erro: unknown) => console.error('[IA_LIMPEZA_FALHOU]', resumo(erro)));
   void limpar();
-  const temporizadorLimpeza = setInterval(() => void limpar(), INTERVALO_LIMPEZA_MS);
+  void limparIA();
+  const temporizadorLimpeza = setInterval(() => {
+    void limpar();
+    void limparIA();
+  }, INTERVALO_LIMPEZA_MS);
 
   let emCurso: Promise<unknown> | null = null;
   let inicioCiclo = 0;
