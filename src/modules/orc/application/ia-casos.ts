@@ -17,6 +17,8 @@ export const CASOS_IA_ORC = {
     nome: 'Ajuda na justificativa do pacote base zero',
     funcionalidade: 'orc.ia_justificativa',
     versaoInstrucao: 1,
+    // Esforço inicial (§6.8): vale só na primeira instalação; depois, o cadastro da IA (US-019) manda.
+    padrao: { esforco: 'medium' },
     instrucaoSistema: [
       'Você ajuda a escrever a justificativa de um pacote base zero do orçamento da Administração Central.',
       'Um pacote base zero é um gasto (conta contábil) de um centro de custo, com quantidade, valor unitário e prioridade (Essencial, Importante ou Desejável).',
@@ -33,6 +35,7 @@ export const CASOS_IA_ORC = {
     nome: 'Sugestão de conta e CC pela descrição do gasto',
     funcionalidade: 'orc.ia_sugestao_conta',
     versaoInstrucao: 1,
+    padrao: { esforco: 'low' },
     instrucaoSistema: [
       'Você sugere a conta contábil e o centro de custo de um gasto do orçamento da Administração Central, a partir da descrição do gasto.',
       REGRAS_GERAIS,
@@ -44,6 +47,7 @@ export const CASOS_IA_ORC = {
     nome: 'Revisor de consistência antes do envio',
     funcionalidade: 'orc.ia_revisor',
     versaoInstrucao: 1,
+    padrao: { esforco: 'medium' },
     instrucaoSistema: [
       'Você revisa a consistência do orçamento da Administração Central antes do envio para aprovação.',
       REGRAS_GERAIS,

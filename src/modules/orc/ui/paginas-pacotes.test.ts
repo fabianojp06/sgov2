@@ -7,7 +7,7 @@ import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import { Dinheiro } from '@/shared/kernel';
 
 vi.mock('next/server', () => ({ connection: async () => undefined }));
-const caso = vi.hoisted(() => ({ situacao: 'RASCUNHO' as 'RASCUNHO' | 'EM_APROVACAO', origem: 'IMPORTACAO', conta: '4.1.1.5.005' }));
+const caso = vi.hoisted(() => ({ situacao: 'RASCUNHO' as 'RASCUNHO' | 'EM_APROVACAO', origem: 'IMPORTACAO', conta: '4.1.1.5.005', iaLigada: false }));
 vi.mock('@/modules/orc', async (original) => {
   const editavel = () => caso.situacao === 'RASCUNHO';
   const k = () => ({
@@ -17,6 +17,8 @@ vi.mock('@/modules/orc', async (original) => {
   });
   return {
     ...(await original<typeof import('@/modules/orc')>()),
+    // servicoIA.disponivel (#390): permissão do caso e IA ligada (chave geral, caso ativo e tetos).
+    iaLiberada: async (c: ContextoRequisicao, nome: string) => caso.iaLigada && nome === 'justificativa' && c.permissoes.has(['orc.ia_justificativa', 'executar'].join(':')),
     listarExercicios: async () => [{ id: 'e1', ano: 2027, situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', versao: 0 }],
     listarPacotes: async () => ({ pacotes: [k()], editavel: editavel() }),
     opcoesPacote: async () => ({
@@ -37,6 +39,7 @@ beforeEach(() => {
   caso.situacao = 'RASCUNHO';
   caso.origem = 'IMPORTACAO';
   caso.conta = '4.1.1.5.005';
+  caso.iaLigada = false;
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -92,10 +95,15 @@ describe('página de pacotes base zero', () => {
     expect(await html({ editar: 'p1' })).toContain('A conta 4.1.1.1.001 não é mais permitida em pacote; escolha outra.');
   });
 
-  it('ajuda da IA na justificativa (D-P14-5): o painel aparece só com orc.ia_justificativa:executar, na inclusão e na alteração', async () => {
+  it('ajuda da IA na justificativa (D-P14-5): o painel aparece só com a IA disponível para a pessoa, na inclusão e na alteração', async () => {
+    caso.iaLigada = true;
     contexto = ctx(TUDO);
     expect(await html()).not.toContain('Pedir ajuda da IA na justificativa');
     contexto = ctx([...TUDO, ['orc.ia_justificativa', 'executar'].join(':')]);
+    // Com a permissão, mas a IA desligada: o botão some.
+    caso.iaLigada = false;
+    expect(await html()).not.toContain('Pedir ajuda da IA na justificativa');
+    caso.iaLigada = true;
     for (const busca of [{}, { editar: 'p1' }]) {
       const h = await html(busca);
       expect(h).toContain('Pedir ajuda da IA na justificativa');

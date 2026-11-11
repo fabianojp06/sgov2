@@ -13,10 +13,9 @@ export function resolverDepsIa(deps: Partial<DepsIaOrc> = {}): DepsIaOrc {
 }
 
 /**
- * O botão de IA aparece? (D-P14-5). Por ora, só a permissão do caso; o servicoIA recusa com a
- * mensagem do ErroIA quando a IA está desligada. Quando o servicoIA.disponivel (#390) chegar à main,
- * a troca é só aqui. O orc nunca lê as tabelas ia_*.
+ * O botão de IA aparece? (D-P14-5): servicoIA.disponivel (#390) confere a permissão do caso, a chave
+ * geral, o caso ativo e os tetos, sem reservar nem registrar. O orc nunca lê as tabelas ia_*.
  */
-export async function iaLiberada(ctx: ContextoRequisicao, caso: keyof typeof CASOS_IA_ORC): Promise<boolean> {
-  return ctx.permissoes.has(`${CASOS_IA_ORC[caso].funcionalidade}:executar`);
+export function iaLiberada(ctx: ContextoRequisicao, caso: keyof typeof CASOS_IA_ORC, deps: Partial<Pick<DepsIaOrc, 'ia'>> = {}): Promise<boolean> {
+  return (deps.ia ?? servicoIA).disponivel(ctx, CASOS_IA_ORC[caso]);
 }

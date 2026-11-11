@@ -7,7 +7,7 @@ import { criarProvedorIAFalso, criarServicoIA, ErroIA, type ServicoIA } from '@/
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedOrc } from '../infrastructure/seed';
 import { CASOS_IA_ORC } from './ia-casos';
-import type { DepsIaOrc } from './ia-deps';
+import { iaLiberada, type DepsIaOrc } from './ia-deps';
 import { sugerirJustificativa } from './ia-justificativa';
 
 // Ajuda da IA na justificativa do pacote base zero (US-063; plano do P14, Task 1), num Postgres real:
@@ -115,6 +115,28 @@ describe('seed', () => {
     ]);
     // Este teste roda antes de qualquer ligarCaso de outro caso: só o da justificativa foi ligado.
     expect(casos.filter((c) => c.codigo !== CASO).every((c) => !c.ativo && c.tetoMensalUsd.isZero())).toBe(true);
+  });
+});
+
+describe('iaLiberada (servicoIA.disponivel, #390)', () => {
+  it('o botão aparece só com a permissão do caso e a IA ligada', async () => {
+    const ia = criarServicoIA({ cliente: app, obterProvedor: () => falso });
+    expect(await iaLiberada(ctx(), 'justificativa', { ia })).toBe(true);
+    expect(await iaLiberada(ctx(PACOTES), 'justificativa', { ia })).toBe(false);
+    // Casos ainda desligados (sugestão de conta) ou caso desligado: some.
+    expect(await iaLiberada(ctx([...PACOTES, perm('orc.ia_sugestao_conta', 'executar')]), 'sugestaoConta', { ia })).toBe(false);
+    await ligarCaso(false);
+    expect(await iaLiberada(ctx(), 'justificativa', { ia })).toBe(false);
+    expect(falso.chamadas.length).toBe(0);
+  });
+
+  it('esforço inicial da declaração (§6.8): médio na justificativa e no revisor, baixo na sugestão de conta', async () => {
+    const casos = await migrator.iaCasoUso.findMany({ where: { codigo: { startsWith: 'orc.' } }, orderBy: { codigo: 'asc' } });
+    expect(casos.map((c) => [c.codigo, c.esforco])).toEqual([
+      ['orc.ia_justificativa', 'medium'],
+      ['orc.ia_revisor', 'medium'],
+      ['orc.ia_sugestao_conta', 'low'],
+    ]);
   });
 });
 
