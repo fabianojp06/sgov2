@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hashSenha, instalarFuncionalidades, seedAdm, type DeclaracaoFuncionalidade } from '@/modules/adm';
+import { seedOrc } from '@/modules/orc';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
@@ -116,6 +117,14 @@ describe('exibirNoMenu', () => {
 
     await migrator.$transaction((tx) => instalarFuncionalidades(tx, [item('cad.visivel'), item('cad.oculta', true)]));
     expect(doTeste(await carregarTelaPrincipal(ctx, { cliente: app })).sort()).toEqual(['cad.oculta', 'cad.visivel']);
+  });
+
+  it('casos de IA do orc (P14): a GFIN tem a permissão, e o menu não mostra as funcionalidades da IA', async () => {
+    await executarSeeds(migrator, [seedOrc]);
+    const ctx = await logado('gabi', 'GFIN', []);
+    expect(ctx.permissoes.has(['orc.ia_justificativa', 'executar'].join(':'))).toBe(true);
+    const orc = codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).filter((c) => c.startsWith('orc.'));
+    expect(orc).toEqual(['orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao']);
   });
 });
 

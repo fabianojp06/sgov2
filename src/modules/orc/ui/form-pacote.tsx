@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState } from 'react';
 import { ErroDoCampo, Formulario } from '@/modules/ger';
 import type { AcaoFormulario } from '@/modules/ger';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { previaPacote, type CamposPrevia } from '../domain/previa-pacote';
+import { ROTULO_FALTANDO, ROTULO_PRIORIDADE, type SugestaoJustificativa } from '../domain/sugestao-ia';
 import { valorParaTela } from '../domain/valor-tela';
+import { PainelIA, type RespostaIaTela } from './painel-ia';
 
 // Formulário do pacote base zero (US-057; plano do P11, Task 2), com a prévia do anual e das 12
 // parcelas calculada aqui pela mesma função pura do servidor (D-P11-6). Componente cliente: ações,
@@ -18,6 +20,11 @@ const PRIORIDADES = [
 ] as const;
 
 export type OpcaoPacote = { classificacao: string; descricao: string };
+// Ajuda da IA na justificativa (US-063): a Server Action do orc, por props.
+export type AcaoSugerirJustificativa = (entrada: Record<string, string>) => Promise<RespostaIaTela<SugestaoJustificativa>>;
+// Sugestões aceitas (D-P14-3): a marca sugestaoIa vai junto enquanto o campo continua com o valor aceito.
+type Aceitas = { justificativa?: string; prioridade?: string };
+const normalizar = (t: string) => t.replace(/\r\n/g, '\n').trim();
 export type PacoteEmEdicao = {
   id: string;
   cc: string;
@@ -52,6 +59,7 @@ export function FormPacote({
   avisoOrigem,
   salvar,
   cancelarPara,
+  sugerirJustificativa,
 }: {
   ano: number;
   exercicioId: string;
@@ -64,17 +72,56 @@ export function FormPacote({
   avisoOrigem?: string | undefined;
   salvar: AcaoFormulario;
   cancelarPara: string;
+  sugerirJustificativa?: AcaoSugerirJustificativa | undefined;
 }) {
   // CC fora das opções: o seletor começa vazio, para o pacote não mudar de CC sem o usuário escolher.
   const ccInicial = ccs.some((c) => c.classificacao === (pacote?.cc ?? ccAtual)) ? (pacote?.cc ?? ccAtual) : '';
   const [campos, setCampos] = useState<CamposPrevia>(() => camposIniciais(pacote));
+  const campoRef = useRef<HTMLDivElement>(null);
+  const justificativaRef = useRef<HTMLTextAreaElement>(null);
+  const aceitas = useRef<Aceitas>({});
+  const [marcada, setMarcada] = useState(false);
+  const lerFormulario = () => {
+    const form = campoRef.current?.closest('form');
+    const d = form ? new FormData(form) : new FormData();
+    return (k: string) => (typeof d.get(k) === 'string' ? (d.get(k) as string) : '');
+  };
+  const conferirMarca = (t: (k: string) => string) => {
+    const a = aceitas.current;
+    setMarcada(
+      (a.justificativa !== undefined && normalizar(t('justificativa')) === normalizar(a.justificativa)) || (a.prioridade !== undefined && t('prioridade') === a.prioridade),
+    );
+  };
   // A prévia acompanha o que está digitado: lê o formulário inteiro a cada mudança.
-  const aoMudar = (e: FormEvent<HTMLDivElement>) => {
-    const form = e.currentTarget.closest('form');
-    if (!form) return;
-    const d = new FormData(form);
-    const t = (k: string) => (typeof d.get(k) === 'string' ? (d.get(k) as string) : '');
+  const aoMudar = () => {
+    const t = lerFormulario();
     setCampos({ quantidade: t('quantidade'), valorUnitario: t('valorUnitario'), corrigirIpca: t('corrigirIpca'), distribuicao: t('distribuicao'), mesOcorrencia: t('mesOcorrencia') });
+    conferirMarca(t);
+  };
+  const pedirJustificativa = () => {
+    const t = lerFormulario();
+    const campo = (k: string) => [k, t(k)] as const;
+    return sugerirJustificativa!({
+      exercicioId,
+      ...Object.fromEntries(['cc', 'conta', 'justificativa', 'prioridade', 'quantidade', 'valorUnitario', 'distribuicao'].map(campo)),
+    });
+  };
+  // "Usar …" só preenche o campo, que continua editável (D-P14-3).
+  const usarTexto = (texto: string) => {
+    const area = justificativaRef.current;
+    if (!area) return;
+    area.value = texto;
+    aceitas.current = { ...aceitas.current, justificativa: texto };
+    conferirMarca(lerFormulario());
+    area.focus();
+  };
+  const usarPrioridade = (rotulo: string) => {
+    const radio = campoRef.current?.querySelector<HTMLInputElement>(`input[name="prioridade"][value="${rotulo}"]`);
+    if (!radio) return;
+    radio.checked = true;
+    aceitas.current = { ...aceitas.current, prioridade: rotulo };
+    conferirMarca(lerFormulario());
+    radio.focus();
   };
   const previa = previaPacote(campos, ipca, quantidadeMaxima);
   const pontual = campos.distribuicao === 'Pontual';
@@ -95,7 +142,8 @@ export function FormPacote({
         ) : (
           <input type="hidden" name="exercicioId" value={exercicioId} />
         )}
-        <div onChange={aoMudar}>
+        {marcada && <input type="hidden" name="sugestaoIa" value="true" />}
+        <div onChange={aoMudar} ref={campoRef}>
           <p>
             <label htmlFor={`${prefixo}-cc`}>Centro de custo</label>
             <select id={`${prefixo}-cc`} name="cc" defaultValue={ccInicial} aria-describedby="erro-cc">
@@ -118,9 +166,51 @@ export function FormPacote({
           </p>
           <p>
             <label htmlFor={`${prefixo}-justificativa`}>Atividade / justificativa (mín. 10 caracteres)</label>
-            <textarea id={`${prefixo}-justificativa`} name="justificativa" maxLength={1000} defaultValue={pacote?.justificativa ?? ''} aria-describedby="erro-justificativa" />
+            <textarea
+              id={`${prefixo}-justificativa`}
+              ref={justificativaRef}
+              name="justificativa"
+              maxLength={1000}
+              defaultValue={pacote?.justificativa ?? ''}
+              aria-describedby="erro-justificativa"
+            />
             <ErroDoCampo campo="justificativa" />
           </p>
+          {sugerirJustificativa && (
+            <PainelIA<SugestaoJustificativa>
+              id={`${prefixo}-ia-justificativa`}
+              titulo="Ajuda da IA na justificativa"
+              rotuloBotao="Pedir ajuda da IA na justificativa"
+              aviso={MENSAGENS_ORC.IA_SEM_NOMES}
+              pedir={pedirJustificativa}
+            >
+              {(s) => (
+                <>
+                  <p>Texto sugerido:</p>
+                  <blockquote>{s.texto}</blockquote>
+                  <button type="button" onClick={() => usarTexto(s.texto)}>
+                    Usar este texto
+                  </button>
+                  {s.faltando.length === 0 ? (
+                    <p>A justificativa já traz a quantidade, o motivo e a alternativa.</p>
+                  ) : (
+                    <>
+                      <p>O que falta na justificativa:</p>
+                      <ul>
+                        {s.faltando.map((f) => (
+                          <li key={f}>{ROTULO_FALTANDO[f]}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  <p>{`Prioridade sugerida: ${ROTULO_PRIORIDADE[s.prioridade]}. ${s.motivoPrioridade}`}</p>
+                  <button type="button" onClick={() => usarPrioridade(ROTULO_PRIORIDADE[s.prioridade])}>
+                    Usar esta prioridade
+                  </button>
+                </>
+              )}
+            </PainelIA>
+          )}
           <fieldset aria-describedby="erro-prioridade">
             <legend>Prioridade</legend>
             {PRIORIDADES.map(([codigo, rotulo]) => (

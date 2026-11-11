@@ -137,8 +137,12 @@ export async function opcoesPacote(ctx: ContextoRequisicao, exercicioId: string,
 const texto = z.string().optional();
 const DADOS = Object.fromEntries(CAMPOS.map((c) => [c, texto])) as Record<(typeof CAMPOS)[number], typeof texto>;
 const versao = z.coerce.number().int().min(0);
-const entradaInclusao = z.object({ ...DADOS, exercicioId: z.string() }).strict();
-const entradaAlteracao = z.object({ ...DADOS, id: z.string(), versao }).strict();
+// D-P14-3: a tela marca quando o formulário leva uma sugestão da IA aceita (só o rótulo da entrada do
+// Histórico muda; o dado passa pela mesma validação). Não entra pela importação da planilha.
+const sugestaoIa = z.literal('true').optional();
+const entradaInclusao = z.object({ ...DADOS, exercicioId: z.string(), sugestaoIa }).strict();
+const entradaAlteracao = z.object({ ...DADOS, id: z.string(), versao, sugestaoIa }).strict();
+const origemDa = (e: { sugestaoIa?: 'true' | undefined }) => (e.sugestaoIa === 'true' ? ('SUGESTAO_IA' as const) : ('USUARIO' as const));
 const entradaExclusao = z.object({ id: z.string(), versao }).strict();
 const MENSAGEM_ENTRADA = 'Dados do pacote inválidos. Recarregue a tela.';
 const errosDaEntrada = (): Resultado<never> => falha([{ campo: '_', mensagem: MENSAGEM_ENTRADA }]);
@@ -303,6 +307,7 @@ export async function incluirPacote(ctx: ContextoRequisicao, bruto: unknown, dep
       descricao: `Pacote base zero da conta ${v.conta} incluído no CC ${v.cc}, exercício ${e.ano}${premissas ? ', com o orçamento recalculado' : ''}`,
       ...(premissas ? { antes: { versaoPremissas: premissas.antes } } : {}),
       depois: premissas ? comPremissas(retrato(v), premissas.depois) : retrato(v),
+      origem: origemDa(entrada),
     });
     return ok({ id: criado.id, ano: e.ano, cc: v.cc, mensagem: MENSAGENS_ORC.RECALCULADO });
   });
@@ -344,6 +349,7 @@ export async function alterarPacote(ctx: ContextoRequisicao, bruto: unknown, dep
       descricao: `Pacote base zero da conta ${v.conta} alterado no CC ${v.cc}, exercício ${e.ano}${premissas ? ', com o orçamento recalculado' : ''}`,
       antes: premissas ? comPremissas(retrato(k), premissas.antes) : retrato(k),
       depois: premissas ? comPremissas(retrato(v), premissas.depois) : retrato(v),
+      origem: origemDa(entrada),
     });
     return ok({ id: k.id, ano: e.ano, cc: v.cc, mensagem: MENSAGENS_ORC.RECALCULADO });
   });

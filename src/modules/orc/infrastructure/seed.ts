@@ -1,5 +1,7 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm';
 import type { Seed } from '@/shared/db';
+import { instalarCasosUsoIA } from '@/shared/ia';
+import { CASOS_IA_ORC } from '../application/ia-casos';
 
 const GRUPO = 'Orçamento da Adm. Central';
 
@@ -95,11 +97,51 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'executar', 'aprovar'],
     perfisPadrao: { GFIN: ['consultar', 'executar'], DIREX: ['consultar', 'aprovar'], AUDITOR: ['consultar'] },
   },
+  // Casos de IA (plano do P14, D-P14-1) [PROVISÓRIOS]: só a permissão do caso, fora do menu. O caso
+  // nasce desligado; o Administrador liga e define o teto no cadastro da IA (US-019).
+  {
+    codigo: 'orc.ia_justificativa',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'IA: ajuda na justificativa',
+    rota: '/orc/pacotes',
+    ordem: 8,
+    ajuda: 'Pede à IA uma redação melhor para a justificativa do pacote base zero, o que falta nela e a prioridade sugerida. A IA só sugere; quem salva é a pessoa.',
+    exibirNoMenu: false,
+    acoes: ['executar'],
+    perfisPadrao: { GESTOR_DIRETORIA: ['executar'], GFIN: ['executar'] },
+  },
+  {
+    codigo: 'orc.ia_sugestao_conta',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'IA: sugestão de conta e CC',
+    rota: '/orc/pacotes',
+    ordem: 9,
+    ajuda: 'Pede à IA a conta e o centro de custo do pacote base zero a partir da descrição do gasto. A IA só sugere; quem escolhe é a pessoa.',
+    exibirNoMenu: false,
+    acoes: ['executar'],
+    perfisPadrao: { GESTOR_DIRETORIA: ['executar'], GFIN: ['executar'] },
+  },
+  {
+    codigo: 'orc.ia_revisor',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'IA: revisor antes do envio',
+    rota: '/orc/aprovacao',
+    ordem: 10,
+    ajuda: 'Acrescenta à revisão antes do envio os achados da IA sobre justificativas, contas e lançamentos duplicados. A IA só aponta; nada é alterado.',
+    exibirNoMenu: false,
+    acoes: ['executar'],
+    perfisPadrao: { GFIN: ['executar'] },
+  },
 ];
 
 export const seedOrc: Seed = {
   nome: 'orc',
   executar: async (tx) => {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_ORC);
+    // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
+    await instalarCasosUsoIA(tx, Object.values(CASOS_IA_ORC));
   },
 };

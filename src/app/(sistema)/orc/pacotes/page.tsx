@@ -2,6 +2,7 @@ import {
   alterarPacoteAcao,
   excluirPacoteAcao,
   exercicioDoAno,
+  iaLiberada,
   incluirPacoteAcao,
   listarExercicios,
   listarPacotes,
@@ -9,6 +10,7 @@ import {
   naoEncontradoSeNegado,
   opcoesPacote,
   SeletorExercicio,
+  sugerirJustificativaAcao,
   TelaPacotes,
   textoAvisoPacote,
 } from '@/modules/orc';
@@ -30,7 +32,9 @@ export default async function Pacotes({ searchParams }: { searchParams: Promise<
       </div>
     );
   }
-  const [opcoes, lista] = await Promise.all([opcoesPacote(ctx, atual.id), listarPacotes(ctx, atual.id)]).catch(naoEncontradoSeNegado(ctx));
+  const [opcoes, lista, iaJustificativa] = await Promise.all([opcoesPacote(ctx, atual.id), listarPacotes(ctx, atual.id), iaLiberada(ctx, 'justificativa')]).catch(
+    naoEncontradoSeNegado(ctx),
+  );
   // CC pedido só se estiver entre os do escopo ou com pacote visível; senão, o primeiro do escopo.
   const pedido = um(busca.cc);
   const visiveis = new Set([...opcoes.ccs.map((c) => c.classificacao), ...lista.pacotes.map((k) => k.cc)]);
@@ -51,8 +55,9 @@ export default async function Pacotes({ searchParams }: { searchParams: Promise<
           podeAlterar: ctx.permissoes.has('orc.pacotes:alterar'),
           podeExcluir: ctx.permissoes.has('orc.pacotes:excluir'),
         }}
-        acoes={{ incluir: incluirPacoteAcao, alterar: alterarPacoteAcao, excluir: excluirPacoteAcao }}
+        acoes={{ incluir: incluirPacoteAcao, alterar: alterarPacoteAcao, excluir: excluirPacoteAcao, sugerirJustificativa: sugerirJustificativaAcao }}
         aviso={textoAvisoPacote(um(busca.aviso))}
+        iaJustificativa={iaJustificativa}
       />
     </div>
   );

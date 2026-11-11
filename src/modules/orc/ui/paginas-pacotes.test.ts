@@ -92,6 +92,20 @@ describe('página de pacotes base zero', () => {
     expect(await html({ editar: 'p1' })).toContain('A conta 4.1.1.1.001 não é mais permitida em pacote; escolha outra.');
   });
 
+  it('ajuda da IA na justificativa (D-P14-5): o painel aparece só com orc.ia_justificativa:executar, na inclusão e na alteração', async () => {
+    contexto = ctx(TUDO);
+    expect(await html()).not.toContain('Pedir ajuda da IA na justificativa');
+    contexto = ctx([...TUDO, ['orc.ia_justificativa', 'executar'].join(':')]);
+    for (const busca of [{}, { editar: 'p1' }]) {
+      const h = await html(busca);
+      expect(h).toContain('Pedir ajuda da IA na justificativa');
+      expect(h).toContain('Não escreva nomes de pessoas no texto enviado à IA.');
+      // O selo só aparece com uma resposta; a marca da sugestão só depois de um "Usar …".
+      expect(h).not.toContain('Gerado com IA – revisar');
+      expect(h).not.toContain('name="sugestaoIa"');
+    }
+  });
+
   it('exercício fechado: só leitura, com a mensagem da situação', async () => {
     contexto = ctx(TUDO);
     caso.situacao = 'EM_APROVACAO';

@@ -3,7 +3,7 @@ import { Dinheiro } from '@/shared/kernel';
 import type { ListaPacotes, OpcoesPacote, PacoteTela } from '../application/pacotes';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { valorParaTela } from '../domain/valor-tela';
-import { FormPacote } from './form-pacote';
+import { FormPacote, type AcaoSugerirJustificativa } from './form-pacote';
 
 // Tela dos pacotes base zero (US-057; plano do P11, Task 2). Server Component: escolha do CC (só os
 // do escopo), lista dos pacotes do CC com Alterar e Excluir na linha e o formulário de inclusão ou
@@ -40,6 +40,7 @@ export function TelaPacotes({
   permissoes,
   acoes,
   aviso,
+  iaJustificativa = false,
 }: {
   ano: number;
   exercicioId: string;
@@ -48,8 +49,10 @@ export function TelaPacotes({
   ccAtual: string | null;
   emEdicao: string | null;
   permissoes: PermissoesPacote;
-  acoes: { incluir: AcaoFormulario; alterar: AcaoFormulario; excluir: AcaoFormulario };
+  acoes: { incluir: AcaoFormulario; alterar: AcaoFormulario; excluir: AcaoFormulario; sugerirJustificativa?: AcaoSugerirJustificativa };
   aviso?: string | undefined;
+  // Ajuda da IA na justificativa (US-063): a página decide pela permissão do caso (D-P14-5).
+  iaJustificativa?: boolean;
 }) {
   // CCs da escolha: os do escopo e, para quem vê tudo, os dos pacotes de CC fora da estrutura ativa.
   const ccsComPacote = [...new Set(lista.pacotes.map((k) => k.cc))].filter((cc) => !opcoes.ccs.some((c) => c.classificacao === cc));
@@ -60,6 +63,7 @@ export function TelaPacotes({
   const acoesNaLinha = editavel && (permissoes.podeAlterar || permissoes.podeExcluir);
   const editando = editavel && permissoes.podeAlterar ? (pacotes.find((k) => k.id === emEdicao) ?? null) : null;
   const totalCc = pacotes.length > 0 ? Dinheiro.somarTodos(pacotes.map((k) => k.valorAnual)) : null;
+  const sugerirJustificativa = iaJustificativa ? acoes.sugerirJustificativa : undefined;
   return (
     <>
       {aviso && <p role="status">{aviso}</p>}
@@ -170,6 +174,7 @@ export function TelaPacotes({
               avisoOrigem={AVISO_ORIGEM[editando.origem]}
               salvar={acoes.alterar}
               cancelarPara={rota('')}
+              sugerirJustificativa={sugerirJustificativa}
             />
           ) : (
             permissoes.podeIncluir &&
@@ -185,6 +190,7 @@ export function TelaPacotes({
                 quantidadeMaxima={opcoes.quantidadeMaxima}
                 salvar={acoes.incluir}
                 cancelarPara={rota('')}
+                sugerirJustificativa={sugerirJustificativa}
               />
             )
           )}

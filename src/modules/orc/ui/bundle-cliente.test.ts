@@ -6,9 +6,9 @@ import { describe, expect, it } from 'vitest';
 const PROIBIDOS = /node_modules\/(pg|pg-boss|pg-pool|@prisma|prisma|nodemailer|exceljs|argon2|@node-rs|server-only)\//;
 
 describe('bundle do navegador dos componentes cliente do orc', () => {
-  it('form-exercicio, form-receita, form-importacao, form-pacote e form-posicao não alcançam código de servidor', async () => {
+  it('form-exercicio, form-receita, form-importacao, form-pacote, form-posicao e painel-ia não alcançam código de servidor nem a IA', async () => {
     const r = await build({
-      entryPoints: ['src/modules/orc/ui/form-exercicio.tsx', 'src/modules/orc/ui/form-receita.tsx', 'src/modules/orc/ui/form-importacao.tsx', 'src/modules/orc/ui/form-pacote.tsx', 'src/modules/orc/ui/form-posicao.tsx'],
+      entryPoints: ['src/modules/orc/ui/form-exercicio.tsx', 'src/modules/orc/ui/form-receita.tsx', 'src/modules/orc/ui/form-importacao.tsx', 'src/modules/orc/ui/form-pacote.tsx', 'src/modules/orc/ui/form-posicao.tsx', 'src/modules/orc/ui/painel-ia.tsx'],
       bundle: true,
       splitting: true,
       format: 'esm',
@@ -24,5 +24,7 @@ describe('bundle do navegador dos componentes cliente do orc', () => {
     expect(entradas.filter((e) => PROIBIDOS.test(e))).toEqual([]);
     expect(entradas.filter((e) => /^src\/modules\/(orc|cad|adm)\/(application|infrastructure|index|servidor)/.test(e))).toEqual([]);
     expect(entradas.some((e) => e.startsWith('src/generated/'))).toBe(false);
+    // A IA só no servidor (US-019): nem a porta nem o SDK no navegador.
+    expect(entradas.filter((e) => e.startsWith('src/shared/ia/') || e.includes('@anthropic-ai'))).toEqual([]);
   }, 60_000);
 });
