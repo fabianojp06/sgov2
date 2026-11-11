@@ -180,6 +180,17 @@ export function problemasDeRotaPublica(texto: string): string[] {
   const arquivo = analisar(texto);
   const problemas: string[] = [];
   for (const s of arquivo.statements) {
+    // Reexportação (`export { POST } from …`, `export { x as POST }`, `export * from …`): conta o nome
+    // exportado; `export *` não deixa ver os nomes, então é reprovado.
+    if (ts.isExportDeclaration(s)) {
+      if (!s.exportClause) problemas.push('rota pública não pode usar export *');
+      else if (ts.isNamedExports(s.exportClause)) {
+        for (const e of s.exportClause.elements) {
+          if (METODOS.has(e.name.text) && e.name.text !== 'GET') problemas.push(`rota pública só com GET: ${e.name.text} precisa de definirRota`);
+        }
+      } else problemas.push('rota pública não pode usar export * as');
+      continue;
+    }
     if (!exportado(s)) continue;
     const nomes = ts.isVariableStatement(s)
       ? s.declarationList.declarations.map((d) => d.name.getText(arquivo))
@@ -242,6 +253,11 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
       'rota pública só com GET: POST precisa de definirRota',
     ]);
     expect(problemasDeRotaPublica('export const DELETE = async () => new Response();')).toEqual(['rota pública só com GET: DELETE precisa de definirRota']);
+    // Reexportação (sugestão da frente A no #402).
+    expect(problemasDeRotaPublica("export { POST } from './outra';")).toEqual(['rota pública só com GET: POST precisa de definirRota']);
+    expect(problemasDeRotaPublica('const x = async () => new Response();\nexport { x as PUT };')).toEqual(['rota pública só com GET: PUT precisa de definirRota']);
+    expect(problemasDeRotaPublica("export { GET } from './outra';")).toEqual([]);
+    expect(problemasDeRotaPublica("export * from './outra';")).toEqual(['rota pública não pode usar export *']);
   });
   it('rota fora da lista de públicas continua exigindo definirRota', () => {
     expect(problemasDoArquivo('src/app/(sistema)/int/outra/route.ts', 'export async function GET() { return new Response(); }')).not.toEqual([]);
