@@ -19,6 +19,7 @@ const caso = vi.hoisted(() => ({
   cargo: 'Analista de orçamento',
   cargos: { cargos: [] as OpcaoCargoTeste[], comSalario: false, aviso: null as string | null },
   chamadasCargos: 0,
+  semCcs: false,
 }));
 const C001 = '00000000-0000-4000-8000-000000000001';
 const C004 = '00000000-0000-4000-8000-000000000004';
@@ -39,7 +40,7 @@ vi.mock('@/modules/orc', async (original) => {
     listarExercicios: async () => [{ id: 'e1', ano: 2027, situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', versao: 0 }],
     listarPosicoes: async (ctx: ContextoRequisicao) => ({ posicoes: [p(ctx)], editavel: editavel(), veSalario: ve(ctx) }),
     opcoesPosicao: async () => ({
-      ccs: [{ classificacao: '4.3.0', descricao: 'Gabinete' }], quantidadeMaxima: 9999,
+      ccs: caso.semCcs ? [] : [{ classificacao: '4.3.0', descricao: 'Gabinete' }], quantidadeMaxima: 9999,
       situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', editavel: editavel(),
     }),
     cargosParaPosicao: async () => {
@@ -65,6 +66,7 @@ beforeEach(() => {
   caso.cargo = 'Analista de orçamento';
   caso.cargos = { cargos: [opcaoC001(false)], comSalario: false, aviso: 'O salário da Fonte Ativa não aparece para o seu perfil. Informe o salário mensal.' };
   caso.chamadasCargos = 0;
+  caso.semCcs = false;
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -158,12 +160,38 @@ describe('cargo do cadastro de C&S na posição (P15)', () => {
     expect(h).not.toContain('7.500,00');
   });
 
-  it('GFIN (com cad.salarios): a Fonte Ativa e a faixa do cargo escolhido, e o salário sugerido', async () => {
+  it('inclusão: abre sem cargo escolhido ("Escolha o cargo"), sem Fonte Ativa e com o salário vazio', async () => {
     contexto = ctx(TUDO);
     caso.cargos = { cargos: [opcaoC001(true)], comSalario: true, aviso: null };
     const h = await html();
+    expect(h).toMatch(/<option value="[^"]*" disabled="" selected="">Escolha o cargo<\/option>/);
+    expect(h).not.toContain('Fonte Ativa: R$');
+    expect(h).not.toContain('7.500,00');
+    expect(h).not.toContain('name="cargo"');
+  });
+
+  it('GFIN (com cad.salarios) alterando posição do C001: a Fonte Ativa e a faixa do cargo', async () => {
+    contexto = ctx(TUDO);
+    caso.cargos = { cargos: [opcaoC001(true)], comSalario: true, aviso: null };
+    caso.cargoId = C001;
+    const h = await html({ editar: 'p1' });
     expect(h).toContain('Fonte Ativa: R$ 7.500,00 · Faixa de mercado: R$ 7.500,00 a R$ 9.800,00');
-    expect(h).toContain('value="7.500,00"');
+    expect(h).toMatch(new RegExp(`<option value="${C001}" selected="">C001 – Analista de orçamento</option>`));
+  });
+
+  it('só alterar, sem ?editar=: nenhum formulário, e cargosParaPosicao nem é chamado', async () => {
+    contexto = ctx(['orc.posicoes:consultar', 'orc.posicoes:alterar']);
+    const h = await html();
+    expect(h).not.toContain('Nova posição');
+    expect(caso.chamadasCargos).toBe(0);
+  });
+
+  it('nenhum CC disponível para inclusão: nenhum formulário, e cargosParaPosicao nem é chamado', async () => {
+    contexto = ctx(TUDO);
+    caso.semCcs = true;
+    const h = await html();
+    expect(h).not.toContain('Nova posição');
+    expect(caso.chamadasCargos).toBe(0);
   });
 
   it('alteração de posição em texto livre: a opção "Manter o cargo em texto" marcada, com o texto gravado', async () => {
@@ -188,7 +216,8 @@ describe('cargo do cadastro de C&S na posição (P15)', () => {
     contexto = ctx(TUDO);
     caso.cargos = { cargos: [], comSalario: false, aviso: null };
     const h = await html();
-    expect(h).not.toContain('name="cargoId"');
+    expect(h).not.toContain('<select id="nova-posicao-cargo-id"');
+    expect(h).toContain('<input type="hidden" name="cargoId" value=""/>');
     expect(h).toContain('Não há cargo do cadastro disponível; informe o cargo em texto.');
     expect(h).toContain('name="cargo"');
   });

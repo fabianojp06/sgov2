@@ -100,6 +100,8 @@ export const MENSAGENS_ORC = {
   CARGO_INATIVO: 'Este cargo está inativo. Escolha outro.',
   CARGO_SEM_FONTE_ATIVA: 'Este cargo está sem salário na Fonte Ativa. Escolha outro ou peça ao GRH para completar o cadastro.',
   CARGO_NAO_ENCONTRADO: 'Cargo não encontrado no cadastro.',
+  CARGO_NAO_ESCOLHIDO: 'Escolha o cargo do cadastro ou informe o cargo em texto.',
+  CARGO_ESCOLHA: 'Escolha o cargo',
   CARGO_FORA_DO_CADASTRO: 'o cargo não está mais no cadastro.',
   SEM_CARGO_DO_CADASTRO: 'Não há cargo do cadastro disponível; informe o cargo em texto.',
   FONTE_ATIVA_INDISPONIVEL: 'O salário da Fonte Ativa está indisponível no momento. Informe o salário mensal.',

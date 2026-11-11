@@ -254,7 +254,8 @@ async function semFonteAtiva(tx: TxCliente, cargo: CargoExercicio, deps: DepsOrc
 
 // Cargo do cadastro (D-P15-1, D-P15-2): com cargo, o texto `cargo` passa a ser o nome do cadastro,
 // cortado em 120 caracteres, antes da validação. O cargo precisa existir sempre; inativo e sem Fonte
-// Ativa são recusados só quando o cargoId muda (o mesmo já gravado passa).
+// Ativa são recusados só quando o cargoId muda (o mesmo já gravado passa). cargoId '' é o texto livre
+// (C34); sem cargoId, ninguém escolheu (o formulário abre em "Escolha o cargo", que não é enviado).
 async function aplicarCargo(
   tx: TxCliente,
   dados: Readonly<Record<string, unknown>>,
@@ -262,7 +263,8 @@ async function aplicarCargo(
   cargoGravado: string | null,
   deps: DepsOrc,
 ): Promise<Resultado<{ dados: Readonly<Record<string, unknown>>; cargoId: string | null }>> {
-  const cargoId = typeof dados.cargoId === 'string' && dados.cargoId !== '' ? dados.cargoId : null;
+  if (typeof dados.cargoId !== 'string') return erroCargo(MENSAGENS_ORC.CARGO_NAO_ESCOLHIDO);
+  const cargoId = dados.cargoId !== '' ? dados.cargoId : null;
   if (cargoId === null) return ok({ dados, cargoId });
   const cargo = cache.porId.get(cargoId);
   if (!cargo) return erroCargo(MENSAGENS_ORC.CARGO_NAO_ENCONTRADO);

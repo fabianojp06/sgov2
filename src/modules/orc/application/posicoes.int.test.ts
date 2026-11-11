@@ -65,8 +65,10 @@ async function exercicio(o: { calculado?: boolean } = {}) {
   return { ...e, deps, versao };
 }
 const gestor = (e: Ex, extra: Parameters<Ex['deps']>[0] = {}) => e.deps({ escopo: '4.3', ...extra });
+// cargoId '' = cargo em texto livre (C34); sem cargoId, o cargo não foi escolhido (P15).
 const dados = (extra: Record<string, string> = {}) => ({
   cc: '4.3.0',
+  cargoId: '',
   cargo: 'Analista de orçamento',
   quantidade: '2',
   salarioMensal: '7.500,00',
@@ -464,6 +466,29 @@ describe('cargo do cadastro de C&S (P15)', () => {
     const e = await exercicio();
     const r = await incluirPosicao(ctx(), { ...dados({ cargo: 'Analista temporário' }), cargoId: '', exercicioId: e.id }, e.deps());
     expect(await migrator.posicaoOrcada.findUniqueOrThrow({ where: { id: idDe(r) } })).toMatchObject({ cargoId: null, cargo: 'Analista temporário' });
+  });
+
+  it('cargo não escolhido (sem cargoId): inclusão, alteração e prévia recusadas, nada gravado', async () => {
+    const e = await exercicio();
+    const semCargo: Partial<ReturnType<typeof dados>> = dados();
+    delete semCargo.cargoId;
+    const NAO_ESCOLHIDO = 'Escolha o cargo do cadastro ou informe o cargo em texto.';
+    expect(await incluirPosicao(ctx(), { ...semCargo, exercicioId: e.id }, e.deps())).toEqual(recusa(NAO_ESCOLHIDO));
+    expect(await previaPosicao(ctx(), { ...semCargo, exercicioId: e.id }, e.deps())).toEqual(recusa(NAO_ESCOLHIDO));
+    const p = await posicaoDireta(e.id);
+    expect(await alterarPosicao(ctx(), { ...semCargo, cc: '4.4', id: p.id, versao: '0' }, e.deps())).toEqual(recusa(NAO_ESCOLHIDO));
+    expect(await migrator.posicaoOrcada.count({ where: { exercicioId: e.id, origem: 'TELA' } })).toBe(0);
+  });
+
+  it('prévia com o id de posição de outro exercício ou fora do escopo: a regra da inclusão (cargo inativo recusado)', async () => {
+    const e = await exercicio();
+    const outro = await exercicio();
+    const deOutroExercicio = await posicaoDireta(outro.id, { cargoId: C004, cc: '4.3.0' });
+    expect(await previaPosicao(ctx(), { ...dados(), cargoId: C004, id: deOutroExercicio.id, exercicioId: e.id }, e.deps())).toEqual(recusa(INATIVO));
+    const foraDoEscopo = await posicaoDireta(e.id, { cargoId: C004, cc: '4.4' });
+    expect(await previaPosicao(ctx(), { ...dados(), cargoId: C004, id: foraDoEscopo.id, exercicioId: e.id }, gestor(e))).toEqual(recusa(INATIVO));
+    // Controle: com a posição do mesmo exercício e do escopo, o mesmo cargo passa.
+    expect((await previaPosicao(ctx(), { ...dados({ cc: '4.4' }), cargoId: C004, id: foraDoEscopo.id, exercicioId: e.id }, e.deps())).ok).toBe(true);
   });
 
   it('recusas na inclusão: sem Fonte Ativa, inativo, inexistente e fora do formato; nada gravado', async () => {

@@ -47,15 +47,21 @@ const ccInicial = (ccAtual: string, ccs: readonly OpcaoPosicao[], p?: PosicaoEmE
   return ccs.some((c) => c.classificacao === cc) ? cc : '';
 };
 
-// Na inclusão, o primeiro cargo do cadastro (com o salário sugerido); sem cargo, o texto livre ('').
-const cargoInicial = (cargos: CargosPosicao, p?: PosicaoEmEdicao) => (p ? (p.cargoId ?? '') : (cargos.cargos[0]?.id ?? ''));
+// Valor do seletor: o id do cargo, '' para o texto livre (C34) ou NAO_ESCOLHIDO. A opção "Escolha o
+// cargo" é desabilitada: o navegador não envia o cargoId, e o servidor recusa (P15).
+const NAO_ESCOLHIDO = 'nao-escolhido';
+// Na inclusão, nenhum cargo escolhido (com o seletor); sem seletor, o texto livre.
+const cargoInicial = (comSeletor: boolean, p?: PosicaoEmEdicao) => (p ? (p.cargoId ?? '') : comSeletor ? NAO_ESCOLHIDO : '');
 const sugerido = (c: OpcaoCargo | undefined) => (c?.salarioFonteAtiva ? valorParaTela(Dinheiro.de(c.salarioFonteAtiva)) : null);
+// A posição em alteração pode apontar para um cargo fora da escolha (inativo ou sem Fonte Ativa).
+const cargoForaDaLista = (cargos: CargosPosicao, p?: PosicaoEmEdicao) => (p?.cargoId && !cargos.cargos.some((c) => c.id === p.cargoId) ? p : null);
+const temSeletor = (cargos: CargosPosicao, p?: PosicaoEmEdicao) => cargos.cargos.length > 0 || cargoForaDaLista(cargos, p) !== null;
 
 const camposIniciais = (cc: string, cargos: CargosPosicao, p?: PosicaoEmEdicao): Campos => ({
   cc,
-  cargoId: cargoInicial(cargos, p),
+  cargoId: cargoInicial(temSeletor(cargos, p), p),
   quantidade: p?.quantidade ?? '',
-  salarioMensal: p?.salarioMensal ?? (p ? '' : (sugerido(cargos.cargos[0]) ?? '')),
+  salarioMensal: p?.salarioMensal ?? '',
   mesInicio: p?.mesInicio ?? '1',
   mesSaida: p?.mesSaida ?? '12',
 });
@@ -97,13 +103,15 @@ export function FormPosicao({
     const d = new FormData(form);
     const t = (k: string) => (typeof d.get(k) === 'string' ? (d.get(k) as string) : '');
     setCampos((antes) => {
-      const cargoId = t('cargoId');
+      const lido = d.get('cargoId');
+      const cargoId = typeof lido === 'string' ? lido : NAO_ESCOLHIDO;
       let salarioMensal = t('salarioMensal');
-      // D-P15-2: trocar de cargo troca o salário só se ele estiver vazio ou igual à Fonte Ativa do anterior.
+      // D-P15-2: trocar de cargo (ou para o texto livre) troca o salário só se ele estiver vazio ou ainda
+      // igual à Fonte Ativa do anterior; sem Fonte Ativa no novo, o salário sugerido antes é limpo.
       if (cargoId !== antes.cargoId) {
         const novo = sugerido(cargos.cargos.find((c) => c.id === cargoId));
         const anterior = sugerido(cargos.cargos.find((c) => c.id === antes.cargoId));
-        if (novo !== null && (salarioMensal.trim() === '' || salarioMensal === anterior)) salarioMensal = novo;
+        if ((salarioMensal.trim() === '' && novo !== null) || (anterior !== null && salarioMensal === anterior)) salarioMensal = novo ?? '';
       }
       return { cc: t('cc'), cargoId, quantidade: t('quantidade'), salarioMensal, mesInicio: t('mesInicio'), mesSaida: t('mesSaida') };
     });
@@ -116,7 +124,9 @@ export function FormPosicao({
     }
     const espera = setTimeout(() => {
       setEstado({ tipo: 'CALCULANDO' });
-      previa({ exercicioId, ...campos, ...(posicao ? { id: posicao.id } : {}) })
+      // Sem cargo escolhido, o cargoId não vai (como no envio do formulário): o servidor responde o motivo.
+      const { cargoId, ...resto } = campos;
+      previa({ exercicioId, ...resto, ...(cargoId === NAO_ESCOLHIDO ? {} : { cargoId }), ...(posicao ? { id: posicao.id } : {}) })
         .then((r) => {
           if (pedido !== ultimo.current) return;
           setEstado(r.ok ? { tipo: 'PRONTA', previa: r.valor } : { tipo: 'MOTIVO', texto: r.erros.map((x) => x.mensagem).join(' ') });
@@ -129,12 +139,11 @@ export function FormPosicao({
     return () => clearTimeout(espera);
   }, [campos, exercicioId, previa, posicao]);
   const prefixo = posicao ? 'alterar-posicao' : 'nova-posicao';
-  // A posição em alteração pode apontar para um cargo fora da escolha (inativo ou sem Fonte Ativa): ele
-  // continua no seletor, com "(inativo)" quando for o caso.
-  const foraDaLista = posicao?.cargoId && !cargos.cargos.some((c) => c.id === posicao.cargoId) ? posicao : null;
-  const comSeletor = cargos.cargos.length > 0 || foraDaLista !== null;
+  // O cargo da posição fora da escolha continua no seletor, com "(inativo)" quando for o caso.
+  const foraDaLista = cargoForaDaLista(cargos, posicao);
+  const comSeletor = temSeletor(cargos, posicao);
   const escolhido = cargos.cargos.find((c) => c.id === campos.cargoId);
-  const textoLivre = !comSeletor || campos.cargoId === '';
+  const textoLivre = campos.cargoId === '';
   return (
     <section aria-labelledby={`${prefixo}-titulo`}>
       <h2 id={`${prefixo}-titulo`}>{posicao ? 'Alterar posição' : 'Nova posição'}</h2>
@@ -163,7 +172,12 @@ export function FormPosicao({
           {comSeletor ? (
             <p>
               <label htmlFor={`${prefixo}-cargo-id`}>Cargo do cadastro</label>
-              <select id={`${prefixo}-cargo-id`} name="cargoId" defaultValue={campos.cargoId} aria-describedby="erro-cargoId">
+              <select id={`${prefixo}-cargo-id`} name="cargoId" defaultValue={campos.cargoId} aria-required="true" aria-describedby="erro-cargoId">
+                {!posicao && (
+                  <option value={NAO_ESCOLHIDO} disabled>
+                    {MENSAGENS_ORC.CARGO_ESCOLHA}
+                  </option>
+                )}
                 {cargos.cargos.map((c) => (
                   <option key={c.id} value={c.id}>{`${c.codigo} – ${c.nome}`}</option>
                 ))}
@@ -175,7 +189,10 @@ export function FormPosicao({
               <ErroDoCampo campo="cargoId" />
             </p>
           ) : (
-            <p role="note">{MENSAGENS_ORC.SEM_CARGO_DO_CADASTRO}</p>
+            <>
+              <input type="hidden" name="cargoId" value="" />
+              <p role="note">{MENSAGENS_ORC.SEM_CARGO_DO_CADASTRO}</p>
+            </>
           )}
           {textoLivre && (
             <p>

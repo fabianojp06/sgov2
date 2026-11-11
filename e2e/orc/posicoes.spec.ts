@@ -66,6 +66,10 @@ test.describe.serial(`posições de pessoal ${ANO}`, () => {
   test('2. GFIN escolhe o cargo: o salário vem da Fonte Ativa, com a faixa, e grava com o nome do cadastro', async ({ page }) => {
     await entrarNaTelaPrincipal(page, USUARIOS.gfin.login);
     await page.goto(`/orc/posicoes?ano=${ANO}&cc=${CC_DAF}`);
+    // A inclusão abre sem cargo escolhido e com o salário vazio; a escolha é explícita.
+    await expect(page.getByLabel('Cargo do cadastro')).toHaveValue('nao-escolhido');
+    await expect(page.getByLabel('Salário mensal (R$)')).toHaveValue('');
+    await expect(page.getByText(/Fonte Ativa: R\$/)).toHaveCount(0);
     await page.getByLabel('Cargo do cadastro').selectOption({ label: OPCAO_CARGO });
     await expect(page.getByText('Fonte Ativa: R$ 4.500,00 · Faixa de mercado: R$ 4.500,00 a R$ 7.200,00')).toBeVisible();
     await expect(page.getByLabel('Salário mensal (R$)')).toHaveValue('4.500,00');

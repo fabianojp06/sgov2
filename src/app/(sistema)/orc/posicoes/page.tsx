@@ -42,8 +42,16 @@ export default async function Posicoes({ searchParams }: { searchParams: Promise
     podeAlterar: ctx.permissoes.has('orc.posicoes:alterar'),
     podeExcluir: ctx.permissoes.has('orc.posicoes:excluir'),
   };
-  // Cargos do cadastro de C&S (P15, D-P15-5): só quando o formulário aparece; quem só consulta não recebe a lista.
-  const cargos = lista.editavel && (permissoes.podeIncluir || permissoes.podeAlterar) ? await cargosParaPosicao(ctx) : null;
+  // Cargos do cadastro de C&S (P15, D-P15-5): só quando o formulário aparece, com a mesma condição do
+  // TelaPosicoes (alteração da posição pedida no CC, ou inclusão num CC das opções); quem só consulta não
+  // recebe a lista, e a leitura com salário não grava CONSULTA à toa.
+  const editar = um(busca.editar);
+  const mostraFormulario =
+    lista.editavel &&
+    ccAtual !== null &&
+    ((permissoes.podeAlterar && lista.posicoes.some((p) => p.cc === ccAtual && p.id === editar)) ||
+      (permissoes.podeIncluir && opcoes.ccs.some((c) => c.classificacao === ccAtual)));
+  const cargos = mostraFormulario ? await cargosParaPosicao(ctx) : null;
   return (
     <div>
       <h1>{`Posições de pessoal (${atual.ano})`}</h1>
@@ -54,7 +62,7 @@ export default async function Posicoes({ searchParams }: { searchParams: Promise
         opcoes={opcoes}
         lista={lista}
         ccAtual={ccAtual}
-        emEdicao={um(busca.editar) ?? null}
+        emEdicao={editar ?? null}
         permissoes={permissoes}
         cargos={cargos}
         acoes={{ incluir: incluirPosicaoAcao, alterar: alterarPosicaoAcao, excluir: excluirPosicaoAcao, previa: previaPosicaoAcao }}
