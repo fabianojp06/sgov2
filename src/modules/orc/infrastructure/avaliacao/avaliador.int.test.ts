@@ -19,6 +19,7 @@ let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let migrator: ReturnType<typeof criarPrisma>;
 let app: ReturnType<typeof criarPrisma>;
 let perfilGfin = '';
+// Premissas (falsas) só para 2090; 2091, mais novo, fica sem. Os exercícios nascem no 1º describe.
 const ANO = 2090;
 
 const CASO = CASOS_IA_ORC.sugestaoConta.codigo;
@@ -85,7 +86,6 @@ beforeAll(async () => {
   await executarSeeds(migrator, [seedAdm, seedOrc]);
   app = criarPrisma(banco.urlApp);
   perfilGfin = (await migrator.perfil.findUniqueOrThrow({ where: { codigo: 'GFIN' } })).id;
-  await migrator.orcamentoExercicio.create({ data: { ano: ANO } });
   await migrator.$executeRawUnsafe(`UPDATE ia_configuracao SET habilitada = true, teto_mensal_usd = 100, limite_por_minuto = 1000`);
   await migrator.$executeRawUnsafe(`UPDATE ia_caso_uso SET ativo = true, teto_mensal_usd = 10 WHERE codigo = $1`, CASO);
 }, 120_000);
@@ -104,12 +104,40 @@ afterAll(async () => {
   }
 });
 
+// Vem primeiro: o banco começa sem exercício; o segundo teste cria 2090 e 2091, que os demais usam.
+describe('contas vetadas: premissas do maior ano que as tem', () => {
+  // 4.1.1.8.003 só é vetada pelas premissas; 4.1.1.1.001, pela raiz de pessoal.
+  const VETADAS = [
+    { descricao: 'Obrigações do mês (CASO-SECRETO-D)', contaEsperada: '4.1.1.8.003' },
+    { descricao: 'Salários da equipe (CASO-SECRETO-E)', contaEsperada: '4.1.1.1.001' },
+  ];
+
+  it('nenhum exercício: vetadas só as raízes de pessoal; foraDaLista conta a esperada fora da lista', async () => {
+    expect(await migrator.orcamentoExercicio.count()).toBe(0);
+    const r = await criarAvaliadorSugestaoConta(deps({ casos: VETADAS }))(pedido(await gfin()));
+    expect(r.resumo).toMatchObject({ foraDaLista: 1 });
+    const m = falso.chamadas.at(-1)!.mensagem;
+    expect(m).toContain('4.1.1.8.003 – Obrigações');
+    expect(m).not.toContain('4.1.1.1.001');
+  });
+
+  it('dois exercícios, o mais novo sem premissas: valem as do anterior', async () => {
+    await migrator.orcamentoExercicio.createMany({ data: [{ ano: ANO }, { ano: ANO + 1 }] });
+    const r = await criarAvaliadorSugestaoConta(deps({ casos: VETADAS }))(pedido(await gfin()));
+    expect(r.resumo).toMatchObject({ foraDaLista: 2 });
+    const m = falso.chamadas.at(-1)!.mensagem;
+    expect(m).not.toContain('4.1.1.8.003');
+    expect(m).not.toContain('4.1.1.1.001');
+    expect(m).toContain('4.1.1.5.028 – Material de Informática');
+  });
+});
+
 describe('avaliadorSugestaoConta', () => {
   it('pessoa válida: total e acertos no top-3, um registro em ia_chamada por caso e o resumo só com números', async () => {
     const id = await gfin();
     const antes = await chamadas();
     const r = await criarAvaliadorSugestaoConta(deps())(pedido(id));
-    expect(r).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3 } });
+    expect(r).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3, foraDaLista: 0 } });
     expect(falso.chamadas).toHaveLength(3);
     expect(await chamadas()).toBe(antes + 3);
     expect(JSON.stringify(r)).not.toMatch(/CASO-SECRETO|Toner|Bilhetes|4\.1\.1/);
@@ -120,7 +148,7 @@ describe('avaliadorSugestaoConta', () => {
     const login = `admin.avaliacao${++seq}`;
     const u = await migrator.usuario.create({ data: { nome: 'Admin Avaliador', email: `${login}@exemplo.org`, login, loginNormalizado: login, senhaHash: 'x' } });
     await migrator.usuarioPerfil.create({ data: { usuarioId: u.id, perfilId: perfil } });
-    expect(await criarAvaliadorSugestaoConta(deps())(pedido(u.id))).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3 } });
+    expect(await criarAvaliadorSugestaoConta(deps())(pedido(u.id))).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3, foraDaLista: 0 } });
     expect(falso.chamadas).toHaveLength(3);
   });
 
@@ -129,7 +157,7 @@ describe('avaliadorSugestaoConta', () => {
     const antes = await chamadas();
     await migrator.$executeRawUnsafe(`UPDATE ia_configuracao SET limite_por_minuto = 1`);
     try {
-      expect(await criarAvaliadorSugestaoConta(deps())(pedido(id))).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3 } });
+      expect(await criarAvaliadorSugestaoConta(deps())(pedido(id))).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3, foraDaLista: 0 } });
     } finally {
       await migrator.$executeRawUnsafe(`UPDATE ia_configuracao SET limite_por_minuto = 1000`);
     }
@@ -149,7 +177,7 @@ describe('avaliadorSugestaoConta', () => {
   it('erro da IA num caso conta no total e em errosIa, nunca como acerto', async () => {
     const id = await gfin();
     falso.roteiro.erro = 'ia.saida_invalida';
-    expect(await criarAvaliadorSugestaoConta(deps())(pedido(id))).toEqual({ total: 3, acertos: 0, resumo: { errosIa: 3, taxa: 0 } });
+    expect(await criarAvaliadorSugestaoConta(deps())(pedido(id))).toEqual({ total: 3, acertos: 0, resumo: { errosIa: 3, taxa: 0, foraDaLista: 0 } });
   });
 
   it('pessoa inativa, bloqueada, sem a permissão do caso ou com CC de escopo: erro de domínio, sem chamar a IA', async () => {
