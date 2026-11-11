@@ -5,7 +5,7 @@ import { ErroDoCampo, Formulario } from '@/modules/ger';
 import type { AcaoFormulario } from '@/modules/ger';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { previaPacote, type CamposPrevia } from '../domain/previa-pacote';
-import { ROTULO_FALTANDO, ROTULO_PRIORIDADE, type SugestaoJustificativa } from '../domain/sugestao-ia';
+import { deveMarcarSugestao, ROTULO_FALTANDO, ROTULO_PRIORIDADE, type SugestaoJustificativa, type SugestoesAceitas } from '../domain/sugestao-ia';
 import { valorParaTela } from '../domain/valor-tela';
 import { PainelIA, type RespostaIaTela } from './painel-ia';
 
@@ -22,9 +22,7 @@ const PRIORIDADES = [
 export type OpcaoPacote = { classificacao: string; descricao: string };
 // Ajuda da IA na justificativa (US-063): a Server Action do orc, por props.
 export type AcaoSugerirJustificativa = (entrada: Record<string, string>) => Promise<RespostaIaTela<SugestaoJustificativa>>;
-// Sugestões aceitas (D-P14-3): a marca sugestaoIa vai junto enquanto o campo continua com o valor aceito.
-type Aceitas = { justificativa?: string; prioridade?: string };
-const normalizar = (t: string) => t.replace(/\r\n/g, '\n').trim();
+
 export type PacoteEmEdicao = {
   id: string;
   cc: string;
@@ -79,19 +77,15 @@ export function FormPacote({
   const [campos, setCampos] = useState<CamposPrevia>(() => camposIniciais(pacote));
   const campoRef = useRef<HTMLDivElement>(null);
   const justificativaRef = useRef<HTMLTextAreaElement>(null);
-  const aceitas = useRef<Aceitas>({});
+  const aceitas = useRef<SugestoesAceitas>({});
   const [marcada, setMarcada] = useState(false);
   const lerFormulario = () => {
     const form = campoRef.current?.closest('form');
     const d = form ? new FormData(form) : new FormData();
     return (k: string) => (typeof d.get(k) === 'string' ? (d.get(k) as string) : '');
   };
-  const conferirMarca = (t: (k: string) => string) => {
-    const a = aceitas.current;
-    setMarcada(
-      (a.justificativa !== undefined && normalizar(t('justificativa')) === normalizar(a.justificativa)) || (a.prioridade !== undefined && t('prioridade') === a.prioridade),
-    );
-  };
+  // A marca sugestaoIa vai junto enquanto algum campo continua com o valor aceito (D-P14-3).
+  const conferirMarca = (t: (k: string) => string) => setMarcada(deveMarcarSugestao(aceitas.current, { justificativa: t('justificativa'), prioridade: t('prioridade') }));
   // A prévia acompanha o que está digitado: lê o formulário inteiro a cada mudança.
   const aoMudar = () => {
     const t = lerFormulario();
@@ -118,8 +112,11 @@ export function FormPacote({
   const usarPrioridade = (rotulo: string) => {
     const radio = campoRef.current?.querySelector<HTMLInputElement>(`input[name="prioridade"][value="${rotulo}"]`);
     if (!radio) return;
-    radio.checked = true;
-    aceitas.current = { ...aceitas.current, prioridade: rotulo };
+    // A sugerida já era a marcada: nada veio da IA, e a entrada não leva a marca.
+    if (!radio.checked) {
+      radio.checked = true;
+      aceitas.current = { ...aceitas.current, prioridade: rotulo };
+    }
     conferirMarca(lerFormulario());
     radio.focus();
   };

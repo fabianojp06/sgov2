@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { ErroCampo } from '@/shared/kernel';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 
@@ -10,7 +10,38 @@ import { MENSAGENS_ORC } from '../domain/mensagens';
 // resposta ("Usar …") fica com quem usa o painel, que só preenche campos editáveis.
 export type RespostaIaTela<T> = { ok: true; valor: T } | { ok: false; erros: readonly ErroCampo[] };
 
-type Estado<T> = { tipo: 'OCIOSO' } | { tipo: 'CONSULTANDO' } | { tipo: 'ERRO'; mensagem: string } | { tipo: 'PRONTA'; valor: T };
+export type EstadoPainelIA<T> = { tipo: 'OCIOSO' } | { tipo: 'CONSULTANDO' } | { tipo: 'ERRO'; mensagem: string } | { tipo: 'PRONTA'; valor: T };
+
+/** A resposta da ação vira o estado do painel: erro com as mensagens juntas, ou a sugestão pronta. */
+export function estadoDaResposta<T>(r: RespostaIaTela<T>): EstadoPainelIA<T> {
+  return r.ok ? { tipo: 'PRONTA', valor: r.valor } : { tipo: 'ERRO', mensagem: r.erros.map((e) => e.mensagem).join(' ') };
+}
+
+/** A resposta pronta: sempre com o selo da spec antes do conteúdo. */
+export function RespostaPainelIA({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <p>
+        <strong>{MENSAGENS_ORC.SELO_IA}</strong>
+      </p>
+      {children}
+    </>
+  );
+}
+
+/** O conteúdo da região viva, por estado (puro: testável sem DOM). */
+export function ConteudoPainelIA<T>({ estado, children }: { estado: EstadoPainelIA<T>; children: (valor: T) => ReactNode }) {
+  switch (estado.tipo) {
+    case 'CONSULTANDO':
+      return <p>{MENSAGENS_ORC.IA_CONSULTANDO}</p>;
+    case 'ERRO':
+      return <p>{estado.mensagem}</p>;
+    case 'PRONTA':
+      return <RespostaPainelIA>{children(estado.valor)}</RespostaPainelIA>;
+    default:
+      return null;
+  }
+}
 
 export function PainelIA<T>({
   id,
@@ -27,35 +58,33 @@ export function PainelIA<T>({
   pedir: () => Promise<RespostaIaTela<T>>;
   children: (valor: T) => ReactNode;
 }) {
-  const [estado, setEstado] = useState<Estado<T>>({ tipo: 'OCIOSO' });
+  const [estado, setEstado] = useState<EstadoPainelIA<T>>({ tipo: 'OCIOSO' });
+  // Ref, e não só o estado: dois cliques seguidos não disparam duas consultas.
+  const ocupado = useRef(false);
   const consultando = estado.tipo === 'CONSULTANDO';
   const consultar = async () => {
+    if (ocupado.current) return;
+    ocupado.current = true;
     setEstado({ tipo: 'CONSULTANDO' });
     try {
-      const r = await pedir();
-      setEstado(r.ok ? { tipo: 'PRONTA', valor: r.valor } : { tipo: 'ERRO', mensagem: r.erros.map((e) => e.mensagem).join(' ') });
+      setEstado(estadoDaResposta(await pedir()));
     } catch {
       setEstado({ tipo: 'ERRO', mensagem: MENSAGENS_ORC.IA_FALHA_CONSULTA });
+    } finally {
+      ocupado.current = false;
     }
   };
   return (
     <section aria-labelledby={`${id}-titulo`} className="painel-ia">
       <h3 id={`${id}-titulo`}>{titulo}</h3>
       {aviso && <p role="note">{aviso}</p>}
-      {/* type="button": o painel fica dentro do formulário e não pode enviá-lo. */}
-      <button type="button" onClick={consultar} disabled={consultando} aria-busy={consultando}>
-        {consultando ? MENSAGENS_ORC.IA_CONSULTANDO : rotuloBotao}
+      {/* type="button": o painel fica dentro do formulário e não pode enviá-lo. aria-disabled, e não
+          disabled, para o foco ficar no botão durante a consulta; o clique é ignorado. */}
+      <button type="button" onClick={consultar} aria-disabled={consultando}>
+        {rotuloBotao}
       </button>
-      <div aria-live="polite">
-        {estado.tipo === 'ERRO' && <p>{estado.mensagem}</p>}
-        {estado.tipo === 'PRONTA' && (
-          <>
-            <p>
-              <strong>{MENSAGENS_ORC.SELO_IA}</strong>
-            </p>
-            {children(estado.valor)}
-          </>
-        )}
+      <div role="status" aria-live="polite">
+        <ConteudoPainelIA estado={estado}>{children}</ConteudoPainelIA>
       </div>
     </section>
   );

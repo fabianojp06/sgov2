@@ -17,7 +17,7 @@ import {
 import { exigirPagina } from '@/shared/authz';
 
 // Pacotes base zero (US-057): o Gestor de Diretoria lança nos CCs do escopo; a GFIN, em qualquer CC.
-type Busca = { ano?: string | string[]; cc?: string | string[]; editar?: string | string[]; aviso?: string | string[] };
+type Busca = { ano?: string | string[]; cc?: string | string[]; editar?: string | string[]; aviso?: string | string[]; salvo?: string | string[] };
 const um = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined);
 
 export default async function Pacotes({ searchParams }: { searchParams: Promise<Busca> }) {
@@ -50,6 +50,7 @@ export default async function Pacotes({ searchParams }: { searchParams: Promise<
         lista={lista}
         ccAtual={ccAtual}
         emEdicao={um(busca.editar) ?? null}
+        gravacao={um(busca.salvo)}
         permissoes={{
           podeIncluir: ctx.permissoes.has('orc.pacotes:incluir'),
           podeAlterar: ctx.permissoes.has('orc.pacotes:alterar'),

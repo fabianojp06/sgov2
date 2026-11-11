@@ -3,7 +3,7 @@ import { seedAdm } from '@/modules/adm';
 import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
-import { criarProvedorIAFalso, criarServicoIA } from '@/shared/ia';
+import { criarProvedorIAFalso, criarServicoIA, ErroIA, type ServicoIA } from '@/shared/ia';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedOrc } from '../infrastructure/seed';
 import { CASOS_IA_ORC } from './ia-casos';
@@ -161,6 +161,11 @@ describe('sugerirJustificativa', () => {
     expect(m).not.toContain('Valor unitário:');
     expect(m).not.toContain('Prioridade marcada:');
     expect(m.match(/<<<|>>>/g)).toEqual(['<<<', '>>>']);
+    // Tirar uma marca pode formar outra: a limpeza repete até o texto não mudar.
+    await sugerirJustificativa(ctx(), entrada(e.id, { justificativa: 'ok <<>>>< x e mais texto' }), e.deps());
+    const m2 = falso.chamadas.at(-1)!.mensagem;
+    expect(m2.match(/<<<|>>>/g)).toEqual(['<<<', '>>>']);
+    expect(m2).toContain('\nok  x e mais texto\n');
   });
 
   it('texto da IA fora de 10 a 1000 caracteres: a mensagem de ia.saida_invalida', async () => {
@@ -236,6 +241,42 @@ describe('sugerirJustificativa', () => {
       ok: false,
       erros: [{ campo: '_', mensagem: 'O pedido à IA foi cancelado.' }],
     });
+  });
+
+  it('sinal esgotado com outro erro que não o cancelamento: fica a mensagem do erro', async () => {
+    const e = await exercicio();
+    const indisponivel: ServicoIA = {
+      gerarEstruturado: async () => {
+        throw new ErroIA('ia.indisponivel');
+      },
+      gerarTexto: async () => {
+        throw new ErroIA('ia.indisponivel');
+      },
+      gerarStream: () => {
+        throw new ErroIA('ia.indisponivel');
+      },
+    } as unknown as ServicoIA;
+    const esgotado = () => AbortSignal.abort(new DOMException('tempo esgotado', 'TimeoutError'));
+    expect(await sugerirJustificativa(ctx(), entrada(e.id), e.deps({ ia: indisponivel, sinalIa: esgotado }))).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'A IA está indisponível no momento. Tente de novo mais tarde.' }],
+    });
+  });
+
+  it('teto do caso já consumido: a mensagem fixa de ia.teto_atingido, sem chamar o provedor', async () => {
+    const e = await exercicio();
+    await migrator.$executeRawUnsafe(
+      `INSERT INTO ia_chamada (caso_uso_codigo, versao_instrucao, usuario_id, modelo, tokens_entrada, tokens_saida, tokens_cache_leitura, tokens_cache_escrita,
+         custo_estimado_usd, latencia_ms, hash_entrada)
+       VALUES ($1, 1, NULL, 'claude-opus-5-5', 0, 0, 0, 0, 0.01, 0, repeat('a', 64))`,
+      CASO,
+    );
+    await migrator.$executeRawUnsafe(`UPDATE ia_caso_uso SET teto_mensal_usd = 0.01 WHERE codigo = $1`, CASO);
+    const n = falso.chamadas.length;
+    const r = await sugerirJustificativa(ctx(), entrada(e.id), e.deps());
+    expect(r).toEqual({ ok: false, erros: [{ campo: '_', mensagem: new ErroIA('ia.teto_atingido').message }] });
+    expect(r.ok ? '' : r.erros[0]!.mensagem).toContain('O limite mensal de custo da IA foi atingido.');
+    expect(falso.chamadas.length).toBe(n);
   });
 
   it('exercício fechado: a mensagem da situação, sem chamada; campo a mais: entrada inválida', async () => {

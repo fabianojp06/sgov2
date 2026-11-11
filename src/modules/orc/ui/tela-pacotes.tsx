@@ -41,6 +41,7 @@ export function TelaPacotes({
   acoes,
   aviso,
   iaJustificativa = false,
+  gravacao,
 }: {
   ano: number;
   exercicioId: string;
@@ -53,6 +54,8 @@ export function TelaPacotes({
   aviso?: string | undefined;
   // Ajuda da IA na justificativa (US-063): a página decide pela permissão do caso (D-P14-5).
   iaJustificativa?: boolean;
+  // Id da última gravação (?salvo=): muda a key do formulário de inclusão, que recomeça do zero.
+  gravacao?: string | undefined;
 }) {
   // CCs da escolha: os do escopo e, para quem vê tudo, os dos pacotes de CC fora da estrutura ativa.
   const ccsComPacote = [...new Set(lista.pacotes.map((k) => k.cc))].filter((cc) => !opcoes.ccs.some((c) => c.classificacao === cc));
@@ -180,7 +183,7 @@ export function TelaPacotes({
             permissoes.podeIncluir &&
             opcoes.ccs.some((c) => c.classificacao === ccAtual) && (
               <FormPacote
-                key={`novo-${ccAtual}`}
+                key={`novo-${ccAtual}-${gravacao ?? ''}`}
                 ano={ano}
                 exercicioId={exercicioId}
                 ccAtual={ccAtual}

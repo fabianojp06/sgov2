@@ -64,8 +64,16 @@ function descricao(nos: readonly No[], classificacao: string): string | null {
 const PRIORIDADES = new Set(Object.values(ROTULO_PRIORIDADE));
 const QUANTIDADE = /^\d{1,4}$/;
 const VALOR_BR = /^(\d{1,3}(\.\d{3})+|\d+)(,\d{1,2})?$/;
-// As marcas que cercam o texto digitado não podem aparecer dentro dele.
-const semMarcas = (t: string) => t.replaceAll('<<<', '').replaceAll('>>>', '');
+// As marcas que cercam o texto digitado não podem aparecer dentro dele. Repete até não mudar: tirar
+// uma marca pode juntar os pedaços de outra ('<<>>><' → '<<<').
+export function semMarcas(t: string): string {
+  let atual = t;
+  for (;;) {
+    const limpo = atual.replaceAll('<<<', '').replaceAll('>>>', '');
+    if (limpo === atual) return limpo;
+    atual = limpo;
+  }
+}
 
 type DadosMensagem = {
   ano: number;
@@ -159,6 +167,6 @@ export async function sugerirJustificativa(ctx: ContextoRequisicao, bruto: unkno
   } catch (x) {
     // definirAcao só traduz ErroDominio: o ErroIA vira aqui a mensagem fixa dele (sem detalhe do provedor).
     if (!(x instanceof ErroIA)) throw x;
-    return erro('_', tempoEsgotado(sinal) ? MENSAGENS_ORC.IA_TEMPO_ESGOTADO : x.message);
+    return erro('_', x.codigo === 'ia.cancelada' && tempoEsgotado(sinal) ? MENSAGENS_ORC.IA_TEMPO_ESGOTADO : x.message);
   }
 }
