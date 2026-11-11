@@ -4,7 +4,7 @@ export { aprovarAcao, enviarAcao, rejeitarAcao } from './application/acoes-aprov
 export { importarPlanilhaAcao } from './application/acoes-importacao';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
-export { sugerirJustificativaAcao } from './application/acoes-ia';
+export { sugerirContaCcAcao, sugerirJustificativaAcao } from './application/acoes-ia';
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
 export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, previaPosicaoAcao } from './application/acoes-posicoes';

@@ -101,4 +101,8 @@ export const MENSAGENS_ORC = {
   IA_TEMPO_ESGOTADO: 'A IA demorou demais para responder. Tente de novo.',
   IA_SEM_NOMES: 'Não escreva nomes de pessoas no texto enviado à IA.',
   IA_FALHA_CONSULTA: 'Não foi possível consultar a IA. Tente de novo.',
+  // Sugestão de conta e CC (US-062; D-P14-2) [PROVISÓRIOS].
+  IA_DESCRICAO_CURTA: 'Descreva o gasto com pelo menos 10 caracteres.',
+  IA_SEM_SUGESTAO_VALIDA: 'A IA não encontrou uma sugestão válida. Escolha a conta na lista.',
+  IA_SUGESTAO_CONTA_AVISO: 'A IA lê o texto do campo Atividade / justificativa como a descrição do gasto. Não escreva nomes de pessoas no texto enviado à IA.',
 } as const;

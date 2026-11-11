@@ -32,8 +32,9 @@ describe('painel da IA', () => {
     const h = renderToStaticMarkup(
       createElement(PainelIA<string>, { id: 'p', titulo: 'Ajuda', rotuloBotao: 'Pedir ajuda', aviso: 'Sem nomes.', pedir: async () => ({ ok: true as const, valor: '' }), children: () => null }),
     );
-    expect(h).toContain('<button type="button" aria-disabled="false">Pedir ajuda</button>');
-    expect(h).toContain('<p role="note">Sem nomes.</p>');
+    // O aviso descreve o botão (aria-describedby).
+    expect(h).toContain('<button type="button" aria-disabled="false" aria-describedby="p-aviso">Pedir ajuda</button>');
+    expect(h).toContain('<p role="note" id="p-aviso">Sem nomes.</p>');
     expect(h).toContain('<div role="status" aria-live="polite"></div>');
     expect(h).not.toContain('disabled=""');
   });

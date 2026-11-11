@@ -8,7 +8,7 @@ import { FALTANDO_JUSTIFICATIVA, ROTULO_PRIORIDADE, type SugestaoJustificativa }
 import { errosNaoEditavel } from './calculo-linhas';
 import { contasVetadasEmPacote } from './contas-vetadas';
 import { CASOS_IA_ORC } from './ia-casos';
-import { resolverDepsIa, type DepsIaOrc } from './ia-deps';
+import { mensagemErroIA, resolverDepsIa, type DepsIaOrc } from './ia-deps';
 import { resolverEscopo } from './escopo';
 
 // Ajuda da IA na justificativa do pacote base zero (US-063; plano do P14, Task 1). Só leitura: a
@@ -41,10 +41,10 @@ const ENTRADA = z
 
 // Resposta da IA: fora do schema, o provedor devolve ErroIA('ia.saida_invalida').
 export const RESPOSTA_JUSTIFICATIVA = z.object({
-  texto: z.string().min(10).max(MAXIMO_JUSTIFICATIVA),
+  texto: z.string().trim().min(10).max(MAXIMO_JUSTIFICATIVA),
   faltando: z.array(z.enum(FALTANDO_JUSTIFICATIVA)).max(FALTANDO_JUSTIFICATIVA.length),
   prioridade: z.enum(['ESSENCIAL', 'IMPORTANTE', 'DESEJAVEL']),
-  motivoPrioridade: z.string().min(1).max(500),
+  motivoPrioridade: z.string().trim().min(1).max(500),
 });
 
 const erro = (campo: string, mensagem: string): Resultado<never> => falha([{ campo, mensagem } satisfies ErroCampo]);
@@ -106,9 +106,6 @@ export function montarMensagemJustificativa(d: DadosMensagem): string {
   return linhas.join('\n');
 }
 
-// Tempo limite da chamada (D-P14-4): o sinal abortou pelo AbortSignal.timeout.
-const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError';
-
 export async function sugerirJustificativa(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsIaOrc> = {}): Promise<Resultado<SugestaoJustificativa>> {
   // A governança também confere; aqui, antes de qualquer leitura, com a mensagem do ErroIA.
   if (!ctx.permissoes.has(PERMISSAO_IA)) return erro('_', new ErroIA('ia.sem_permissao').message);
@@ -120,7 +117,8 @@ export async function sugerirJustificativa(ctx: ContextoRequisicao, bruto: unkno
   const parse = ENTRADA.safeParse(bruto);
   if (!parse.success) return erro('_', 'Dados do pacote inválidos. Recarregue a tela.');
   const entrada = parse.data;
-  const justificativa = (entrada.justificativa ?? '').trim();
+  // As marcas saem antes de contar: '<<<>>>' e espaços não valem como texto.
+  const justificativa = semMarcas(entrada.justificativa ?? '').trim();
   if (contar(justificativa) < 10) return erro('justificativa', MENSAGENS_ORC.JUSTIFICATIVA_CURTA);
   if (contar(justificativa) > MAXIMO_JUSTIFICATIVA) return erro('justificativa', 'Justificativa com mais de 1000 caracteres.');
 
@@ -158,15 +156,15 @@ export async function sugerirJustificativa(ctx: ContextoRequisicao, bruto: unkno
   try {
     const { valor } = await deps.ia.gerarEstruturado(ctx, CASO, mensagem, RESPOSTA_JUSTIFICATIVA, sinal);
     return ok({
-      texto: valor.texto.trim(),
+      texto: valor.texto,
       // Na ordem fixa e sem repetição.
       faltando: FALTANDO_JUSTIFICATIVA.filter((f) => valor.faltando.includes(f)),
       prioridade: valor.prioridade,
-      motivoPrioridade: valor.motivoPrioridade.trim(),
+      motivoPrioridade: valor.motivoPrioridade,
     });
   } catch (x) {
     // definirAcao só traduz ErroDominio: o ErroIA vira aqui a mensagem fixa dele (sem detalhe do provedor).
     if (!(x instanceof ErroIA)) throw x;
-    return erro('_', x.codigo === 'ia.cancelada' && tempoEsgotado(sinal) ? MENSAGENS_ORC.IA_TEMPO_ESGOTADO : x.message);
+    return erro('_', mensagemErroIA(x, sinal));
   }
 }

@@ -1,0 +1,122 @@
+[
+  {
+    "descricao": "Bilhetes aéreos de ida e volta para o diretor participar de um seminário em Recife",
+    "contaEsperada": "4.1.1.3.001"
+  },
+  {
+    "descricao": "Bilhete aéreo para técnico em atividade fora do termo de parceria (Extra TP)",
+    "contaEsperada": "4.1.1.3.005"
+  },
+  {
+    "descricao": "Locação de automóvel no destino durante a viagem de fiscalização ao interior",
+    "contaEsperada": "4.1.1.3.011"
+  },
+  {
+    "descricao": "Locação mensal de carro para os deslocamentos administrativos da sede na própria cidade",
+    "contaEsperada": "4.1.1.5.025"
+  },
+  {
+    "descricao": "Hospedagem em hotel para os técnicos durante a vistoria de três dias nas unidades regionais",
+    "contaEsperada": "4.1.1.4.001"
+  },
+  {
+    "descricao": "Conta mensal de luz do prédio da sede",
+    "contaEsperada": "4.1.1.5.001"
+  },
+  {
+    "descricao": "Fornecimento de água e coleta de esgoto da sede durante o ano",
+    "contaEsperada": "4.1.1.5.002"
+  },
+  {
+    "descricao": "Detergente, desinfetante, panos de chão e sacos de lixo para a faxina das salas",
+    "contaEsperada": "4.1.1.5.003"
+  },
+  {
+    "descricao": "Resmas de papel A4, canetas, grampeadores e pastas para o setor administrativo",
+    "contaEsperada": "4.1.1.5.005"
+  },
+  {
+    "descricao": "Reforma do telhado e pintura das salas do prédio da sede",
+    "contaEsperada": "4.1.1.5.007"
+  },
+  {
+    "descricao": "Gasolina e diesel para abastecer os veículos da frota oficial",
+    "contaEsperada": "4.1.1.5.008"
+  },
+  {
+    "descricao": "Abastecimento dos veículos usados em atividades fora do termo de parceria (Extra TP)",
+    "contaEsperada": "4.1.1.5.036"
+  },
+  {
+    "descricao": "Linhas de telefonia fixa e celular corporativo para a diretoria",
+    "contaEsperada": "4.1.1.5.009"
+  },
+  {
+    "descricao": "Aluguel mensal do imóvel onde funciona o escritório regional",
+    "contaEsperada": "4.1.1.5.010"
+  },
+  {
+    "descricao": "Café, açúcar, filtros e copos descartáveis para a copa",
+    "contaEsperada": "4.1.1.5.014"
+  },
+  {
+    "descricao": "Link de internet dedicado de 500 megas para o escritório",
+    "contaEsperada": "4.1.1.5.016"
+  },
+  {
+    "descricao": "Teclados, mouses e cabos de rede para repor os dos computadores do setor",
+    "contaEsperada": "4.1.1.5.028"
+  },
+  {
+    "descricao": "Revisão periódica, troca de pneus e conserto dos carros da frota",
+    "contaEsperada": "4.1.1.5.027"
+  },
+  {
+    "descricao": "Licenciamento anual, IPVA e seguro obrigatório dos veículos",
+    "contaEsperada": "4.1.1.5.029"
+  },
+  {
+    "descricao": "Contrato de manutenção preventiva dos aparelhos de ar-condicionado das salas",
+    "contaEsperada": "4.1.1.5.032"
+  },
+  {
+    "descricao": "Tributo municipal cobrado todo ano sobre o imóvel próprio da sede",
+    "contaEsperada": "4.1.1.5.020"
+  },
+  {
+    "descricao": "Advogados contratados para defender a organização em ações trabalhistas",
+    "contaEsperada": "4.1.1.6.001"
+  },
+  {
+    "descricao": "Assinatura anual de jornais e revistas especializadas em gestão pública",
+    "contaEsperada": "4.1.1.6.002"
+  },
+  {
+    "descricao": "Auditoria independente das demonstrações contábeis do exercício",
+    "contaEsperada": "4.1.1.6.003"
+  },
+  {
+    "descricao": "Licença do software de BI usado nos painéis gerenciais, renovada todo ano com o suporte do fornecedor",
+    "contaEsperada": "4.1.1.6.007"
+  },
+  {
+    "descricao": "Curso de capacitação em licitações e contratos para os servidores do setor de compras",
+    "contaEsperada": "4.1.1.6.011"
+  },
+  {
+    "descricao": "Curso para a equipe de um projeto fora do termo de parceria (Extra TP)",
+    "contaEsperada": "4.1.1.6.027"
+  },
+  {
+    "descricao": "Impressão de cartilhas e encadernação de relatórios anuais",
+    "contaEsperada": "4.1.1.6.012"
+  },
+  {
+    "descricao": "Malotes e cartas enviados pelo serviço postal às unidades regionais",
+    "contaEsperada": "4.1.1.6.014"
+  },
+  {
+    "descricao": "Camisas e calças padronizadas para os funcionários da recepção",
+    "contaEsperada": "4.1.1.6.015"
+  }
+]

@@ -190,9 +190,11 @@ describe('sugerirJustificativa', () => {
     expect(m2).toContain('\nok  x e mais texto\n');
   });
 
-  it('texto da IA fora de 10 a 1000 caracteres: a mensagem de ia.saida_invalida', async () => {
+  it('texto da IA fora de 10 a 1000 caracteres (sem os espaços das pontas) ou motivo vazio: a mensagem de ia.saida_invalida', async () => {
     const e = await exercicio();
-    for (const texto of ['curto', 'x'.repeat(1001)]) {
+    falso.roteiro.estruturado = { ...SUGESTAO, motivoPrioridade: '   ' };
+    expect(await sugerirJustificativa(ctx(), entrada(e.id), e.deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'A resposta da IA veio fora do formato esperado.' }] });
+    for (const texto of ['curto', `   curto${' '.repeat(10)}`, 'x'.repeat(1001)]) {
       falso.roteiro.estruturado = { ...SUGESTAO, texto };
       expect(await sugerirJustificativa(ctx(), entrada(e.id), e.deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'A resposta da IA veio fora do formato esperado.' }] });
     }
@@ -219,10 +221,13 @@ describe('sugerirJustificativa', () => {
     const antes = await chamadas();
     expect(await sugerirJustificativa(ctx(), entrada(e.id, { cc: '4.4' }), e.deps({ escopo: '4.3' }))).toEqual({ ok: false, erros: [{ campo: 'cc', mensagem: 'CC fora do seu escopo.' }] });
     expect(await sugerirJustificativa(ctx(), entrada(e.id, { conta: '4.1.1.1.001' }), e.deps())).toEqual({ ok: false, erros: [{ campo: 'conta', mensagem: 'Conta não permitida em pacote base zero.' }] });
-    expect(await sugerirJustificativa(ctx(), entrada(e.id, { justificativa: 'curta' }), e.deps())).toEqual({
-      ok: false,
-      erros: [{ campo: 'justificativa', mensagem: 'Justificativa com menos de 10 caracteres.' }],
-    });
+    // As marcas saem antes de contar: '<<<>>>' não completa os 10 caracteres.
+    for (const justificativa of ['curta', '<<<>>> curta >>><<<']) {
+      expect(await sugerirJustificativa(ctx(), entrada(e.id, { justificativa }), e.deps())).toEqual({
+        ok: false,
+        erros: [{ campo: 'justificativa', mensagem: 'Justificativa com menos de 10 caracteres.' }],
+      });
+    }
     expect(falso.chamadas.length).toBe(n);
     expect(await chamadas()).toBe(antes);
     // Dentro do escopo, o Gestor consulta.
