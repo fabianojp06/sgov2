@@ -4,9 +4,9 @@ import { ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
 import type { AvaliacaoTela, CasoUsoTela, TelaIA } from '../application/ia';
 
 // Cadastro da IA (US-019 parte 2): a configuração geral e os casos de uso, com o consumo do mês e o
-// aviso de teto atingido. Um caso de uso é editado por vez (?caso=): na página há no máximo dois
-// formulários, sem campo de mesmo nome, e os ids de erro (erro-<campo>) não se repetem. Sem a
-// permissão de alterar, só leitura.
+// aviso de teto atingido. Um caso de uso é editado por vez (?caso=): os campos com erro por campo
+// (erro-<campo>) ficam em no máximo dois formulários e não se repetem; os de "Avaliar", um por caso
+// avaliável, só têm o código escondido e erro geral. Sem a permissão de alterar, só leitura.
 
 const ESFORCOS: Readonly<Record<string, string>> = { low: 'Baixo', medium: 'Médio', high: 'Alto', xhigh: 'Muito alto', max: 'Máximo' };
 const numero = new Intl.NumberFormat('pt-BR');
@@ -49,6 +49,7 @@ const dataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZo
 /** Texto da última avaliação de qualidade (fila ia.avaliar). */
 export function textoAvaliacao(a: AvaliacaoTela | null): string {
   if (!a) return 'Ainda não avaliado.';
+  if (a.situacao === 'PENDENTE' && a.vencida) return `A avaliação pedida em ${dataHora(a.criadoEm)} não terminou a tempo. Peça de novo.`;
   if (a.situacao === 'PENDENTE') return `Avaliação pedida em ${dataHora(a.criadoEm)}, em andamento.`;
   if (a.situacao === 'FALHOU') return `A avaliação de ${dataHora(a.criadoEm)} falhou: ${a.erro ?? 'sem motivo registrado.'}`;
   const total = a.total ?? 0;
@@ -61,7 +62,7 @@ function Avaliacao({ c, podeAlterar, avaliar }: { c: CasoUsoTela; podeAlterar: b
   return (
     <div>
       <p>{textoAvaliacao(c.ultimaAvaliacao)}</p>
-      {podeAlterar && c.ultimaAvaliacao?.situacao !== 'PENDENTE' && (
+      {podeAlterar && !(c.ultimaAvaliacao?.situacao === 'PENDENTE' && !c.ultimaAvaliacao.vencida) && (
         <Formulario acao={avaliar} textoEnviar="Avaliar a qualidade" mensagemSucesso="Avaliação pedida. Recarregue a tela em alguns minutos para ver o resultado.">
           <input type="hidden" name="codigo" value={c.codigo} />
           <p>A avaliação usa a IA como você, com custo no teto do caso, e só funciona com a IA ligada.</p>

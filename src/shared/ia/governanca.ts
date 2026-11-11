@@ -41,8 +41,15 @@ export type DefinicaoCasoUsoIA = {
  */
 export const SISTEMA_IA = Object.freeze({ sistema: true as const });
 
-/** Quem pede: a pessoa da requisição (o ContextoRequisicao serve) ou o Sistema. */
-export type QuemPedeIA = { usuarioId: string; unidadeId?: string | null; permissoes: ReadonlySet<string> } | typeof SISTEMA_IA;
+/**
+ * Quem pede: a pessoa da requisição (o ContextoRequisicao serve) ou o Sistema. `isentoLimitePorMinuto`:
+ * só na avaliação de qualidade (fila ia.avaliar), que faz muitas chamadas seguidas pela mesma pessoa;
+ * permissão, chaves, teto e registro continuam valendo. O teste de fronteira só o aceita no worker e nos
+ * trabalhadores (infrastructure), como o SISTEMA_IA.
+ */
+export type QuemPedeIA =
+  | { usuarioId: string; unidadeId?: string | null; permissoes: ReadonlySet<string>; isentoLimitePorMinuto?: true }
+  | typeof SISTEMA_IA;
 
 export interface ServicoIA {
   /**
@@ -123,7 +130,7 @@ export function criarServicoIA(d: DependenciasServicoIA): ServicoIA {
     const reservaId = await cliente.$transaction(async (tx) => {
       // Uma conferência por vez em todo o sistema (é curta): as reservas tornam a contagem exata.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('sgo.ia.reserva'))::text`;
-      if (pessoa) {
+      if (pessoa && !pessoa.isentoLimitePorMinuto) {
         const [feitas, abertas] = await Promise.all([
           tx.iaChamada.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: new Date(momento.getTime() - 60_000) } } }),
           tx.iaReserva.count({ where: { usuarioId: pessoa.usuarioId, criadoEm: { gt: reservasDesde } } }),

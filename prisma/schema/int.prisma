@@ -131,6 +131,8 @@ model IaAvaliacao {
   resumo        Json?
   erro          String?
   criadoEm      DateTime            @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  // Quando o worker tomou a avaliação: uma execução só, mesmo com job repetido ou dois workers.
+  iniciadoEm    DateTime?           @map("iniciado_em") @db.Timestamptz(6)
   concluidoEm   DateTime?           @map("concluido_em") @db.Timestamptz(6)
 
   @@index([casoUsoCodigo, criadoEm])

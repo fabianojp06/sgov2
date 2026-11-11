@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 // A IA só pela governança (US-019). Fora de src/shared/ia:
 // - ninguém cria o provedor, importa os arquivos internos (com alias ou relativo) nem o SDK;
 // - o provedor falso só nos testes (uma resposta falsa nunca chega a um usuário real);
-// - o SISTEMA_IA (sem permissão nem limite por minuto) só no worker e nos trabalhadores de fila.
+// - o SISTEMA_IA (sem permissão nem limite por minuto) e o isentoLimitePorMinuto (avaliação) só no worker
+//   e nos trabalhadores de fila.
 const RAIZ = process.cwd();
 const PASTAS = ['src', 'worker', 'prisma', 'scripts', 'e2e', 'tests'];
 const INTERNO = /criarProvedorIA\b|criarProvedorAnthropic|shared\/ia\/(?!index\b)[\w-]+|@anthropic-ai\/sdk/;
@@ -35,7 +36,9 @@ describe('fronteira da IA', () => {
     expect(FORA.filter((f) => !TESTE.test(f.a) && f.texto.includes('criarProvedorIAFalso')).map((f) => f.a)).toEqual([]);
   });
 
-  it('SISTEMA_IA só no worker e nos trabalhadores de fila (infrastructure dos módulos)', () => {
-    expect(FORA.filter((f) => !TESTE.test(f.a) && !TRABALHADOR.test(f.a) && f.texto.includes('SISTEMA_IA')).map((f) => f.a)).toEqual([]);
+  it('SISTEMA_IA e isentoLimitePorMinuto só no worker e nos trabalhadores de fila (infrastructure dos módulos)', () => {
+    const fora = (nome: string) => FORA.filter((f) => !TESTE.test(f.a) && !TRABALHADOR.test(f.a) && f.texto.includes(nome)).map((f) => f.a);
+    expect(fora('SISTEMA_IA')).toEqual([]);
+    expect(fora('isentoLimitePorMinuto')).toEqual([]);
   });
 });
