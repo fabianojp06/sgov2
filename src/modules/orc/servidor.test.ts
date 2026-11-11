@@ -22,3 +22,15 @@ describe('registrarTrabalhadoresOrc', () => {
     expect(logs).toEqual(['[ORC_REVISAO_PEDIDO_INVALIDO]']);
   });
 });
+
+describe('contrato do layout (gerador da carga, #138)', () => {
+  it('expõe o layout ADMC-ORC v1.0, as abas na ordem e os cabeçalhos da importação', async () => {
+    const s = await import('./servidor');
+    expect(s.LAYOUT).toBe('ADMC-ORC v1.0');
+    expect(s.ABAS).toEqual(['Pessoal', 'Pacotes base zero', 'Receitas']);
+    expect(s.COLUNAS_PESSOAL.length).toBeGreaterThan(0);
+    expect(s.COLUNAS_PACOTES).toContain('Prioridade');
+    expect(s.COLUNAS_RECEITAS[0]).toBe('TP / versão');
+    expect(s.RAIZES_CONTAS_PESSOAL).toEqual(['4.1.1.1', '4.1.1.2']);
+  });
+});

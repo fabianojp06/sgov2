@@ -14,6 +14,10 @@ export { ultimaRevisao } from './application/revisor';
 export type { Achado, RevisaoTela } from './domain/revisor-regras';
 export { obterVisaoExercicio, type VisaoExercicio } from './application/consolidacao';
 export { listarExercicios, sugerirAno, type ResumoExercicio } from './application/exercicios';
+// Casos de uso com a guarda (exigir), para o teste de importação real dos arquivos do gerador da carga
+// (P7, frente B, #138). Ficam fora do servidor.ts, que o worker empacota sem @/shared/authz.
+export { avancarExercicio, criarExercicio, type ResultadoCriacao } from './application/exercicios';
+export { importarPlanilha, type DepsImportacao, type ResultadoImportacao } from './application/importacao';
 export { listarPacotes, opcoesPacote, type ListaPacotes, type OpcoesPacote, type PacoteTela } from './application/pacotes';
 export { listarPosicoes, opcoesPosicao, type ListaPosicoes, type OpcoesPosicao, type PosicaoTela } from './application/posicoes';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';

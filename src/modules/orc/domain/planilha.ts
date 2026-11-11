@@ -53,7 +53,9 @@ export type PosicaoValidada = {
 export type PacoteValidado = { linha: number; cc: string; conta: string; justificativa: string; prioridade: Prioridade } & DadosPacote;
 export type ReceitaValidada = { linha: number; tp: string; descricao: string; situacao: 'CONFIRMADO' | 'PREVISTO'; meses: readonly Dinheiro[] };
 export type ConteudoPlanilha = { posicoes: readonly PosicaoValidada[]; pacotes: readonly PacoteValidado[]; receitas: readonly ReceitaValidada[] };
-export type Aba = 'Pessoal' | 'Pacotes base zero' | 'Receitas';
+// Nomes das abas, na ordem do layout (contrato do servidor.ts para o gerador da carga, frente B).
+export const ABAS = ['Pessoal', 'Pacotes base zero', 'Receitas'] as const;
+export type Aba = (typeof ABAS)[number];
 export type ErroPlanilha = ErroLinha & { aba: Aba };
 
 const SALARIO_LIMITE = Dinheiro.de('1000000');
