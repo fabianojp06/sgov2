@@ -96,6 +96,7 @@ model Usuario {
   unidades               UsuarioUnidade[]
   desativacoesSistema    ConfiguracaoAcesso[]    @relation("ManutencaoPor")
   notificacoesDesempenho NotificacaoDesempenho[]
+  revisoesOrcamento      RevisaoOrcamento[]
 
   @@map("usuario")
 }

@@ -1,6 +1,5 @@
 import type { ContextoRequisicao } from '@/shared/authz';
-import { servicoIA, type ErroIA, type ServicoIA } from '@/shared/ia';
-import { MENSAGENS_ORC } from '../domain/mensagens';
+import { servicoIA, type ServicoIA } from '@/shared/ia';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CASOS_IA_ORC } from './ia-casos';
 
@@ -21,8 +20,5 @@ export function iaLiberada(ctx: ContextoRequisicao, caso: keyof typeof CASOS_IA_
   return (deps.ia ?? servicoIA).disponivel(ctx, CASOS_IA_ORC[caso]);
 }
 
-// Tempo limite da chamada (D-P14-4): o sinal abortou pelo AbortSignal.timeout.
-export const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError';
-
-/** A mensagem do ErroIA na tela: a fixa dele, ou a do tempo esgotado quando o cancelamento veio do limite. */
-export const mensagemErroIA = (x: ErroIA, sinal: AbortSignal): string => (x.codigo === 'ia.cancelada' && tempoEsgotado(sinal) ? MENSAGENS_ORC.IA_TEMPO_ESGOTADO : x.message);
+// Ficam no ia-erros.ts, sem dependências de tela, para o revisor no worker usar também.
+export { mensagemErroIA, tempoEsgotado } from './ia-erros';
