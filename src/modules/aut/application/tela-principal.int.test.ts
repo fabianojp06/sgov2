@@ -126,6 +126,13 @@ describe('exibirNoMenu', () => {
     const orc = codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).filter((c) => c.startsWith('orc.'));
     expect(orc).toEqual(['orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao']);
   });
+
+  it('ADMINISTRADOR (#403): só a permissão da sugestão de conta no orc, para a avaliação na /int/ia; nada do orc no menu', async () => {
+    await executarSeeds(migrator, [seedOrc]);
+    const ctx = await logado('iara', 'ADMINISTRADOR', []);
+    expect([...ctx.permissoes].filter((p) => p.startsWith('orc.'))).toEqual([['orc.ia_sugestao_conta', 'executar'].join(':')]);
+    expect(codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).filter((c) => c.startsWith('orc.'))).toEqual([]);
+  });
 });
 
 describe('unidade ativa no contexto', () => {

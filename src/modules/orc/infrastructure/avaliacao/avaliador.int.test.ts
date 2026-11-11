@@ -115,6 +115,15 @@ describe('avaliadorSugestaoConta', () => {
     expect(JSON.stringify(r)).not.toMatch(/CASO-SECRETO|Toner|Bilhetes|4\.1\.1/);
   });
 
+  it('ADMINISTRADOR semeado (quem pede na /int/ia, #403): devolve o resultado', async () => {
+    const perfil = (await migrator.perfil.findUniqueOrThrow({ where: { codigo: 'ADMINISTRADOR' } })).id;
+    const login = `admin.avaliacao${++seq}`;
+    const u = await migrator.usuario.create({ data: { nome: 'Admin Avaliador', email: `${login}@exemplo.org`, login, loginNormalizado: login, senhaHash: 'x' } });
+    await migrator.usuarioPerfil.create({ data: { usuarioId: u.id, perfilId: perfil } });
+    expect(await criarAvaliadorSugestaoConta(deps())(pedido(u.id))).toEqual({ total: 3, acertos: 2, resumo: { errosIa: 0, taxa: 2 / 3 } });
+    expect(falso.chamadas).toHaveLength(3);
+  });
+
   it('listas do formulário com escopo TOTAL: sem as vetadas (raiz de pessoal e premissas do exercício mais recente), com todos os CCs analíticos', async () => {
     const id = await gfin();
     await criarAvaliadorSugestaoConta(deps({ casos: CASOS.slice(0, 1) }))(pedido(id));

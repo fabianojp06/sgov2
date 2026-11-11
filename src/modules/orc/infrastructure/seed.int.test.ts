@@ -66,7 +66,9 @@ describe('seedOrc', () => {
       'orc.orcamento:consultar', 'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.posicoes:alterar', 'orc.posicoes:consultar', 'orc.posicoes:excluir', 'orc.posicoes:incluir',
     ]);
-    for (const perfil of ['ADMINISTRADOR', 'ORCAMENTISTA', 'ANALISTA_GRH', 'OPERADOR_VIAGENS']) {
+    // #403: o Administrador pede a avaliação da sugestão de conta na /int/ia; sem orc.pacotes, não lança pacote.
+    expect(await permissoes('ADMINISTRADOR')).toEqual(['orc.ia_sugestao_conta:executar']);
+    for (const perfil of ['ORCAMENTISTA', 'ANALISTA_GRH', 'OPERADOR_VIAGENS']) {
       expect(await permissoes(perfil)).toEqual([]);
     }
   });
