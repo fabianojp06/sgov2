@@ -1,6 +1,6 @@
 import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 import { Dinheiro } from '@/shared/kernel';
-import type { ListaPosicoes, OpcoesPosicao, PosicaoTela } from '../application/posicoes';
+import type { CargosPosicao, ListaPosicoes, OpcoesPosicao, PosicaoTela } from '../application/posicoes';
 import { VALOR_MASCARADO } from '../domain/mascara-historico';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { valorParaTela } from '../domain/valor-tela';
@@ -27,6 +27,8 @@ export const textoAvisoPosicao = (aviso: string | undefined) => (aviso !== undef
 const avisoOrigem = (p: PosicaoTela) => (p.origem === 'TELA' ? undefined : MENSAGENS_ORC.POSICAO_DA_IMPORTACAO);
 // Nome acessível único por linha (ordinal e o início do cargo).
 const TRECHO = 40;
+const SEM_CARGOS: CargosPosicao = { cargos: [], comSalario: false, aviso: null };
+const nomeCargo = (p: PosicaoTela) => (p.cargoInativo ? `${p.cargo} ${MENSAGENS_ORC.CARGO_INATIVO_ROTULO}` : p.cargo);
 const descreverPosicao = (i: number, p: PosicaoTela) => `posição ${i + 1}: ${p.cargo.length > TRECHO ? `${p.cargo.slice(0, TRECHO).trimEnd()}…` : p.cargo}`;
 
 export type PermissoesPosicao = { podeIncluir: boolean; podeAlterar: boolean; podeExcluir: boolean };
@@ -39,6 +41,7 @@ export function TelaPosicoes({
   ccAtual,
   emEdicao,
   permissoes,
+  cargos,
   acoes,
   aviso,
 }: {
@@ -49,6 +52,8 @@ export function TelaPosicoes({
   ccAtual: string | null;
   emEdicao: string | null;
   permissoes: PermissoesPosicao;
+  /** Cargos da escolha (P15); nulo quando o formulário não aparece. */
+  cargos?: CargosPosicao | null;
   acoes: { incluir: AcaoFormulario; alterar: AcaoFormulario; excluir: AcaoFormulario; previa: AcaoPrevia };
   aviso?: string | undefined;
 }) {
@@ -105,7 +110,7 @@ export function TelaPosicoes({
                     const destacada = editando?.id === p.id;
                     return (
                       <tr key={p.id} aria-current={destacada ? 'true' : undefined} className={destacada ? 'em-edicao' : undefined} style={destacada ? { outline: '2px solid currentColor' } : undefined}>
-                        <th scope="row">{p.cargo}</th>
+                        <th scope="row">{nomeCargo(p)}</th>
                         <td>{p.quantidade}</td>
                         <td>{valor(p.salarioMensal)}</td>
                         <td>{periodo(p)}</td>
@@ -154,10 +159,13 @@ export function TelaPosicoes({
               ccAtual={ccAtual}
               ccs={opcoes.ccs}
               quantidadeMaxima={opcoes.quantidadeMaxima}
+              cargos={cargos ?? SEM_CARGOS}
               posicao={{
                 id: editando.id,
                 cc: editando.cc,
                 cargo: editando.cargo,
+                cargoId: editando.cargoId,
+                cargoInativo: editando.cargoInativo,
                 quantidade: String(editando.quantidade),
                 // Quem altera vê o salário (D-P12-3): nunca nulo aqui.
                 salarioMensal: editando.salarioMensal ? valorParaTela(editando.salarioMensal) : '',
@@ -181,6 +189,7 @@ export function TelaPosicoes({
                 ccAtual={ccAtual}
                 ccs={opcoes.ccs}
                 quantidadeMaxima={opcoes.quantidadeMaxima}
+                cargos={cargos ?? SEM_CARGOS}
                 salvar={acoes.incluir}
                 previa={acoes.previa}
                 cancelarPara={rota('')}

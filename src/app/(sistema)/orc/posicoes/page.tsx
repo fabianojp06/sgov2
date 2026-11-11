@@ -1,5 +1,6 @@
 import {
   alterarPosicaoAcao,
+  cargosParaPosicao,
   excluirPosicaoAcao,
   exercicioDoAno,
   incluirPosicaoAcao,
@@ -36,6 +37,13 @@ export default async function Posicoes({ searchParams }: { searchParams: Promise
   const pedido = um(busca.cc);
   const visiveis = new Set([...opcoes.ccs.map((c) => c.classificacao), ...lista.posicoes.map((p) => p.cc)]);
   const ccAtual = pedido && visiveis.has(pedido) ? pedido : (opcoes.ccs[0]?.classificacao ?? lista.posicoes[0]?.cc ?? null);
+  const permissoes = {
+    podeIncluir: ctx.permissoes.has('orc.posicoes:incluir'),
+    podeAlterar: ctx.permissoes.has('orc.posicoes:alterar'),
+    podeExcluir: ctx.permissoes.has('orc.posicoes:excluir'),
+  };
+  // Cargos do cadastro de C&S (P15, D-P15-5): só quando o formulário aparece; quem só consulta não recebe a lista.
+  const cargos = lista.editavel && (permissoes.podeIncluir || permissoes.podeAlterar) ? await cargosParaPosicao(ctx) : null;
   return (
     <div>
       <h1>{`Posições de pessoal (${atual.ano})`}</h1>
@@ -47,11 +55,8 @@ export default async function Posicoes({ searchParams }: { searchParams: Promise
         lista={lista}
         ccAtual={ccAtual}
         emEdicao={um(busca.editar) ?? null}
-        permissoes={{
-          podeIncluir: ctx.permissoes.has('orc.posicoes:incluir'),
-          podeAlterar: ctx.permissoes.has('orc.posicoes:alterar'),
-          podeExcluir: ctx.permissoes.has('orc.posicoes:excluir'),
-        }}
+        permissoes={permissoes}
+        cargos={cargos}
         acoes={{ incluir: incluirPosicaoAcao, alterar: alterarPosicaoAcao, excluir: excluirPosicaoAcao, previa: previaPosicaoAcao }}
         aviso={textoAvisoPosicao(um(busca.aviso))}
       />

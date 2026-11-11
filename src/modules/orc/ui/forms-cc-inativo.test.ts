@@ -16,7 +16,8 @@ const posicao = (cc: string) =>
     createElement(FormPosicao, {
       ...comum,
       previa: (async () => ({ ok: false, erros: [] })) as never,
-      posicao: { id: 'p1', cc, cargo: 'Analista', quantidade: '1', salarioMensal: '1000.00', mesInicio: '1', mesSaida: '12', observacao: '', versao: 0 },
+      cargos: { cargos: [], comSalario: false, aviso: null },
+      posicao: { id: 'p1', cc, cargo: 'Analista', cargoId: null, cargoInativo: false, quantidade: '1', salarioMensal: '1000.00', mesInicio: '1', mesSaida: '12', observacao: '', versao: 0 },
     }),
   );
 const pacote = (cc: string) =>
