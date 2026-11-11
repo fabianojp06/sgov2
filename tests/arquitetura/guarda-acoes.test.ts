@@ -171,12 +171,30 @@ export function problemasDePagina(texto: string): string[] {
   return problemas;
 }
 
+// Route Handlers públicos, sem a guarda de sessão: só os previstos e só com GET. O endpoint de saúde
+// (US-017) é consultado por um monitor externo, sem sessão, e responde só o estado dos componentes; o
+// src/proxy.ts também precisa liberar o caminho no PUBLICAS.
+export const ROTAS_PUBLICAS = new Set(['src/app/(sistema)/int/saude/route.ts']);
+
+export function problemasDeRotaPublica(texto: string): string[] {
+  const arquivo = analisar(texto);
+  const problemas: string[] = [];
+  for (const s of arquivo.statements) {
+    if (!exportado(s)) continue;
+    const nomes = ts.isVariableStatement(s)
+      ? s.declarationList.declarations.map((d) => d.name.getText(arquivo))
+      : [(s as { name?: ts.Identifier }).name?.text ?? ''];
+    for (const nome of nomes) if (METODOS.has(nome) && nome !== 'GET') problemas.push(`rota pública só com GET: ${nome} precisa de definirRota`);
+  }
+  return problemas;
+}
+
 // Regras de um arquivo, pelo caminho relativo com barras normais (o Windows usaria \).
 export function problemasDoArquivo(caminho: string, texto: string): string[] {
   const rota = /^route\.\w+$/.test(caminho.split('/').pop() ?? '');
   return [
     ...problemasDeAcao(texto, caminho),
-    ...(rota ? problemasDeRota(texto) : []),
+    ...(rota ? (ROTAS_PUBLICAS.has(caminho) ? problemasDeRotaPublica(texto) : problemasDeRota(texto)) : []),
     ...(ehPaginaDoSistema(caminho) ? problemasDePagina(texto) : []),
     ...(ehPagina(caminho) && !ehPaginaDoSistema(caminho) && !PAGINAS_PUBLICAS.has(caminho)
       ? ['página fora de (sistema) sem guarda: mova para src/app/(sistema)/ ou inclua em PAGINAS_PUBLICAS']
@@ -218,6 +236,17 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
   });
   it('rota sem guarda é reprovada', () => expect(problemasDeRota(fixture('route-sem-guarda.ts'))).not.toEqual([]));
   it('rota com definirRota passa', () => expect(problemasDeRota(fixture('route-com-guarda.ts'))).toEqual([]));
+  it('rota pública: só GET sem guarda; outro método é reprovado', () => {
+    expect(problemasDeRotaPublica('export async function GET() { return new Response(); }')).toEqual([]);
+    expect(problemasDeRotaPublica('export async function GET() { return new Response(); }\nexport async function POST() { return new Response(); }')).toEqual([
+      'rota pública só com GET: POST precisa de definirRota',
+    ]);
+    expect(problemasDeRotaPublica('export const DELETE = async () => new Response();')).toEqual(['rota pública só com GET: DELETE precisa de definirRota']);
+  });
+  it('rota fora da lista de públicas continua exigindo definirRota', () => {
+    expect(problemasDoArquivo('src/app/(sistema)/int/outra/route.ts', 'export async function GET() { return new Response(); }')).not.toEqual([]);
+    expect(problemasDoArquivo('src/app/(sistema)/int/saude/route.ts', 'export async function GET() { return new Response(); }')).toEqual([]);
+  });
 
   it('ação pública só em src/modules/aut/application/acoes-login.ts', () => {
     expect(problemasDeAcao(fixture('acao-publica.ts'), 'src/modules/aut/application/acoes-login.ts')).toEqual([]);
