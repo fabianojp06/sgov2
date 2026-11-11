@@ -26,6 +26,7 @@ import type {
   garantirPremissasExercicio,
   obterPremissasExercicio,
 } from './infrastructure/premissas';
+import type { beneficiosDoCargo, CargoExercicio, listarCargosExercicio } from './infrastructure/cargos-exercicio';
 
 // Adaptadores falsos dos contratos do cad, só para testes dos módulos consumidores (spec §12.6).
 
@@ -156,11 +157,56 @@ export function premissasExemplo(ano = 2027): PremissasExercicio {
  * ativos). Os testes consumidores conferem as chamadas e a gravação da série, nunca os valores;
  * os valores oficiais são provados na Task 11. Valida a posição como o real. Ignora a transação.
  */
-export function custoPessoalFalso(premissas: readonly PremissasExercicio[] = [premissasExemplo()]): {
+/**
+ * Cargos de exemplo do acréscimo de C&S ao C2: um com Fonte Ativa e faixa, um com periculosidade, um sem
+ * Fonte Ativa (a posição não o usa) e um inativo (só com incluirInativos).
+ */
+export function cargosExemplo(): readonly CargoExercicio[] {
+  return [
+    {
+      id: '00000000-0000-4000-8000-000000000001',
+      codigo: 'C001',
+      nome: 'Analista de orçamento',
+      ativo: true,
+      fonteAtiva: 'MINIMO',
+      salarioFonteAtiva: Dinheiro.de('7500.00'),
+      faixa: { minimo: Dinheiro.de('7500.00'), maximo: Dinheiro.de('9800.00') },
+      adicional: null,
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000002',
+      codigo: 'C002',
+      nome: 'Técnico de manutenção',
+      ativo: true,
+      fonteAtiva: 'REAL',
+      salarioFonteAtiva: Dinheiro.de('4200.00'),
+      faixa: { minimo: Dinheiro.de('3800.00'), maximo: Dinheiro.de('4600.00') },
+      adicional: { tipo: 'PERICULOSIDADE' },
+    },
+    { id: '00000000-0000-4000-8000-000000000003', codigo: 'C003', nome: 'Assessor', ativo: true, fonteAtiva: null, salarioFonteAtiva: null, faixa: null, adicional: null },
+    {
+      id: '00000000-0000-4000-8000-000000000004',
+      codigo: 'C004',
+      nome: 'Cargo extinto',
+      ativo: false,
+      fonteAtiva: 'MAXIMO',
+      salarioFonteAtiva: Dinheiro.de('5000.00'),
+      faixa: { minimo: Dinheiro.de('4000.00'), maximo: Dinheiro.de('5000.00') },
+      adicional: null,
+    },
+  ];
+}
+
+export function custoPessoalFalso(
+  premissas: readonly PremissasExercicio[] = [premissasExemplo()],
+  cargos: readonly CargoExercicio[] = cargosExemplo(),
+): {
   calcularCustoPosicao: typeof calcularCustoPosicao;
   obterPremissasExercicio: typeof obterPremissasExercicio;
   garantirPremissasExercicio: typeof garantirPremissasExercicio;
   congelarPremissasExercicio: typeof congelarPremissasExercicio;
+  listarCargosExercicio: typeof listarCargosExercicio;
+  beneficiosDoCargo: typeof beneficiosDoCargo;
   chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[];
   congelados: ReadonlySet<number>;
 } {
@@ -196,5 +242,8 @@ export function custoPessoalFalso(premissas: readonly PremissasExercicio[] = [pr
       congelados.add(ano);
       porAno.set(ano, { ...atual, congelado: true });
     },
+    listarCargosExercicio: async (_tx, opcoes = {}) => cargos.filter((c) => opcoes.incluirInativos || c.ativo),
+    // O falso não tem escolha por cargo: os benefícios das premissas do ano, para qualquer cargo conhecido.
+    beneficiosDoCargo: async (_tx, ano, cargoId) => (cargos.some((c) => c.id === cargoId) ? (porAno.get(ano)?.beneficios ?? []) : []),
   };
 }

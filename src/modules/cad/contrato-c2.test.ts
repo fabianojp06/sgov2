@@ -150,10 +150,34 @@ describe('C2 — tipos e exportações', () => {
       'COMPONENTES_FIXOS',
       'premissasExemplo',
       'custoPessoalFalso',
+      // Acréscimo de C&S (#138, 11/11).
+      'listarCargosExercicio',
+      'beneficiosDoCargo',
+      'cargosExemplo',
     ];
     for (const nome of nomes) {
       expect(cad).toHaveProperty(nome);
       expect(cadServidor).toHaveProperty(nome);
     }
+  });
+});
+
+describe('C2, acréscimo de C&S — falso', () => {
+  it('lista só os ativos por padrão; com incluirInativos, também o inativo', async () => {
+    const falso = custoPessoalFalso();
+    const ativos = await falso.listarCargosExercicio(tx);
+    expect(ativos.map((c) => c.codigo)).toEqual(['C001', 'C002', 'C003']);
+    expect((await falso.listarCargosExercicio(tx, { incluirInativos: true })).map((c) => c.ativo)).toEqual([true, true, true, false]);
+    expect(ativos[0]).toMatchObject({ fonteAtiva: 'MINIMO', faixa: { minimo: Dinheiro.de('7500.00') } });
+    expect(ativos[0]!.salarioFonteAtiva?.paraString()).toBe('7500.00');
+    expect(ativos[2]).toMatchObject({ fonteAtiva: null, salarioFonteAtiva: null, faixa: null });
+  });
+
+  it('benefícios do cargo: os das premissas do ano para um cargo conhecido; outro cargo ou ano sem premissas, nada', async () => {
+    const falso = custoPessoalFalso([premissasExemplo(2027)]);
+    const id = (await falso.listarCargosExercicio(tx))[0]!.id;
+    expect(await falso.beneficiosDoCargo(tx, 2027, id)).toEqual(premissasExemplo(2027).beneficios);
+    expect(await falso.beneficiosDoCargo(tx, 2028, id)).toEqual([]);
+    expect(await falso.beneficiosDoCargo(tx, 2027, '00000000-0000-4000-8000-0000000000ff')).toEqual([]);
   });
 });

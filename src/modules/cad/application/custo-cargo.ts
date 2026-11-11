@@ -4,11 +4,11 @@ import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { Dinheiro, ErroDominio, falha, ok, Percentual, type Resultado } from '@/shared/kernel';
-import { salarioDaFonte, type SalariosCargo } from '../domain/cargo';
 import type { CustoCargoTela } from '../domain/cargo-tela';
 import type { SerieMensalComponentes } from '../domain/custo-pessoal';
 import { calcularCustoPosicao, calcularEncargo } from '../domain/motor-custo-pessoal';
-import { criarCifraSalarios, type CifraSalarios } from '../infrastructure/cifra-salarios';
+import type { CifraSalarios } from '../infrastructure/cifra-salarios';
+import { salarioFonteAtiva } from '../infrastructure/fonte-ativa';
 import { obterPremissasExercicio } from '../infrastructure/premissas';
 
 // Custo unitário mensal do cargo no exercício (US-051 parte 2; plano do P4, Task 14): 1 pessoa, de
@@ -82,27 +82,15 @@ export async function calcularCustoCargo(ctx: ContextoRequisicao, cargoId: strin
     if (!c.fonteAtiva) return falha([{ campo: 'fonteAtiva', mensagem: MSG_SEM_FONTE }]);
 
     // Só decifra o que a fonte usa (o envelope ilegível de outro campo não impede o cálculo).
-    let cifra: CifraSalarios | null = deps.cifra ?? null;
-    const decifrar = (envelope: string | null, campo: 'salario_real' | 'salario_definido' | 'funcao_gratificada') =>
-      envelope === null ? null : (cifra ??= criarCifraSalarios()).decifrar(envelope, { codigoCargo: c.codigo, campo });
-    const PRECISA: Record<NonNullable<typeof c.fonteAtiva>, readonly ('real' | 'definido' | 'funcaoGratificada')[]> = { REAL: ['real'], DEFINIDO: ['definido'], TOTAL: ['funcaoGratificada'], MINIMO: [], MAXIMO: [] };
-    const precisa = PRECISA[c.fonteAtiva];
     let fonte: Dinheiro | null;
     try {
-      const salarios: SalariosCargo = {
-        minimo: decimal(c.mercadoMinimo),
-        maximo: decimal(c.mercadoMaximo),
-        real: precisa.includes('real') ? decifrar(c.salarioRealCifrado, 'salario_real') : null,
-        definido: precisa.includes('definido') ? decifrar(c.salarioDefinidoCifrado, 'salario_definido') : null,
-        funcaoGratificada: precisa.includes('funcaoGratificada') ? decifrar(c.funcaoGratificadaCifrada, 'funcao_gratificada') : null,
-      };
-      fonte = salarioDaFonte(salarios, c.fonteAtiva);
+      fonte = salarioFonteAtiva(c, deps.cifra ?? null);
     } catch (e) {
       // Envelope ilegível ou sem a chave: mensagem na tela, nunca erro (spec §5).
       if (e instanceof ErroDominio && ['cad.cifra_invalida', 'cad.cifra_indisponivel'].includes(e.codigo)) return falha([{ campo: '_', mensagem: e.message }]);
       throw e;
     }
-    if (fonte === null || fonte.ehZero()) return falha([{ campo: 'fonteAtiva', mensagem: 'A Fonte Ativa escolhida está sem valor neste cargo.' }]);
+    if (fonte === null) return falha([{ campo: 'fonteAtiva', mensagem: 'A Fonte Ativa escolhida está sem valor neste cargo.' }]);
 
     const escolha = new Map(c.beneficios.map((b) => [b.codigo, { ativo: b.ativo, valorManual: decimal(b.valorManual) }]));
     const premissas = await obterPremissasExercicio(tx, ano, escolha);
