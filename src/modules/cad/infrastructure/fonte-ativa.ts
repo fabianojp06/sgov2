@@ -36,10 +36,17 @@ export function salarioFonteAtiva(c: CargoCifrado, obterCifra: () => CifraSalari
   if (!c.fonteAtiva) return null;
   const precisa = PRECISA[c.fonteAtiva];
   let cifra: CifraSalarios | null | undefined;
+  // Campo cifrado que a fonte usa, com valor, sem a cifra para lê-lo: o salário fica desconhecido (null),
+  // e não o de outra regra (ex.: TOTAL sem a FG viraria só o máximo, R19).
+  let desconhecido = false;
   const decifrar = (envelope: string | null, campo: 'salario_real' | 'salario_definido' | 'funcao_gratificada') => {
     if (envelope === null) return null;
     if (cifra === undefined) cifra = obterCifra();
-    return cifra === null ? null : cifra.decifrar(envelope, { codigoCargo: c.codigo, campo });
+    if (cifra === null) {
+      desconhecido = true;
+      return null;
+    }
+    return cifra.decifrar(envelope, { codigoCargo: c.codigo, campo });
   };
   const salarios: SalariosCargo = {
     minimo: dinheiroDoDecimal(c.mercadoMinimo),
@@ -48,6 +55,7 @@ export function salarioFonteAtiva(c: CargoCifrado, obterCifra: () => CifraSalari
     definido: precisa.includes('definido') ? decifrar(c.salarioDefinidoCifrado, 'salario_definido') : null,
     funcaoGratificada: precisa.includes('funcaoGratificada') ? decifrar(c.funcaoGratificadaCifrada, 'funcao_gratificada') : null,
   };
+  if (desconhecido) return null;
   const fonte = salarioDaFonte(salarios, c.fonteAtiva);
   return fonte === null || fonte.ehZero() ? null : fonte;
 }

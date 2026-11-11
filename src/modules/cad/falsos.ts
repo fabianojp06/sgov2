@@ -26,7 +26,7 @@ import type {
   garantirPremissasExercicio,
   obterPremissasExercicio,
 } from './infrastructure/premissas';
-import type { beneficiosDoCargo, CargoExercicio, listarCargosExercicio } from './infrastructure/cargos-exercicio';
+import type { beneficiosDoCargo, CargoExercicio, listarCargosSemSalarioCifrado } from './infrastructure/cargos-exercicio';
 
 // Adaptadores falsos dos contratos do cad, só para testes dos módulos consumidores (spec §12.6).
 
@@ -205,7 +205,8 @@ export function custoPessoalFalso(
   obterPremissasExercicio: typeof obterPremissasExercicio;
   garantirPremissasExercicio: typeof garantirPremissasExercicio;
   congelarPremissasExercicio: typeof congelarPremissasExercicio;
-  listarCargosExercicio: typeof listarCargosExercicio;
+  listarCargosExercicio: typeof listarCargosSemSalarioCifrado;
+  listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
   beneficiosDoCargo: typeof beneficiosDoCargo;
   chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[];
   congelados: ReadonlySet<number>;
@@ -242,8 +243,13 @@ export function custoPessoalFalso(
       congelados.add(ano);
       porAno.set(ano, { ...atual, congelado: true });
     },
+    // O falso não distingue o app do worker: os dois devolvem os cargos como estão (com salário).
     listarCargosExercicio: async (_tx, opcoes = {}) => cargos.filter((c) => opcoes.incluirInativos || c.ativo),
-    // O falso não tem escolha por cargo: os benefícios das premissas do ano, para qualquer cargo conhecido.
-    beneficiosDoCargo: async (_tx, ano, cargoId) => (cargos.some((c) => c.id === cargoId) ? (porAno.get(ano)?.beneficios ?? []) : []),
+    listarCargosSemSalarioCifrado: async (_tx, opcoes = {}) => cargos.filter((c) => opcoes.incluirInativos || c.ativo),
+    // O falso não tem escolha por cargo: os benefícios e os avisos das premissas do ano, para um cargo conhecido.
+    beneficiosDoCargo: async (_tx, ano, cargoId) => {
+      const p = cargos.some((c) => c.id === cargoId) ? porAno.get(ano) : undefined;
+      return p ? { beneficios: p.beneficios, avisos: p.avisos } : { beneficios: [], avisos: [] };
+    },
   };
 }

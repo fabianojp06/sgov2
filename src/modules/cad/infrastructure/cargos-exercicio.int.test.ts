@@ -6,7 +6,8 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { listarCargosExercicio } from '../application/cargos-exercicio';
-import { beneficiosDoCargo, listarCargosExercicio as listarSemCifra } from './cargos-exercicio';
+import { beneficiosDoCargo, listarCargosSemSalarioCifrado as listarSemCifra } from './cargos-exercicio';
+import { ErroDominio } from '@/shared/kernel';
 import { criarCifraSalarios } from './cifra-salarios';
 import { CHAVE_TESTE_CIFRA, ID_CHAVE_TESTE } from './cifra-teste';
 import { seedCad } from './seed';
@@ -52,6 +53,14 @@ beforeAll(async () => {
   await inserir('ZZ3', `INSERT INTO cargo (codigo, nome_oficial, salario_real_cifrado, fonte_ativa) VALUES ($CODIGO, 'Ilegível', $1, 'REAL') RETURNING id`, [
     cifra.cifrar(Dinheiro.de('4200.00'), { codigoCargo: 'ZZ2', campo: 'salario_real' }),
   ]);
+  // Z6: TOTAL = máximo 6.000 + FG cifrada 1.500 (R19); Z7: DEFINIDO cifrado; Z8: mínimo zero (sem valor).
+  await inserir('ZZ6', `INSERT INTO cargo (codigo, nome_oficial, mercado_minimo, mercado_maximo, funcao_gratificada_cifrada, fonte_ativa) VALUES ($CODIGO, 'Total', 5000, 6000, $1, 'TOTAL') RETURNING id`, [
+    cifra.cifrar(Dinheiro.de('1500.00'), { codigoCargo: 'ZZ6', campo: 'funcao_gratificada' }),
+  ]);
+  await inserir('ZZ7', `INSERT INTO cargo (codigo, nome_oficial, salario_definido_cifrado, fonte_ativa) VALUES ($CODIGO, 'Definido', $1, 'DEFINIDO') RETURNING id`, [
+    cifra.cifrar(Dinheiro.de('8000.00'), { codigoCargo: 'ZZ7', campo: 'salario_definido' }),
+  ]);
+  await inserir('ZZ8', `INSERT INTO cargo (codigo, nome_oficial, mercado_minimo, mercado_maximo, fonte_ativa) VALUES ($CODIGO, 'Zero', 0, 100, 'MINIMO') RETURNING id`);
   // Z4: sem Fonte Ativa; Z5: inativo.
   await inserir('ZZ4', `INSERT INTO cargo (codigo, nome_oficial) VALUES ($CODIGO, 'Sem fonte') RETURNING id`);
   await inserir('ZZ5', `INSERT INTO cargo (codigo, nome_oficial, mercado_minimo, mercado_maximo, fonte_ativa, ativo) VALUES ($CODIGO, 'Extinto', 3000, 3500, 'MAXIMO', false) RETURNING id`);
@@ -65,7 +74,9 @@ afterAll(async () => {
 describe('listarCargosExercicio', () => {
   it('só os ativos, em ordem de código, com o salário da Fonte Ativa decifrado, a faixa e o adicional', async () => {
     const lista = await listarCargosExercicio(app, { cifra });
-    expect(lista.map((c) => c.codigo)).toEqual(['ZZ1', 'ZZ2', 'ZZ3', 'ZZ4']);
+    expect(lista.map((c) => c.codigo)).toEqual(['ZZ1', 'ZZ2', 'ZZ3', 'ZZ4', 'ZZ6', 'ZZ7', 'ZZ8']);
+    const porCodigo = (c: string) => lista.find((x) => x.codigo === c)!.salarioFonteAtiva?.paraString() ?? null;
+    expect([porCodigo('ZZ6'), porCodigo('ZZ7'), porCodigo('ZZ8')]).toEqual(['7500.00', '8000.00', null]);
     const [z1, z2, z3, z4] = lista;
     expect(z1).toMatchObject({ id: ids.ZZ1, nome: 'Analista', ativo: true, fonteAtiva: 'MINIMO', adicional: { tipo: 'PERICULOSIDADE' } });
     expect([z1!.salarioFonteAtiva?.paraString(), z1!.faixa?.minimo.paraString(), z1!.faixa?.maximo.paraString()]).toEqual(['5000.00', '5000.00', '6000.00']);
@@ -88,25 +99,39 @@ describe('listarCargosExercicio do servidor.ts (worker, sem a chave)', () => {
     expect(lista.find((c) => c.codigo === 'ZZ1')!.salarioFonteAtiva?.paraString()).toBe('5000.00');
     expect(lista.find((c) => c.codigo === 'ZZ2')).toMatchObject({ fonteAtiva: 'REAL', salarioFonteAtiva: null, adicional: { tipo: 'INSALUBRIDADE', grau: 'MEDIO' } });
     expect(lista.find((c) => c.codigo === 'ZZ1')!.faixa?.maximo.paraString()).toBe('6000.00');
+    // TOTAL com FG cifrada: desconhecido (null), e não só o máximo (6.000); DEFINIDO cifrado também.
+    expect(lista.find((c) => c.codigo === 'ZZ6')!.salarioFonteAtiva).toBeNull();
+    expect(lista.find((c) => c.codigo === 'ZZ7')!.salarioFonteAtiva).toBeNull();
+  });
+
+  it('no app sem a chave, a fonte cifrada é erro de configuração (não "sem salário")', async () => {
+    const semChave = { decifrar: () => { throw new ErroDominio('cad.cifra_indisponivel', 'A chave de cifra dos salários não está configurada.'); }, cifrar: () => '' } as never;
+    await expect(listarCargosExercicio(app, { cifra: semChave })).rejects.toMatchObject({ codigo: 'cad.cifra_indisponivel' });
   });
 });
 
 describe('beneficiosDoCargo', () => {
   it('sem escolha própria, os padrão da Tabela Mestre do ano; ano sem parâmetros, nada', async () => {
-    const padrao = await beneficiosDoCargo(app, 2027, ids.ZZ1!);
+    const { beneficios: padrao, avisos } = await beneficiosDoCargo(app, 2027, ids.ZZ1!);
+    expect(avisos).toEqual([]);
     const { rows } = await migrator.query(`SELECT count(*)::int AS n FROM beneficio_mestre WHERE ano = 2027 AND ativo AND padrao_posicao`);
     expect(rows[0].n).toBeGreaterThan(0);
     expect(padrao).toHaveLength(rows[0].n);
     expect(padrao.every((b) => b.componente.startsWith('beneficio.'))).toBe(true);
-    expect(await beneficiosDoCargo(app, 2099, ids.ZZ1!)).toEqual([]);
+    expect(await beneficiosDoCargo(app, 2099, ids.ZZ1!)).toEqual({ beneficios: [], avisos: [] });
+    // Cargo desconhecido ou id que não é UUID: nada (como o falso).
+    expect(await beneficiosDoCargo(app, 2027, '00000000-0000-4000-8000-0000000000ff')).toEqual({ beneficios: [], avisos: [] });
+    expect(await beneficiosDoCargo(app, 2027, 'x')).toEqual({ beneficios: [], avisos: [] });
   });
 
   it('a escolha do cargo vale: o benefício desligado no cargo sai, só para ele', async () => {
     const [primeiro] = (await migrator.query(`SELECT codigo FROM beneficio_mestre WHERE ano = 2027 AND ativo AND padrao_posicao ORDER BY codigo LIMIT 1`)).rows;
     await migrator.query(`INSERT INTO beneficio_cargo (cargo_id, ano, codigo, ativo) VALUES ($1, 2027, $2, false)`, [ids.ZZ2, primeiro.codigo]);
-    const doZ2 = await beneficiosDoCargo(app, 2027, ids.ZZ2!);
-    const doZ1 = await beneficiosDoCargo(app, 2027, ids.ZZ1!);
+    const doZ2 = (await beneficiosDoCargo(app, 2027, ids.ZZ2!)).beneficios;
+    const doZ1 = (await beneficiosDoCargo(app, 2027, ids.ZZ1!)).beneficios;
     expect(doZ2.length).toBe(doZ1.length - 1);
-    expect(doZ2.some((b) => b.componente === `beneficio.${primeiro.codigo}`)).toBe(false);
+    // O componente é o próprio código do item da Tabela Mestre (beneficio.<nome>).
+    expect(doZ1.some((b) => b.componente === primeiro.codigo)).toBe(true);
+    expect(doZ2.some((b) => b.componente === primeiro.codigo)).toBe(false);
   });
 });

@@ -7,8 +7,10 @@ import { dinheiroDoDecimal, salarioFonteAtiva } from './fonte-ativa';
 import { obterPremissasExercicio } from './premissas';
 
 // C2, acréscimo de C&S (resto da US-056 e US-064; combinado com a frente A na #138 em 11/11). Recebem o
-// tx, sem guarda: a permissão é de quem chama. Os salários saem decifrados para o cálculo; quem mostrar
-// na tela segue a máscara de cad.salarios (R24), e o salário nunca vai para a IA.
+// tx, sem guarda: a permissão é de quem chama. Os salários saem decifrados só para o cálculo (D10): o
+// cálculo precisa deles mesmo para quem não tem cad.salarios, por isso o contrato não audita. Quem
+// MOSTRAR um salário sem máscara confere cad.salarios:consultar E grava o CONSULTA em cad.salarios, com
+// o cargo e sem os valores (R24), como o custo do cargo. O salário nunca vai para a IA.
 
 export type CargoExercicio = Readonly<{
   id: string;
@@ -27,11 +29,12 @@ export type CargoExercicio = Readonly<{
 export type OpcoesCargosExercicio = { incluirInativos?: boolean };
 
 /**
- * Cargos do cadastro (únicos para todo exercício), em ordem de código; por padrão, só os ativos. Esta é a
- * versão do servidor.ts (worker e casos de uso sem a cifra): a Fonte Ativa cifrada (REAL, DEFINIDO,
- * TOTAL) sai sem salário, porque a chave só existe no app. Pelo index.ts (app), o salário sai decifrado.
+ * Cargos do cadastro (únicos para todo exercício), em ordem de código; por padrão, só os ativos. Versão do
+ * servidor.ts (worker), com outro nome de propósito: a Fonte Ativa que depende de campo cifrado (REAL,
+ * DEFINIDO, TOTAL com FG) sai sem salário, porque a chave só existe no app; a faixa, o adicional e as
+ * fontes de mercado saem normais. No app, use o listarCargosExercicio do index.ts.
  */
-export async function listarCargosExercicio(tx: TxCliente, opcoes: OpcoesCargosExercicio = {}): Promise<readonly CargoExercicio[]> {
+export async function listarCargosSemSalarioCifrado(tx: TxCliente, opcoes: OpcoesCargosExercicio = {}): Promise<readonly CargoExercicio[]> {
   return listarCargosComCifra(tx, opcoes, () => null);
 }
 
@@ -65,8 +68,9 @@ export async function listarCargosComCifra(
     try {
       salario = salarioFonteAtiva(c, obterCifra);
     } catch (e) {
-      // Envelope ilegível ou chave ausente: o cargo fica sem salário (a posição não o usa), sem derrubar a lista.
-      if (!(e instanceof ErroDominio && ['cad.cifra_invalida', 'cad.cifra_indisponivel'].includes(e.codigo))) throw e;
+      // Envelope ilegível: o cargo fica sem salário (a posição não o usa), sem derrubar a lista. A chave
+      // ausente no app (cad.cifra_indisponivel) é erro de configuração: sobe, com a mensagem de tela.
+      if (!(e instanceof ErroDominio && e.codigo === 'cad.cifra_invalida')) throw e;
       console.error('[CARGO_SALARIO_ILEGIVEL]', { cargo: c.codigo, codigo: e.codigo });
       salario = null;
     }
@@ -87,12 +91,21 @@ export async function listarCargosComCifra(
   });
 }
 
+export type BeneficiosCargo = Readonly<{ beneficios: readonly BeneficioPremissa[]; avisos: readonly string[] }>;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NENHUM: BeneficiosCargo = { beneficios: [], avisos: [] };
+
 /**
  * Benefícios do cargo no exercício, no formato das premissas: as escolhas do cargo (ativo e valor
- * manual) sobre a Tabela Mestre; sem escolha própria, o padrão da Tabela Mestre. Ano sem parâmetros: [].
+ * manual) sobre a Tabela Mestre; sem escolha própria, o padrão da Tabela Mestre. Os avisos das premissas
+ * vão junto (benefício sem valor, conta que deixou de ser analítica): o motor recusa esses componentes.
+ * Cargo desconhecido (ou id que não é UUID) e ano sem parâmetros: nada. Uma leitura das premissas por
+ * chamada: para muitos cargos do mesmo ano, peça uma versão em lote.
  */
-export async function beneficiosDoCargo(tx: TxCliente, ano: number, cargoId: string): Promise<readonly BeneficioPremissa[]> {
+export async function beneficiosDoCargo(tx: TxCliente, ano: number, cargoId: string): Promise<BeneficiosCargo> {
+  if (!UUID.test(cargoId) || !(await tx.cargo.findUnique({ where: { id: cargoId }, select: { id: true } }))) return NENHUM;
   const escolhas = await tx.beneficioCargo.findMany({ where: { cargoId, ano }, select: { codigo: true, ativo: true, valorManual: true } });
   const escolha = new Map(escolhas.map((b) => [b.codigo, { ativo: b.ativo, valorManual: dinheiroDoDecimal(b.valorManual) }]));
-  return (await obterPremissasExercicio(tx, ano, escolha))?.beneficios ?? [];
+  const p = await obterPremissasExercicio(tx, ano, escolha);
+  return p ? { beneficios: p.beneficios, avisos: p.avisos } : NENHUM;
 }

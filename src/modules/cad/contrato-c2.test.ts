@@ -151,7 +151,6 @@ describe('C2 — tipos e exportações', () => {
       'premissasExemplo',
       'custoPessoalFalso',
       // Acréscimo de C&S (#138, 11/11).
-      'listarCargosExercicio',
       'beneficiosDoCargo',
       'cargosExemplo',
     ];
@@ -159,6 +158,11 @@ describe('C2 — tipos e exportações', () => {
       expect(cad).toHaveProperty(nome);
       expect(cadServidor).toHaveProperty(nome);
     }
+    // Cargos de C&S: com salário decifrado só no app; o worker tem outro nome, para não trocar um pelo outro.
+    expect(cad).toHaveProperty('listarCargosExercicio');
+    expect(cadServidor).not.toHaveProperty('listarCargosExercicio');
+    expect(cadServidor).toHaveProperty('listarCargosSemSalarioCifrado');
+    expect(cad).not.toHaveProperty('listarCargosSemSalarioCifrado');
   });
 });
 
@@ -176,8 +180,8 @@ describe('C2, acréscimo de C&S — falso', () => {
   it('benefícios do cargo: os das premissas do ano para um cargo conhecido; outro cargo ou ano sem premissas, nada', async () => {
     const falso = custoPessoalFalso([premissasExemplo(2027)]);
     const id = (await falso.listarCargosExercicio(tx))[0]!.id;
-    expect(await falso.beneficiosDoCargo(tx, 2027, id)).toEqual(premissasExemplo(2027).beneficios);
-    expect(await falso.beneficiosDoCargo(tx, 2028, id)).toEqual([]);
-    expect(await falso.beneficiosDoCargo(tx, 2027, '00000000-0000-4000-8000-0000000000ff')).toEqual([]);
+    expect(await falso.beneficiosDoCargo(tx, 2027, id)).toEqual({ beneficios: premissasExemplo(2027).beneficios, avisos: premissasExemplo(2027).avisos });
+    expect(await falso.beneficiosDoCargo(tx, 2028, id)).toEqual({ beneficios: [], avisos: [] });
+    expect(await falso.beneficiosDoCargo(tx, 2027, '00000000-0000-4000-8000-0000000000ff')).toEqual({ beneficios: [], avisos: [] });
   });
 });
