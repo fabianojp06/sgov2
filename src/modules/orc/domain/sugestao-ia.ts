@@ -35,11 +35,27 @@ const normalizar = (t: string) => t.replace(/\r\n?/g, '\n').trim();
 
 /**
  * A marca sugestaoIa vai junto enquanto algum campo (justificativa, prioridade, conta ou CC) continua
- * com o valor aceito. A comparação da
- * justificativa ignora o fim de linha (CRLF ou LF) e os espaços nas pontas.
+ * com o valor aceito. A comparação da justificativa ignora o fim de linha (CRLF ou LF) e os espaços
+ * nas pontas; a da prioridade, da conta e do CC é exata.
  */
 export function deveMarcarSugestao(aceitas: SugestoesAceitas, valores: ValoresMarcaveis): boolean {
   const texto = aceitas.justificativa !== undefined && normalizar(valores.justificativa) === normalizar(aceitas.justificativa);
   const igual = (k: 'prioridade' | 'conta' | 'cc') => aceitas[k] !== undefined && valores[k] === aceitas[k];
   return texto || igual('prioridade') || igual('conta') || igual('cc');
+}
+
+/**
+ * "Usar esta conta" ou "Usar este CC" (D-P14-3): o que o seletor passa a ter e o que fica aceito.
+ * Valor fora das opções do seletor: null, e nada muda. Valor que já era o escolhido: nada veio da IA,
+ * e as aceitas não mudam (a entrada não leva a marca por isso).
+ */
+export function usarSugestaoNoSeletor(
+  aceitas: SugestoesAceitas,
+  campo: 'conta' | 'cc',
+  valor: string,
+  seletor: { opcoes: readonly string[]; atual: string },
+): { valor: string; aceitas: SugestoesAceitas } | null {
+  if (!seletor.opcoes.includes(valor)) return null;
+  if (seletor.atual === valor) return { valor, aceitas };
+  return { valor, aceitas: { ...aceitas, [campo]: valor } };
 }

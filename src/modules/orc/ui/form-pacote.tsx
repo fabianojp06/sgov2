@@ -5,7 +5,15 @@ import { ErroDoCampo, Formulario } from '@/modules/ger';
 import type { AcaoFormulario } from '@/modules/ger';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { previaPacote, type CamposPrevia } from '../domain/previa-pacote';
-import { deveMarcarSugestao, ROTULO_FALTANDO, ROTULO_PRIORIDADE, type SugestaoContaCc, type SugestaoJustificativa, type SugestoesAceitas } from '../domain/sugestao-ia';
+import {
+  deveMarcarSugestao,
+  ROTULO_FALTANDO,
+  ROTULO_PRIORIDADE,
+  usarSugestaoNoSeletor,
+  type SugestaoContaCc,
+  type SugestaoJustificativa,
+  type SugestoesAceitas,
+} from '../domain/sugestao-ia';
 import { valorParaTela } from '../domain/valor-tela';
 import { PainelIA, type RespostaIaTela } from './painel-ia';
 
@@ -132,12 +140,11 @@ export function FormPacote({
   // "Usar esta conta" e "Usar este CC" trocam o seletor, que continua editável (D-P14-3). As opções da
   // IA já vieram conferidas contra as mesmas listas dos seletores; a lista de contas não depende do CC.
   const usarNoSeletor = (seletor: HTMLSelectElement | null, campo: 'conta' | 'cc', valor: string) => {
-    if (!seletor || ![...seletor.options].some((o) => o.value === valor)) return;
-    // A sugerida já era a escolhida: nada veio da IA, e a entrada não leva a marca.
-    if (seletor.value !== valor) {
-      seletor.value = valor;
-      aceitas.current = { ...aceitas.current, [campo]: valor };
-    }
+    if (!seletor) return;
+    const r = usarSugestaoNoSeletor(aceitas.current, campo, valor, { opcoes: [...seletor.options].map((o) => o.value), atual: seletor.value });
+    if (!r) return;
+    seletor.value = r.valor;
+    aceitas.current = r.aceitas;
     conferirMarca(lerFormulario());
     seletor.focus();
   };

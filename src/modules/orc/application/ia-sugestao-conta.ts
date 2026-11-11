@@ -31,14 +31,15 @@ export const MAXIMO_CONTAS_SUGERIDAS = 3;
 
 const ENTRADA = z.object({ exercicioId: z.string(), descricao: z.string().optional() }).strict();
 
-const motivo = z.string().min(1).max(500);
+// trim no schema: motivo só de espaços fica fora do formato.
+const motivo = z.string().trim().min(1).max(500);
 // Resposta da IA: fora do schema, o provedor devolve ErroIA('ia.saida_invalida').
 export const RESPOSTA_SUGESTAO_CONTA = z.object({
   contas: z
-    .array(z.object({ conta: z.string().max(40), motivo }))
+    .array(z.object({ conta: z.string().trim().max(40), motivo }))
     .min(1)
     .max(MAXIMO_CONTAS_SUGERIDAS),
-  cc: z.object({ cc: z.string().max(40), motivo }).nullable(),
+  cc: z.object({ cc: z.string().trim().max(40), motivo }).nullable(),
 });
 
 /** As listas que a IA pode usar: as mesmas do formulário do pacote. */
@@ -75,15 +76,15 @@ export async function consultarSugestaoConta(ia: ServicoIA, quem: QuemPedeIA, de
   const vistas = new Set<string>();
   const validas: { conta: string; descricao: string; motivo: string }[] = [];
   for (const s of valor.contas) {
-    const conta = s.conta.trim();
+    const conta = s.conta;
     const desc = contas.get(conta);
     if (desc === undefined || vistas.has(conta)) continue;
     vistas.add(conta);
-    validas.push({ conta, descricao: desc, motivo: s.motivo.trim() });
+    validas.push({ conta, descricao: desc, motivo: s.motivo });
   }
-  const cc = valor.cc ? valor.cc.cc.trim() : '';
+  const cc = valor.cc?.cc ?? '';
   const descCc = ccs.get(cc);
-  return { contas: validas, cc: valor.cc && descCc !== undefined ? { cc, descricao: descCc, motivo: valor.cc.motivo.trim() } : null };
+  return { contas: validas, cc: valor.cc && descCc !== undefined ? { cc, descricao: descCc, motivo: valor.cc.motivo } : null };
 }
 
 export async function sugerirContaCc(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsIaOrc> = {}): Promise<Resultado<SugestaoContaCc>> {
@@ -96,7 +97,8 @@ export async function sugerirContaCc(ctx: ContextoRequisicao, bruto: unknown, de
   const deps = resolverDepsIa(depsParciais);
   const parse = ENTRADA.safeParse(bruto);
   if (!parse.success) return erro('_', 'Dados do pacote inválidos. Recarregue a tela.');
-  const descricao = (parse.data.descricao ?? '').trim();
+  // As marcas saem antes de contar: '<<<>>>' e espaços não valem como descrição.
+  const descricao = semMarcas(parse.data.descricao ?? '').trim();
   if (contar(descricao) < MINIMO_DESCRICAO) return erro('justificativa', MENSAGENS_ORC.IA_DESCRICAO_CURTA);
   if (contar(descricao) > MAXIMO_DESCRICAO) return erro('justificativa', 'Justificativa com mais de 1000 caracteres.');
 

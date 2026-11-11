@@ -77,10 +77,15 @@ export function PainelIA<T>({
   return (
     <section aria-labelledby={`${id}-titulo`} className="painel-ia">
       <h3 id={`${id}-titulo`}>{titulo}</h3>
-      {aviso && <p role="note">{aviso}</p>}
+      {aviso && (
+        <p role="note" id={`${id}-aviso`}>
+          {aviso}
+        </p>
+      )}
       {/* type="button": o painel fica dentro do formulário e não pode enviá-lo. aria-disabled, e não
-          disabled, para o foco ficar no botão durante a consulta; o clique é ignorado. */}
-      <button type="button" onClick={consultar} aria-disabled={consultando}>
+          disabled, para o foco ficar no botão durante a consulta; o clique é ignorado. O aviso descreve o
+          botão: diz qual campo vai para a IA e o cuidado com nomes. */}
+      <button type="button" onClick={consultar} aria-disabled={consultando} aria-describedby={aviso ? `${id}-aviso` : undefined}>
         {rotuloBotao}
       </button>
       <div role="status" aria-live="polite">

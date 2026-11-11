@@ -22,7 +22,7 @@ export function iaLiberada(ctx: ContextoRequisicao, caso: keyof typeof CASOS_IA_
 }
 
 // Tempo limite da chamada (D-P14-4): o sinal abortou pelo AbortSignal.timeout.
-const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError';
+export const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError';
 
 /** A mensagem do ErroIA na tela: a fixa dele, ou a do tempo esgotado quando o cancelamento veio do limite. */
 export const mensagemErroIA = (x: ErroIA, sinal: AbortSignal): string => (x.codigo === 'ia.cancelada' && tempoEsgotado(sinal) ? MENSAGENS_ORC.IA_TEMPO_ESGOTADO : x.message);

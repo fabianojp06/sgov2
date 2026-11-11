@@ -217,6 +217,14 @@ describe('sugerirContaCc', () => {
     expect(r.ok && r.valor.cc).toEqual({ cc: '4.4', descricao: 'Suporte Administrativo', motivo: 'Suporte.' });
   });
 
+  it('motivo só com espaços: a resposta fora do formato (trim no schema)', async () => {
+    const e = await exercicio();
+    falso.roteiro.estruturado = { ...SUGESTAO, contas: [{ conta: '4.1.1.5.005', motivo: '   ' }] };
+    expect(await sugerirContaCc(ctx(), entrada(e.id), e.deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'A resposta da IA veio fora do formato esperado.' }] });
+    falso.roteiro.estruturado = { ...SUGESTAO, cc: { cc: '4.3.0', motivo: ' ' } };
+    expect(await sugerirContaCc(ctx(), entrada(e.id), e.deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'A resposta da IA veio fora do formato esperado.' }] });
+  });
+
   it('mais de 3 contas ou nenhuma: a resposta fora do formato (ia.saida_invalida)', async () => {
     const e = await exercicio();
     const fora = { ok: false, erros: [{ campo: '_', mensagem: 'A resposta da IA veio fora do formato esperado.' }] };
@@ -252,7 +260,8 @@ describe('sugerirContaCc', () => {
     const e = await exercicio();
     const n = falso.chamadas.length;
     const antes = await chamadas();
-    for (const descricao of ['toner', '   curto   ', '']) {
+    // As marcas saem antes de contar: '<<<>>>' não completa os 10 caracteres.
+    for (const descricao of ['toner', '   curto   ', '', '<<<>>> toner >>><<<', '<<<<<<>>>>>>']) {
       expect(await sugerirContaCc(ctx(), entrada(e.id, descricao), e.deps())).toEqual({
         ok: false,
         erros: [{ campo: 'justificativa', mensagem: 'Descreva o gasto com pelo menos 10 caracteres.' }],
