@@ -69,6 +69,8 @@ export type OpcoesPosicao = {
   situacao: SituacaoExercicio;
   rotuloSituacao: string;
   editavel: boolean;
+  /** Escopo TOTAL (sem subárvore): a condição da tela de correspondência do cargo (P16, D-P16-1). */
+  escopoTotal: boolean;
 };
 export type ResultadoPosicao = { id: string; ano: number; cc: string; mensagem: string };
 // Cargo da escolha na posição (D-P15-2, D-P15-5): valores em texto canônico ("1234.56"), nulos sem
@@ -154,6 +156,7 @@ export async function opcoesPosicao(ctx: ContextoRequisicao, exercicioId: string
     situacao: e.situacao,
     rotuloSituacao: ROTULO_SITUACAO[e.situacao],
     editavel: editavel(e.situacao),
+    escopoTotal: escopo.tipo === 'TOTAL',
   };
 }
 
@@ -191,7 +194,7 @@ type Retratavel = Omit<DadosPosicao, 'salarioMensal'> & { salarioMensal: Dinheir
 // D-P12-4: a posição inteira no Histórico, com o salário (a tela de detalhe mascara com
 // mascararHistoricoOrc). A descrição nunca leva salário nem valor. Do cargo do cadastro, só o id (C24,
 // D-P15-2): nenhum campo diz se o salário é o da Fonte Ativa.
-const retrato = (p: Retratavel) => ({
+export const retrato = (p: Retratavel) => ({
   cc: p.cc,
   cargo: p.cargo,
   cargoId: p.cargoId,
@@ -266,13 +269,32 @@ async function aplicarCargo(
   if (typeof dados.cargoId !== 'string') return erroCargo(MENSAGENS_ORC.CARGO_NAO_ESCOLHIDO);
   const cargoId = dados.cargoId !== '' ? dados.cargoId : null;
   if (cargoId === null) return ok({ dados, cargoId });
+  const cargo = await validarCargoEscolhido(tx, cache, cargoId, cargoGravado, deps);
+  if (!cargo.ok) return cargo;
+  return ok({ dados: { ...dados, cargo: nomeDoCargo(cargo.valor) }, cargoId });
+}
+
+/** O texto `cargo` da posição ligada: o nome do cadastro, cortado em 120 caracteres (D-P15-1). */
+export const nomeDoCargo = (cargo: CargoExercicio) => cargo.nome.slice(0, 120);
+
+/**
+ * O cargo escolhido do cadastro (D-P15-2): precisa existir sempre; inativo e sem Fonte Ativa são recusados
+ * só quando muda (o mesmo já gravado passa). Também na tela de correspondência (P16), com cargoGravado nulo.
+ */
+export async function validarCargoEscolhido(
+  tx: TxCliente,
+  cache: CacheCargos,
+  cargoId: string,
+  cargoGravado: string | null,
+  deps: DepsOrc,
+): Promise<Resultado<CargoExercicio>> {
   const cargo = cache.porId.get(cargoId);
   if (!cargo) return erroCargo(MENSAGENS_ORC.CARGO_NAO_ENCONTRADO);
   if (cargoId !== cargoGravado) {
     if (!cargo.ativo) return erroCargo(MENSAGENS_ORC.CARGO_INATIVO);
     if (await semFonteAtiva(tx, cargo, deps)) return erroCargo(MENSAGENS_ORC.CARGO_SEM_FONTE_ATIVA);
   }
-  return ok({ dados: { ...dados, cargo: cargo.nome.slice(0, 120) }, cargoId });
+  return ok(cargo);
 }
 
 // Validação e custo da posição com as premissas atuais, sem gravar nada (gravação e prévia). O motor
@@ -333,17 +355,22 @@ async function recalcularPosicao(tx: TxCliente, e: ExercicioTravado, posicaoId: 
     }
     return { antes: e.versaoPremissas, depois: r.versaoPremissas };
   }
-  await tx.linhaOrcada.deleteMany({ where: { posicaoId } });
-  await tx.linhaOrcada.createMany({
-    data: plano.serie.linhas.map((l) => ({
-      exercicioId: e.id, cc, conta: l.conta, origem: 'PESSOAL', componente: l.componente, posicaoId, meses: l.meses.map((m) => m.paraString()), total: l.total.paraString(),
-    })),
-  });
+  await gravarLinhasPosicao(tx, e.id, posicaoId, cc, plano.serie);
   await tocarExercicio(tx, e.id, deps);
   return null;
 }
 
-const tocarExercicio = (tx: TxCliente, id: string, deps: DepsOrc) =>
+/** Troca as linhas de uma posição pelas da série (sem subir a versão do exercício). */
+export async function gravarLinhasPosicao(tx: TxCliente, exercicioId: string, posicaoId: string, cc: string, serie: SerieMensalComponentes): Promise<void> {
+  await tx.linhaOrcada.deleteMany({ where: { posicaoId } });
+  await tx.linhaOrcada.createMany({
+    data: serie.linhas.map((l) => ({
+      exercicioId, cc, conta: l.conta, origem: 'PESSOAL', componente: l.componente, posicaoId, meses: l.meses.map((m) => m.paraString()), total: l.total.paraString(),
+    })),
+  });
+}
+
+export const tocarExercicio = (tx: TxCliente, id: string, deps: DepsOrc) =>
   tx.orcamentoExercicio.update({ where: { id }, data: { versao: { increment: 1 }, atualizadoEm: deps.agora() } });
 
 // Erros do recálculo do exercício inteiro (sempre de outro lançamento: a posição já passou pelo

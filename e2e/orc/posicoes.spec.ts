@@ -7,8 +7,8 @@ import { ccAnaliticoSob } from './planilhas';
 // Roda depois de orcamento.spec.ts (2027 oficializado): a GFIN cria um exercício próprio e escolhe um
 // cargo da seed de referência do cad, vendo o salário sugerido pela Fonte Ativa e a faixa; o Gestor da
 // DEP (escopo 4.1) inclui e altera uma posição em texto livre (C34) com a prévia do servidor e escolhe o
-// mesmo cargo sem ver a Fonte Ativa; a DIREX (só consulta) vê o salário e o anual mascarados; as posições
-// saem pela tela. Nada grava nas tabelas da frente B. O afterAll apaga o exercício e os parâmetros do ano.
+// mesmo cargo sem ver a Fonte Ativa; a DIREX (só consulta) vê o salário e o anual mascarados; a GFIN liga o
+// cargo em texto ao cadastro pela tela de correspondência (P16); as posições saem pela tela. Nada grava nas tabelas da frente B. O afterAll apaga o exercício e os parâmetros do ano.
 const ANO = 2032;
 // Cargo sintético da seed de referência do cad (frente B, #412): Fonte Ativa MÍNIMO de 4.500,00 e faixa de
 // mercado de 4.500,00 a 7.200,00, sem cifra.
@@ -150,17 +150,36 @@ test.describe.serial(`posições de pessoal ${ANO}`, () => {
     await expect(page.getByRole('link', { name: /^Alterar posição/ })).toHaveCount(0);
   });
 
-  test('6. Gestor da DEP exclui as duas posições dele', async ({ page }) => {
+  test('6. GFIN liga o cargo em texto ao cadastro pela tela de correspondência (P16)', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, USUARIOS.gfin.login);
+    await page.goto(`/orc/posicoes?ano=${ANO}&cc=${CC_DEP}`);
+    await page.getByRole('link', { name: 'Ligar cargos em texto ao cadastro' }).click();
+    await expect(page.getByRole('heading', { name: `Cargos em texto (${ANO})` })).toBeVisible();
+    const linha = page.getByRole('row', { name: new RegExp(`^${CARGO} `) });
+    await expect(linha).toContainText('5.000,00');
+    // O texto não é igual ao nome do cadastro: sem sugestão, o botão fica desabilitado até a escolha.
+    await expect(linha.getByRole('button', { name: `Ligar ${CARGO}` })).toBeDisabled();
+    // A GFIN tem cad.salarios: a Fonte Ativa aparece no rótulo do cargo.
+    await page.getByLabel(`Cargo do cadastro para ${CARGO}`).selectOption({ label: `${OPCAO_CARGO} · Fonte Ativa R$ 4.500,00` });
+    await confirmar(page, `Ligar ${CARGO}`);
+    await expect(page.getByText('1 posição ligada ao cargo do cadastro.')).toBeVisible();
+    await expect(page.getByText('Nenhuma posição com cargo em texto neste exercício.')).toBeVisible();
+    await page.goto(`/orc/posicoes?ano=${ANO}&cc=${CC_DEP}`);
+    await expect(linhaDa(page, NOME_CARGO)).toHaveCount(2);
+    await expect(page.getByRole('link', { name: 'Ligar cargos em texto ao cadastro' })).toHaveCount(0);
+  });
+
+  test('7. Gestor da DEP exclui as duas posições dele', async ({ page }) => {
     await entrarNaTelaPrincipal(page, USUARIOS.gestor.login);
     await page.goto(`/orc/posicoes?ano=${ANO}&cc=${CC_DEP}`);
-    // Ordem por cargo: "Analista Administrativo Pleno" vem antes de "Analista de orçamento E2E".
-    await confirmar(page, `Excluir posição 2: ${CARGO}`);
+    // Depois da correspondência, as duas posições têm o nome do cadastro.
+    await confirmar(page, `Excluir posição 1: ${NOME_CARGO}`);
     await expect(page.getByText('Posição excluída. O orçamento foi recalculado.')).toBeVisible();
     await confirmar(page, `Excluir posição 1: ${NOME_CARGO}`);
     await expect(page.getByText('Nenhuma posição neste centro de custo.')).toBeVisible();
   });
 
-  test('7. GFIN exclui a posição dela', async ({ page }) => {
+  test('8. GFIN exclui a posição dela', async ({ page }) => {
     await entrarNaTelaPrincipal(page, USUARIOS.gfin.login);
     await page.goto(`/orc/posicoes?ano=${ANO}&cc=${CC_DAF}`);
     await confirmar(page, `Excluir posição 1: ${NOME_CARGO}`);

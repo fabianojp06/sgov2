@@ -71,6 +71,12 @@ export function TelaPosicoes({
     <>
       {aviso && <p role="status">{aviso}</p>}
       {!editavel && <p>{MENSAGENS_ORC.SITUACAO_NAO_EDITAVEL(opcoes.rotuloSituacao)}</p>}
+      {/* Correspondência do cargo em texto (P16, D-P16-1): quem altera com escopo TOTAL, havendo posição sem cargo. */}
+      {editavel && permissoes.podeAlterar && opcoes.escopoTotal && lista.posicoes.some((p) => p.cargoId === null) && (
+        <p>
+          <a href={`/orc/posicoes/correspondencia?ano=${ano}`}>{MENSAGENS_ORC.CORRESPONDENCIA_LINK}</a>
+        </p>
+      )}
       {ccs.length === 0 ? (
         <p>Nenhum centro de custo disponível no seu escopo.</p>
       ) : (
