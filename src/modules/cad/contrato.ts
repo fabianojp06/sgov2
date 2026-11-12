@@ -51,6 +51,7 @@ export type { FonteAtiva } from './domain/cargo';
 export {
   cargosExemplo,
   CENTROS_CUSTO_EXEMPLO,
+  CENTROS_CUSTO_TPS_EXEMPLO,
   CONTAS_EXEMPLO,
   custoPessoalFalso,
   estruturaFinanceiraFalsa,

@@ -1,0 +1,54 @@
+[
+  {
+    "numero": 2,
+    "celulas": {
+      "Classificação": "9",
+      "Código reduzido": "90.000",
+      "Descrição (original)": "Termos de Parceria (sintético)",
+      "Descrição sugerida": "Termos de Parceria (sintético)",
+      "Nível": "1",
+      "Classificação pai": null,
+      "Tipo": "Sintético",
+      "Aceita lançamento": "N"
+    }
+  },
+  {
+    "numero": 3,
+    "celulas": {
+      "Classificação": "9.1",
+      "Código reduzido": "90.001",
+      "Descrição (original)": "TP sintético 1",
+      "Descrição sugerida": "TP sintético 1",
+      "Nível": "2",
+      "Classificação pai": "9",
+      "Tipo": "Analítico",
+      "Aceita lançamento": "S"
+    }
+  },
+  {
+    "numero": 4,
+    "celulas": {
+      "Classificação": "9.2",
+      "Código reduzido": "90.002",
+      "Descrição (original)": "TP sintético 2",
+      "Descrição sugerida": "TP sintético 2",
+      "Nível": "2",
+      "Classificação pai": "9",
+      "Tipo": "Analítico",
+      "Aceita lançamento": "S"
+    }
+  },
+  {
+    "numero": 5,
+    "celulas": {
+      "Classificação": "9.3",
+      "Código reduzido": "90.003",
+      "Descrição (original)": "TP sintético 3",
+      "Descrição sugerida": "TP sintético 3",
+      "Nível": "2",
+      "Classificação pai": "9",
+      "Tipo": "Analítico",
+      "Aceita lançamento": "S"
+    }
+  }
+]

@@ -91,6 +91,19 @@ export const CENTROS_CUSTO_EXEMPLO: readonly NoCentroCusto[] = congelarArvore([
 ]);
 
 /**
+ * Estrutura sintética de TPs (C37, GAP-CC-004), a mesma da seed de referência: raiz 9 fora da
+ * estrutura 4. Separada do CENTROS_CUSTO_EXEMPLO para não mudar os testes que já o usam; junte as duas
+ * (`[...CENTROS_CUSTO_EXEMPLO, ...CENTROS_CUSTO_TPS_EXEMPLO]`) quando precisar dos TPs.
+ */
+export const CENTROS_CUSTO_TPS_EXEMPLO: readonly NoCentroCusto[] = congelarArvore([
+  cc('9', '90.000', 'Termos de Parceria (sintético)', false, [
+    cc('9.1', '90.001', 'TP sintético 1', true),
+    cc('9.2', '90.002', 'TP sintético 2', true),
+    cc('9.3', '90.003', 'TP sintético 3', true),
+  ]),
+]);
+
+/**
  * Falso do C1: mesma semântica dos reais (só ativos por padrão, filhos ordenados pela
  * classificação, analítico e ativo), sobre árvores em memória. Ignora a transação.
  */

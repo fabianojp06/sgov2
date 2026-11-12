@@ -11,6 +11,7 @@ import { aplicarCargaCargos, paraStaging } from './aplicar-carga-cargos';
 import { tocarVersaoExercicio } from './parametro-sistema';
 import cargosSinteticos from './dados/cargos-sinteticos.json';
 import minuta from './dados/cc-minuta-rev23102026.json';
+import tpsSinteticos from './dados/cc-tps-sinteticos.json';
 import oficial from './dados/plano-contas-oficial.json';
 
 // Dados de referência (plano do P4, R15): o plano de contas oficial (e, nas Tasks 5 e 12a, a minuta
@@ -43,9 +44,12 @@ async function carregarPlanoOficial(tx: TxCliente): Promise<void> {
   });
 }
 
-// A minuta de CC entra provisória: ainda não tem a aprovação da DIREX (GAP-CC-001).
+// A minuta de CC entra provisória: ainda não tem a aprovação da DIREX (GAP-CC-001). Junto, no mesmo
+// lote, a estrutura sintética de TPs (C37, GAP-CC-004; pedido da frente A na #138 para a R4): raiz 9 e
+// os analíticos 9.1 a 9.3. No mesmo lote porque a carga inativa o que não está no arquivo: lotes
+// separados apagariam um ao outro. A raiz real dos TPs vem da DIREX/GFIN, pela planilha.
 async function carregarMinutaCentrosCusto(tx: TxCliente): Promise<void> {
-  const validado = validarCentrosCusto(minuta as LinhaLida[], sanearDescricao);
+  const validado = validarCentrosCusto([...(minuta as LinhaLida[]), ...(tpsSinteticos as LinhaLida[])], sanearDescricao);
   if (!validado.ok) throw new Error(`Minuta de centros de custo inválida: ${validado.erros.length} erros`);
   // Uma minuta nunca sobrescreve um plano de CC já aprovado pela DIREX.
   if ((await tx.centroCusto.count({ where: { provisorio: false } })) > 0) {
@@ -56,7 +60,7 @@ async function carregarMinutaCentrosCusto(tx: TxCliente): Promise<void> {
   const plano = planejarCarga(await lerCentrosCustoAtuais(tx), validado.centros.map(comoNovoCentroCusto));
   if (plano.incluir.length + plano.alterarDescricao.length + plano.reativar.length + plano.inativar.length === 0) return;
   const [lote] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "carga_estrutura" ("tipo", "arquivo_nome", "arquivo_sha256", "linhas", "provisoria", "contexto_auditoria")
-    VALUES ('CENTROS_CUSTO', 'Seed: minuta de centros de custo Rev23102026', 'seed', ${validado.centros.length}, true, ${JSON.stringify(SISTEMA)}::jsonb) RETURNING "id"`;
+    VALUES ('CENTROS_CUSTO', 'Seed: minuta de centros de custo Rev23102026 e TPs sintéticos', 'seed', ${validado.centros.length}, true, ${JSON.stringify(SISTEMA)}::jsonb) RETURNING "id"`;
   const r = await aplicarCargaCentrosCusto(tx, SISTEMA, { id: lote!.id, provisoria: true }, validado.centros);
   await tx.cargaEstrutura.update({
     where: { id: lote!.id },

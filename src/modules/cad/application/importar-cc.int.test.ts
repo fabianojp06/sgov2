@@ -205,7 +205,8 @@ describe('carga dos centros de custo', () => {
       vi.stubEnv('CARGA_DADOS_REFERENCIA', '1');
       vi.stubEnv('AMBIENTE', 'dev');
       await executarSeeds(m, [seedAdm, seedCad, seedDadosReferenciaCad]);
-      expect(await sync.centroCusto.count({ where: { provisorio: true, ativo: true } })).toBe(35);
+      // A minuta (35) e a estrutura sintética de TPs (4, C37).
+      expect(await sync.centroCusto.count({ where: { provisorio: true, ativo: true } })).toBe(39);
       await migrator.query('UPDATE centro_custo SET provisorio = false');
       await executarSeeds(m, [seedDadosReferenciaCad]);
       expect(await sync.centroCusto.count({ where: { provisorio: true } })).toBe(0);

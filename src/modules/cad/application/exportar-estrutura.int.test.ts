@@ -8,6 +8,10 @@ import { lerEnvAcesso } from '@/shared/config';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import ccMinuta from '../infrastructure/dados/cc-minuta-rev23102026.json';
+import ccTps from '../infrastructure/dados/cc-tps-sinteticos.json';
+
+// A seed carrega a minuta e a estrutura sintética de TPs (C37) no mesmo lote.
+const CCS_DA_SEED = ccMinuta.length + ccTps.length;
 import planoOficial from '../infrastructure/dados/plano-contas-oficial.json';
 import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
@@ -103,12 +107,12 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     expect(ws.getRow(1).getCell(1).value).toBe('Centros de custo');
     // As colunas da tela (com os selos de gestão e de provisório numa coluna só).
     expect(ws.getRow(6).values).toEqual([undefined, 'Classificação', 'Reduzido', 'Descrição', 'Nível', 'Tipo', 'Selos', 'Situação']);
-    expect(ws.rowCount).toBe(6 + ccMinuta.length);
+    expect(ws.rowCount).toBe(6 + CCS_DA_SEED);
     expect(ws.headerFooter.oddFooter).toMatch(/^&Lgfin&RRastreio [0-9a-f-]{36}$/);
     const rastreio = /^&Lgfin&RRastreio ([0-9a-f-]{36})$/.exec(ws.headerFooter.oddFooter!)![1];
     expect(await ultimaExportacao('cad.centros_custo')).toEqual({
       registro_id: rastreio,
-      depois: { formato: 'xlsx', registros: ccMinuta.length, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
+      depois: { formato: 'xlsx', registros: CCS_DA_SEED, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
     });
   });
 
@@ -123,7 +127,7 @@ describe('exportação do plano de contas e dos CCs (US-024)', () => {
     expect(doc.getPageCount()).toBeGreaterThan(1);
     expect(await ultimaExportacao('cad.centros_custo')).toEqual({
       registro_id: rastreio,
-      depois: { formato: 'pdf', registros: ccMinuta.length, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
+      depois: { formato: 'pdf', registros: CCS_DA_SEED, filtros: [{ rotulo: 'Inativos', valor: 'não incluídos' }], rastreio },
     });
   });
 
@@ -248,7 +252,7 @@ describe('exportação assíncrona (US-024, parte 4)', () => {
     if (!r.ok || r.valor.tipo !== 'agendada') throw new Error(JSON.stringify(r));
     await trabalhar()({ pedidoId: r.valor.pedidoId });
     const pronto = await pedido(r.valor.pedidoId);
-    expect(pronto).toMatchObject({ situacao: 'PRONTA', formato: 'pdf', nome_arquivo: 'centros-de-custo.pdf', registros: ccMinuta.length });
+    expect(pronto).toMatchObject({ situacao: 'PRONTA', formato: 'pdf', nome_arquivo: 'centros-de-custo.pdf', registros: CCS_DA_SEED });
     const doc = await PDFDocument.load(new Uint8Array(pronto.conteudo), { updateMetadata: false });
     expect(doc.getSubject()).toBe(`Rastreio ${r.valor.pedidoId}`);
   });
