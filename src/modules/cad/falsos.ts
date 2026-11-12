@@ -26,7 +26,7 @@ import type {
   garantirPremissasExercicio,
   obterPremissasExercicio,
 } from './infrastructure/premissas';
-import type { beneficiosDoCargo, CargoExercicio, listarCargosSemSalarioCifrado } from './infrastructure/cargos-exercicio';
+import type { beneficiosDoCargo, beneficiosDosCargos, CargoExercicio, listarCargosSemSalarioCifrado } from './infrastructure/cargos-exercicio';
 
 // Adaptadores falsos dos contratos do cad, só para testes dos módulos consumidores (spec §12.6).
 
@@ -208,12 +208,17 @@ export function custoPessoalFalso(
   listarCargosExercicio: typeof listarCargosSemSalarioCifrado;
   listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
   beneficiosDoCargo: typeof beneficiosDoCargo;
+  beneficiosDosCargos: typeof beneficiosDosCargos;
   chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[];
   congelados: ReadonlySet<number>;
 } {
   const porAno = new Map(premissas.map((p) => [p.ano, p]));
   const chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[] = [];
   const congelados = new Set<number>();
+  const beneficiosFalsos = (ano: number, cargoId: string) => {
+    const p = cargos.some((c) => c.id === cargoId) ? porAno.get(ano) : undefined;
+    return p ? { beneficios: p.beneficios, avisos: p.avisos } : { beneficios: [], avisos: [] };
+  };
   return {
     chamadas,
     congelados,
@@ -247,9 +252,8 @@ export function custoPessoalFalso(
     listarCargosExercicio: async (_tx, opcoes = {}) => cargos.filter((c) => opcoes.incluirInativos || c.ativo),
     listarCargosSemSalarioCifrado: async (_tx, opcoes = {}) => cargos.filter((c) => opcoes.incluirInativos || c.ativo),
     // O falso não tem escolha por cargo: os benefícios e os avisos das premissas do ano, para um cargo conhecido.
-    beneficiosDoCargo: async (_tx, ano, cargoId) => {
-      const p = cargos.some((c) => c.id === cargoId) ? porAno.get(ano) : undefined;
-      return p ? { beneficios: p.beneficios, avisos: p.avisos } : { beneficios: [], avisos: [] };
-    },
+    beneficiosDoCargo: async (_tx, ano, cargoId) => beneficiosFalsos(ano, cargoId),
+    // Como o real: todo id pedido entra no mapa, o desconhecido com listas vazias.
+    beneficiosDosCargos: async (_tx, ano, cargoIds) => new Map(cargoIds.map((id) => [id, beneficiosFalsos(ano, id)])),
   };
 }

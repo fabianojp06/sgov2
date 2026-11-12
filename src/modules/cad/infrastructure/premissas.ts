@@ -32,10 +32,28 @@ export type EscolhaBeneficios = ReadonlyMap<string, { ativo: boolean; valorManua
  * um cargo, valem os ativos dele e o valor manual no lugar do da Tabela Mestre.
  */
 export async function obterPremissasExercicio(tx: TxCliente, ano: number, escolha?: EscolhaBeneficios): Promise<PremissasExercicio | null> {
+  const base = await lerBasePremissas(tx, ano);
+  return base ? montarPremissas(base, escolha) : null;
+}
+
+/** O que as premissas do ano leem do banco: lido uma vez e montado para cada cargo (beneficiosDosCargos). */
+export type BasePremissas = Readonly<{
+  p: NonNullable<Awaited<ReturnType<typeof lerParametrosExercicio>>>;
+  indice: Awaited<ReturnType<typeof carregarIndiceEstrutura>>;
+  mestre: Awaited<ReturnType<typeof lerBeneficiosMestre>>;
+}>;
+
+/** Parâmetros, índice da estrutura e Tabela Mestre do ano, ou null se o ano não tem parâmetros. */
+export async function lerBasePremissas(tx: TxCliente, ano: number): Promise<BasePremissas | null> {
   if (!Number.isInteger(ano)) return null;
   const p = await lerParametrosExercicio(tx, ano);
   if (!p) return null;
-  const indice = await carregarIndiceEstrutura(tx);
+  return { p, indice: await carregarIndiceEstrutura(tx), mestre: await lerBeneficiosMestre(tx, ano) };
+}
+
+/** As premissas a partir da base lida, com a escolha de benefícios de um cargo. Sem acesso ao banco. */
+export function montarPremissas({ p, indice, mestre }: BasePremissas, escolha?: EscolhaBeneficios): PremissasExercicio {
+  const ano = p.ano;
   const avisos: string[] = [];
   const conta = (classificacao: string, rotulo: string): string => {
     if (indice.contaAnaliticaAtiva(classificacao)) return classificacao;
@@ -43,7 +61,7 @@ export async function obterPremissasExercicio(tx: TxCliente, ano: number, escolh
     return '';
   };
   const beneficios: BeneficioPremissa[] = [];
-  for (const item of await lerBeneficiosMestre(tx, ano)) {
+  for (const item of mestre) {
     const doCargo = escolha?.get(item.codigo);
     if (!item.ativo || !(doCargo ? doCargo.ativo : item.padraoPosicao)) continue;
     // O valor manual do cargo (RN_CAR_07) no lugar do da Tabela Mestre.

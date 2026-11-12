@@ -152,6 +152,8 @@ describe('C2 — tipos e exportações', () => {
       'custoPessoalFalso',
       // Acréscimo de C&S (#138, 11/11).
       'beneficiosDoCargo',
+      // Lote (#138, 12/11).
+      'beneficiosDosCargos',
       'cargosExemplo',
     ];
     for (const nome of nomes) {
@@ -183,5 +185,16 @@ describe('C2, acréscimo de C&S — falso', () => {
     expect(await falso.beneficiosDoCargo(tx, 2027, id)).toEqual({ beneficios: premissasExemplo(2027).beneficios, avisos: premissasExemplo(2027).avisos });
     expect(await falso.beneficiosDoCargo(tx, 2028, id)).toEqual({ beneficios: [], avisos: [] });
     expect(await falso.beneficiosDoCargo(tx, 2027, '00000000-0000-4000-8000-0000000000ff')).toEqual({ beneficios: [], avisos: [] });
+  });
+
+  it('benefícios em lote: o mesmo do beneficiosDoCargo por cargo, com todo id pedido no mapa', async () => {
+    const falso = custoPessoalFalso([premissasExemplo(2027)]);
+    const id = (await falso.listarCargosExercicio(tx))[0]!.id;
+    const desconhecido = '00000000-0000-4000-8000-0000000000ff';
+    const lote = await falso.beneficiosDosCargos(tx, 2027, [id, desconhecido, 'x']);
+    expect([...lote.keys()]).toEqual([id, desconhecido, 'x']);
+    expect(lote.get(id)).toEqual(await falso.beneficiosDoCargo(tx, 2027, id));
+    expect(lote.get(desconhecido)).toEqual({ beneficios: [], avisos: [] });
+    expect((await falso.beneficiosDosCargos(tx, 2027, [])).size).toBe(0);
   });
 });
