@@ -4,14 +4,18 @@ Backup com recuperação ponto a ponto (PITR), dump diário cifrado e teste de r
 
 | O quê | Quando | Onde roda | Para onde vai |
 | --- | --- | --- | --- |
-| WAL contínuo (PITR) | a cada segmento | pgBackRest, dentro do `db` | storage externo, `/<ambiente>/archive` |
+| WAL contínuo (PITR) | a cada segmento, no máximo a cada 60 s (`archive_timeout`) | pgBackRest, dentro do `db` | storage externo, `/<ambiente>/archive` |
 | Backup full | domingo, 03:00 | timer `sgo-backup-full@<ambiente>` | storage externo, retenção de 30 dias |
 | Backup diferencial | segunda a sábado, 03:00 | timer `sgo-backup-diff@<ambiente>` | idem |
 | Dump lógico cifrado (`pg_dump -Fc` + `age`) | todo dia, 02:30 | timer `sgo-backup-dump@<ambiente>` | storage externo, `dumps/<ambiente>/AAAA-MM-DD.dump.age`, 90 dias (*lifecycle* do bucket) |
 | Teste de restauração | dia 1, 04:00 | timer `sgo-backup-restauracao@<ambiente>` | `/var/lib/sgo/restauracoes.log` e o alerta |
 
 - Os timers têm até 20 min de atraso aleatório, para hml e prod não começarem juntos.
-- Toda falha vai para o journal (`journalctl -t sgo-backup`) e para o `ALERTA_WEBHOOK_URL` de `/etc/sgo/alerta.env`.
+- Toda falha vai para o journal (`journalctl -t sgo-backup`) e para o `ALERTA_WEBHOOK_URL` de `/etc/sgo/alerta.env`, inclusive:
+  - o erro inesperado do script;
+  - a unit que falha antes do script (sem o arquivo de segredos, docker fora, OOM, timeout), pelo `OnFailure=sgo-backup-alerta@`.
+- O backup diário também confere o arquivamento (`pg_stat_archiver` e `pgbackrest check`). Um `archive-push` falhando alerta, mesmo que o backup passe.
+- Uma operação por ambiente de cada vez (trava em `/run/lock`): o full e o diferencial que disparam juntos depois de um boot não colidem.
 - **O que está pronto no repositório:** a imagem do banco com o pgBackRest (`ghcr.io/fabianojp06/sgov2-postgres`), os scripts e os timers (`ops/backup/`). O CI também prova, a cada PR, o backup full e o diferencial e a restauração com um repositório local (`docker/testes/testar-backup.sh`).
 - **O que falta é com o PO:** o storage externo (GAP-INF-001) e a ativação, nos passos abaixo.
 
@@ -54,6 +58,7 @@ Backup com recuperação ponto a ponto (PITR), dump diário cifrado e teste de r
    PGBACKREST_REPO1_CIPHER_PASS=<senha do cofre>
    ```
 3. Faça o *redeploy* do `db`. No console dele, `psql -U postgres -Atc 'show archive_mode'` deve dar `on`.
+   **A partir daqui, o arquivamento está ligado.** Faça os passos 4 e o "Host" **no mesmo dia**. Sem a *stanza*, o `archive-push` falha, e sem os timers nada alerta: os WAL se acumulam no disco do `db`.
 4. No console do `db`, como `postgres` (`su postgres -s /bin/bash`):
    ```
    pgbackrest --stanza=sgo stanza-create
@@ -74,7 +79,9 @@ Backup com recuperação ponto a ponto (PITR), dump diário cifrado e teste de r
    RCLONE_CONFIG_SGO_ACCESS_KEY_ID=<chave só de escrita>
    RCLONE_CONFIG_SGO_SECRET_ACCESS_KEY=<segredo>
    ```
-2. Crie `/etc/sgo/backup-leitura-<ambiente>.env` (`chmod 600`) com as **mesmas** sete `PGBACKREST_REPO1_*` do `db`, trocando a chave e o segredo pelos da **chave só de leitura**. O restauro não grava no repositório: o script sobe o banco restaurado com `archive_mode=off`.
+2. Crie `/etc/sgo/backup-leitura-<ambiente>.env` (`chmod 600`) com as **mesmas** sete `PGBACKREST_REPO1_*` do `db`, trocando a chave e o segredo pelos da **chave só de leitura**. Os valores podem ir com ou sem aspas.
+   - O script monta essas variáveis como um arquivo só leitura no contêiner de restauração, e não no ambiente dele, para não aparecerem no `docker inspect`.
+   - O restauro não grava no repositório: o banco restaurado sobe com `archive_mode=off`.
 3. Faça login no GHCR com a credencial só de leitura (`docker login ghcr.io`), para o teste de restauração baixar a imagem do banco.
 4. Instale e ligue: `sudo bash ops/backup/instalar.sh hml`. Ele recusa ligar os timers de um ambiente sem os dois arquivos.
 5. Prove na hora, sem esperar o calendário:
@@ -88,17 +95,28 @@ Backup com recuperação ponto a ponto (PITR), dump diário cifrado e teste de r
 ## Restaurar de verdade
 
 - **Ponto no tempo (PITR):** com o `db` parado, num contêiner da imagem do banco com o volume dele, rode `pgbackrest --stanza=sgo --delta --type=time --target='AAAA-MM-DD HH:MM:SS+00' --target-action=promote restore` e suba o `db`. Antes, tire o snapshot da VPS (hPanel). O procedimento completo entra no runbook (US-119).
-- **Dump:** `rclone copyto sgo:<bucket>/dumps/<ambiente>/<data>.dump.age .` com uma chave de leitura, depois `age -d -i chave-sgo.txt -o sgo.dump <data>.dump.age` **fora da VPS**, e então `pg_restore --list sgo.dump` para conferir ou `pg_restore -d <banco vazio> sgo.dump`.
+- **Dump:** sempre **fora da VPS**.
+  1. Baixe com `rclone copyto sgo:<bucket>/dumps/<ambiente>/<data>.dump.age .`, usando uma chave de leitura.
+  2. Decifre com `age -d -i chave-sgo.txt -o sgo.dump <data>.dump.age`.
+  3. Para conferir: `pg_restore --list sgo.dump`.
+  4. Para restaurar:
+     - num servidor novo, rode **antes** o `deploy/postgres/01-papeis-ambiente.sql`, porque o dump leva só o banco `sgo`, sem os papéis;
+     - depois, como `postgres`, rode `pg_restore -d sgo sgo.dump`. Os donos e os GRANTs voltam, porque os papéis já existem.
 
 ## Teste de restauração mensal
 
 O `testar-restauracao.sh` faz o seguinte:
-1. restaura o último backup num contêiner `sgo-restauro-<ambiente>-<data>`:
+1. **antes de restaurar, reprova se:**
+   - o último backup tiver mais de 8 dias;
+   - faltar espaço livre para o dobro do banco no disco do Docker, porque a restauração não pode encher o disco do prod;
+2. restaura o último backup num contêiner `sgo-restauro-<ambiente>-<data>-<pid>`, com o *replay* de todo o WAL arquivado:
    - sem porta publicada;
    - com 768 MB e `oom_score_adj 500`, de modo que, sob falta de memória, morre antes da produção;
    - com `nice 10`, para ceder CPU à produção;
-2. confere as tabelas do `public` e o último registro do Histórico (`max(ocorrido_em)`);
-3. grava a linha `data ambiente OK|FALHOU tempo detalhe` e manda o mesmo texto ao alerta;
-4. remove o contêiner **e o volume**.
+3. **espera a recuperação terminar** (`pg_is_in_recovery()` falso), com um prazo de 1h30. Um contêiner que para reprova na hora, e o log dele vai para o journal;
+4. confere as tabelas do `public` e se o último registro do Histórico restaurado chega **pelo menos ao do banco de origem de 15 minutos atrás**. Isso prova o PITR: um segmento de WAL faltando para a recuperação antes, e o teste reprova;
+5. grava a linha `data ambiente OK|FALHOU tempo detalhe` e manda o mesmo texto ao alerta;
+6. remove o contêiner **e o volume**, e só o que ele mesmo criou.
 
-O nome `sgo-restauro-*` fica fora dos nomes vedados de D12.
+- **O nome `sgo-restauro-*`** fica fora dos padrões de prioridade de memória de produção (`sgo-ajustar-oom`). Assim, sob falta de memória, ele morre antes do prod.
+- **O contêiner leva uma cópia integral dos dados do ambiente**, então as sessões de dev também não o acessam: o hook de D12 bloqueia `sgo-restauro-*` como bloqueia `sgo-prod`. Isso vem num PR `compartilhado`, porque `.claude/` é compartilhado.

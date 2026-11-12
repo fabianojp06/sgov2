@@ -2,6 +2,7 @@
 Description=SGO — backup diferencial do pgBackRest (%i; US-015)
 After=docker.service
 Requires=docker.service
+OnFailure=sgo-backup-alerta@%n.service
 
 [Service]
 Type=oneshot

@@ -17,14 +17,15 @@ AGE="${AGE:-age}"
 RCLONE="${RCLONE:-rclone}"
 
 ambiente="${1:-}"
-projeto="$(projeto_do_ambiente "$ambiente")" || exit 64
+projeto="$(projeto_do_ambiente "$ambiente")" || { trap - ERR; exit 64; }
 [ -n "${AGE_DESTINATARIO:-}" ] || falhar "$ambiente: AGE_DESTINATARIO não definido; dump não feito"
 [ -n "${DESTINO_DUMP:-}" ] || falhar "$ambiente: DESTINO_DUMP não definido; dump não feito"
 
-c="$(conteiner_db "$projeto")"
+travar "$ambiente"
+c="$(conteiner_db "$projeto")" || falhar "$ambiente: o docker não respondeu; dump não feito"
 [ -n "$c" ] || falhar "$ambiente: contêiner do db não encontrado ($projeto); dump não feito"
 
-tmp="$(mktemp -d)"
+tmp="$(mktemp -d)" || falhar "$ambiente: mktemp falhou (disco cheio?); dump não feito"
 trap 'rm -rf "$tmp"' EXIT
 arquivo="$tmp/$(date +%F).dump.age"
 

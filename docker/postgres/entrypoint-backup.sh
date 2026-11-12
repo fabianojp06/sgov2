@@ -6,6 +6,8 @@
 set -euo pipefail
 
 if [ "${1:-}" = postgres ] && [ -n "${PGBACKREST_REPO1_S3_BUCKET:-}" ]; then
-  set -- "$@" -c archive_mode=on -c 'archive_command=pgbackrest --stanza=sgo archive-push %p'
+  # archive_timeout: com pouca escrita, um segmento de 16 MB levaria horas para encher e ser
+  # arquivado; 60 s limita a perda (RPO) a cerca de um minuto.
+  set -- "$@" -c archive_mode=on -c 'archive_command=pgbackrest --stanza=sgo archive-push %p' -c archive_timeout=60
 fi
 exec docker-entrypoint.sh "$@"

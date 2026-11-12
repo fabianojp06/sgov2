@@ -135,6 +135,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Dois merges seguidos não publicam o :atual fora de ordem.
+    concurrency:
+      group: imagem-banco
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
