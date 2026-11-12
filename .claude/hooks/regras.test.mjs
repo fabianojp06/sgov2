@@ -37,6 +37,12 @@ describe('avaliarComando', () => {
     ["bash -c 'npx prisma db push'", VAZIO, true],
     ['sudo docker volume rm sgo-hml_db', VAZIO, true],
     ['ls /var/lib/docker/volumes/sgo-prod_db/_data', VAZIO, true],
+    // Teste de restauração (US-015): cópia integral dos dados de hml ou prod.
+    ['docker exec -u postgres sgo-restauro-prod-20261201040000-123 psql -d sgo', VAZIO, true],
+    ['docker inspect sgo-restauro-hml-20261201040000-9', VAZIO, true],
+    ['psql -h sgo-restauro-prod-1 -U postgres', VAZIO, true],
+    // A prova do backup no CI usa outro prefixo, e não é bloqueada.
+    ['docker ps -aq --filter name=^sgo-teste-restauro-42-', VAZIO, false],
     ['psql postgresql://u:x@sgo-prod_db:5432/sgo', VAZIO, true],
     ['psql -h 127.0.0.1 -U postgres', VAZIO, true],
     ['git push origin main', VAZIO, true],

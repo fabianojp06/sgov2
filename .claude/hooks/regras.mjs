@@ -7,7 +7,8 @@
 
 const PORTAS_DEV = new Set(['55432', '56432']);
 const HOSTS_LOCAIS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
-const NOMES_VEDADOS = /sgo-prod|sgo-hml/i;
+// sgo-restauro-*: o teste de restauração mensal (US-015) sobe uma cópia integral do banco de hml ou prod.
+const NOMES_VEDADOS = /sgo-prod|sgo-hml|sgo-restauro/i;
 const CAMINHOS_VEDADOS = /\/etc\/easypanel|\/var\/lib\/docker\/volumes\/sgo-/i;
 const URL_PG = /postgres(?:ql)?:\/\/[^\s'"`;|&)]+/gi;
 const ATRIBUICAO = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
@@ -45,7 +46,7 @@ const CLIENTES_PG = new Set(['psql', 'pg_dump', 'pg_dumpall', 'pg_restore']);
 const MOTIVO_BANCO =
   'Trava de banco (spec §11.5): migrate reset, db push, migrate diff e migrate dev só contra o banco de dev local (127.0.0.1:55432 ou 127.0.0.1:56432).';
 const MOTIVO_PROD =
-  'Trava de produção (D12, spec §11.5): as sessões de dev não acessam contêineres, volumes, redes nem variáveis de sgo-prod/sgo-hml nem o /etc/easypanel.';
+  'Trava de produção (D12, spec §11.5): as sessões de dev não acessam contêineres, volumes, redes nem variáveis de sgo-prod/sgo-hml, os contêineres de restauração (sgo-restauro-*) nem o /etc/easypanel.';
 const MOTIVO_PSQL =
   'Trava de banco (spec §11.5, D12): clientes do PostgreSQL só se conectam ao banco de dev local (127.0.0.1:55432 ou 127.0.0.1:56432).';
 const MOTIVO_MAIN =
