@@ -18,15 +18,22 @@ export async function carregarCargos(tx: TxCliente, deps: DepsOrc): Promise<Cach
   return { porId: new Map(cargos.map((c) => [c.id, c])), beneficios: new Map() };
 }
 
+/**
+ * Lê em lote (beneficiosDosCargos, #421: uma leitura das premissas) os benefícios dos cargos que ainda não
+ * estão no cache. O recálculo do exercício chama antes do laço das posições.
+ */
+export async function precarregarBeneficios(tx: TxCliente, deps: DepsOrc, cache: CacheCargos, ano: number, cargoIds: Iterable<string>): Promise<void> {
+  const faltam = [...new Set(cargoIds)].filter((id) => !cache.beneficios.has(id));
+  if (faltam.length === 0) return;
+  for (const [id, b] of await deps.custoPessoal.beneficiosDosCargos(tx, ano, faltam)) cache.beneficios.set(id, b);
+}
+
 export type PosicaoCusto = { quantidade: number; salarioMensal: Dinheiro; mesInicio: number; mesSaida: number; cargoId: string | null };
 
 /** Premissas do cálculo da posição: com cargo, os benefícios e os avisos do cargo no exercício. */
 async function premissasDoCargo(tx: TxCliente, deps: DepsOrc, cache: CacheCargos, premissas: PremissasExercicio, cargoId: string): Promise<PremissasExercicio> {
-  let r = cache.beneficios.get(cargoId);
-  if (!r) {
-    r = await deps.custoPessoal.beneficiosDoCargo(tx, premissas.ano, cargoId);
-    cache.beneficios.set(cargoId, r);
-  }
+  if (!cache.beneficios.has(cargoId)) await precarregarBeneficios(tx, deps, cache, premissas.ano, [cargoId]);
+  const r = cache.beneficios.get(cargoId) ?? { beneficios: [], avisos: [] };
   return { ...premissas, beneficios: r.beneficios, avisos: [...premissas.avisos, ...r.avisos] };
 }
 

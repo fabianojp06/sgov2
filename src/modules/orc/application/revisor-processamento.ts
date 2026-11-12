@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import {
-  beneficiosDoCargo,
+  beneficiosDosCargos,
   listarArvoreCentrosCusto,
   listarArvoreContas,
   listarCargosSemSalarioCifrado,
@@ -67,7 +67,7 @@ export type DepsRevisor = {
   // C2, acréscimo de C&S (P15): a versão sem a cifra; o worker não tem a chave.
   custoPessoal: {
     listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
-    beneficiosDoCargo: typeof beneficiosDoCargo;
+    beneficiosDosCargos: typeof beneficiosDosCargos;
     obterPremissasExercicio: typeof obterPremissasExercicio;
   };
   pessoa: FuncoesPessoaIA;
@@ -80,7 +80,7 @@ export function resolverDepsRevisor(d: Partial<DepsRevisor> & Pick<DepsRevisor, 
     agora: d.agora ?? (() => new Date()),
     sinalIa: d.sinalIa ?? (() => AbortSignal.timeout(TEMPO_LIMITE_REVISOR_MS)),
     estrutura: d.estrutura ?? { listarArvoreCentrosCusto, listarArvoreContas },
-    custoPessoal: d.custoPessoal ?? { listarCargosSemSalarioCifrado, beneficiosDoCargo, obterPremissasExercicio },
+    custoPessoal: d.custoPessoal ?? { listarCargosSemSalarioCifrado, beneficiosDosCargos, obterPremissasExercicio },
     pessoa: d.pessoa ?? FUNCOES_PESSOA_IA,
   };
 }
@@ -271,10 +271,9 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   let r4: AchadoRegra[] = [];
   if (posicoesRegra.length > 0) {
     if (await deps.custoPessoal.obterPremissasExercicio(c, e.ano)) {
-      const semBeneficio = new Set<string>();
-      for (const cargoId of new Set(posicoesRegra.map((p) => p.cargoId))) {
-        if ((await deps.custoPessoal.beneficiosDoCargo(c, e.ano, cargoId)).beneficios.length === 0) semBeneficio.add(cargoId);
-      }
+      // Uma leitura das premissas para todos os cargos (beneficiosDosCargos, #421).
+      const lote = await deps.custoPessoal.beneficiosDosCargos(c, e.ano, [...new Set(posicoesRegra.map((p) => p.cargoId))]);
+      const semBeneficio = new Set([...lote].filter(([, b]) => b.beneficios.length === 0).map(([id]) => id));
       r4 = regraSemBeneficio(posicoesRegra, semBeneficio);
     } else {
       // Com o prefixo: o aviso revela que há posição com cargo (só para quem consulta posições).
