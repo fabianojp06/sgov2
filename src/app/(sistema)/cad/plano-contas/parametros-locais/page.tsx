@@ -18,6 +18,7 @@ export default async function ParametrosLocais({ searchParams }: { searchParams:
         Natureza OPEX/CAPEX e faixas do semáforo próprias de cada conta analítica, para orientar os relatórios. A estrutura do plano de contas
         não muda aqui.
       </p>
+      {typeof pedida === 'string' && !atual && <p role="alert">Conta não encontrada ou não é analítica ativa.</p>}
       {atual && <FormParametroLocal key={atual.contaId} conta={atual} faixasExercicio={faixasExercicio} podeAlterar={podeAlterar} alterar={acaoAlterarParametroLocal} />}
       <table aria-label="Parâmetros locais das contas analíticas">
         <thead>
@@ -35,7 +36,7 @@ export default async function ParametrosLocais({ searchParams }: { searchParams:
               <td>{c.classificacao}</td>
               <td>{c.descricao}</td>
               <td>{c.natureza ?? '—'}</td>
-              <td>{c.semaforo ? `${c.semaforo.verdeAte} / ${c.semaforo.amareloAte} / ${c.semaforo.laranjaAte}` : 'do exercício'}</td>
+              <td>{c.semaforo ? `${c.semaforo.verdeAte}% / ${c.semaforo.amareloAte}% / ${c.semaforo.laranjaAte}%` : 'do exercício'}</td>
               <td>
                 <a href={`/cad/plano-contas/parametros-locais?conta=${encodeURIComponent(c.classificacao)}`} aria-label={`${podeAlterar ? 'Alterar' : 'Ver'} parâmetros da conta ${c.classificacao}`}>
                   {podeAlterar ? 'Alterar' : 'Ver'}

@@ -21,9 +21,9 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
 });
 
 type Decimal = { toFixed(n: number): string } | null;
-// 70.0000 → 70; 80.5000 → 80.5 (só para a tela e o Histórico).
+// 70.0000 → 70; 80.5000 → 80.5 (Histórico). Na tela, com vírgula decimal (80,5), que o domínio aceita.
 const curto = (s: string) => (s.includes('.') ? s.replace(/\.?0+$/, '') : s);
-const texto = (d: Decimal) => (d === null ? null : curto(d.toFixed(4)));
+const texto = (d: Decimal) => (d === null ? null : curto(d.toFixed(4)).replace('.', ','));
 
 export type ParametroLocalTela = Readonly<{
   contaId: string;
@@ -85,7 +85,7 @@ export async function alterarParametroLocal(
   deps: Deps = {},
 ): Promise<Resultado<{ versao: number }>> {
   exigir(ctx, 'cad.plano_contas', 'executar');
-  if (!/^[0-9a-f-]{36}$/i.test(contaId) || !Number.isInteger(versao) || versao < 0) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contaId) || !Number.isInteger(versao) || versao < 0) {
     return falha([{ campo: '_', mensagem: 'Conta ou versão inválidas. Recarregue a tela.' }]);
   }
   const v = validarParametroLocal(dados);
@@ -107,6 +107,17 @@ export async function alterarParametroLocal(
     }
     const antes = conta.parametroLocal;
     if ((antes?.versao ?? 0) !== versao) return falha([{ campo: '_', mensagem: MSG_CONCORRENCIA }]);
+    // Sem mudança, nem versão nova nem Histórico (as faixas comparadas com 4 casas, como no banco).
+    const quatro = (d: Decimal) => (d === null ? null : d.toFixed(4));
+    if (
+      antes &&
+      antes.natureza === valores.natureza &&
+      quatro(antes.semaforoVerdeAte) === valores.semaforoVerdeAte &&
+      quatro(antes.semaforoAmareloAte) === valores.semaforoAmareloAte &&
+      quatro(antes.semaforoLaranjaAte) === valores.semaforoLaranjaAte
+    ) {
+      return ok({ versao });
+    }
     if (antes) {
       const r = await tx.contaParametroLocal.updateMany({
         where: { contaId, versao },
@@ -131,7 +142,7 @@ export async function alterarParametroLocal(
       antes: antes
         ? {
             natureza: antes.natureza,
-            semaforo: antes.semaforoVerdeAte === null ? null : [texto(antes.semaforoVerdeAte), texto(antes.semaforoAmareloAte), texto(antes.semaforoLaranjaAte)],
+            semaforo: antes.semaforoVerdeAte === null ? null : [curto(antes.semaforoVerdeAte.toFixed(4)), curto(antes.semaforoAmareloAte!.toFixed(4)), curto(antes.semaforoLaranjaAte!.toFixed(4))],
           }
         : null,
       depois: {

@@ -37,6 +37,7 @@ export function FormParametroLocal({
   const [natureza, setNatureza] = useState(conta.natureza ?? '');
   const [proprias, setProprias] = useState(conta.semaforo !== null);
   const [faixas, setFaixas] = useState(conta.semaforo ?? faixasExercicio ?? { verdeAte: '70', amareloAte: '85', laranjaAte: '95' });
+  // Valores em pt-BR (vírgula decimal); o domínio aceita vírgula ou ponto.
   const [estado, setEstado] = useState<EstadoSalvar>({ versao: conta.versao, erros: [], salvo: false });
   const [salvando, iniciar] = useTransition();
   const erroDe = (campo: string) => estado.erros.filter((e) => e.campo === campo).map((e) => e.mensagem).join(' ');
@@ -75,7 +76,12 @@ export function FormParametroLocal({
       <fieldset disabled={!podeAlterar}>
         <legend>Parâmetros locais</legend>
         <label htmlFor="natureza">Natureza</label>{' '}
-        <select id="natureza" value={natureza} onChange={(e) => setNatureza(e.target.value)} {...(erroDe('natureza') ? { 'aria-invalid': true } : {})}>
+        <select
+          id="natureza"
+          value={natureza}
+          onChange={(e) => setNatureza(e.target.value)}
+          {...(erroDe('natureza') ? { 'aria-invalid': true, 'aria-describedby': 'natureza-erro' } : {})}
+        >
           <option value="">Não definida</option>
           {NATUREZAS_CONTA.map((n) => (
             <option key={n} value={n}>
@@ -83,7 +89,11 @@ export function FormParametroLocal({
             </option>
           ))}
         </select>
-        {erroDe('natureza') && <span role="alert">{erroDe('natureza')}</span>}
+        {erroDe('natureza') && (
+          <span id="natureza-erro" role="alert">
+            {erroDe('natureza')}
+          </span>
+        )}
         <p>
           <label>
             <input type="checkbox" checked={proprias} onChange={(e) => setProprias(e.target.checked)} /> Faixas do semáforo próprias desta conta
@@ -98,6 +108,8 @@ export function FormParametroLocal({
         {proprias &&
           FAIXAS.map(([campo, rotulo]) => {
             const erro = erroDe(`semaforo.${campo}`);
+            // O erro de ordem (campo 'semaforo') vale para as três faixas.
+            const descritores = [erro ? `faixa-${campo}-erro` : '', erroDe('semaforo') ? 'semaforo-erro' : ''].filter(Boolean).join(' ');
             return (
               <p key={campo}>
                 <label htmlFor={`faixa-${campo}`}>{rotulo}</label>{' '}
@@ -106,7 +118,7 @@ export function FormParametroLocal({
                   value={faixas[campo]}
                   inputMode="decimal"
                   onChange={(e) => setFaixas((f) => ({ ...f, [campo]: e.target.value }))}
-                  {...(erro ? { 'aria-invalid': true, 'aria-describedby': `faixa-${campo}-erro` } : {})}
+                  {...(descritores ? { 'aria-invalid': true, 'aria-describedby': descritores } : {})}
                 />
                 {erro && (
                   <span id={`faixa-${campo}-erro`} role="alert">
@@ -116,7 +128,11 @@ export function FormParametroLocal({
               </p>
             );
           })}
-        {proprias && erroDe('semaforo') && <p role="alert">{erroDe('semaforo')}</p>}
+        {proprias && erroDe('semaforo') && (
+          <p id="semaforo-erro" role="alert">
+            {erroDe('semaforo')}
+          </p>
+        )}
       </fieldset>
       {podeAlterar && (
         <button type="submit" disabled={salvando}>

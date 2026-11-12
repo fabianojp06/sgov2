@@ -75,9 +75,16 @@ describe('parâmetros locais das contas (US-045)', () => {
     const r = await alterarParametroLocal(gfin(), analitica.id, 1, { natureza: 'CAPEX', semaforo: { verdeAte: '60', amareloAte: '80,5', laranjaAte: '90' } }, { cliente: app });
     expect(r).toEqual({ ok: true, valor: { versao: 2 } });
     const conta = (await obterTelaParametrosLocais(leitor(), { cliente: app })).contas.find((c) => c.contaId === analitica.id);
-    expect(conta).toMatchObject({ natureza: 'CAPEX', semaforo: { verdeAte: '60', amareloAte: '80.5', laranjaAte: '90' }, versao: 2 });
+    expect(conta).toMatchObject({ natureza: 'CAPEX', semaforo: { verdeAte: '60', amareloAte: '80,5', laranjaAte: '90' }, versao: 2 });
     const h = (await migrator.query(`SELECT tipo_operacao AS tipo, antes, depois FROM historico_operacao WHERE funcionalidade = 'cad.plano_contas' ORDER BY id DESC LIMIT 1`)).rows[0];
     expect(h).toEqual({ tipo: 'ALTERACAO', antes: { natureza: 'OPEX', semaforo: null }, depois: { natureza: 'CAPEX', semaforo: ['60', '80.5', '90'] } });
+  });
+
+  it('salvar sem mudança não sobe a versão nem grava Histórico', async () => {
+    const antes = (await migrator.query(`SELECT count(*)::int AS n FROM historico_operacao WHERE funcionalidade = 'cad.plano_contas'`)).rows[0].n;
+    const r = await alterarParametroLocal(gfin(), analitica.id, 2, { natureza: 'CAPEX', semaforo: { verdeAte: '60', amareloAte: '80.5', laranjaAte: '90' } }, { cliente: app });
+    expect(r).toEqual({ ok: true, valor: { versao: 2 } });
+    expect((await migrator.query(`SELECT count(*)::int AS n FROM historico_operacao WHERE funcionalidade = 'cad.plano_contas'`)).rows[0].n).toBe(antes);
   });
 
   it('versão desatualizada, ou inclusão de quem não viu a primeira gravação → concorrência, sem gravar', async () => {
@@ -92,6 +99,8 @@ describe('parâmetros locais das contas (US-045)', () => {
     const sintetica = await idDa('4');
     expect(await alterarParametroLocal(gfin(), sintetica, 0, { natureza: 'OPEX', semaforo: null }, { cliente: app })).toMatchObject({ ok: false, erros: [{ campo: '_' }] });
     expect(await alterarParametroLocal(gfin(), '00000000-0000-4000-8000-0000000000ff', 0, { natureza: 'OPEX', semaforo: null }, { cliente: app })).toMatchObject({ ok: false });
+    // Id mal formado (36 hífens) não chega ao banco: falha, e não erro do Postgres.
+    expect(await alterarParametroLocal(gfin(), '-'.repeat(36), 0, { natureza: 'OPEX', semaforo: null }, { cliente: app })).toMatchObject({ ok: false, erros: [{ campo: '_' }] });
     expect(await alterarParametroLocal(gfin(), analitica.id, 2, { natureza: null, semaforo: { verdeAte: '85', amareloAte: '70', laranjaAte: '95' } }, { cliente: app })).toMatchObject({
       ok: false,
       erros: [{ campo: 'semaforo' }],
@@ -105,5 +114,16 @@ describe('parâmetros locais das contas (US-045)', () => {
     await expect(migrator.query(`INSERT INTO conta_parametro_local (conta_id, semaforo_verde_ate) VALUES ($1, 70)`, [outra])).rejects.toThrow(/semaforo_check/);
     await expect(migrator.query(`INSERT INTO conta_parametro_local (conta_id, semaforo_verde_ate, semaforo_amarelo_ate, semaforo_laranja_ate) VALUES ($1, 90, 80, 95)`, [outra])).rejects.toThrow(/semaforo_check/);
     await expect(app.$executeRawUnsafe(`DELETE FROM conta_parametro_local WHERE conta_id = '${analitica.id}'`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('conta inativada pela recarga: o parâmetro fica gravado, some da tela, e o banco recusa gravar nela', async () => {
+    await migrator.query('UPDATE conta_contabil SET ativa = false, inativada_em = clock_timestamp() WHERE id = $1', [analitica.id]);
+    try {
+      expect((await obterTelaParametrosLocais(leitor(), { cliente: app })).contas.some((c) => c.contaId === analitica.id)).toBe(false);
+      expect((await migrator.query('SELECT versao FROM conta_parametro_local WHERE conta_id = $1', [analitica.id])).rows[0].versao).toBe(2);
+      await expect(migrator.query(`UPDATE conta_parametro_local SET natureza = 'OPEX' WHERE conta_id = $1`, [analitica.id])).rejects.toThrow(/analítica ativa/);
+    } finally {
+      await migrator.query('UPDATE conta_contabil SET ativa = true, inativada_em = NULL WHERE id = $1', [analitica.id]);
+    }
   });
 });

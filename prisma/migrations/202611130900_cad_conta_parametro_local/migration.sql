@@ -31,15 +31,17 @@ ALTER TABLE "conta_parametro_local" ADD CONSTRAINT "conta_parametro_local_semafo
 );
 ALTER TABLE "conta_parametro_local" ADD CONSTRAINT "conta_parametro_local_versao_check" CHECK ("versao" >= 1);
 
--- Só conta analítica (a sintética não recebe lançamento nem parâmetro local).
+-- Só conta analítica e ativa na gravação (a sintética não recebe lançamento nem parâmetro local; o tipo
+-- da conta nunca muda, trigger conta_contabil_imutavel). Uma recarga que depois inativa a conta não
+-- apaga o parâmetro: ele some da tela e volta, com a mesma versão, se a conta for reativada.
 CREATE FUNCTION "cad_parametro_local_so_analitica"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM "conta_contabil" WHERE "id" = NEW."conta_id" AND "tipo" = 'ANALITICA') THEN
-    RAISE EXCEPTION 'Parâmetro local só em conta analítica' USING ERRCODE = 'check_violation';
+  IF NOT EXISTS (SELECT 1 FROM "conta_contabil" WHERE "id" = NEW."conta_id" AND "tipo" = 'ANALITICA' AND "ativa") THEN
+    RAISE EXCEPTION 'Parâmetro local só em conta analítica ativa' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END $$;
-CREATE TRIGGER "conta_parametro_local_so_analitica" BEFORE INSERT OR UPDATE OF "conta_id" ON "conta_parametro_local"
+CREATE TRIGGER "conta_parametro_local_so_analitica" BEFORE INSERT OR UPDATE ON "conta_parametro_local"
   FOR EACH ROW EXECUTE FUNCTION "cad_parametro_local_so_analitica"();
 
 -- Privilégios: o app inclui e altera o conteúdo, sem apagar; o sgo_sync não toca.
