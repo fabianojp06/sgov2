@@ -6,7 +6,7 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { listarCargosExercicio } from '../application/cargos-exercicio';
-import { beneficiosDoCargo, listarCargosSemSalarioCifrado as listarSemCifra } from './cargos-exercicio';
+import { beneficiosDoCargo, beneficiosDosCargos, listarCargosSemSalarioCifrado as listarSemCifra } from './cargos-exercicio';
 import { ErroDominio } from '@/shared/kernel';
 import { criarCifraSalarios } from './cifra-salarios';
 import { CHAVE_TESTE_CIFRA, ID_CHAVE_TESTE } from './cifra-teste';
@@ -133,5 +133,21 @@ describe('beneficiosDoCargo', () => {
     // O componente é o próprio código do item da Tabela Mestre (beneficio.<nome>).
     expect(doZ1.some((b) => b.componente === primeiro.codigo)).toBe(true);
     expect(doZ2.some((b) => b.componente === primeiro.codigo)).toBe(false);
+  });
+});
+
+describe('beneficiosDosCargos (lote, #138)', () => {
+  it('por cargo, o mesmo do beneficiosDoCargo (com a escolha do ZZ2); todo id pedido no mapa; repetido conta uma vez', async () => {
+    const desconhecido = '00000000-0000-4000-8000-0000000000ff';
+    const lote = await beneficiosDosCargos(app, 2027, [ids.ZZ1!, ids.ZZ2!, ids.ZZ1!, desconhecido, 'x']);
+    expect([...lote.keys()]).toEqual([ids.ZZ1, ids.ZZ2, desconhecido, 'x']);
+    expect(lote.get(ids.ZZ1!)).toEqual(await beneficiosDoCargo(app, 2027, ids.ZZ1!));
+    expect(lote.get(ids.ZZ2!)).toEqual(await beneficiosDoCargo(app, 2027, ids.ZZ2!));
+    expect(lote.get(desconhecido)).toEqual({ beneficios: [], avisos: [] });
+    expect(lote.get('x')).toEqual({ beneficios: [], avisos: [] });
+    // Ano sem parâmetros: todos vazios, sem erro.
+    const semAno = await beneficiosDosCargos(app, 2099, [ids.ZZ1!]);
+    expect(semAno.get(ids.ZZ1!)).toEqual({ beneficios: [], avisos: [] });
+    expect((await beneficiosDosCargos(app, 2027, [])).size).toBe(0);
   });
 });

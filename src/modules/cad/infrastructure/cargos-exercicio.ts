@@ -4,7 +4,7 @@ import type { FonteAtiva } from '../domain/cargo';
 import type { AdicionalTrabalhista, BeneficioPremissa } from '../domain/custo-pessoal';
 import type { CifraSalarios } from './cifra-salarios';
 import { dinheiroDoDecimal, salarioFonteAtiva } from './fonte-ativa';
-import { obterPremissasExercicio } from './premissas';
+import { lerBasePremissas, montarPremissas, type EscolhaBeneficios } from './premissas';
 
 // C2, acréscimo de C&S (resto da US-056 e US-064; combinado com a frente A na #138 em 11/11). Recebem o
 // tx, sem guarda: a permissão é de quem chama. Os salários saem decifrados só para o cálculo (D10): o
@@ -99,13 +99,40 @@ const NENHUM: BeneficiosCargo = { beneficios: [], avisos: [] };
  * Benefícios do cargo no exercício, no formato das premissas: as escolhas do cargo (ativo e valor
  * manual) sobre a Tabela Mestre; sem escolha própria, o padrão da Tabela Mestre. Os avisos das premissas
  * vão junto (benefício sem valor, conta que deixou de ser analítica): o motor recusa esses componentes.
- * Cargo desconhecido (ou id que não é UUID) e ano sem parâmetros: nada. Uma leitura das premissas por
- * chamada: para muitos cargos do mesmo ano, peça uma versão em lote.
+ * Cargo desconhecido (ou id que não é UUID) e ano sem parâmetros: nada. Para vários cargos do mesmo ano,
+ * use o beneficiosDosCargos, que lê as premissas uma vez só.
  */
 export async function beneficiosDoCargo(tx: TxCliente, ano: number, cargoId: string): Promise<BeneficiosCargo> {
-  if (!UUID.test(cargoId) || !(await tx.cargo.findUnique({ where: { id: cargoId }, select: { id: true } }))) return NENHUM;
-  const escolhas = await tx.beneficioCargo.findMany({ where: { cargoId, ano }, select: { codigo: true, ativo: true, valorManual: true } });
-  const escolha = new Map(escolhas.map((b) => [b.codigo, { ativo: b.ativo, valorManual: dinheiroDoDecimal(b.valorManual) }]));
-  const p = await obterPremissasExercicio(tx, ano, escolha);
-  return p ? { beneficios: p.beneficios, avisos: p.avisos } : NENHUM;
+  return (await beneficiosDosCargos(tx, ano, [cargoId])).get(cargoId) ?? NENHUM;
+}
+
+/**
+ * Versão em lote do beneficiosDoCargo (pedido da frente A na #138, 11/11): a mesma semântica por cargo,
+ * com uma leitura das premissas do ano e uma das escolhas para todos. Todo id pedido entra no mapa,
+ * inclusive o desconhecido ou que não é UUID (com listas vazias), e os repetidos contam uma vez.
+ */
+export async function beneficiosDosCargos(tx: TxCliente, ano: number, cargoIds: readonly string[]): Promise<ReadonlyMap<string, BeneficiosCargo>> {
+  const resultado = new Map<string, BeneficiosCargo>(cargoIds.map((id) => [id, NENHUM]));
+  const validos = [...new Set(cargoIds.filter((id) => UUID.test(id)))];
+  if (validos.length === 0) return resultado;
+  const existentes = (await tx.cargo.findMany({ where: { id: { in: validos } }, select: { id: true } })).map((c) => c.id);
+  if (existentes.length === 0) return resultado;
+  const base = await lerBasePremissas(tx, ano);
+  if (!base) return resultado;
+  const escolhas = await tx.beneficioCargo.findMany({
+    where: { cargoId: { in: existentes }, ano },
+    select: { cargoId: true, codigo: true, ativo: true, valorManual: true },
+  });
+  const porCargo = new Map<string, Map<string, { ativo: boolean; valorManual: Dinheiro | null }>>();
+  for (const b of escolhas) {
+    let doCargo = porCargo.get(b.cargoId);
+    if (!doCargo) porCargo.set(b.cargoId, (doCargo = new Map()));
+    doCargo.set(b.codigo, { ativo: b.ativo, valorManual: dinheiroDoDecimal(b.valorManual) });
+  }
+  for (const id of existentes) {
+    const escolha: EscolhaBeneficios = porCargo.get(id) ?? new Map();
+    const p = montarPremissas(base, escolha);
+    resultado.set(id, { beneficios: p.beneficios, avisos: p.avisos });
+  }
+  return resultado;
 }
