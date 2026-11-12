@@ -3,6 +3,11 @@ import { ErroDominio, type ErroCampo, type Resultado } from '@/shared/kernel';
 
 export type Acao = 'consultar' | 'incluir' | 'alterar' | 'excluir' | 'exportar' | 'imprimir' | 'aprovar' | 'executar';
 
+// Código da funcionalidade ("orc.posicoes") e a chave de permissão ("orc.posicoes:alterar") (#177): o ponto
+// único dos dois formatos. Ainda texto livre; estreitar para uma união é uma mudança à parte.
+export type Funcionalidade = string;
+export type ChavePermissao = `${Funcionalidade}:${Acao}`;
+
 export const MENSAGEM_PERMISSAO = 'Você não tem permissão para esta ação.';
 
 // Contexto de uma requisição autenticada: usuário e sessão sempre presentes. Permissões no

@@ -56,6 +56,15 @@ describe('papéis de banco', () => {
     await expect(app.query('DROP TABLE t_priv')).rejects.toThrow('must be owner of table t_priv');
   });
 
+  it('sgo_sync faz DML na tabela nova do migrator, mas não é dono dela (#165)', async () => {
+    await migrator.query('CREATE TABLE t_priv_sync (id serial PRIMARY KEY)');
+    const { rows } = await migrator.query(
+      `SELECT ${['SELECT', 'INSERT', 'UPDATE', 'DELETE'].map((p) => `has_table_privilege('sgo_sync', 't_priv_sync', '${p}') AS "${p}"`).join(', ')},
+              pg_get_userbyid(relowner) AS dono FROM pg_class WHERE relname = 't_priv_sync'`,
+    );
+    expect(rows).toEqual([{ SELECT: true, INSERT: true, UPDATE: true, DELETE: true, dono: 'sgo_migrator' }]);
+  });
+
   it('o contêiner de teste respeita D12: 512 MB sem swap extra, oom_score_adj 500, porta só em 127.0.0.1', () => {
     const config = JSON.parse(
       execFileSync('docker', ['inspect', '--format', '{{json .HostConfig}}', banco.idContainer], { encoding: 'utf8' }),

@@ -51,6 +51,8 @@ export function semZeroNegativo(v: Dec): Dec {
 }
 
 // Formatação pt-BR a partir do texto exato (Intl aceita string decimal), nunca de um number calculado.
+// Depende do NumberFormat v3 (Node ≥ 20; o engines exige ≥ 22.12), que lê a string sem passar por
+// number: num runtime mais antigo, valores com mais de 15 dígitos perderiam precisão (#168).
 export function formatarPtBr(texto: string, opcoes: Intl.NumberFormatOptions): string {
   return new Intl.NumberFormat('pt-BR', opcoes)
     .format(texto as unknown as number)

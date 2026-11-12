@@ -8,7 +8,7 @@ const LIMITE = new D('99999.9999');
 export class Percentual {
   private constructor(
     private readonly pontos: Dec,
-    private readonly casas: number,
+    private readonly casas: 2 | 4,
   ) {}
 
   static dePontos(v: string | Decimal): Percentual {

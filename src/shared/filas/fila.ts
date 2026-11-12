@@ -6,7 +6,8 @@ export type NomeFila = (typeof NOMES_FILA)[number];
 // senha temporária do C4) só quando não houver como buscá-lo depois; nesse caso o outbox já
 // apaga os dados ao publicar, e o trabalhador chama apagarJob depois do envio.
 export type OpcoesEnvio = {
-  // Identificador idempotente do job (UUID): enviar de novo com a mesma chave não cria outro job.
+  // Identificador idempotente do job (UUID): enviar de novo com a mesma chave não cria outro job, mas só
+  // enquanto o job existe no pg-boss. Depois do expurgo ou do apagarJob, a mesma chave cria um job novo (#182).
   chaveUnica?: string;
   // Total de tentativas, contando a primeira. Padrão: 1 + 5 novas tentativas.
   tentativas?: number;

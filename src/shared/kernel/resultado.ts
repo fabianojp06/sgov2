@@ -1,4 +1,4 @@
-export type ErroCampo = { campo: string; mensagem: string };
+export type ErroCampo = { readonly campo: string; readonly mensagem: string };
 
 export type Resultado<T, E = readonly ErroCampo[]> = { ok: true; valor: T } | { ok: false; erros: E };
 
