@@ -16,6 +16,9 @@ export const CAMPOS_ORIGEM_BLINDADA = {
   pacote: ['origem', 'importacaoId', 'exercicioId', 'valorAnual', 'meses', 'linhas'],
   // D-P12-7: a mesma regra para a posição de pessoal; as linhas são sempre do motor (C33).
   posicao: ['origem', 'importacaoId', 'exercicioId', 'linhas'],
+  // Proposta de TP (US-065, D-P17-4 e D-P17-6): o Valor Global é sempre calculado (RN_TP_003); a
+  // situação, a versão e a unidade são do servidor.
+  proposta: ['valorGlobal', 'situacao', 'versaoAtual', 'unidadeId', 'versao'],
 } as const satisfies Record<string, readonly string[]>;
 
 export async function recusarCamposBlindados(

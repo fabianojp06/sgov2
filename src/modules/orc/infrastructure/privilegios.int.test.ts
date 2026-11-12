@@ -32,6 +32,8 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_tramite: ['INSERT', 'SELECT'],
   orc_snapshot: ['INSERT', 'SELECT'],
   orc_revisao: ['SELECT'], // INSERT e UPDATE só por coluna (US-064)
+  orc_proposta: ['INSERT', 'SELECT'], // UPDATE só por coluna (P17)
+  orc_versao_proposta: ['INSERT', 'SELECT'],
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -92,6 +94,20 @@ describe('privilégios do orc', () => {
       ).rows.map((x) => x.coluna);
     expect(await colunas('INSERT')).toEqual(['exercicio_id', 'solicitado_por', 'versao_exercicio']);
     expect(await colunas('UPDATE')).toEqual(['achados', 'avisos', 'concluido_em', 'situacao']);
+  });
+
+  it('sgo_app atualiza na proposta de TP só a exclusão lógica e a versão; na unidade, o cc nunca muda (P17)', async () => {
+    const colunas = async (tabela: string) =>
+      (
+        await migrator.query<{ coluna: string }>(
+          `SELECT column_name AS coluna FROM information_schema.column_privileges
+           WHERE grantee = 'sgo_app' AND table_name = $1 AND privilege_type = 'UPDATE' ORDER BY 1`,
+          [tabela],
+        )
+      ).rows.map((x) => x.coluna);
+    expect(await colunas('orc_proposta')).toEqual(['excluida_em', 'excluida_por', 'versao']);
+    expect(await colunas('orc_versao_proposta')).toEqual([]);
+    expect(await colunas('unidade')).toEqual(['ativo', 'nome']);
   });
 
   it('sgo_sync: nada no orc', async () => expect(await privilegios('sgo_sync')).toEqual({}));

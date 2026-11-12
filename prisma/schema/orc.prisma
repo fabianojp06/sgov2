@@ -177,3 +177,45 @@ model RevisaoOrcamento {
   @@index([exercicioId, criadoEm(sort: Desc)])
   @@map("orc_revisao")
 }
+
+// Proposta de TP (US-065; plano do P17, D-P17-1 a D-P17-10): a capa. O TP é a unidade (§6.7): o número
+// do TP é o unidade.codigo e o CC próprio é o unidade.cc (C37). O Valor Global não tem coluna: é sempre
+// calculado (§6.2, RN_TP_003). Exclusão lógica (RN_MAN_006, RN_TP_006): excluida_em e excluida_por, com
+// a unidade inativada. Tipo e categoria são texto com CHECK na migration. RLS por unidade_id.
+model PropostaTp {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId   String           @unique @map("unidade_id") @db.Uuid
+  unidade     Unidade          @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  tipo        String
+  objeto      String
+  parceiro    String?
+  inicio      DateTime         @db.Date
+  fim         DateTime         @db.Date
+  categoria   String
+  criadoPor   String           @map("criado_por") @db.Uuid
+  criadoEm    DateTime         @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  excluidaEm  DateTime?        @map("excluida_em") @db.Timestamptz(6)
+  excluidaPor String?          @map("excluida_por") @db.Uuid
+  versao      Int              @default(0)
+  versoes     VersaoProposta[]
+
+  @@map("orc_proposta")
+}
+
+// Versão da proposta (§6.2): nasce a nº 1 em Rascunho, com a data e a hora do servidor (RN_PROP_002).
+// O ciclo de vida (avançar, enviar, aprovar) fica para as histórias seguintes. RLS por unidade_id.
+model VersaoProposta {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId  String     @map("unidade_id") @db.Uuid
+  unidade    Unidade    @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  propostaId String     @map("proposta_id") @db.Uuid
+  proposta   PropostaTp @relation(fields: [propostaId], references: [id], onDelete: Restrict)
+  numero     Int
+  situacao   String     @default("RASCUNHO")
+  criadoPor  String     @map("criado_por") @db.Uuid
+  criadoEm   DateTime   @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+
+  @@unique([propostaId, numero])
+  @@index([unidadeId])
+  @@map("orc_versao_proposta")
+}

@@ -137,6 +137,25 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['executar'],
     perfisPadrao: { GFIN: ['executar'] },
   },
+  {
+    // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),
+    // com o código no orc (D-P17-1). O Orçamentista escreve; GFIN, Auditor e DIREX leem (§11.3). Cada um
+    // vê só as propostas dos TPs a que está vinculado (RLS, US-007).
+    codigo: 'orc.propostas',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Propostas',
+    rota: '/orc/propostas',
+    ordem: 1,
+    ajuda: 'Cria a proposta de TP (capa, categoria, vigência e centro de custo próprio), que nasce na Versão 1 em Rascunho, lista as propostas dos seus TPs e exclui a que ainda está em Rascunho.',
+    acoes: ['consultar', 'incluir', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'excluir'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
+  },
 ];
 
 export const seedOrc: Seed = {
