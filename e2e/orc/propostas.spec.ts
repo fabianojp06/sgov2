@@ -4,10 +4,8 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3).
 //
-// FIXME: depende da estrutura sintética de CCs de TP (raiz 9: o sintético 9 e o analítico 9.1) na seed
-// de referência da frente B, pedida na #138. Sem ela, ccsLivresParaTp não tem candidato e a tela mostra
-// SEM_CC_LIVRE_TP no lugar do formulário. Quando a seed entrar, troque test.describe.fixme por
-// test.describe.serial e rode com o build (npm run build && npm run test:e2e).
+// Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
+// #438).
 //
 // Roteiro: o Orçamentista cria a proposta com o CC 9.1; ela aparece na lista em Rascunho, com o valor
 // global 0,00; o seletor de unidade da tela principal passa a mostrar o TP (o criador é vinculado na
@@ -25,8 +23,7 @@ const usuario = USUARIOS.orcamentista;
 const linhaDa = (page: Page) => page.getByRole('row', { name: new RegExp(`^${NUMERO} `) });
 const opcoesDoCc = (page: Page) => page.getByLabel('Centro de custo').locator('option');
 
-test.describe.fixme('proposta de TP', () => {
-  test.describe.configure({ mode: 'serial' });
+test.describe.serial('proposta de TP', () => {
 
   test.afterAll(async () => {
     const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
