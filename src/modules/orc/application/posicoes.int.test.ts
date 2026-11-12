@@ -553,12 +553,27 @@ describe('cargo do cadastro de C&S (P15)', () => {
   it('motor: cargo sem benefício não tem linha beneficio.*; o aviso do cargo chega ao resumo do recálculo uma vez', async () => {
     const e = await exercicio();
     const base = e.deps();
-    const d = { ...base, custoPessoal: { ...base.custoPessoal!, beneficiosDoCargo: async () => ({ beneficios: [], avisos: ['aviso do cargo'] }) } };
+    const d = { ...base, custoPessoal: { ...base.custoPessoal!, beneficiosDosCargos: async (_tx: unknown, _a: number, ids: readonly string[]) => new Map(ids.map((id) => [id, { beneficios: [], avisos: ['aviso do cargo'] }])) } };
     const a = idDe(await incluirPosicao(ctx(), { ...dados(), cargoId: C001, exercicioId: e.id }, d));
     await incluirPosicao(ctx(), { ...dados({ cc: '4.4' }), cargoId: C001, exercicioId: e.id }, d);
     expect((await linhasDe(a)).some((l) => l.startsWith('beneficio.'))).toBe(false);
     const r = await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(d)));
     expect(r.avisos.filter((x) => x === 'aviso do cargo')).toHaveLength(1);
+  });
+
+  it('recálculo do exercício: os benefícios dos cargos das posições numa leitura só (beneficiosDosCargos, #421)', async () => {
+    const e = await exercicio();
+    const base = e.deps();
+    const custo = base.custoPessoal!;
+    const chamadas: string[][] = [];
+    const d = { ...base, custoPessoal: { ...custo, beneficiosDosCargos: async (tx: Parameters<typeof custo.beneficiosDosCargos>[0], a: number, ids: readonly string[]) => { chamadas.push([...ids]); return custo.beneficiosDosCargos(tx, a, ids); } } };
+    await incluirPosicao(ctx(), { ...dados(), cargoId: C001, exercicioId: e.id }, e.deps());
+    await incluirPosicao(ctx(), { ...dados({ cc: '4.4' }), cargoId: C001, exercicioId: e.id }, e.deps());
+    await incluirPosicao(ctx(), { ...dados({ salarioMensal: '4.200,00' }), cargoId: C002, exercicioId: e.id }, e.deps());
+    await incluirPosicao(ctx(), { ...dados(), cargoId: '', exercicioId: e.id }, e.deps());
+    await app.$transaction((tx) => recalcularExercicio(tx, e.id, resolverDeps(d)));
+    expect(chamadas).toHaveLength(1);
+    expect([...chamadas[0]!].sort()).toEqual([C001, C002].sort());
   });
 
   it('prévia, gravação e recálculo do exercício dão as mesmas linhas com cargo', async () => {

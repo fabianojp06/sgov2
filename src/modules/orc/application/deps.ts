@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { obterEscopoCentroCusto } from '@/modules/adm';
 import {
-  beneficiosDoCargo,
+  beneficiosDosCargos,
   calcularCustoPosicao,
   carregarIndiceEstrutura,
   congelarPremissasExercicio,
@@ -44,7 +44,7 @@ export type DepsOrc = {
     congelarPremissasExercicio: typeof congelarPremissasExercicio;
     // C2, acréscimo de C&S (P15): sem a cifra, para o motor, os nomes e a lista (D-P15-3).
     listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
-    beneficiosDoCargo: typeof beneficiosDoCargo;
+    beneficiosDosCargos: typeof beneficiosDosCargos;
   };
   /**
    * Cargos com o salário da Fonte Ativa decifrado (listarCargosExercicio do index do cad), só para a
@@ -67,7 +67,7 @@ export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
       garantirPremissasExercicio,
       congelarPremissasExercicio,
       listarCargosSemSalarioCifrado,
-      beneficiosDoCargo,
+      beneficiosDosCargos,
     },
     ...(deps.cargosDecifrados ? { cargosDecifrados: deps.cargosDecifrados } : {}),
     obterEscopo: deps.obterEscopo ?? obterEscopoCentroCusto,

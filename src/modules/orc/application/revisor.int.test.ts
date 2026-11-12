@@ -655,7 +655,7 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
       { cc: '4.3.2.10', cargo: C004!, salario: '6000.00' },
     ]);
     const falso = custoDe(e.ano);
-    const custo = { ...falso, beneficiosDoCargo: async (tx: Parameters<typeof falso.beneficiosDoCargo>[0], a: number, cargoId: string) => (cargoId === C002!.id ? { beneficios: [], avisos: [] } : falso.beneficiosDoCargo(tx, a, cargoId)) };
+    const custo = { ...falso, beneficiosDosCargos: async (tx: Parameters<typeof falso.beneficiosDosCargos>[0], a: number, ids: readonly string[]) => new Map([...(await falso.beneficiosDosCargos(tx, a, ids))].map(([id, b]) => [id, id === C002!.id ? { beneficios: [], avisos: [] } : b])) };
     const id = await pedir(e, p.id);
     await processarRevisao(id, depsRev({ custoPessoal: custo }));
     const achados = regras((await revisao(id)).achados);
@@ -675,7 +675,7 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
       { cc: '4.3.0', cargo: null, salario: '1.00', texto: 'Analista de orçamento' },
       { cc: '4.4', cargo: null, salario: '99999.00', texto: 'Técnico' },
     ]);
-    const custo = { ...custoDe(e.ano), beneficiosDoCargo: async () => ({ beneficios: [], avisos: [] }) };
+    const custo = { ...custoDe(e.ano), beneficiosDosCargos: async (_tx: unknown, _a: number, ids: readonly string[]) => new Map(ids.map((id) => [id, { beneficios: [], avisos: [] }])) };
     const id = await pedir(e, p.id);
     await processarRevisao(id, depsRev({ custoPessoal: custo }));
     const r = await revisao(id);
@@ -730,7 +730,7 @@ describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
         { cc: '4.4', cargo: C002!, salario: '4200.00' },
       ]);
       const falso2 = custoDe(e.ano);
-      const custo = { ...falso2, beneficiosDoCargo: async (tx: Parameters<typeof falso2.beneficiosDoCargo>[0], a: number, cargoId: string) => (cargoId === C002!.id ? { beneficios: [], avisos: [] } : falso2.beneficiosDoCargo(tx, a, cargoId)) };
+      const custo = { ...falso2, beneficiosDosCargos: async (tx: Parameters<typeof falso2.beneficiosDosCargos>[0], a: number, ids: readonly string[]) => new Map([...(await falso2.beneficiosDosCargos(tx, a, ids))].map(([id, b]) => [id, id === C002!.id ? { beneficios: [], avisos: [] } : b])) };
       return { p, e, custo };
     }
 
