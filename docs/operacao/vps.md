@@ -40,8 +40,9 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 | fail2ban (sshd) | **feito** | `/etc/fail2ban/jail.d/sgo.local`: 8 tentativas em 10 min → 30 min de bloqueio. A unit do Ubuntu 24.04 é `ssh.service`, por isso o `journalmatch` explícito |
 | Atualizações automáticas de segurança | **feito** | `unattended-upgrades` ativo, sem reboot automático (`/etc/apt/apt.conf.d/52-sgo-unattended`, origem `ops/vps/52-sgo-unattended.conf`) |
 | SSH só por chave | **pendente (PO)** | o PO hoje entra por senha. Primeiro: gerar uma chave no computador do PO, instalar em `/root/.ssh/authorized_keys` e testar. Só depois aplicar `ops/vps/sshd-90-sgo.conf` |
-| Porta 3000 (Easypanel) fechada para a internet | **pendente (PO)** | o Docker ignora o ufw para portas publicadas. Fechar exige a regra na cadeia `DOCKER-USER`, e o painel passa a ser acessado por túnel: `ssh -L 3000:127.0.0.1:3000 root@<ip>` → `http://localhost:3000`. Definitivo: subdomínio HTTPS (GAP-INF-001) |
-| Firewall do hPanel | **pendente (PO), prioridade alta** | regras de entrada só para TCP 22, 80 e 443 (plano P2, Tarefa 2, Step 3). Filtra antes da VPS e fecha a 3000 sem mexer no Docker |
+| Porta 3000 (Easypanel) fechada para a internet | **feito (12/11/2026)** | fechada pelo firewall do hPanel, porque o Docker ignora o ufw para portas publicadas. O PO conferiu de fora. Pelo IP, o painel abre só por túnel: `ssh -L 3000:127.0.0.1:3000 root@<ip>` → `http://localhost:3000` (se a 3000 local estiver ocupada, use outra, como `-L 3001:...` → `http://localhost:3001`). **Atenção:** o Easypanel também serve o painel em HTTPS (443) no domínio padrão dele (`<id>.easypanel.host`, em *Settings*), que continua público. Por isso, a 2FA no usuário do painel é obrigatória |
+| Firewall do hPanel | **feito (12/11/2026)** | regras de entrada só para TCP 22, 80 e 443 (plano P2, Tarefa 2, Step 3). Filtra antes da VPS e fecha a 3000 sem mexer no Docker |
+| 2FA no Easypanel | **pendente (PO), prioridade alta** | o painel é público pelo domínio padrão do Easypanel (acima). Ligar a 2FA no usuário e revogar tokens de API que não estejam em uso |
 
 - Desbloquear um IP banido: `fail2ban-client set sshd unbanip <ip>`. Se o PO for bloqueado, entrar pelo console do hPanel.
 
@@ -63,8 +64,7 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 
 - [ ] Teste de pico de memória (US-122 Step 10): rodar quando não houver fluxo de agentes em execução, porque o teste pode encerrar processos de dev.
 - [ ] **Reboot de prova** (P2 Tarefa 2 Step 9), numa janela combinada com o PO: conferir `swapon` 8G, `swappiness` 10, earlyoom/fail2ban/ufw/timers `sgo-*` ativos, `docker ps` com o Easypanel e, quando existir, a regra da `DOCKER-USER`. O fail2ban só se valida com tentativas reais: depois de algumas falhas de login de fora, `fail2ban-client status sshd` deve mostrar `Total failed` maior que 0.
-- [ ] Firewall do hPanel (PO) e conferência **de fora**: `nc -zv <ip> 3000` fechado; `nc -zv <ip> 443` aberto.
-- [ ] Quando o Easypanel criar `sgo-prod`/`sgo-hml` (US-014): reserva de memória nos serviços, swap travado nos contêineres de produção (`memory.swap.max=0` ou `memswap_limit` = `mem_limit`) e conferência do −500 com `sgo-ajustar-oom --simular`.
+- [ ] Agora que `sgo-hml` existe, e quando `sgo-prod` existir (US-014): reserva de memória nos serviços, swap travado nos contêineres de produção (`memory.swap.max=0` ou `memswap_limit` = `mem_limit`) e conferência do −500 com `sgo-ajustar-oom --simular`.
 - [ ] Compose de dev com `mem_limit` e `oom_score_adj` 500 (P1, Tarefa 3).
 - [ ] Aceite do PO para o desvio Easypanel/Traefik −300.
 - [ ] Aceite do PO para o earlyoom sem `node`/`next-server` no `--prefer`, e ajuste da spec §4.3 na próxima versão.

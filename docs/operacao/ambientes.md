@@ -101,9 +101,20 @@ Os salários dos cargos (real, definido e função gratificada) são gravados ci
 
 No `psql` como `postgres`, use `\password sgo_app` (pede a senha sem eco e não a manda em texto puro ao servidor). Depois, atualize a variável no Easypanel e reinicie o serviço.
 
+## Estado do hml (12/11/2026)
+
+O `sgo-hml` está no ar no Easypanel, com HTTPS (Let's Encrypt) e `/int/saude` ok. O endereço e as credenciais ficam com o PO.
+
+- **Serviços:** `db` (`pgvector/pgvector:pg16`, sem porta pública), `migracao`, `app` (domínio com HTTPS na porta 3000) e `worker`. O comando de cada serviço está em `docs/operacao/deploy.md`, "Comando dos serviços no Easypanel".
+- **Papéis:** criados pelo `01-papeis-ambiente.sql`, com a extensão `vector`. As senhas foram geradas na VPS e estão só no Easypanel e no cofre do PO.
+- **Deploy automático:** `EASYPANEL_WEBHOOK` e `EASYPANEL_WEBHOOK_WORKER` estão no *environment* `homologacao`. A URL usa o domínio do painel (`https://<domínio do painel>/api/deploy/<token>`), porque a porta 3000 está fechada.
+- **Monitor externo:** UptimeRobot em `/int/saude`. O teste de ponta a ponta está na #39.
+- **Administrador inicial:** criado no primeiro deploy, e as `ADMIN_INICIAL_*` já saíram do `migracao`.
+- **Falta no hml:** o SMTP do `worker` (hoje `[EMAIL_SEM_SMTP]`) e, se o PO quiser, a `ANTHROPIC_API_KEY`.
+
 ## Próximos passos (Tarefa 6)
 
-- Projetos `sgo-hml` e `sgo-prod` no Easypanel, cada um com o serviço `db` (`pgvector/pgvector:pg16`), o `migracao`, o `app` e o `worker`.
+- Projeto `sgo-prod` no Easypanel (o `sgo-hml` já existe), cada um com o serviço `db` (`pgvector/pgvector:pg16`), o `migracao`, o `app` e o `worker`.
 - Variáveis do `migracao` (argumento `implantar`; `docs/operacao/deploy.md`, "Seed e administrador inicial"): `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `AMBIENTE`; em hml, também `CARGA_DADOS_REFERENCIA=1`; as `ADMIN_INICIAL_*` só no primeiro deploy e no break-glass.
 - Variáveis do `app`: `DATABASE_URL` (`sgo_app`), `MIGRATE_DATABASE_URL` (`sgo_migrator`), `URL_PUBLICA` e `AMBIENTE`, apontando para o banco `sgo`; em hml, também `CC_CARGA_PROVISORIA=1` (em prod, sem ela).
 - Variáveis do `worker`: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), a mesma `URL_PUBLICA` do app, `AMBIENTE` e as de SMTP (`docs/operacao/deploy.md`, serviço `worker`).
