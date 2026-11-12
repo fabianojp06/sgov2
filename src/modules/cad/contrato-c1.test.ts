@@ -6,6 +6,7 @@ import * as cad from '@/modules/cad';
 import * as cadServidor from '@/modules/cad/servidor';
 import {
   CENTROS_CUSTO_EXEMPLO,
+  CENTROS_CUSTO_TPS_EXEMPLO,
   compararClassificacao,
   CONTAS_EXEMPLO,
   estruturaFinanceiraFalsa,
@@ -189,6 +190,8 @@ describe('C1 — tipos e exportações', () => {
       'carregarIndiceEstrutura',
       'CONTAS_EXEMPLO',
       'CENTROS_CUSTO_EXEMPLO',
+      // Estrutura sintética de TPs (C37, #138).
+      'CENTROS_CUSTO_TPS_EXEMPLO',
       'estruturaFinanceiraFalsa',
       'compararClassificacao',
     ];
@@ -196,5 +199,16 @@ describe('C1 — tipos e exportações', () => {
       expect(cad).toHaveProperty(nome);
       expect(cadServidor).toHaveProperty(nome);
     }
+  });
+});
+
+describe('C1 — estrutura sintética de TPs (C37)', () => {
+  it('raiz 9 fora da estrutura 4; junto da minuta, os analíticos de cada raiz saem separados', async () => {
+    const falso = estruturaFinanceiraFalsa({ centrosCusto: [...CENTROS_CUSTO_EXEMPLO, ...CENTROS_CUSTO_TPS_EXEMPLO] });
+    const indice = await falso.carregarIndiceEstrutura(tx);
+    expect(indice.centrosCustoAnaliticosSob('9')).toEqual(['9.1', '9.2', '9.3']);
+    expect(indice.centrosCustoAnaliticosSob('4')).not.toContain('9.1');
+    expect(await falso.ehCentroCustoAnalitico(tx, '9.2')).toBe(true);
+    expect(await falso.ehCentroCustoAnalitico(tx, '9')).toBe(false);
   });
 });

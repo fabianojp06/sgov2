@@ -104,7 +104,8 @@ describe('seedDadosReferenciaCad', () => {
     expect(h).toEqual([{ rotulo: 'Sistema', origem: 'SISTEMA', n: 174 }]);
     expect(await cliente.cargaEstrutura.findMany({ select: { tipo: true, situacao: true, incluidas: true }, orderBy: { tipo: 'asc' } })).toEqual([
       { tipo: 'PLANO_CONTAS', situacao: 'CONCLUIDA', incluidas: 174 },
-      { tipo: 'CENTROS_CUSTO', situacao: 'CONCLUIDA', incluidas: 35 },
+      // A minuta (35) e a estrutura sintética de TPs (4: raiz 9 e 9.1 a 9.3, C37).
+      { tipo: 'CENTROS_CUSTO', situacao: 'CONCLUIDA', incluidas: 39 },
       // Cargos sintéticos (Task 12a, P3), sem salário.
       { tipo: 'CARGOS', situacao: 'CONCLUIDA', incluidas: 8 },
     ]);

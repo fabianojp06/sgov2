@@ -7,6 +7,7 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import ccMinuta from '../infrastructure/dados/cc-minuta-rev23102026.json';
+import ccTps from '../infrastructure/dados/cc-tps-sinteticos.json';
 import planoOficial from '../infrastructure/dados/plano-contas-oficial.json';
 import { criarCifraSalarios } from '../infrastructure/cifra-salarios';
 import { CHAVE_TESTE_CIFRA, ID_CHAVE_TESTE } from '../infrastructure/cifra-teste';
@@ -26,7 +27,8 @@ const semChave = criarCifraSalarios({});
 
 type Celulas = Record<string, string | null>;
 const contas = (planoOficial as { celulas: Celulas }[]).map((l) => l.celulas);
-const centros = (ccMinuta as { celulas: Celulas }[]).map((l) => l.celulas);
+// A seed carrega a minuta e a estrutura sintética de TPs (C37) no mesmo lote.
+const centros = ([...ccMinuta, ...ccTps] as { celulas: Celulas }[]).map((l) => l.celulas);
 
 // "funcionalidade:ação" literal parece usuário:senha para o GitGuardian: as permissões saem daqui.
 const ctx = (...p: [string, string][]): ContextoRequisicao => ({ usuarioId, usuarioRotulo: 'gfin', sessaoUid: 's', ip: '127.0.0.1', permissoes: new Set(p.map(([f, a]) => `${f}:${a}`)) });
