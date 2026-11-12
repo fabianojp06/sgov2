@@ -109,6 +109,14 @@ export const MENSAGENS_ORC = {
   CARGO_INATIVO_ROTULO: '(inativo)',
   CARGO_TEXTO_LIVRE: 'Outro cargo (texto livre)',
   CARGO_MANTER_TEXTO: (cargo: string) => `Manter o cargo em texto: ${cargo}`,
+  // Tela de correspondência do cargo em texto com o cadastro (US-056; plano do P16) [PROVISÓRIOS].
+  CORRESPONDENCIA_SEM_POSICOES: 'Nenhuma posição com esse cargo em texto. Recarregue a tela.',
+  CORRESPONDENCIA_VAZIA: 'Nenhuma posição com cargo em texto neste exercício.',
+  CORRESPONDENCIA_LIGADA: (n: number) => (n === 1 ? '1 posição ligada ao cargo do cadastro.' : `${n} posições ligadas ao cargo do cadastro.`),
+  CORRESPONDENCIA_ERRO_POSICAO: (cc: string, mensagem: string) => `CC ${cc}: ${mensagem}`,
+  CORRESPONDENCIA_LINK: 'Ligar cargos em texto ao cadastro',
+  CONFIRMA_LIGAR_CARGO: (texto: string, n: number, nome: string) =>
+    `Ligar ${n === 1 ? 'a posição' : `as ${n} posições`} com o cargo "${texto}" ao cargo ${nome} do cadastro? O salário gravado não muda.`,
   POSICOES_COM_CARGO_SUBSTITUIDAS: (n: number) =>
     n === 1
       ? '1 posição ligada a cargo do cadastro foi substituída por esta importação.'
