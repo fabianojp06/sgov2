@@ -19,5 +19,6 @@ try {
   await executarSeeds(cliente, seeds);
   console.log(`Seeds aplicadas: ${seeds.length}`);
 } finally {
-  await cliente.$disconnect();
+  // Uma falha ao desconectar não pode encobrir o erro da seed (#165): só vai para o log.
+  await cliente.$disconnect().catch((erro: unknown) => console.error('Falha ao desconectar depois da seed:', erro));
 }
