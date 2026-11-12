@@ -126,6 +126,12 @@ describe('Dinheiro: entradas inválidas e invariantes (revisão 12.12)', () => {
     }
   });
 
+  it('paraDecimal de um valor que arredonda para zero não devolve -0 (#168)', () => {
+    const d = Dinheiro.de('-0.001').paraDecimal();
+    expect(d.isZero()).toBe(true);
+    expect(d.isNegative()).toBe(false);
+  });
+
   it('paraDecimal não expõe o estado interno', () => {
     const x = Dinheiro.de('10');
     (x.paraDecimal() as unknown as { d: number[] }).d[0] = 99;

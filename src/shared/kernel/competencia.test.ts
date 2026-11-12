@@ -21,7 +21,8 @@ describe('Competencia (RN0302)', () => {
     expect(c.formatar()).toBe('Fev/27');
   });
 
-  it.each(['Jun', 'Xyz/22', 'Jun/2', '13/22', ' Jun/22', 'Jun/22 '])('rejeita %j', (s) =>
+  // 'Jun/0022' e 'Jun/022': o regex aceita só 2 ou 4 dígitos; a faixa 2000–2099 não barra esses (#168).
+  it.each(['Jun', 'Xyz/22', 'Jun/2', '13/22', ' Jun/22', 'Jun/22 ', 'Jun/0022', 'Jun/022'])('rejeita %j', (s) =>
     expect(() => Competencia.parse(s)).toThrow(ErroDominio));
 
   it.each([
