@@ -20,6 +20,7 @@
 | 1.4 | 25/10/2026 | §12.3: `prisma/schema/nucleo.prisma` (modelos do núcleo de `src/shared/`) é da frente A |
 | 1.5 | 25/10/2026 | Decisões do PO no plano do P5: §3.3 traz para a trilha o bloqueio de conta, a sessão única, o indicador de manutenção e o limite de taxa no login; §11.2a com as regras de acesso decididas (senha atual na troca voluntária, formato do login, parâmetros provisórios, riscos aceitos); §12.3 com os caminhos novos da frente A e o menu montado do catálogo no banco; §12.6 com o contrato C6 (catálogo de funcionalidades) |
 | 1.6 | 02/11/2026 | §11.2a: o limite por IP conta só as falhas de credencial (decisão do PO de 25/10, por causa do NAT da instituição); o limite por login conta todo pedido |
+| 1.7 | 12/11/2026 | GAP-CC-004 fechado pelo PO (C37): cada TP ativo tem CC próprio e único, numa estrutura de TPs da árvore de CCs, fora da estrutura 4 (§6.1) |
 
 ---
 
@@ -323,7 +324,12 @@ O sistema nasce **preparado para consumir API de IA**. O catálogo de funcionali
 - **Regras de integridade** (validadas na carga e no banco): nível ∈ 1..5; nº de segmentos = nível; pai com nível − 1; sintético tem filho; analítico não tem filho; `aceita_lancamento ⇔ analítico`. A máscara **não** fixa a quantidade de dígitos por segmento, porque a minuta usa 1 dígito no nível 3 e 2 no nível 4 (GAP-CC-002).
 - **Regra R3 da minuta (CC de gestão):** toda diretoria e toda gerência sintética tem **exatamente um** CC analítico de gestão (sufixo `.0` no nível 3 e `.10` no nível 4). Ele recebe o custo do titular, da assessoria direta, das viagens e diárias da chefia e da capacitação da equipe de gestão. Custos compartilhados da sede vão para 4.4 Suporte Administrativo. O SGO marca o CC de gestão com o atributo `de_gestao` e valida a regra na carga, com **aviso** (não bloqueia enquanto a minuta não for aprovada).
 - **Classificação ≠ conta:** a classificação do CC começa em "4", assim como o plano de contas, mas são entidades distintas e sem chave em comum. Nas telas, o CC é sempre mostrado com o reduzido para não confundir.
-- **Uso no orçamento:** a Proposta/TP exige um Centro de Custo (RF_TP_001), único entre os projetos ativos (RN_TP_001). Os filtros e consolidações por CC (RF_EO_003, RF_DA_003, RN_DA_003) usam a árvore, e o CC sintético soma os filhos pelo TotalizerService.
+- **Uso no orçamento:** a Proposta/TP exige um Centro de Custo (RF_TP_001), único entre os projetos ativos (RN_TP_001).
+  - **CC do TP (C37):** cada TP ativo tem um CC **próprio**: um CC analítico e ativo de uma **estrutura de TPs** da árvore, fora da estrutura 4 (áreas internas).
+  - **Origem:** os CCs de TP chegam pela mesma fonte dos outros (planilha D7, depois o Senior). O SGO não cria CC pela tela (C27).
+  - **Escolha na proposta:** o CC sai da lista desses CCs que ainda não estão em outro TP ativo.
+  - **[PROVISÓRIO]:** a classificação da raiz dessa estrutura depende da revisão da minuta pela DIREX/GFIN.
+- Os filtros e consolidações por CC (RF_EO_003, RF_DA_003, RN_DA_003) usam a árvore, e o CC sintético soma os filhos pelo TotalizerService.
 - **Carga:** em dev e hml, a minuta entra na seed. Em **prod**, a carga só acontece depois da aprovação da DIREX (GAP-CC-001), pelo mesmo *Bulk Loader* de D7.
 
 ### 6.2 Proposta, Termo de Parceria e versões
@@ -576,6 +582,7 @@ Numeração `C#`. "Fonte" indica o item do Catálogo §10 quando houver.
 | C34 | C24 (cargo escolhido do cadastro de C&S) × trilha 2027 (cadastro da GRH ainda vazio) | Na trilha 2027, **cargo e salário em texto livre**, na planilha e na importação. A C24 entra depois de 30/11, com uma tela de correspondência entre o texto importado e o cadastro de C&S (decisão do PO, 24/10/2026) | Fechado para a trilha |
 | C35 | §6.6 (receita só leitura, nasce no TP) × trilha 2027 (sem propostas no sistema) | **Rateio digitado na transição**, com `origem = MANUAL_TRANSICAO`, auditado e substituído pelo calculado quando o TP for oficializado (6.6) | Fechado |
 | C36 | Aprovação do orçamento da Adm. Central sem aprovador definido (GAP-ORC-004) | Novo perfil padrão **Diretoria Executiva (DIREX)**: aprova ou rejeita o orçamento enviado pelo GFIN (6.6, 11.3) (decisão do PO, 24/10/2026) | Fechado. Ficam no GAP-ORC-004: quem define o teto e se ele é por diretoria |
+| C37 | GAP-CC-004: a minuta de CCs cobre só a estrutura 4 (áreas internas), e a RF_TP_001/RN_TP_001 exigem CC único por TP ativo | **CC próprio por TP**: cada TP ativo tem um CC analítico único, numa estrutura de TPs da árvore de CCs, fora da estrutura 4, carregado pela mesma fonte (D7, depois o Senior). A RF_TP_001/RN_TP_001 valem como estão (6.1) (decisão do PO, 12/11/2026) | Fechado. Fica com a DIREX/GFIN a classificação da raiz da estrutura de TPs na minuta |
 
 ---
 
@@ -603,7 +610,6 @@ Somente o que ainda está **aberto** depois desta revisão. Os gaps já tratados
 | GAP-CC-001 | CAD | Aprovação final do plano de CC pela DIREX | Carga em **prod** da trilha 2027 (US-115), prazo **até ~16/11/2026**; sem ela, a importação usa a minuta marcada como provisória | DIREX |
 | GAP-CC-002 | CAD | Máscara do CC: nível 3 com 1 dígito e nível 4 com 2 dígitos (ex.: 4.1.2.11) | Não bloqueia (máscara não fixa dígitos) | DIREX/GFIN |
 | GAP-CC-003 | CAD | Reduzido 14.300 ausente; 14.460 fora de sequência; reduzidos 14.470–14.530 ainda são sugestão (a GFIN confirma no Sapiens) | Carga em prod | GFIN |
-| GAP-CC-004 | CAD | A minuta cobre só a estrutura 4 (áreas internas). TPs/projetos terão CC próprio? Isso afeta RF_TP_001/RN_TP_001, que exigem CC único por TP ativo | **F3** | DIREX/GFIN |
 | GAP-CC-005 | CAD | A DIREX (nível 1) terá CC de gestão próprio (ex.: 4.0 Gabinete da DIREX) ou seus custos ficam em 4.4? | Não bloqueia | DIREX |
 | GAP-CAD-004 | CAD | 15 contas do protótipo não existem no plano oficial de 5 níveis: despesas financeiras (tarifas, IOF, comissões, câmbio, pregão, variação cambial), juros e multas, perda na baixa de imobilizado, doações e **Rateio da Adm. Central** (1.9.23.001). Também 4 descrições diferentes (ex.: 1.9.18.002 "Impostos a Recolher – ISS" × 4.1.1.8.002 Provisão para Contingências de Passivo Tributário) | F3A (base zero só oferece contas oficiais) | Wellington |
 | GAP-CC-006 | CAD | Natureza do CC (Finalístico/Apoio/Administrativo/Gestão) usada no protótipo não está na minuta de CC | Não bloqueia (campo opcional) | DIREX/GFIN |
