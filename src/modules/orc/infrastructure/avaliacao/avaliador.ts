@@ -1,6 +1,7 @@
 import { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas, obterPremissasExercicio } from '@/modules/cad/servidor';
 import { prisma } from '@/shared/db';
 import { ErroIA, servicoIA, type AvaliadorCasoIA, type ServicoIA } from '@/shared/ia';
+import { estruturaDaAdmCentral } from '../../application/adm-central';
 import type { DepsOrc } from '../../application/deps';
 import { CASOS_IA_ORC } from '../../application/ia-casos';
 import { FUNCOES_PESSOA_IA, remontarPessoaIA, type DepsPessoaIA } from '../../application/ia-pessoa';
@@ -34,7 +35,8 @@ function resolver(d: Partial<DepsAvaliadorSugestaoConta>): DepsAvaliadorSugestao
     agora: d.agora ?? (() => new Date()),
     pessoa: d.pessoa ?? FUNCOES_PESSOA_IA,
     ia: d.ia ?? servicoIA,
-    estrutura: d.estrutura ?? { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas },
+    // Como na sugestão (deps do orc): só os CCs da Adm. Central, raiz 4 (C37).
+    estrutura: estruturaDaAdmCentral(d.estrutura ?? { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas }),
     obterPremissasExercicio: d.obterPremissasExercicio ?? obterPremissasExercicio,
     casos: d.casos ?? (casosJson satisfies readonly CasoAvaliacaoConta[]),
     ...(d.opcoes ? { opcoes: d.opcoes } : {}),
