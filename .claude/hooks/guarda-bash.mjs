@@ -1,5 +1,6 @@
 // Hook PreToolUse (matcher Bash): bloqueia comandos que violam as travas da spec §11.5 e de D12.
 // Lê o JSON do Claude Code no stdin; ao bloquear, escreve o motivo no stderr e sai com código 2.
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { avaliarComando, NOME_URL_BANCO } from './regras.mjs';
@@ -25,6 +26,24 @@ function lerUrlsDosArquivos(raiz) {
   return urls;
 }
 
+/** Scripts do package.json da raiz (npm run x roda o corpo, que também passa pelas travas, #159). */
+function lerScripts(raiz) {
+  try {
+    return JSON.parse(readFileSync(join(raiz, 'package.json'), 'utf8')).scripts ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** Ramo em checkout na pasta do comando (git push sem destino vai para ele, #157). */
+function lerRamo(pasta) {
+  try {
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: pasta, encoding: 'utf8', timeout: 2000 }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
 let bruto = '';
 for await (const parte of process.stdin) bruto += parte;
 
@@ -38,7 +57,11 @@ try {
 
 const comando = entrada?.tool_input?.command ?? '';
 const raiz = process.env.CLAUDE_PROJECT_DIR ?? entrada?.cwd;
-const { bloquear, motivo } = avaliarComando(comando, process.env, lerUrlsDosArquivos(raiz));
+const pasta = entrada?.cwd ?? raiz;
+const { bloquear, motivo } = avaliarComando(comando, process.env, lerUrlsDosArquivos(raiz), {
+  ramoAtual: pasta ? lerRamo(pasta) : undefined,
+  scripts: raiz ? lerScripts(raiz) : {},
+});
 if (bloquear) {
   process.stderr.write(`Comando bloqueado pelo hook do SGO: ${motivo}\nExceção só com pedido explícito do PO.\n`);
   process.exit(2);

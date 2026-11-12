@@ -113,10 +113,68 @@ describe('avaliarComando', () => {
     ['docker exec 2>&1 sgo-prod_db ls', VAZIO, true],
     ['docker compose up -d db 2>&1 &', VAZIO, false],
     ['(git push origin us-002-claude-md-hooks)', VAZIO, false],
+    // #154: esquema postgres:// (sem "ql"), host com hífen e sem porta.
+    ['DATABASE_URL=postgres://u:x@sgo-prod-db/x npx prisma migrate reset --force', DEV_LOCAL, true],
+    ['psql postgres://u:x@10.0.1.5/sgo', VAZIO, true],
+    ['psql postgres://u:x@127.0.0.1:55432/sgo_dev', VAZIO, false],
+    // #156: unset tira a URL do ambiente; --repo faz de todos os posicionais refspecs.
+    ['unset DATABASE_URL; npx prisma db push', DEV_LOCAL, true],
+    ['unset DATABASE_URL && DATABASE_URL=postgresql://u:x@127.0.0.1:55432/sgo_dev npx prisma db push', DEV_LOCAL, false],
+    ['git push --repo=origin main', VAZIO, true],
+    ['git push --repo origin main', VAZIO, true],
+    ['git push --repo=origin us-002-x', VAZIO, false],
+    // #158: contêiner escolhido por filtro com prod ou hml.
+    ['docker exec -it $(docker ps -qf name=prod) sh', VAZIO, true],
+    ['docker ps -q --filter label=com.docker.swarm.service.name=hml_db', VAZIO, true],
+    ['docker ps --filter name=sgo-dev', VAZIO, false],
+    // #160: host=, hostaddr= e port= na query sobrepõem a autoridade da URL.
+    ['psql postgresql://u@127.0.0.1:55432/x?host=10.0.0.5', VAZIO, true],
+    ['npx prisma migrate reset --force', { DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo?host=10.0.0.5' }, true],
+    ['npx prisma migrate reset --force', { DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo?hostaddr=10.0.0.5' }, true],
+    ['npx prisma migrate reset --force', { DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo?port=5432' }, true],
+    ['npx prisma migrate reset --force', { DATABASE_URL: 'postgresql://u:x@127.0.0.1:55432/sgo?schema=public' }, false],
+    // #161: ofuscação por barras repetidas e aspas vazias; pg_service.conf; db execute com --url remota.
+    ['cat /etc//easypanel/x', VAZIO, true],
+    ['docker exec sgo-p""rod_db ls', VAZIO, true],
+    ["docker exec sgo-h''ml_db ls", VAZIO, true],
+    ['psql service=prod', VAZIO, true],
+    ['psql -d sgo', { PGSERVICE: 'prod' }, true],
+    ['npx prisma db execute --url postgresql://u:x@10.0.1.5:5432/sgo --stdin', DEV_LOCAL, true],
   ])('%s (env %j) → bloquear=%s', (comando, env, bloquear) => {
     const r = avaliarComando(comando, env);
     expect(r.bloquear).toBe(bloquear);
+    // #155: o MOTIVO_MAIN cita a §12.5 de propósito: a §11.5 não trata da main, e o D12 também não.
     if (bloquear) expect(r.motivo).toMatch(/spec §11\.5|spec §12\.5|D12/);
+  });
+
+  // #157: sem destino (ou com HEAD), o push vai para o ramo em checkout.
+  it.each([
+    ['git push', 'main', true],
+    ['git push origin', 'main', true],
+    ['git push origin HEAD', 'main', true],
+    ['git push -f origin +HEAD', 'main', true],
+    ['git push', 'us-056-x', false],
+    ['git push origin HEAD', 'us-056-x', false],
+    ['git push -u origin us-056-x', 'main', false],
+    ['git -C ../outra push', 'main', false],
+    ['git push', undefined, false],
+  ])('%s com o ramo %s → bloquear=%s', (comando, ramoAtual, bloquear) => {
+    expect(avaliarComando(comando, VAZIO, {}, { ramoAtual }).bloquear).toBe(bloquear);
+  });
+
+  // #159: npm run x roda o corpo do script, que passa pelas mesmas travas.
+  it('avalia o corpo do script chamado por npm/pnpm/yarn run, com o ambiente da linha', () => {
+    const scripts = { 'db:push': 'prisma db push', 'db:reset': 'npm run db:push', lint: 'eslint .', test: 'vitest run' };
+    const ctx = { scripts };
+    expect(avaliarComando('npm run db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('npm run-script db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('pnpm run db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('npm run db:reset', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('npm run db:push', DEV_LOCAL, {}, ctx).bloquear).toBe(false);
+    expect(avaliarComando('DATABASE_URL=postgresql://u:x@10.0.1.5:5432/sgo npm run db:push', DEV_LOCAL, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('npm run lint && npm test', VAZIO, {}, ctx).bloquear).toBe(false);
+    // Laço de scripts que se chamam: a profundidade tem limite.
+    expect(avaliarComando('npm run a', VAZIO, {}, { scripts: { a: 'npm run a' } }).bloquear).toBe(false);
   });
 
   it('avalia as URLs lidas do .env/.env.local do projeto', () => {

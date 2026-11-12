@@ -56,10 +56,19 @@ const MOTIVO_MAIN =
 export function ehDevLocal(url) {
   try {
     const u = new URL(url);
-    return HOSTS_LOCAIS.has(u.hostname) && PORTAS_DEV.has(u.port);
+    // host=, hostaddr= e port= na query sobrepõem a autoridade na libpq e no pg-connection-string (#160).
+    const hosts = [u.hostname, ...u.searchParams.getAll('host'), ...u.searchParams.getAll('hostaddr')];
+    const portas = [u.port, ...u.searchParams.getAll('port')];
+    return hosts.every((h) => HOSTS_LOCAIS.has(h)) && portas.every((p) => PORTAS_DEV.has(p));
   } catch {
     return false;
   }
+}
+
+// Aspas vazias somem (sgo-p""rod é sgo-prod para o shell) e barras repetidas viram uma (#161).
+function normalizar(comando) {
+  // O "//" depois de ":" é o de uma URL (postgresql://) e fica.
+  return comando.replace(/""|''/g, '').replace(/(?<!:)\/{2,}/g, '/');
 }
 
 function segmentar(comando) {
@@ -68,7 +77,7 @@ function segmentar(comando) {
   // redirecionamentos como 2>&1, >&2 e &>arquivo.
   // Antes, VAR="valor" e VAR='valor' viram VAR=valor, senão a atribuição se partiria em dois tokens
   // e deixaria de atualizar o ambiente efetivo (revisão do PR #152).
-  const plano = comando
+  const plano = normalizar(comando)
     .replace(/(\b[A-Za-z_][A-Za-z0-9_]*=)(["'])([^"']*)\2/g, '$1$3')
     .replace(/["'`]/g, ' ')
     .replace(/\$\(|[()]/g, ' ; ');
@@ -165,7 +174,10 @@ function avaliarClientePg(tokens, env) {
     else if (/^postgres(?:ql)?:\/\//i.test(v)) urls.push(v);
     else if ((m = /^(?:host|hostaddr)=(.*)$/i.exec(v))) host = m[1];
     else if ((m = /^port=(.*)$/i.exec(v))) porta = m[1];
+    // service= lê o host do pg_service.conf, que o hook não enxerga (#161).
+    else if (/^service=/i.test(v)) return MOTIVO_PSQL;
   }
+  if (env.PGSERVICE) return MOTIVO_PSQL;
   if (urls.some((u) => !ehDevLocal(u))) return MOTIVO_PSQL;
   // Sem host: socket local do próprio servidor (o banco de prod fica em contêiner, sem porta pública).
   if (host === undefined) return null;
@@ -253,17 +265,39 @@ function avaliarDeployProd(tokens) {
   return null;
 }
 
-function avaliarGitPush(tokens) {
+function avaliarGitPush(tokens, contexto) {
   if (nomeBase(tokens[0]) !== 'git') return null;
   const i = tokens.indexOf('push');
   if (i < 0) return null;
   const args = tokens.slice(i + 1);
   if (args.some((a) => a === '--mirror' || a === '--all')) return MOTIVO_MAIN;
-  const posicionais = args.filter((a) => !a.startsWith('-'));
-  // O primeiro posicional é o remoto; os demais são refspecs.
-  const refspecs = posicionais.slice(1);
+  // O valor de --repo (separado) não é posicional; com --repo, todos os posicionais são refspecs (#156).
+  const comRepo = args.some((a) => a === '--repo' || a.startsWith('--repo='));
+  const posicionais = args.filter((a, k) => !a.startsWith('-') && args[k - 1] !== '--repo');
+  // Sem --repo, o primeiro posicional é o remoto; os demais são refspecs.
+  const refspecs = comRepo ? posicionais : posicionais.slice(1);
   if (refspecs.some((r) => /^\+?(?:[^:]*:)?(?:refs\/heads\/)?main$/.test(r))) return MOTIVO_MAIN;
+  // Sem refspec, ou com HEAD, o destino é o ramo atual (#157). Com git -C, o ramo é de outra pasta: fica
+  // com a proteção da main no GitHub.
+  const semDestino = refspecs.length === 0 || refspecs.some((r) => /^\+?HEAD$/.test(r));
+  if (semDestino && !tokens.includes('-C') && contexto.ramoAtual === 'main') return MOTIVO_MAIN;
   return null;
+}
+
+// Scripts do package.json que o npm/pnpm/yarn rodam: o corpo é avaliado como comando (#159).
+const RODA_SCRIPT = new Map([
+  ['npm', ['run', 'run-script', 'test', 'start']],
+  ['pnpm', ['run']],
+  ['yarn', ['run']],
+]);
+function scriptChamado(tokens, scripts) {
+  const subs = RODA_SCRIPT.get(nomeBase(tokens[0]));
+  if (!subs || !scripts) return undefined;
+  const posicionais = tokens.slice(1).filter((t) => !t.startsWith('-'));
+  const [sub, nome] = posicionais;
+  if (sub === 'test' || sub === 'start') return scripts[sub];
+  if (subs.includes(sub) && nome) return scripts[nome];
+  return undefined;
 }
 
 /**
@@ -271,15 +305,22 @@ function avaliarGitPush(tokens) {
  * @param {Record<string, string | undefined>} env ambiente da sessão
  * @param {Record<string, string | undefined>} [envArquivos] URLs lidas do .env/.env.local do projeto
  *   (as que o prisma.config.ts carrega); todas precisam ser de dev local.
+ * @param {{ ramoAtual?: string; scripts?: Record<string, string>; profundidade?: number }} [contexto] o ramo
+ *   em checkout (git push sem destino) e os scripts do package.json (npm run).
  * @returns {{ bloquear: boolean; motivo?: string }}
  */
-export function avaliarComando(comando, env, envArquivos = {}) {
+export function avaliarComando(comando, env, envArquivos = {}, contexto = {}) {
   if (typeof comando !== 'string' || comando.trim() === '') return { bloquear: false };
-  if (CAMINHOS_VEDADOS.test(comando)) return { bloquear: true, motivo: MOTIVO_PROD };
+  if (CAMINHOS_VEDADOS.test(normalizar(comando))) return { bloquear: true, motivo: MOTIVO_PROD };
   if (TEXTO_DEPLOY_PROD.test(comando)) return { bloquear: true, motivo: MOTIVO_DEPLOY_PROD };
 
   const envEfetivo = { ...env };
   for (const bruto of segmentar(comando)) {
+    // unset VAR tira a variável do ambiente dos segmentos seguintes (#156).
+    if (bruto[0] === 'unset') {
+      for (const t of bruto.slice(1)) if (!t.startsWith('-')) delete envEfetivo[t];
+      continue;
+    }
     // export VAR=valor e VAR=valor sozinho valem para os segmentos seguintes.
     if (bruto[0] === 'export' || bruto.every((t) => ATRIBUICAO.test(t))) {
       for (const t of bruto) {
@@ -298,8 +339,18 @@ export function avaliarComando(comando, env, envArquivos = {}) {
     if (CLIENTES_PG.has(nomeBase(tokens[0])) && NOMES_VEDADOS.test(tokens.join(' '))) {
       return { bloquear: true, motivo: MOTIVO_PROD };
     }
-    const motivo = avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens) ?? avaliarDeployProd(tokens);
+    // Contêiner escolhido por filtro (docker ps -qf name=prod) com prod ou hml no valor (#158).
+    if (COMANDOS_DE_CONTEINER.has(nomeBase(tokens[0])) && tokens.some((t) => /(?:^|=)(?:name|label)=\S*(?:prod|hml)/i.test(t))) {
+      return { bloquear: true, motivo: MOTIVO_PROD };
+    }
+    const motivo =
+      avaliarPrisma(tokens, envSegmento, envArquivos) ?? avaliarClientePg(tokens, envSegmento) ?? avaliarGitPush(tokens, contexto) ?? avaliarDeployProd(tokens);
     if (motivo) return { bloquear: true, motivo };
+    const corpo = scriptChamado(tokens, contexto.scripts);
+    if (corpo && (contexto.profundidade ?? 0) < 3) {
+      const r = avaliarComando(corpo, envSegmento, envArquivos, { ...contexto, profundidade: (contexto.profundidade ?? 0) + 1 });
+      if (r.bloquear) return r;
+    }
   }
   return { bloquear: false };
 }
