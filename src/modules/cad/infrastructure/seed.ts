@@ -154,6 +154,23 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
       AUDITOR: ['consultar'],
     },
   },
+  {
+    // #434 (spec §6.7): o nome que as telas e os e-mails mostram; nunca fixo no código.
+    codigo: 'cad.instituicao',
+    modulo: 'CADASTROS',
+    grupo: 'Instituição',
+    nome: 'Instituição',
+    rota: '/cad/instituicao',
+    ordem: 1,
+    nivelLog: 'SIMPLES',
+    ajuda: 'Nome de exibição da instituição, usado nas telas e no cabeçalho dos e-mails. Em branco, o sistema mostra só "SGO".',
+    acoes: ['consultar', 'alterar'],
+    perfisPadrao: {
+      ADMINISTRADOR: ['consultar', 'alterar'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+    },
+  },
 ];
 
 const SISTEMA = { usuarioId: null, usuarioRotulo: 'Sistema', sessaoUid: null, ip: null, unidadeId: null };

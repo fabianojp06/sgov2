@@ -26,6 +26,10 @@ export { CamposAprovacaoDirex } from './ui/importar-cc';
 // Parâmetros do exercício e salário mínimo (US-053 parte 2): ações, dados das telas e formulários.
 export { acaoAlterarParametros, acaoAlterarSalarioMinimo } from './application/acoes-parametros';
 export { obterTelaParametros, obterTelaSalarioMinimo } from './application/tela-parametros';
+// Nome de exibição da instituição (#434).
+export { acaoAlterarNomeExibicao } from './application/acoes-instituicao';
+export { obterTelaInstituicao, alterarNomeExibicao, type TelaInstituicao } from './application/instituicao';
+export { FormInstituicao } from './ui/form-instituicao';
 export { criarProvedorSemaforo, provedorSemaforo, type ProvedorSemaforoCad } from './application/semaforo';
 export { FormParametros } from './ui/form-parametros';
 export { FormSalarioMinimo } from './ui/form-salario-minimo';
