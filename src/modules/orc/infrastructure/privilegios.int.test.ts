@@ -77,7 +77,8 @@ describe('privilégios do orc', () => {
       `SELECT column_name AS coluna FROM information_schema.column_privileges
        WHERE grantee = 'sgo_app' AND table_name = 'orc_posicao' AND privilege_type = 'UPDATE' ORDER BY 1`,
     );
-    expect(r.rows.map((x) => x.coluna)).toEqual(['cargo', 'cc', 'mes_inicio', 'mes_saida', 'observacao', 'quantidade', 'salario_mensal', 'versao']);
+    // P15: o cargo do cadastro de C&S (cargo_id) também; a origem continua de fora.
+    expect(r.rows.map((x) => x.coluna)).toEqual(['cargo', 'cargo_id', 'cc', 'mes_inicio', 'mes_saida', 'observacao', 'quantidade', 'salario_mensal', 'versao']);
   });
 
   it('sgo_app pede a revisão só com o exercício, a versão e quem pede, e conclui só com a situação, os achados, os avisos e a data (US-064)', async () => {

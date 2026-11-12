@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ErroDoCampo, Formulario } from '@/modules/ger';
 import type { AcaoFormulario } from '@/modules/ger';
 import { Dinheiro, type ErroCampo } from '@/shared/kernel';
+import type { CargosPosicao, OpcaoCargo } from '../application/posicoes';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { valorParaTela } from '../domain/valor-tela';
 
@@ -11,6 +12,10 @@ import { valorParaTela } from '../domain/valor-tela';
 // servidor (D-P12-6): a Server Action só de leitura roda o motor do cad com as premissas do exercício,
 // 400 ms depois da última mudança. Assim as premissas (encargos, benefícios) não vêm para o cliente.
 // Componente cliente: ações, opções e limite da quantidade chegam por props da página.
+// Cargo do cadastro de C&S (plano do P15, D-P15-1, D-P15-2, D-P15-5): o seletor vem primeiro; "Outro
+// cargo (texto livre)" abre o campo de texto (C34). Com a Fonte Ativa (só para quem tem cad.salarios),
+// escolher o cargo sugere o salário, que continua editável: a troca de cargo só troca o salário se ele
+// estiver vazio ou ainda igual à Fonte Ativa do cargo anterior.
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'] as const;
 const ESPERA_PREVIA_MS = 400;
 
@@ -19,6 +24,8 @@ export type PosicaoEmEdicao = {
   id: string;
   cc: string;
   cargo: string;
+  cargoId: string | null;
+  cargoInativo: boolean;
   quantidade: string;
   salarioMensal: string;
   mesInicio: string;
@@ -30,7 +37,7 @@ export type PosicaoEmEdicao = {
 export type PreviaTexto = { massa: string; feriasDecimo: string; encargos: string; beneficios: string; anual: string; aviso: string | null };
 export type AcaoPrevia = (entrada: Record<string, string>) => Promise<{ ok: true; valor: PreviaTexto } | { ok: false; erros: readonly ErroCampo[] }>;
 
-type Campos = { cc: string; quantidade: string; salarioMensal: string; mesInicio: string; mesSaida: string };
+type Campos = { cc: string; cargoId: string; quantidade: string; salarioMensal: string; mesInicio: string; mesSaida: string };
 type EstadoPrevia = { tipo: 'MOTIVO'; texto: string } | { tipo: 'CALCULANDO' } | { tipo: 'PRONTA'; previa: PreviaTexto };
 
 // CC fora das opções (saiu da estrutura ativa): o seletor começa vazio, para a posição não mudar de
@@ -40,8 +47,19 @@ const ccInicial = (ccAtual: string, ccs: readonly OpcaoPosicao[], p?: PosicaoEmE
   return ccs.some((c) => c.classificacao === cc) ? cc : '';
 };
 
-const camposIniciais = (cc: string, p?: PosicaoEmEdicao): Campos => ({
+// Valor do seletor: o id do cargo, '' para o texto livre (C34) ou NAO_ESCOLHIDO. A opção "Escolha o
+// cargo" é desabilitada: o navegador não envia o cargoId, e o servidor recusa (P15).
+const NAO_ESCOLHIDO = 'nao-escolhido';
+// Na inclusão, nenhum cargo escolhido (com o seletor); sem seletor, o texto livre.
+const cargoInicial = (comSeletor: boolean, p?: PosicaoEmEdicao) => (p ? (p.cargoId ?? '') : comSeletor ? NAO_ESCOLHIDO : '');
+const sugerido = (c: OpcaoCargo | undefined) => (c?.salarioFonteAtiva ? valorParaTela(Dinheiro.de(c.salarioFonteAtiva)) : null);
+// A posição em alteração pode apontar para um cargo fora da escolha (inativo ou sem Fonte Ativa).
+const cargoForaDaLista = (cargos: CargosPosicao, p?: PosicaoEmEdicao) => (p?.cargoId && !cargos.cargos.some((c) => c.id === p.cargoId) ? p : null);
+const temSeletor = (cargos: CargosPosicao, p?: PosicaoEmEdicao) => cargos.cargos.length > 0 || cargoForaDaLista(cargos, p) !== null;
+
+const camposIniciais = (cc: string, cargos: CargosPosicao, p?: PosicaoEmEdicao): Campos => ({
   cc,
+  cargoId: cargoInicial(temSeletor(cargos, p), p),
   quantidade: p?.quantidade ?? '',
   salarioMensal: p?.salarioMensal ?? '',
   mesInicio: p?.mesInicio ?? '1',
@@ -56,6 +74,7 @@ export function FormPosicao({
   ccAtual,
   ccs,
   quantidadeMaxima,
+  cargos,
   posicao,
   avisoOrigem,
   salvar,
@@ -67,13 +86,14 @@ export function FormPosicao({
   ccAtual: string;
   ccs: readonly OpcaoPosicao[];
   quantidadeMaxima: number;
+  cargos: CargosPosicao;
   posicao?: PosicaoEmEdicao;
   avisoOrigem?: string | undefined;
   salvar: AcaoFormulario;
   previa: AcaoPrevia;
   cancelarPara: string;
 }) {
-  const [campos, setCampos] = useState<Campos>(() => camposIniciais(ccInicial(ccAtual, ccs, posicao), posicao));
+  const [campos, setCampos] = useState<Campos>(() => camposIniciais(ccInicial(ccAtual, ccs, posicao), cargos, posicao));
   const [estado, setEstado] = useState<EstadoPrevia>({ tipo: 'MOTIVO', texto: MENSAGENS_ORC.PREVIA_POSICAO_INCOMPLETA });
   // Só a resposta do último pedido vale: uma resposta atrasada de um pedido anterior é descartada.
   const ultimo = useRef(0);
@@ -82,7 +102,19 @@ export function FormPosicao({
     if (!form) return;
     const d = new FormData(form);
     const t = (k: string) => (typeof d.get(k) === 'string' ? (d.get(k) as string) : '');
-    setCampos({ cc: t('cc'), quantidade: t('quantidade'), salarioMensal: t('salarioMensal'), mesInicio: t('mesInicio'), mesSaida: t('mesSaida') });
+    setCampos((antes) => {
+      const lido = d.get('cargoId');
+      const cargoId = typeof lido === 'string' ? lido : NAO_ESCOLHIDO;
+      let salarioMensal = t('salarioMensal');
+      // D-P15-2: trocar de cargo (ou para o texto livre) troca o salário só se ele estiver vazio ou ainda
+      // igual à Fonte Ativa do anterior; sem Fonte Ativa no novo, o salário sugerido antes é limpo.
+      if (cargoId !== antes.cargoId) {
+        const novo = sugerido(cargos.cargos.find((c) => c.id === cargoId));
+        const anterior = sugerido(cargos.cargos.find((c) => c.id === antes.cargoId));
+        if ((salarioMensal.trim() === '' && novo !== null) || (anterior !== null && salarioMensal === anterior)) salarioMensal = novo ?? '';
+      }
+      return { cc: t('cc'), cargoId, quantidade: t('quantidade'), salarioMensal, mesInicio: t('mesInicio'), mesSaida: t('mesSaida') };
+    });
   };
   useEffect(() => {
     const pedido = ++ultimo.current;
@@ -92,7 +124,9 @@ export function FormPosicao({
     }
     const espera = setTimeout(() => {
       setEstado({ tipo: 'CALCULANDO' });
-      previa({ exercicioId, ...campos })
+      // Sem cargo escolhido, o cargoId não vai (como no envio do formulário): o servidor responde o motivo.
+      const { cargoId, ...resto } = campos;
+      previa({ exercicioId, ...resto, ...(cargoId === NAO_ESCOLHIDO ? {} : { cargoId }), ...(posicao ? { id: posicao.id } : {}) })
         .then((r) => {
           if (pedido !== ultimo.current) return;
           setEstado(r.ok ? { tipo: 'PRONTA', previa: r.valor } : { tipo: 'MOTIVO', texto: r.erros.map((x) => x.mensagem).join(' ') });
@@ -103,8 +137,13 @@ export function FormPosicao({
         });
     }, ESPERA_PREVIA_MS);
     return () => clearTimeout(espera);
-  }, [campos, exercicioId, previa]);
+  }, [campos, exercicioId, previa, posicao]);
   const prefixo = posicao ? 'alterar-posicao' : 'nova-posicao';
+  // O cargo da posição fora da escolha continua no seletor, com "(inativo)" quando for o caso.
+  const foraDaLista = cargoForaDaLista(cargos, posicao);
+  const comSeletor = temSeletor(cargos, posicao);
+  const escolhido = cargos.cargos.find((c) => c.id === campos.cargoId);
+  const textoLivre = campos.cargoId === '';
   return (
     <section aria-labelledby={`${prefixo}-titulo`}>
       <h2 id={`${prefixo}-titulo`}>{posicao ? 'Alterar posição' : 'Nova posição'}</h2>
@@ -130,11 +169,45 @@ export function FormPosicao({
             </select>
             <ErroDoCampo campo="cc" />
           </p>
-          <p>
-            <label htmlFor={`${prefixo}-cargo`}>Cargo</label>
-            <input id={`${prefixo}-cargo`} name="cargo" maxLength={120} defaultValue={posicao?.cargo ?? ''} aria-required="true" aria-describedby="erro-cargo" />
-            <ErroDoCampo campo="cargo" />
-          </p>
+          {comSeletor ? (
+            <p>
+              <label htmlFor={`${prefixo}-cargo-id`}>Cargo do cadastro</label>
+              <select id={`${prefixo}-cargo-id`} name="cargoId" defaultValue={campos.cargoId} aria-required="true" aria-describedby="erro-cargoId">
+                {!posicao && (
+                  <option value={NAO_ESCOLHIDO} disabled>
+                    {MENSAGENS_ORC.CARGO_ESCOLHA}
+                  </option>
+                )}
+                {cargos.cargos.map((c) => (
+                  <option key={c.id} value={c.id}>{`${c.codigo} – ${c.nome}`}</option>
+                ))}
+                {foraDaLista && (
+                  <option value={foraDaLista.cargoId!}>{foraDaLista.cargoInativo ? `${foraDaLista.cargo} ${MENSAGENS_ORC.CARGO_INATIVO_ROTULO}` : foraDaLista.cargo}</option>
+                )}
+                <option value="">{posicao && !posicao.cargoId ? MENSAGENS_ORC.CARGO_MANTER_TEXTO(posicao.cargo) : MENSAGENS_ORC.CARGO_TEXTO_LIVRE}</option>
+              </select>
+              <ErroDoCampo campo="cargoId" />
+            </p>
+          ) : (
+            <>
+              <input type="hidden" name="cargoId" value="" />
+              <p role="note">{MENSAGENS_ORC.SEM_CARGO_DO_CADASTRO}</p>
+            </>
+          )}
+          {textoLivre && (
+            <p>
+              <label htmlFor={`${prefixo}-cargo`}>Cargo em texto</label>
+              <input id={`${prefixo}-cargo`} name="cargo" maxLength={120} defaultValue={posicao && !posicao.cargoId ? posicao.cargo : ''} aria-required="true" aria-describedby="erro-cargo" />
+              <ErroDoCampo campo="cargo" />
+            </p>
+          )}
+          {cargos.aviso && <p role="note">{cargos.aviso}</p>}
+          {cargos.comSalario && escolhido?.salarioFonteAtiva && (
+            <p>
+              {`Fonte Ativa: ${reais(escolhido.salarioFonteAtiva)}`}
+              {escolhido.faixa && ` · Faixa de mercado: ${reais(escolhido.faixa.minimo)} a ${reais(escolhido.faixa.maximo)}`}
+            </p>
+          )}
           <p>
             <label htmlFor={`${prefixo}-quantidade`}>{`Quantidade (1 a ${new Intl.NumberFormat('pt-BR').format(quantidadeMaxima)})`}</label>
             <input id={`${prefixo}-quantidade`} name="quantidade" inputMode="numeric" defaultValue={posicao?.quantidade ?? ''} aria-required="true" aria-describedby="erro-quantidade" />
@@ -142,7 +215,17 @@ export function FormPosicao({
           </p>
           <p>
             <label htmlFor={`${prefixo}-salario`}>Salário mensal (R$)</label>
-            <input id={`${prefixo}-salario`} name="salarioMensal" inputMode="decimal" placeholder="0,00" defaultValue={posicao?.salarioMensal ?? ''} aria-required="true" aria-describedby="erro-salarioMensal" />
+            {/* Controlado: a troca de cargo sugere o salário (D-P15-2); a mudança é lida pelo onChange da div. */}
+            <input
+              id={`${prefixo}-salario`}
+              name="salarioMensal"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={campos.salarioMensal}
+              onChange={() => undefined}
+              aria-required="true"
+              aria-describedby="erro-salarioMensal"
+            />
             <ErroDoCampo campo="salarioMensal" />
           </p>
           <p>

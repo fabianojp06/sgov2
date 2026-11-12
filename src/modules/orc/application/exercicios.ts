@@ -86,8 +86,9 @@ export async function criarExercicio(ctx: ContextoRequisicao, bruto: unknown, de
         const posicoesValidas = posicoes.filter((p) => indice.centroCustoAnalitico(p.cc));
         const pacotesValidos = pacotes.filter((k) => indice.centroCustoAnalitico(k.cc) && indice.contaAnaliticaAtiva(k.conta) && !contasVetadas.has(k.conta));
         await tx.posicaoOrcada.createMany({
-          data: posicoesValidas.map(({ cc, cargo, quantidade, salarioMensal, mesInicio, mesSaida, observacao }) => ({
-            exercicioId: novo.id, cc, cargo, quantidade, salarioMensal, mesInicio, mesSaida, observacao, origem: 'COPIA',
+          // O cargo do cadastro de C&S vai junto (P15, D-P15-1).
+          data: posicoesValidas.map(({ cc, cargo, cargoId, quantidade, salarioMensal, mesInicio, mesSaida, observacao }) => ({
+            exercicioId: novo.id, cc, cargo, cargoId, quantidade, salarioMensal, mesInicio, mesSaida, observacao, origem: 'COPIA',
           })),
         });
         await tx.pacoteBaseZero.createMany({

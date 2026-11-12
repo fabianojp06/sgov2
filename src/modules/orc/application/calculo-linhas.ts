@@ -6,6 +6,7 @@ import { Dinheiro, ErroDominio, falha, ok, type ErroCampo, type Resultado } from
 import { editavel, ROTULO_SITUACAO, type SituacaoExercicio } from '../domain/exercicio';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import { calcularPacote } from '../domain/pacote';
+import { avisosDosCargos, carregarCargos, custoDaPosicao } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
 
@@ -74,11 +75,13 @@ export async function recalcularExercicio(tx: TxCliente, exercicioId: string, de
 
   // Tudo calculado antes de qualquer escrita: com um erro, nada é gravado.
   const linhas: { cc: string; conta: string; origem: 'PESSOAL' | 'BASE_ZERO'; componente: string | null; posicaoId: string | null; pacoteId: string | null; meses: string[]; total: string }[] = [];
+  // Com cargo do cadastro, os benefícios e o adicional do cargo (P15, D-P15-3): uma leitura dos cargos e
+  // um beneficiosDoCargo por cargo distinto.
+  const cargos = await carregarCargos(tx, deps);
   for (const p of posicoes) {
-    const r = deps.custoPessoal.calcularCustoPosicao(
-      { quantidade: p.quantidade, salarioMensal: dinheiro(p.salarioMensal), mesInicio: p.mesInicio, mesSaida: p.mesSaida },
-      premissas,
-    );
+    const r = await custoDaPosicao(tx, deps, cargos, premissas, {
+      quantidade: p.quantidade, salarioMensal: dinheiro(p.salarioMensal), mesInicio: p.mesInicio, mesSaida: p.mesSaida, cargoId: p.cargoId,
+    });
     if (!r.ok) {
       throw new ErroRecalculo(
         r.erros.map((erro) => ({ campo: `posicoes.${p.id}.${erro.campo}`, mensagem: `CC ${p.cc}, cargo ${p.cargo}: ${erro.mensagem}` })),
@@ -109,7 +112,13 @@ export async function recalcularExercicio(tx: TxCliente, exercicioId: string, de
     where: { id: exercicioId },
     data: { versaoPremissas: premissas.versao, versao: { increment: 1 }, atualizadoEm: deps.agora() },
   });
-  return { posicoes: posicoes.length, pacotes: pacotes.length, linhas: linhas.length, versaoPremissas: premissas.versao, avisos: premissas.avisos };
+  return {
+    posicoes: posicoes.length,
+    pacotes: pacotes.length,
+    linhas: linhas.length,
+    versaoPremissas: premissas.versao,
+    avisos: [...premissas.avisos, ...avisosDosCargos(cargos, premissas)],
+  };
 }
 
 // "Recalcular" (orc.orcamento:alterar; R9): refaz as linhas com as premissas atuais e audita a

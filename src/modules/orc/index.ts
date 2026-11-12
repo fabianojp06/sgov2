@@ -19,7 +19,16 @@ export { listarExercicios, sugerirAno, type ResumoExercicio } from './applicatio
 export { avancarExercicio, criarExercicio, type ResultadoCriacao } from './application/exercicios';
 export { importarPlanilha, type DepsImportacao, type ResultadoImportacao } from './application/importacao';
 export { listarPacotes, opcoesPacote, type ListaPacotes, type OpcoesPacote, type PacoteTela } from './application/pacotes';
-export { listarPosicoes, opcoesPosicao, type ListaPosicoes, type OpcoesPosicao, type PosicaoTela } from './application/posicoes';
+export {
+  cargosParaPosicao,
+  listarPosicoes,
+  opcoesPosicao,
+  type CargosPosicao,
+  type ListaPosicoes,
+  type OpcaoCargo,
+  type OpcoesPosicao,
+  type PosicaoTela,
+} from './application/posicoes';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
 export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
 export { MENSAGENS_ORC } from './domain/mensagens';

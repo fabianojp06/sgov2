@@ -1,14 +1,19 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { obterEscopoCentroCusto } from '@/modules/adm';
 import {
+  beneficiosDoCargo,
   calcularCustoPosicao,
   carregarIndiceEstrutura,
   congelarPremissasExercicio,
   garantirPremissasExercicio,
   listarArvoreCentrosCusto,
   listarArvoreContas,
+  listarCargosSemSalarioCifrado,
   obterPremissasExercicio,
+  type CargoExercicio,
+  type OpcoesCargosExercicio,
 } from '@/modules/cad/servidor';
+import type { TxCliente } from '@/shared/db';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import type { Percentual } from '@/shared/kernel';
@@ -37,7 +42,16 @@ export type DepsOrc = {
     obterPremissasExercicio: typeof obterPremissasExercicio;
     garantirPremissasExercicio: typeof garantirPremissasExercicio;
     congelarPremissasExercicio: typeof congelarPremissasExercicio;
+    // C2, acréscimo de C&S (P15): sem a cifra, para o motor, os nomes e a lista (D-P15-3).
+    listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
+    beneficiosDoCargo: typeof beneficiosDoCargo;
   };
+  /**
+   * Cargos com o salário da Fonte Ativa decifrado (listarCargosExercicio do index do cad), só para a
+   * escolha do cargo na posição (D-P15-2). Opcional: sem ele, o caso de uso importa o index do cad na
+   * hora (await import), para o orc não levar a cifra ao caminho da seed, da importação e do worker.
+   */
+  cargosDecifrados?: (tx: TxCliente, opcoes?: OpcoesCargosExercicio) => Promise<readonly CargoExercicio[]>;
   obterEscopo: typeof obterEscopoCentroCusto;
   semaforo: ProvedorSemaforo | null;
 };
@@ -52,7 +66,10 @@ export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
       obterPremissasExercicio,
       garantirPremissasExercicio,
       congelarPremissasExercicio,
+      listarCargosSemSalarioCifrado,
+      beneficiosDoCargo,
     },
+    ...(deps.cargosDecifrados ? { cargosDecifrados: deps.cargosDecifrados } : {}),
     obterEscopo: deps.obterEscopo ?? obterEscopoCentroCusto,
     semaforo: deps.semaforo ?? null,
   };
