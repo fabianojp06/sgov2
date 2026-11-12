@@ -43,24 +43,45 @@ enum SituacaoCarga {
 // (R5): a recarga só atualiza descrição e situação. O reduzido é único entre as ativas
 // (índice parcial na migration).
 model ContaContabil {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  classificacao  String          @unique
-  codigoReduzido String?         @map("codigo_reduzido")
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classificacao  String               @unique
+  codigoReduzido String?              @map("codigo_reduzido")
   descricao      String
-  nivel          Int             @db.SmallInt
+  nivel          Int                  @db.SmallInt
   tipo           TipoConta
-  paiId          String?         @map("pai_id") @db.Uuid
-  pai            ContaContabil?  @relation("ContaPai", fields: [paiId], references: [id], onDelete: Restrict)
-  filhos         ContaContabil[] @relation("ContaPai")
-  ativa          Boolean         @default(true)
-  inativadaEm    DateTime?       @map("inativada_em") @db.Timestamptz(6)
-  cargaId        String          @map("carga_id") @db.Uuid
-  carga          CargaEstrutura  @relation(fields: [cargaId], references: [id], onDelete: Restrict)
-  criadoEm       DateTime        @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  atualizadoEm   DateTime        @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  paiId          String?              @map("pai_id") @db.Uuid
+  pai            ContaContabil?       @relation("ContaPai", fields: [paiId], references: [id], onDelete: Restrict)
+  filhos         ContaContabil[]      @relation("ContaPai")
+  parametroLocal ContaParametroLocal?
+  ativa          Boolean              @default(true)
+  inativadaEm    DateTime?            @map("inativada_em") @db.Timestamptz(6)
+  cargaId        String               @map("carga_id") @db.Uuid
+  carga          CargaEstrutura       @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  criadoEm       DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm   DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
 
   @@index([paiId])
   @@map("conta_contabil")
+}
+
+enum NaturezaConta {
+  OPEX
+  CAPEX
+}
+
+// Parâmetros locais da conta analítica (US-045; RF_PLA_REQ_003, C7, C27): natureza e faixas do
+// semáforo próprias (as três ou nenhuma; sem elas, valem as do exercício). Só conta analítica (trigger).
+model ContaParametroLocal {
+  contaId            String         @id @map("conta_id") @db.Uuid
+  conta              ContaContabil  @relation(fields: [contaId], references: [id], onDelete: Restrict)
+  natureza           NaturezaConta?
+  semaforoVerdeAte   Decimal?       @map("semaforo_verde_ate") @db.Decimal(9, 4)
+  semaforoAmareloAte Decimal?       @map("semaforo_amarelo_ate") @db.Decimal(9, 4)
+  semaforoLaranjaAte Decimal?       @map("semaforo_laranja_ate") @db.Decimal(9, 4)
+  versao             Int            @default(1)
+  atualizadoEm       DateTime       @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@map("conta_parametro_local")
 }
 
 // Lote de carga (R6): gravado PENDENTE pelo app (sgo_app, só as colunas de entrada) e processado
