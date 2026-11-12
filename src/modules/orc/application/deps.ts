@@ -1,3 +1,4 @@
+import { estruturaDaAdmCentral } from './adm-central';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { obterEscopoCentroCusto } from '@/modules/adm';
 import {
@@ -32,11 +33,14 @@ export type ProvedorSemaforo = {
 export type DepsOrc = {
   cliente: PrismaClient;
   agora: () => Date;
+  /** O C1 visto pela Adm. Central: dos CCs, só a raiz 4 (C37). */
   estrutura: {
     carregarIndiceEstrutura: typeof carregarIndiceEstrutura;
     listarArvoreCentrosCusto: typeof listarArvoreCentrosCusto;
     listarArvoreContas: typeof listarArvoreContas;
   };
+  /** O C1 inteiro, com a estrutura de TPs: só para a proposta de TP (R4). */
+  estruturaCompleta: DepsOrc['estrutura'];
   custoPessoal: {
     calcularCustoPosicao: typeof calcularCustoPosicao;
     obterPremissasExercicio: typeof obterPremissasExercicio;
@@ -60,7 +64,10 @@ export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
   return {
     cliente: deps.cliente ?? prisma,
     agora: deps.agora ?? (() => new Date()),
-    estrutura: deps.estrutura ?? { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas },
+    // Só a raiz 4 (C37): os CCs de TP não entram no orçamento da Adm. Central (adm-central.ts). Um falso
+    // injetado passa pelo mesmo filtro. A estrutura inteira fica em estruturaCompleta (proposta de TP).
+    estrutura: estruturaDaAdmCentral(deps.estruturaCompleta ?? deps.estrutura ?? { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas }),
+    estruturaCompleta: deps.estruturaCompleta ?? deps.estrutura ?? { carregarIndiceEstrutura, listarArvoreCentrosCusto, listarArvoreContas },
     custoPessoal: deps.custoPessoal ?? {
       calcularCustoPosicao,
       obterPremissasExercicio,
