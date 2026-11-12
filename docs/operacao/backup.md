@@ -23,6 +23,8 @@ Backup com recuperação ponto a ponto (PITR), dump diário cifrado e teste de r
 
 `docker/postgres-ambiente.Dockerfile`: a mesma `pgvector/pgvector:pg16` do CI, fixada pelo digest, com o pgBackRest.
 
+- **Digest em três lugares, trocados juntos:** o `ci.yml` (serviço do job Migrations), o `postgres-ambiente.Dockerfile` e o `tests/integracao/banco.ts` (`IMAGEM_BANCO`, da frente A, #431). Assim, os testes, o CI, hml e prod usam o mesmo Postgres.
+
 - O `imagem.yml` publica a cada merge na `main`: `sgov2-postgres:sha-<commit>` e `:atual`.
 - **O arquivamento só liga com o repositório configurado.** Ele depende da variável `PGBACKREST_REPO1_S3_BUCKET` (`docker/postgres/entrypoint-backup.sh`). Sem ela, o banco sobe como a pgvector comum. É seguro trocar a imagem antes de o storage existir: um `archive_command` sem destino guardaria os WAL até encher o disco.
 - A configuração fixa está em `docker/postgres/pgbackrest.conf`: cifra AES-256 do repositório, retenção de 30 dias e compressão zstd. O resto vem das variáveis do serviço `db`.
