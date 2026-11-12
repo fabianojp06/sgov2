@@ -66,9 +66,20 @@ describe('seedOrc', () => {
       'orc.orcamento:consultar', 'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.posicoes:alterar', 'orc.posicoes:consultar', 'orc.posicoes:excluir', 'orc.posicoes:incluir',
     ]);
-    for (const perfil of ['ADMINISTRADOR', 'ORCAMENTISTA', 'ANALISTA_GRH', 'OPERADOR_VIAGENS']) {
+    // #403: o Administrador pede a avaliação da sugestão de conta na /int/ia; sem orc.pacotes, não lança pacote.
+    expect(await permissoes('ADMINISTRADOR')).toEqual(['orc.ia_sugestao_conta:executar']);
+    for (const perfil of ['ORCAMENTISTA', 'ANALISTA_GRH', 'OPERADOR_VIAGENS']) {
       expect(await permissoes(perfil)).toEqual([]);
     }
+  });
+
+  it('casos de IA: só a sugestão de conta é avaliável (fila ia.avaliar, #403)', async () => {
+    const casos = await cliente.iaCasoUso.findMany({ where: { codigo: { startsWith: 'orc.' } }, select: { codigo: true, avaliavel: true }, orderBy: { codigo: 'asc' } });
+    expect(casos).toEqual([
+      { codigo: 'orc.ia_justificativa', avaliavel: false },
+      { codigo: 'orc.ia_revisor', avaliavel: false },
+      { codigo: 'orc.ia_sugestao_conta', avaliavel: true },
+    ]);
   });
 
   it('segunda execução não muda nada', async () => {

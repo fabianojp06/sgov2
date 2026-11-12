@@ -1,12 +1,12 @@
 import { ErroIA, type CodigoErroIA, type QuemPedeIA, type ServicoIA } from '@/shared/ia';
-import { TEMPO_LIMITE_IA_MS, tempoEsgotado } from '../../application/ia-deps';
-import { consultarSugestaoConta, type ListasSugestao } from '../../application/ia-sugestao-conta';
+import { TEMPO_LIMITE_IA_MS, tempoEsgotado } from '../../application/ia-erros';
+import { consultarSugestaoConta, type ListasSugestao } from '../../application/ia-sugestao-conta-consulta';
 
 // Avaliação da sugestão de conta antes de ligar o caso (US-062; plano do P14, D-P14-9): para cada caso
 // sintético, a mesma consulta e a mesma conferência do caso de uso; acerto quando a conta esperada está
 // entre as (até 3) contas válidas devolvidas. Critério para ligar: 80 % no top-3 [PROVISÓRIO], medido
-// em hml por um job próprio (issue da frente A). Aqui não há banco nem tela: quem roda passa o serviço,
-// quem pede e as listas (as mesmas de opcoesPacote).
+// em hml pela fila ia.avaliar (avaliador.ts, #403). Aqui não há banco nem tela: quem roda passa o
+// serviço, quem pede e as listas (as mesmas de opcoesPacote).
 
 export type CasoAvaliacaoConta = { descricao: string; contaEsperada: string };
 /** errosIa: casos sem resposta aproveitável (contam no total, nunca como acerto). */
@@ -18,6 +18,11 @@ export type OpcoesAvaliacaoConta = ListasSugestao & {
   esperar?: (ms: number) => Promise<void>;
   /** Tentativas de cada caso diante do limite por minuto (padrão 3). */
   tentativas?: number;
+  /**
+   * Sinal da avaliação inteira (o do pedido da fila ia.avaliar): combinado com o de cada caso. Abortado,
+   * a avaliação para com ErroIA('ia.cancelada'), sem contar os casos que faltam como erro da IA.
+   */
+  sinalGeral?: AbortSignal;
 };
 
 // O limite por minuto da governança conta a janela do último minuto: espera um minuto inteiro.
@@ -38,24 +43,31 @@ export async function avaliarSugestaoConta(
   const novoSinal = opcoes.sinal ?? (() => AbortSignal.timeout(TEMPO_LIMITE_IA_MS));
   const esperar = opcoes.esperar ?? esperarPadrao;
   const tentativas = Math.max(1, opcoes.tentativas ?? TENTATIVAS_PADRAO);
+  const geral = opcoes.sinalGeral;
+  const pararSeCancelada = () => {
+    if (geral?.aborted) throw new ErroIA('ia.cancelada');
+  };
   let acertosTop3 = 0;
   let errosIa = 0;
   // Um caso por vez, sem pedidos em paralelo. Quando o limite por minuto recusa, espera e repete o
   // mesmo caso, até o máximo de tentativas; esgotadas, o caso conta como erro da IA.
   for (const caso of casos) {
     for (let tentativa = 1; ; tentativa++) {
-      const sinal = novoSinal();
+      pararSeCancelada();
+      const sinalCaso = novoSinal();
+      const sinal = geral ? AbortSignal.any([geral, sinalCaso]) : sinalCaso;
       try {
         const s = await consultarSugestaoConta(servico, quem, caso.descricao, opcoes, sinal);
         if (s.contas.some((c) => c.conta === caso.contaEsperada)) acertosTop3++;
         break;
       } catch (x) {
         if (!(x instanceof ErroIA)) throw x;
+        pararSeCancelada();
         if (x.codigo === 'ia.limite_usuario' && tentativa < tentativas) {
           await esperar(ESPERA_LIMITE_USUARIO_MS);
           continue;
         }
-        const doCaso = ERROS_DO_CASO.has(x.codigo) || x.codigo === 'ia.limite_usuario' || (x.codigo === 'ia.cancelada' && tempoEsgotado(sinal));
+        const doCaso = ERROS_DO_CASO.has(x.codigo) || x.codigo === 'ia.limite_usuario' || (x.codigo === 'ia.cancelada' && tempoEsgotado(sinalCaso));
         if (!doCaso) throw x;
         errosIa++;
         break;

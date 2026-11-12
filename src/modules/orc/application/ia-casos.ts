@@ -35,6 +35,8 @@ export const CASOS_IA_ORC = {
     nome: 'Sugestão de conta e CC pela descrição do gasto',
     funcionalidade: 'orc.ia_sugestao_conta',
     versaoInstrucao: 1,
+    // Tem avaliador no worker (fila ia.avaliar, #403): a tela /int/ia mostra o botão "Avaliar a qualidade".
+    avaliavel: true,
     padrao: { esforco: 'low' },
     instrucaoSistema: [
       'Você sugere a conta contábil e o centro de custo de um gasto do orçamento da Administração Central, a partir da descrição do gasto.',

@@ -121,7 +121,9 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     ajuda: 'Pede à IA a conta e o centro de custo do pacote base zero a partir da descrição do gasto. A IA só sugere; quem escolhe é a pessoa.',
     exibirNoMenu: false,
     acoes: ['executar'],
-    perfisPadrao: { GESTOR_DIRETORIA: ['executar'], GFIN: ['executar'] },
+    // ADMINISTRADOR (#403): é quem pede "Avaliar a qualidade" na /int/ia, e o avaliador roda em nome dele
+    // com esta permissão. Não abre o formulário de pacotes, que também exige orc.pacotes.
+    perfisPadrao: { GESTOR_DIRETORIA: ['executar'], GFIN: ['executar'], ADMINISTRADOR: ['executar'] },
   },
   {
     codigo: 'orc.ia_revisor',

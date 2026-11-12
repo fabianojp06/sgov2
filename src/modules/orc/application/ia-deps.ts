@@ -2,10 +2,10 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { servicoIA, type ServicoIA } from '@/shared/ia';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CASOS_IA_ORC } from './ia-casos';
+import { TEMPO_LIMITE_IA_MS } from './ia-erros';
 
 // Dependências dos casos de uso com IA: as do orc, o serviço de IA (com a governança) e o tempo
 // limite da chamada interativa (D-P14-4). Os testes trocam o serviço por um com o provedor falso.
-export const TEMPO_LIMITE_IA_MS = 30_000;
 export type DepsIaOrc = DepsOrc & { ia: ServicoIA; sinalIa: () => AbortSignal };
 
 export function resolverDepsIa(deps: Partial<DepsIaOrc> = {}): DepsIaOrc {
@@ -21,4 +21,4 @@ export function iaLiberada(ctx: ContextoRequisicao, caso: keyof typeof CASOS_IA_
 }
 
 // Ficam no ia-erros.ts, sem dependências de tela, para o revisor no worker usar também.
-export { mensagemErroIA, tempoEsgotado } from './ia-erros';
+export { mensagemErroIA, TEMPO_LIMITE_IA_MS, tempoEsgotado } from './ia-erros';

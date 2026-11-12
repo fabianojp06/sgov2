@@ -116,6 +116,50 @@ describe('avaliarSugestaoConta', () => {
     await expect(avaliarSugestaoConta(s, QUEM, caso, { ...LISTAS, sinal: () => AbortSignal.abort() })).rejects.toMatchObject({ codigo: 'ia.cancelada' });
   });
 
+  describe('sinal da avaliação inteira (sinalGeral)', () => {
+    const casos = [
+      { descricao: 'Resmas de papel para o setor', contaEsperada: '4.1.1.5.005' },
+      { descricao: 'Toners e cabos de rede para os computadores', contaEsperada: '4.1.1.5.028' },
+      { descricao: 'Curso de capacitação em licitações', contaEsperada: '4.1.1.6.011' },
+    ];
+    const respostas = { 'Resmas de papel': resposta('4.1.1.5.005'), 'Toners e cabos': resposta('4.1.1.5.028'), 'Curso de capacitação': resposta('4.1.1.6.011') };
+
+    it('abortado no meio da segunda chamada: ErroIA ia.cancelada, sem contar como erro da IA nem seguir para o terceiro caso', async () => {
+      const geral = new AbortController();
+      const { s } = servico(respostas);
+      let n = 0;
+      const comAborto = {
+        gerarEstruturado: (...a: Parameters<ServicoIA['gerarEstruturado']>) => {
+          if (++n === 2) geral.abort(new DOMException('tempo da avaliação esgotado', 'TimeoutError'));
+          return s.gerarEstruturado(...a);
+        },
+      } as Pick<ServicoIA, 'gerarEstruturado'> as ServicoIA;
+      const r = avaliarSugestaoConta(comAborto, QUEM, casos, { ...LISTAS, ...semEspera, sinalGeral: geral.signal });
+      await expect(r).rejects.toBeInstanceOf(ErroIA);
+      await expect(r).rejects.toMatchObject({ codigo: 'ia.cancelada' });
+      expect(n).toBe(2);
+    });
+
+    it('com o sinal geral presente, o tempo esgotado de um caso conta como erro da IA e a avaliação continua', async () => {
+      const { s, falso } = servico(respostas);
+      let n = 0;
+      const sinal = () => (++n === 1 ? AbortSignal.abort(new DOMException('tempo esgotado', 'TimeoutError')) : AbortSignal.timeout(30_000));
+      const r = await avaliarSugestaoConta(s, QUEM, casos, { ...LISTAS, ...semEspera, sinal, sinalGeral: new AbortController().signal });
+      expect(r).toEqual({ total: 3, acertosTop3: 2, errosIa: 1, taxa: 2 / 3 });
+      expect(falso.chamadas).toHaveLength(3);
+    });
+
+    it('abortado durante a espera do limite por minuto: ErroIA ia.cancelada, sem nova tentativa', async () => {
+      const geral = new AbortController();
+      const { s, falso } = servico(respostas, { 'Resmas de papel': ['ia.limite_usuario'] });
+      const esperar = async () => {
+        geral.abort();
+      };
+      await expect(avaliarSugestaoConta(s, QUEM, casos, { ...LISTAS, esperar, sinalGeral: geral.signal })).rejects.toMatchObject({ codigo: 'ia.cancelada' });
+      expect(falso.chamadas).toHaveLength(1);
+    });
+  });
+
   it('sem casos: taxa zero', async () => {
     expect(await avaliarSugestaoConta(servico({}).s, QUEM, [], LISTAS)).toEqual({ total: 0, acertosTop3: 0, errosIa: 0, taxa: 0 });
   });

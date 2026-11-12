@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
-import { carregarPermissoes, manutencaoEfetiva, obterConfiguracaoAcesso, obterEscopoCentroCusto, obterUsuarioParaSessao } from '@/modules/adm/servidor';
 import { listarArvoreCentrosCusto, listarArvoreContas } from '@/modules/cad/servidor';
-import { ErroIA, servicoIA, type QuemPedeIA, type ServicoIA } from '@/shared/ia';
+import { ErroIA, servicoIA, type ServicoIA } from '@/shared/ia';
 import { Dinheiro } from '@/shared/kernel';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import type { Prioridade } from '../domain/pacote';
@@ -22,6 +21,7 @@ import { ROTULO_PRIORIDADE } from '../domain/sugestao-ia';
 import { semMarcas } from '../domain/texto';
 import { CASOS_IA_ORC } from './ia-casos';
 import { mensagemErroIA } from './ia-erros';
+import { FUNCOES_PESSOA_IA, remontarPessoaIA, type FuncoesPessoaIA } from './ia-pessoa';
 
 // Processamento do revisor no worker (US-064; plano do P14, D-P14-6 a D-P14-8). Sem sessão: quem pediu
 // é remontado do banco, como no provedor de contexto (ativo, sem bloqueio, sistema ativo, permissões do
@@ -51,13 +51,7 @@ export type DepsRevisor = {
   agora: () => Date;
   sinalIa: () => AbortSignal;
   estrutura: { listarArvoreCentrosCusto: typeof listarArvoreCentrosCusto; listarArvoreContas: typeof listarArvoreContas };
-  pessoa: {
-    obterUsuarioParaSessao: typeof obterUsuarioParaSessao;
-    carregarPermissoes: typeof carregarPermissoes;
-    obterConfiguracaoAcesso: typeof obterConfiguracaoAcesso;
-    manutencaoEfetiva: typeof manutencaoEfetiva;
-    obterEscopo: typeof obterEscopoCentroCusto;
-  };
+  pessoa: FuncoesPessoaIA;
 };
 
 export function resolverDepsRevisor(d: Partial<DepsRevisor> & Pick<DepsRevisor, 'cliente'>): DepsRevisor {
@@ -67,7 +61,7 @@ export function resolverDepsRevisor(d: Partial<DepsRevisor> & Pick<DepsRevisor, 
     agora: d.agora ?? (() => new Date()),
     sinalIa: d.sinalIa ?? (() => AbortSignal.timeout(TEMPO_LIMITE_REVISOR_MS)),
     estrutura: d.estrutura ?? { listarArvoreCentrosCusto, listarArvoreContas },
-    pessoa: d.pessoa ?? { obterUsuarioParaSessao, carregarPermissoes, obterConfiguracaoAcesso, manutencaoEfetiva, obterEscopo: obterEscopoCentroCusto },
+    pessoa: d.pessoa ?? FUNCOES_PESSOA_IA,
   };
 }
 
@@ -105,23 +99,6 @@ type LinhaLida = { cc: string; conta: string; origem: string; total: Dinheiro };
 
 // Snapshot do ano anterior (§6.2): só as linhas interessam (CC, conta, origem e total, como texto).
 const LINHAS_SNAPSHOT = z.object({ linhas: z.array(z.object({ cc: z.string(), conta: z.string(), origem: z.string(), total: z.string() })) });
-
-/** Quem pediu, como no provedor de contexto; null quando a pessoa não pode mais revisar. */
-type Pessoa = Exclude<QuemPedeIA, { sistema: true }>;
-async function quemPediu(usuarioId: string, deps: DepsRevisor): Promise<Pessoa | null> {
-  const c = deps.cliente;
-  const u = await deps.pessoa.obterUsuarioParaSessao(c, usuarioId);
-  if (!u || !u.ativo || u.bloqueado) return null;
-  // Sistema desativado: só o Administrador fica, e só com a Administração (sem o orc).
-  if (deps.pessoa.manutencaoEfetiva(await deps.pessoa.obterConfiguracaoAcesso(c), deps.agora())) return null;
-  const permissoes = await deps.pessoa.carregarPermissoes(c, usuarioId);
-  // A mesma guarda do pedido: orc.aprovacao:executar e sem CC de escopo (R15).
-  if (!permissoes.has('orc.aprovacao:executar')) return null;
-  if ((await deps.pessoa.obterEscopo(c, usuarioId)) !== null) return null;
-  // Sem unidade: o orçamento da Adm. Central não é de nenhum TP (o Histórico do orc também grava unidade
-  // nula, contextoAuditoria), então a chamada à IA vai só com a pessoa.
-  return { usuarioId, unidadeId: null, permissoes };
-}
 
 function descricoes(nos: readonly { classificacao: string; descricao: string; filhos: readonly unknown[] }[], saida = new Map<string, string>()): Map<string, string> {
   for (const n of nos) {
@@ -251,7 +228,8 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   const achados = parcial.achados;
 
   // A parte da IA (D-P14-6, D-P14-8).
-  const quem = await quemPediu(r.solicitadoPor, deps);
+  // A mesma guarda do pedido: orc.aprovacao:executar e sem CC de escopo (R15).
+  const quem = await remontarPessoaIA(r.solicitadoPor, 'orc.aprovacao:executar', deps);
   if (!quem) {
     avisos.push(MENSAGENS_ORC.REVISAO_SEM_ACESSO);
     return { achados, avisos };
