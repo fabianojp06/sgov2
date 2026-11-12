@@ -145,15 +145,15 @@ const importaDaGuarda = (arquivo: ts.SourceFile, nome: string) =>
   );
 const importaExigirPagina = (arquivo: ts.SourceFile) => importaDaGuarda(arquivo, 'exigirPagina');
 
-// O provedor de contexto só é configurado pelo aut (#177): fora dele, só os testes importam a configuração.
-const CONFIGURACAO = '@/shared/authz/configuracao';
+// O provedor de contexto e o auditor de negação só são configurados pelo aut (#177). A checagem é pelo
+// nome das funções, não pelo caminho: elas saem também por @/shared/authz/contexto, por caminho relativo,
+// por reexportação ou por import dinâmico. Fora do aut, do próprio authz e dos testes, nenhuma citação.
+const CONFIGURADORES = ['configurarProvedorContexto', 'configurarAuditorNegacao'];
 const ehTeste = (caminho: string) => /\.(test|spec)\.\w+$/.test(caminho);
 export function problemasDeConfiguracao(caminho: string, texto: string): string[] {
-  if (caminho.startsWith('src/modules/aut/') || ehTeste(caminho)) return [];
-  const importa = analisar(texto).statements.some(
-    (s) => ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && s.moduleSpecifier.text === CONFIGURACAO,
-  );
-  return importa ? [`${CONFIGURACAO} só no módulo aut e nos testes`] : [];
+  if (caminho.startsWith('src/modules/aut/') || caminho.startsWith('src/shared/authz/') || ehTeste(caminho)) return [];
+  const arquivo = analisar(texto);
+  return CONFIGURADORES.filter((nome) => citaIdentificador(arquivo, nome)).map((nome) => `${nome} só no módulo aut e nos testes`);
 }
 
 // Exports que o Next executa fora do corpo da página (e, portanto, sem a guarda dela).
@@ -406,9 +406,18 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
     expect(problemasDeConfiguracao('src/modules/aut/application/registrar.ts', texto)).toEqual([]);
     expect(problemasDeConfiguracao('src/modules/orc/ui/paginas-x.test.ts', texto)).toEqual([]);
     expect(problemasDeConfiguracao('tests/integracao/x.int.test.ts', texto)).toEqual([]);
-    expect(problemasDeConfiguracao('src/modules/orc/application/x.ts', texto)).toEqual(['@/shared/authz/configuracao só no módulo aut e nos testes']);
-    expect(problemasDoArquivo('src/modules/cad/ui/x.tsx', texto)).toContain('@/shared/authz/configuracao só no módulo aut e nos testes');
+    expect(problemasDeConfiguracao('src/shared/authz/configuracao.ts', texto)).toEqual([]);
+    expect(problemasDeConfiguracao('src/modules/orc/application/x.ts', texto)).toEqual(['configurarProvedorContexto só no módulo aut e nos testes']);
+    expect(problemasDoArquivo('src/modules/cad/ui/x.tsx', texto)).toContain('configurarProvedorContexto só no módulo aut e nos testes');
   });
+  // Revisão 12.12 do #430: os outros caminhos até as mesmas funções.
+  it.each([
+    [`import { configurarProvedorContexto } from '@/shared/authz/contexto';`],
+    [`import { configurarProvedorContexto } from '../../../shared/authz/configuracao';`],
+    [`export { configurarProvedorContexto } from '@/shared/authz/configuracao';`],
+    [`const m = await import('@/shared/authz/configuracao');\nm.configurarProvedorContexto({} as never);`],
+    [`import { configurarAuditorNegacao as x } from '@/shared/authz/configuracao';`],
+  ])('configuração fora do aut: %j', (codigo) => expect(problemasDeConfiguracao('src/modules/orc/application/x.ts', codigo)).not.toEqual([]));
 
   it.each([
     ['export const POST = async () => new Response();', 'POST não usa definirRota'],

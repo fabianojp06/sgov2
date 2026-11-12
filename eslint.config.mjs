@@ -165,8 +165,9 @@ export default tseslint.config(
     ignores: ['src/shared/kernel/decimal.ts', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {
       // #168: Number(x), +x e Math.floor/ceil/trunc ficam liberados de propósito. No domain/ e no
-      // kernel/ eles só convertem inteiros (dia, mês, nível, quantidade): barrá-los pediria 20 exceções
-      // sem proteger dinheiro nenhum, que já passa pelo tipo Dinheiro.
+      // kernel/ eles só convertem inteiros (dia, mês, nível, quantidade): barrá-los pediria cerca de 15
+      // exceções sem proteger dinheiro nenhum, que já passa pelo tipo Dinheiro. O apelido `const m = Math`
+      // também não é barrado: a regra é textual, e o tipo Dinheiro é a proteção de fato.
       'no-restricted-syntax': [
         'error',
         { selector: "CallExpression[callee.name='parseFloat']", message: MSG_DINHEIRO },
