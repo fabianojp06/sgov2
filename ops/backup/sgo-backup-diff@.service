@@ -1,0 +1,12 @@
+[Unit]
+Description=SGO — backup diferencial do pgBackRest (%i; US-015)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sgo/alerta.env
+
+ExecStart=/usr/local/sbin/sgo-backup-pgbackrest %i diff
+Nice=10
+IOSchedulingClass=idle

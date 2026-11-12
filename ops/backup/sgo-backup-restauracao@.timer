@@ -1,0 +1,11 @@
+[Unit]
+Description=SGO — teste de restauração mensal (%i; US-015)
+
+[Timer]
+OnCalendar=*-*-01 04:00:00
+# hml e prod não começam juntos.
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=SGO — dump diário (%i; US-015)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+# hml e prod não começam juntos.
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

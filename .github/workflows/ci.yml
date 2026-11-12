@@ -175,3 +175,9 @@ jobs:
         run: docker build -f docker/app.Dockerfile -t sgo:ci .
       - name: Testes da imagem
         run: docker/testes/testar-imagem.sh sgo:ci
+      # Banco de hml e prod com o pgBackRest (US-015): backup full e diferencial e restauração pelos
+      # scripts de ops/backup, com um repositório local no lugar do storage externo.
+      - name: Build da imagem do banco
+        run: docker build -f docker/postgres-ambiente.Dockerfile -t sgo-postgres:ci .
+      - name: Prova do backup e da restauração
+        run: docker/testes/testar-backup.sh sgo-postgres:ci

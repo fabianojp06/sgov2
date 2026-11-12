@@ -1,0 +1,12 @@
+[Unit]
+Description=SGO — dump diário cifrado (%i; US-015)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sgo/alerta.env
+EnvironmentFile=/etc/sgo/backup-dump-%i.env
+ExecStart=/usr/local/sbin/sgo-backup-dump %i
+Nice=10
+IOSchedulingClass=idle
