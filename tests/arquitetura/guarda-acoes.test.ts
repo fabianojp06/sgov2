@@ -112,7 +112,12 @@ export function problemasDeAcao(texto: string, caminho?: string): string[] {
   const prologo = arquivo.statements.findIndex((s) => !(ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)));
   const topo = arquivo.statements.slice(0, prologo === -1 ? undefined : prologo);
   if (!topo.some(ehDiretiva)) return problemas;
-  return [...problemas, ...exportacoes(arquivo, 'definirAcao', () => true)];
+  const semImport = citaIdentificador(arquivo, 'definirAcao') && !importaDaGuarda(arquivo, 'definirAcao');
+  return [
+    ...problemas,
+    ...exportacoes(arquivo, 'definirAcao', () => true),
+    ...(semImport ? ["definirAcao precisa ser importado de '@/shared/authz'"] : []),
+  ];
 }
 
 // Página do sistema (P5): o export default é uma função async cujo corpo começa com
@@ -126,8 +131,8 @@ export const ehPaginaDoSistema = (caminho: string) =>
 export const PAGINAS_PUBLICAS = new Set(['src/app/page.tsx', 'src/app/login/page.tsx', 'src/app/troca-senha/page.tsx']);
 const ehPagina = (caminho: string) => /^src\/app\/(.+\/)?(page|default)\.(tsx|ts|jsx|js)$/.test(caminho);
 
-// exigirPagina tem de vir da guarda real, não de um falso local.
-const importaExigirPagina = (arquivo: ts.SourceFile) =>
+// exigirPagina, definirAcao e definirRota têm de vir da guarda real, não de um falso local (#177).
+const importaDaGuarda = (arquivo: ts.SourceFile, nome: string) =>
   arquivo.statements.some(
     (s) =>
       ts.isImportDeclaration(s) &&
@@ -136,8 +141,20 @@ const importaExigirPagina = (arquivo: ts.SourceFile) =>
       !s.importClause?.isTypeOnly &&
       s.importClause?.namedBindings !== undefined &&
       ts.isNamedImports(s.importClause.namedBindings) &&
-      s.importClause.namedBindings.elements.some((e) => e.name.text === 'exigirPagina' && !e.propertyName && !e.isTypeOnly),
+      s.importClause.namedBindings.elements.some((e) => e.name.text === nome && !e.propertyName && !e.isTypeOnly),
   );
+const importaExigirPagina = (arquivo: ts.SourceFile) => importaDaGuarda(arquivo, 'exigirPagina');
+
+// O provedor de contexto e o auditor de negação só são configurados pelo aut (#177). A checagem é pelo
+// nome das funções, não pelo caminho: elas saem também por @/shared/authz/contexto, por caminho relativo,
+// por reexportação ou por import dinâmico. Fora do aut, do próprio authz e dos testes, nenhuma citação.
+const CONFIGURADORES = ['configurarProvedorContexto', 'configurarAuditorNegacao'];
+const ehTeste = (caminho: string) => /\.(test|spec)\.\w+$/.test(caminho);
+export function problemasDeConfiguracao(caminho: string, texto: string): string[] {
+  if (caminho.startsWith('src/modules/aut/') || caminho.startsWith('src/shared/authz/') || ehTeste(caminho)) return [];
+  const arquivo = analisar(texto);
+  return CONFIGURADORES.filter((nome) => citaIdentificador(arquivo, nome)).map((nome) => `${nome} só no módulo aut e nos testes`);
+}
 
 // Exports que o Next executa fora do corpo da página (e, portanto, sem a guarda dela).
 const EXPORTS_PROIBIDOS = new Set(['generateMetadata', 'generateViewport']);
@@ -204,6 +221,7 @@ export function problemasDeRotaPublica(texto: string): string[] {
 export function problemasDoArquivo(caminho: string, texto: string): string[] {
   const rota = /^route\.\w+$/.test(caminho.split('/').pop() ?? '');
   return [
+    ...problemasDeConfiguracao(caminho, texto),
     ...problemasDeAcao(texto, caminho),
     ...(rota ? (ROTAS_PUBLICAS.has(caminho) ? problemasDeRotaPublica(texto) : problemasDeRota(texto)) : []),
     ...(ehPaginaDoSistema(caminho) ? problemasDePagina(texto) : []),
@@ -214,7 +232,12 @@ export function problemasDoArquivo(caminho: string, texto: string): string[] {
 }
 
 export function problemasDeRota(texto: string): string[] {
-  return exportacoes(analisar(texto), 'definirRota', (nome) => METODOS.has(nome));
+  const arquivo = analisar(texto);
+  const semImport = citaIdentificador(arquivo, 'definirRota') && !importaDaGuarda(arquivo, 'definirRota');
+  return [
+    ...exportacoes(arquivo, 'definirRota', (nome) => METODOS.has(nome)),
+    ...(semImport ? ["definirRota precisa ser importado de '@/shared/authz'"] : []),
+  ];
 }
 
 function listar(dir: string): string[] {
@@ -361,9 +384,40 @@ describe('guarda obrigatória: verificação contra fixtures', () => {
   ])('ação: %j → %s', (codigo, problema) => expect(problemasDeAcao(codigo)).toContain(problema));
 
   it.each([
-    [`${U}export const s = definirAcao({}, async () => 1);\nexport type T = string;`],
+    [`${U}import { definirAcao } from '@/shared/authz';\nexport const s = definirAcao({}, async () => 1);\nexport type T = string;`],
     [`import x from 'y';\nexport const s = 1;`],
   ])('ação aceita: %j', (codigo) => expect(problemasDeAcao(codigo)).toEqual([]));
+
+  // #177: a fábrica local (ou de outro módulo) sombrearia a guarda real.
+  it.each([
+    [`${U}const definirAcao = (_: unknown, f: unknown) => f;\nexport const s = definirAcao({}, async () => 1);`],
+    [`${U}import { definirAcao } from './falso';\nexport const s = definirAcao({}, async () => 1);`],
+    [`${U}import { definirAcao as d } from '@/shared/authz';\nconst definirAcao = d;\nexport const s = definirAcao({}, async () => 1);`],
+  ])('ação com definirAcao que não vem da guarda: %j', (codigo) =>
+    expect(problemasDeAcao(codigo)).toContain("definirAcao precisa ser importado de '@/shared/authz'"));
+  it('rota com definirRota que não vem da guarda', () => {
+    expect(problemasDeRota(`import { definirRota } from './falso';\nexport const GET = definirRota({}, async () => new Response());`)).toEqual([
+      "definirRota precisa ser importado de '@/shared/authz'",
+    ]);
+    expect(problemasDeRota(`import { definirRota } from '@/shared/authz';\nexport const GET = definirRota({}, async () => new Response());`)).toEqual([]);
+  });
+  it('a configuração da guarda só no aut e nos testes', () => {
+    const texto = `import { configurarProvedorContexto } from '@/shared/authz/configuracao';\nconfigurarProvedorContexto({} as never);`;
+    expect(problemasDeConfiguracao('src/modules/aut/application/registrar.ts', texto)).toEqual([]);
+    expect(problemasDeConfiguracao('src/modules/orc/ui/paginas-x.test.ts', texto)).toEqual([]);
+    expect(problemasDeConfiguracao('tests/integracao/x.int.test.ts', texto)).toEqual([]);
+    expect(problemasDeConfiguracao('src/shared/authz/configuracao.ts', texto)).toEqual([]);
+    expect(problemasDeConfiguracao('src/modules/orc/application/x.ts', texto)).toEqual(['configurarProvedorContexto só no módulo aut e nos testes']);
+    expect(problemasDoArquivo('src/modules/cad/ui/x.tsx', texto)).toContain('configurarProvedorContexto só no módulo aut e nos testes');
+  });
+  // Revisão 12.12 do #430: os outros caminhos até as mesmas funções.
+  it.each([
+    [`import { configurarProvedorContexto } from '@/shared/authz/contexto';`],
+    [`import { configurarProvedorContexto } from '../../../shared/authz/configuracao';`],
+    [`export { configurarProvedorContexto } from '@/shared/authz/configuracao';`],
+    [`const m = await import('@/shared/authz/configuracao');\nm.configurarProvedorContexto({} as never);`],
+    [`import { configurarAuditorNegacao as x } from '@/shared/authz/configuracao';`],
+  ])('configuração fora do aut: %j', (codigo) => expect(problemasDeConfiguracao('src/modules/orc/application/x.ts', codigo)).not.toEqual([]));
 
   it.each([
     ['export const POST = async () => new Response();', 'POST não usa definirRota'],

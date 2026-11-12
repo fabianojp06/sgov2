@@ -72,6 +72,14 @@ describe('number para dinheiro', () => {
     ['src/shared/kernel/dinheiro.ts', 'export const x = Math.round(1.5);', true],
     ['src/shared/kernel/dinheiro.ts', 'export const f = (v: { toFixed(n: number): string }) => v.toFixed(2);', true],
     ['src/shared/kernel/decimal.ts', 'export const f = (v: { toFixed(n: number): string }) => v.toFixed(2);', false],
+    // #168: toPrecision e globalThis.parseFloat também; os testes (.test e .spec, ts e tsx) ficam fora.
+    ['src/modules/orc/domain/a.ts', 'export const f = (v: number) => v.toPrecision(4);', true],
+    ['src/modules/orc/domain/a.ts', "export const x = globalThis.parseFloat('1.5');", true],
+    ['src/modules/orc/domain/a.test.ts', 'export const f = (v: number) => v.toFixed(2);', false],
+    ['src/modules/orc/domain/a.test.tsx', 'export const f = (v: number) => v.toFixed(2);', false],
+    ['src/modules/orc/domain/a.spec.ts', 'export const f = (v: number) => v.toFixed(2);', false],
+    // Conversão de inteiro (mês, quantidade) é permitida de propósito.
+    ['src/modules/orc/domain/a.ts', "export const mes = Number('12');", false],
     ['src/modules/orc/application/a.ts', 'export const x = Math.round(1.5);', false],
     ['src/modules/orc/domain/a.ts', 'export const x = Math.max(1, 2);', false],
   ])('%s com (%s) → erro=%s', async (arquivo, codigo, deveFalhar) => {

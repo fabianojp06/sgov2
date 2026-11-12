@@ -1,6 +1,6 @@
 'use server';
 
 // Fixture do teste de arquitetura da guarda (US-008): só o texto importa.
-declare const definirAcao: (...args: unknown[]) => unknown;
+import { definirAcao } from '@/shared/authz';
 
-export const salvar = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir' }, async () => 1);
+export const salvar = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir' } as never, async () => ({ ok: true as const, valor: 1 }));
