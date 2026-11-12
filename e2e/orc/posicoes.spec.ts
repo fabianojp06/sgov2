@@ -35,7 +35,7 @@ test.describe.serial(`posições de pessoal ${ANO}`, () => {
       await cliente.query(`DELETE FROM orc_pacote WHERE exercicio_id IN ${ex}`);
       await cliente.query(`DELETE FROM orc_posicao WHERE exercicio_id IN ${ex}`);
       await cliente.query(`DELETE FROM orc_exercicio WHERE ano = ${ANO}`);
-      for (const tabela of ['beneficio_mestre', 'encargo_exercicio', 'conta_componente_exercicio', 'parametros_exercicio']) {
+      for (const tabela of ['beneficio_cargo', 'beneficio_mestre', 'encargo_exercicio', 'conta_componente_exercicio', 'parametros_exercicio']) {
         await cliente.query(`DELETE FROM ${tabela} WHERE ano = ${ANO}`);
       }
       await cliente.query('COMMIT');
