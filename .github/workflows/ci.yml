@@ -158,6 +158,8 @@ jobs:
         run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
       - name: bats
         run: git ls-files '*.bats' | xargs -r -n1 dirname | sort -u | xargs -r bats
+      - name: URLs de banco versionadas só de dev
+        run: bash ops/ci/urls-banco.sh
 
   imagem:
     # Constrói a imagem de produção e a testa sem publicar (plano do P3, Tarefa 4, Step 6):
