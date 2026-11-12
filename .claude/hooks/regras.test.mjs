@@ -140,6 +140,23 @@ describe('avaliarComando', () => {
     ['psql service=prod', VAZIO, true],
     ['psql -d sgo', { PGSERVICE: 'prod' }, true],
     ['npx prisma db execute --url postgresql://u:x@10.0.1.5:5432/sgo --stdin', DEV_LOCAL, true],
+    // Revisão 12.12 do #426: & dentro da URL entre aspas é da query, não separador.
+    ['DATABASE_URL="postgresql://u:x@127.0.0.1:55432/sgo?schema=public&host=10.0.0.5" npx prisma migrate reset --force', VAZIO, true],
+    ['psql "postgresql://u@127.0.0.1:55432/x?sslmode=disable&host=10.0.0.5"', VAZIO, true],
+    ['psql "postgresql://u@127.0.0.1:55432/x?sslmode=disable&application_name=a"', VAZIO, false],
+    ['psql "postgresql://u@127.0.0.1:55432/x?service=prod"', VAZIO, true],
+    ["bash -c 'cd /tmp && psql -h sgo-prod_db'", VAZIO, true],
+    // Aspas no meio da palavra e "/./".
+    ['docker exec sgo-p"r"od_db ls', VAZIO, true],
+    ['cat /etc/"easy"panel/x', VAZIO, true],
+    ['cat /etc/./easypanel/x', VAZIO, true],
+    ['git commit -m "ajuste" && git push -u origin us-1', VAZIO, false],
+    // Filtro do docker: prod e hml como palavra; --label=.
+    ['docker run --label=env=prod alpine', VAZIO, true],
+    ['docker ps --filter name=product-api', VAZIO, false],
+    ['docker ps --filter name=html-preview', VAZIO, false],
+    // env -u tira a URL, como o unset.
+    ['env -u DATABASE_URL npx prisma db push', DEV_LOCAL, true],
   ])('%s (env %j) → bloquear=%s', (comando, env, bloquear) => {
     const r = avaliarComando(comando, env);
     expect(r.bloquear).toBe(bloquear);
@@ -158,6 +175,11 @@ describe('avaliarComando', () => {
     ['git push -u origin us-056-x', 'main', false],
     ['git -C ../outra push', 'main', false],
     ['git push', undefined, false],
+    ['git push origin @', 'main', true],
+    ['git push -o ci.skip origin', 'main', true],
+    // Revisão 12.12 do #426: só o subcomando push conta.
+    ['git stash push -m wip', 'main', false],
+    ['git log -S push', 'main', false],
   ])('%s com o ramo %s → bloquear=%s', (comando, ramoAtual, bloquear) => {
     expect(avaliarComando(comando, VAZIO, {}, { ramoAtual }).bloquear).toBe(bloquear);
   });
@@ -173,6 +195,15 @@ describe('avaliarComando', () => {
     expect(avaliarComando('npm run db:push', DEV_LOCAL, {}, ctx).bloquear).toBe(false);
     expect(avaliarComando('DATABASE_URL=postgresql://u:x@10.0.1.5:5432/sgo npm run db:push', DEV_LOCAL, {}, ctx).bloquear).toBe(true);
     expect(avaliarComando('npm run lint && npm test', VAZIO, {}, ctx).bloquear).toBe(false);
+    // Revisão 12.12 do #426: opções com valor, yarn/pnpm sem run, apelidos e pre/post.
+    expect(avaliarComando('npm --prefix . run db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('npm -w pkg run db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('yarn db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('pnpm db:push', VAZIO, {}, ctx).bloquear).toBe(true);
+    expect(avaliarComando('npm t', VAZIO, {}, { scripts: { test: 'prisma db push' } }).bloquear).toBe(true);
+    expect(avaliarComando('npm run x', VAZIO, {}, { scripts: { x: 'echo', prex: 'prisma migrate reset --force' } }).bloquear).toBe(true);
+    expect(avaliarComando('npm run x', VAZIO, {}, { scripts: { x: 'echo', postx: 'prisma db push' } }).bloquear).toBe(true);
+    expect(avaliarComando('yarn install', VAZIO, {}, ctx).bloquear).toBe(false);
     // Laço de scripts que se chamam: a profundidade tem limite.
     expect(avaliarComando('npm run a', VAZIO, {}, { scripts: { a: 'npm run a' } }).bloquear).toBe(false);
   });

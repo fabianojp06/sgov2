@@ -38,7 +38,12 @@ function lerScripts(raiz) {
 /** Ramo em checkout na pasta do comando (git push sem destino vai para ele, #157). */
 function lerRamo(pasta) {
   try {
-    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: pasta, encoding: 'utf8', timeout: 2000 }).trim();
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: pasta,
+      encoding: 'utf8',
+      timeout: 2000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
   } catch {
     return undefined;
   }
@@ -57,10 +62,12 @@ try {
 
 const comando = entrada?.tool_input?.command ?? '';
 const raiz = process.env.CLAUDE_PROJECT_DIR ?? entrada?.cwd;
+// O ramo e os scripts são os da pasta do comando (uma worktree pode não ser a pasta do projeto). O git
+// só roda quando o comando fala em push.
 const pasta = entrada?.cwd ?? raiz;
 const { bloquear, motivo } = avaliarComando(comando, process.env, lerUrlsDosArquivos(raiz), {
-  ramoAtual: pasta ? lerRamo(pasta) : undefined,
-  scripts: raiz ? lerScripts(raiz) : {},
+  ramoAtual: pasta && /\bpush\b/.test(comando) ? lerRamo(pasta) : undefined,
+  scripts: pasta ? lerScripts(pasta) : {},
 });
 if (bloquear) {
   process.stderr.write(`Comando bloqueado pelo hook do SGO: ${motivo}\nExceção só com pedido explícito do PO.\n`);
