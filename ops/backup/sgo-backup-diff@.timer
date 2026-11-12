@@ -1,0 +1,11 @@
+[Unit]
+Description=SGO — backup diferencial de segunda a sábado (%i; US-015)
+
+[Timer]
+OnCalendar=Mon..Sat *-*-* 03:00:00
+# hml e prod não começam juntos.
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

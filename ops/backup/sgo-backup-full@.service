@@ -1,0 +1,13 @@
+[Unit]
+Description=SGO — backup full do pgBackRest (%i; US-015)
+After=docker.service
+Requires=docker.service
+OnFailure=sgo-backup-alerta@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sgo/alerta.env
+
+ExecStart=/usr/local/sbin/sgo-backup-pgbackrest %i full
+Nice=10
+IOSchedulingClass=idle

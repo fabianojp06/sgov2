@@ -1,0 +1,7 @@
+[Unit]
+Description=SGO — alerta de falha do backup (%i; US-015)
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sgo/alerta.env
+ExecStart=/usr/local/sbin/sgo-backup-alerta-falha %i

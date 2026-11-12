@@ -1,0 +1,11 @@
+[Unit]
+Description=SGO — backup full aos domingos (%i; US-015)
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+# hml e prod não começam juntos.
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

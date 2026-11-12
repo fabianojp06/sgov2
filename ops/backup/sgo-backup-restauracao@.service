@@ -1,0 +1,15 @@
+[Unit]
+Description=SGO — teste de restauração (%i; US-015)
+After=docker.service
+Requires=docker.service
+OnFailure=sgo-backup-alerta@%n.service
+
+[Service]
+# Um oneshot não tem limite de tempo por padrão: 2h impede um teste preso de ficar para sempre (o
+# script reprova antes, em 1h30, e registra a linha FALHOU).
+TimeoutStartSec=2h
+Type=oneshot
+EnvironmentFile=-/etc/sgo/alerta.env
+ExecStart=/usr/local/sbin/sgo-backup-restauracao %i
+Nice=10
+IOSchedulingClass=idle
