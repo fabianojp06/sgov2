@@ -23,7 +23,7 @@ const ctx = (permissoes: string[]): ContextoRequisicao => ({
   ip: '127.0.0.1',
   permissoes: new Set(permissoes),
 });
-const admin = () => ctx(['cad.instituicao:consultar', 'cad.instituicao:alterar']);
+const gfin = () => ctx(['cad.instituicao:consultar', 'cad.instituicao:alterar']);
 const leitor = () => ctx(['cad.instituicao:consultar']);
 const historicos = async () =>
   (await migrator.query(`SELECT funcionalidade, registro_id, antes, depois FROM historico_operacao WHERE funcionalidade = 'cad.instituicao' ORDER BY id`)).rows;
@@ -47,15 +47,14 @@ afterAll(async () => {
 });
 
 describe('nome de exibição da instituição', () => {
-  it('catálogo: o Administrador altera, a GFIN e o Auditor consultam', async () => {
+  it('catálogo: a GFIN altera e o Auditor consulta', async () => {
     const { rows } = await migrator.query(
       `SELECT p.codigo AS perfil, pp.acao FROM perfil_permissao pp JOIN perfil p ON p.id = pp.perfil_id
        WHERE pp.funcionalidade_codigo = 'cad.instituicao' ORDER BY 1, 2`,
     );
     expect(rows).toEqual([
-      { perfil: 'ADMINISTRADOR', acao: 'alterar' },
-      { perfil: 'ADMINISTRADOR', acao: 'consultar' },
       { perfil: 'AUDITOR', acao: 'consultar' },
+      { perfil: 'GFIN', acao: 'alterar' },
       { perfil: 'GFIN', acao: 'consultar' },
     ]);
   });
@@ -66,8 +65,8 @@ describe('nome de exibição da instituição', () => {
     await expect(obterTelaInstituicao(ctx([]), { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
   });
 
-  it('o Administrador grava pelo sgo_app, sem os espaços das pontas, com o antes e o depois no Histórico', async () => {
-    const r = await alterarNomeExibicao(admin(), { nome: '  Instituto Exemplo  ', anterior: '' }, { cliente: app });
+  it('a GFIN grava pelo sgo_app, sem os espaços das pontas, com o antes e o depois no Histórico', async () => {
+    const r = await alterarNomeExibicao(gfin(), { nome: '  Instituto Exemplo  ', anterior: '' }, { cliente: app });
     expect(r).toEqual({ ok: true, valor: { nome: 'Instituto Exemplo' } });
     expect(await obterParametroSistema(app, 'instituicao.nome_exibicao')).toBe('Instituto Exemplo');
     expect(await historicos()).toEqual([
@@ -76,20 +75,20 @@ describe('nome de exibição da instituição', () => {
   });
 
   it('o mesmo valor de novo não grava nem registra', async () => {
-    const r = await alterarNomeExibicao(admin(), { nome: 'Instituto Exemplo', anterior: 'Instituto Exemplo' }, { cliente: app });
+    const r = await alterarNomeExibicao(gfin(), { nome: 'Instituto Exemplo', anterior: 'Instituto Exemplo' }, { cliente: app });
     expect(r.ok).toBe(true);
     expect(await historicos()).toHaveLength(1);
   });
 
   it('valor anterior diferente do gravado (outra tela salvou antes) → concorrência, sem gravar', async () => {
-    const r = await alterarNomeExibicao(admin(), { nome: 'Outro nome', anterior: '' }, { cliente: app });
+    const r = await alterarNomeExibicao(gfin(), { nome: 'Outro nome', anterior: '' }, { cliente: app });
     expect(r).toMatchObject({ ok: false, erros: [{ campo: '_', mensagem: expect.stringContaining('alterado por outro usuário') }] });
     expect(await obterParametroSistema(app, 'instituicao.nome_exibicao')).toBe('Instituto Exemplo');
   });
 
   it('nome inválido não grava; vazio volta ao padrão', async () => {
-    expect(await alterarNomeExibicao(admin(), { nome: 'a\nb', anterior: 'Instituto Exemplo' }, { cliente: app })).toMatchObject({ ok: false, erros: [{ campo: 'nome' }] });
-    expect(await alterarNomeExibicao(admin(), { nome: '', anterior: 'Instituto Exemplo' }, { cliente: app })).toEqual({ ok: true, valor: { nome: '' } });
+    expect(await alterarNomeExibicao(gfin(), { nome: 'a\nb', anterior: 'Instituto Exemplo' }, { cliente: app })).toMatchObject({ ok: false, erros: [{ campo: 'nome' }] });
+    expect(await alterarNomeExibicao(gfin(), { nome: '', anterior: 'Instituto Exemplo' }, { cliente: app })).toEqual({ ok: true, valor: { nome: '' } });
     expect(await obterParametroSistema(app, 'instituicao.nome_exibicao')).toBe('');
   });
 });

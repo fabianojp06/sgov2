@@ -158,16 +158,18 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     // #434 (spec §6.7): o nome que as telas e os e-mails mostram; nunca fixo no código.
     codigo: 'cad.instituicao',
     modulo: 'CADASTROS',
-    grupo: 'Instituição',
+    // No grupo dos parâmetros, sem cabeçalho novo no menu.
+    grupo: 'Central de Cálculos',
     nome: 'Instituição',
     rota: '/cad/instituicao',
-    ordem: 1,
+    ordem: 3,
     nivelLog: 'SIMPLES',
     ajuda: 'Nome de exibição da instituição, usado nas telas e no cabeçalho dos e-mails. Em branco, o sistema mostra só "SGO".',
     acoes: ['consultar', 'alterar'],
+    // A GFIN, que já mantém os parâmetros e os cadastros. O Administrador fica de fora: o menu dele
+    // ganharia o grupo Cadastros só por este item e passaria de 1280×720 sem rolagem (RNF0008).
     perfisPadrao: {
-      ADMINISTRADOR: ['consultar', 'alterar'],
-      GFIN: ['consultar'],
+      GFIN: ['consultar', 'alterar'],
       AUDITOR: ['consultar'],
     },
   },
