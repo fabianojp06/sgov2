@@ -10,6 +10,9 @@ ALTER TABLE "unidade" ADD CONSTRAINT "unidade_cc_check" CHECK ("cc" IS NULL OR c
 -- Um CC por TP ativo (RN_TP_001). Excluir a proposta inativa a unidade e libera o CC (D-P17-10). O
 -- Prisma não declara índice parcial; na corrida, quem perde recebe a violação deste índice.
 CREATE UNIQUE INDEX "unidade_cc_ativa_key" ON "unidade" ("cc") WHERE "ativo" AND "cc" IS NOT NULL;
+-- O número do TP (unidade.codigo) é único também sem diferença de maiúsculas: TP-001 e tp-001 seriam o
+-- mesmo TP (revisão 12.12 do P17). Vale para toda unidade; o índice de expressão não entra no schema.
+CREATE UNIQUE INDEX "unidade_codigo_maiusculas_key" ON "unidade" (upper("codigo"));
 
 -- 2) Capa da proposta. Uma por unidade. Número do TP = unidade.codigo (único e imutável, também
 --    depois da exclusão); Valor Global sem coluna: é sempre calculado (§6.2, RN_TP_003).

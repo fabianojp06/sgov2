@@ -3,6 +3,7 @@ import { CENTROS_CUSTO_EXEMPLO, estruturaFinanceiraFalsa, type NoCentroCusto } f
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
 import { Dinheiro, ErroDominio } from '@/shared/kernel';
+import { aplicarUnidades } from '@/shared/unidade';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import type { DepsOrc } from './deps';
@@ -45,9 +46,9 @@ const RAIZ_TPS = no('9', 'Termos de Parceria', false, [
   no('9.3', 'TP de exemplo 3 (inativo)', true, [], false),
 ]);
 const estrutura = estruturaFinanceiraFalsa({ centrosCusto: [...CENTROS_CUSTO_EXEMPLO, RAIZ_TPS] });
-// A raiz 9 vai em estruturaCompleta (o C1 inteiro) e também em estrutura, enquanto o resolverDeps
-// ainda não tem o recorte da Adm. Central à raiz 4.
-const comDeps = (): Partial<DepsOrc> => ({ cliente: app, estrutura, estruturaCompleta: estrutura }) as Partial<DepsOrc>;
+// O falso com a raiz 9 é o C1 inteiro: o resolverDeps o põe em estruturaCompleta e recorta o deps.estrutura
+// à raiz 4 da Adm. Central (C37).
+const comDeps = (): Partial<DepsOrc> => ({ cliente: app, estrutura });
 
 const TODAS = ['orc.propostas:consultar', 'orc.propostas:incluir', 'orc.propostas:excluir'];
 let seq = 0;
@@ -164,8 +165,9 @@ describe('criarProposta', () => {
       situacao: 'RASCUNHO',
     });
     // O vínculo do criador também no Histórico do usuário (D-P17-3).
-    const vinculo = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'adm.usuarios', registroId: orcamentista, unidadeId: p.unidadeId } });
-    expect(vinculo).toEqual([expect.objectContaining({ tipoOperacao: 'INSERCAO', depois: { unidade: p.numero } })]);
+    // Como na tela de usuários (US-031): o evento do usuário não é de uma unidade; a unidade vai no depois.
+    const vinculo = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'adm.usuarios', registroId: orcamentista, descricao: { contains: p.numero } } });
+    expect(vinculo).toEqual([expect.objectContaining({ tipoOperacao: 'INSERCAO', unidadeId: null, depois: { unidadeId: p.unidadeId, numero: p.numero } })]);
   });
 
   it('número repetido (também o de uma proposta excluída) → NUMERO_DUPLICADO, sem erro 500 e sem gravar nada', async () => {
@@ -176,6 +178,22 @@ describe('criarProposta', () => {
     expect(await excluirProposta(await ctx(orcamentista), { id: p.id, versao: 0 }, comDeps())).toMatchObject({ ok: true });
     expect(await criarProposta(await ctx(orcamentista), capa({ numero: p.numero, cc: '9.2' }), comDeps())).toEqual(r);
     expect(await contagens(p.numero)).toEqual(antes);
+  });
+
+  it('número que só difere em maiúsculas é o mesmo TP → NUMERO_DUPLICADO; o índice do banco também barra', async () => {
+    const p = await criar({ numero: 'TP-MAIUSC/2027', cc: '9.1' });
+    expect(await criarProposta(await ctx(orcamentista), capa({ numero: 'tp-maiusc/2027', cc: '9.2' }), comDeps())).toEqual({
+      ok: false,
+      erros: [{ campo: 'numero', mensagem: M.NUMERO_DUPLICADO('tp-maiusc/2027') }],
+    });
+    await expect(migrator.unidade.create({ data: { codigo: 'Tp-Maiusc/2027', nome: 'x' } })).rejects.toThrow(/unidade_codigo_maiusculas_key|Unique constraint/);
+    expect(p.numero).toBe('TP-MAIUSC/2027');
+  });
+
+  it('a criação sobe a versão do criador: a ficha aberta antes na tela de usuários não apaga o vínculo (revisão 12.12)', async () => {
+    const antes = (await migrator.usuario.findUniqueOrThrow({ where: { id: orcamentista } })).versao;
+    await criar({ cc: '9.1' });
+    expect((await migrator.usuario.findUniqueOrThrow({ where: { id: orcamentista } })).versao).toBe(antes + 1);
   });
 
   it('CC de outro TP ativo → CC_DE_OUTRO_TP', async () => {
@@ -352,6 +370,38 @@ describe('banco', () => {
   it('CHECK da vigência: término com menos de 30 dias depois do início é recusado também no banco', async () => {
     const p = await criar({ cc: '9.1' });
     await expect(migrator.$executeRaw`UPDATE orc_proposta SET fim = inicio + 29 WHERE id = ${p.id}::uuid`).rejects.toThrow(/orc_proposta_vigencia_check/);
+  });
+
+  // RLS com o papel da aplicação (sgo_app) e o app.unidades restrito às unidades do usuário (revisão 12.12).
+  const comoApp = async <T>(usuarioId: string, fn: (tx: Parameters<Parameters<typeof app.$transaction>[0]>[0]) => Promise<T>) => {
+    const c = await ctx(usuarioId);
+    return app.$transaction(async (tx) => {
+      await aplicarUnidades(tx, c);
+      return fn(tx);
+    });
+  };
+
+  it('RLS (sgo_app): capa e versão em unidade alheia são recusadas pelo WITH CHECK; a versão com proposta alheia, pelo trigger', async () => {
+    const alheia = await criar({ cc: '9.1' }, outro);
+    const propria = await criar({ cc: '9.2' });
+    // Capa na unidade de outro TP: fora do app.unidades do orçamentista.
+    await expect(
+      comoApp(orcamentista, (tx) => tx.$executeRaw`INSERT INTO orc_proposta (unidade_id, tipo, objeto, inicio, fim, categoria, criado_por)
+        VALUES (${alheia.unidadeId}::uuid, 'CONTRATO', 'x', '2027-01-01', '2027-12-31', 'META', ${orcamentista}::uuid)`),
+    ).rejects.toThrow(/row-level security/);
+    // Versão na unidade de outro TP: o trigger (BEFORE) roda antes do WITH CHECK e, sob a RLS, não acha a
+    // proposta alheia; qualquer das duas defesas recusa.
+    await expect(
+      comoApp(orcamentista, (tx) => tx.$executeRaw`INSERT INTO orc_versao_proposta (unidade_id, proposta_id, numero, criado_por)
+        VALUES (${alheia.unidadeId}::uuid, ${alheia.id}::uuid, 2, ${orcamentista}::uuid)`),
+    ).rejects.toThrow(/row-level security|orc\.versao_proposta_outra_unidade/);
+    // Versão na própria unidade, mas apontando para a proposta alheia: sob a RLS, o trigger não acha a proposta.
+    await expect(
+      comoApp(orcamentista, (tx) => tx.$executeRaw`INSERT INTO orc_versao_proposta (unidade_id, proposta_id, numero, criado_por)
+        VALUES (${propria.unidadeId}::uuid, ${alheia.id}::uuid, 2, ${orcamentista}::uuid)`),
+    ).rejects.toThrow(/orc\.versao_proposta_outra_unidade/);
+    // E a leitura da capa alheia volta vazia.
+    expect(await comoApp(orcamentista, (tx) => tx.propostaTp.count({ where: { id: alheia.id } }))).toBe(0);
   });
 
   it('a versão é da mesma unidade da proposta', async () => {

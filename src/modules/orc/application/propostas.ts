@@ -3,6 +3,7 @@ import { Prisma } from '@/generated/prisma/client';
 import type { NoCentroCusto } from '@/modules/cad/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
+import type { TxCliente } from '@/shared/db';
 import { ConflitoConcorrencia, Dinheiro, exigirUmaLinha, falha, ok, type Resultado } from '@/shared/kernel';
 import { aplicarUnidades, emUnidade } from '@/shared/unidade';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
@@ -85,10 +86,9 @@ const entradaCriar = z
 const entradaExcluir = z.object({ id: z.string(), versao: z.coerce.number().int().min(0) }).strict();
 const uuid = z.uuid();
 
-// O C1 inteiro: os CCs de TP ficam fora da raiz 4 da Adm. Central (C37). Com o deps.estruturaCompleta
-// (que vem com o recorte do deps.estrutura à raiz 4), lê dele; sem ele, do deps.estrutura.
-type ComEstruturaCompleta = DepsOrc & { estruturaCompleta?: DepsOrc['estrutura'] };
-const estruturaInteira = (deps: DepsOrc): DepsOrc['estrutura'] => (deps as ComEstruturaCompleta).estruturaCompleta ?? deps.estrutura;
+// O C1 inteiro (deps.estruturaCompleta): o deps.estrutura do orc vê só a raiz 4 da Adm. Central (C37), e os
+// CCs de TP ficam fora dela.
+const estruturaInteira = (deps: DepsOrc): DepsOrc['estrutura'] => deps.estruturaCompleta;
 
 /** CCs analíticos ativos sob a raiz de TPs no C1 (D-P17-7). */
 async function ccsDeTp(deps: DepsOrc): Promise<readonly string[]> {
@@ -116,6 +116,11 @@ export async function ccsLivresParaTp(ctx: ContextoRequisicao, depsParciais: Par
   const nomes = descricoes(await estruturaInteira(deps).listarArvoreCentrosCusto(deps.cliente));
   return candidatos.filter((cc) => !ocupados.has(cc)).map((cc) => ({ classificacao: cc, descricao: nomes.get(cc) ?? cc }));
 }
+
+// O número do TP é único sem diferença de maiúsculas (índice unidade_codigo_maiusculas_key): TP-001 e tp-001
+// são o mesmo TP. A proposta excluída mantém o número ocupado (D-P17-10).
+const numeroEmUso = async (c: Pick<TxCliente, 'unidade'>, numero: string) =>
+  (await c.unidade.findFirst({ where: { codigo: { equals: numero, mode: 'insensitive' } }, select: { id: true } })) !== null;
 
 const numeroDuplicado = (numero: string) => falha([{ campo: 'numero', mensagem: M.NUMERO_DUPLICADO(numero) }]);
 const ccDeOutroTp = (cc: string) => falha([{ campo: 'cc', mensagem: M.CC_DE_OUTRO_TP(cc) }]);
@@ -146,11 +151,14 @@ export async function criarProposta(
   try {
     return await deps.cliente.$transaction(async (tx) => {
       // Conferência antes de gravar, para a mensagem certa sem depender do erro do índice.
-      if (await tx.unidade.findUnique({ where: { codigo: capa.numero }, select: { id: true } })) return numeroDuplicado(capa.numero);
+      if (await numeroEmUso(tx, capa.numero)) return numeroDuplicado(capa.numero);
       if (await tx.unidade.findFirst({ where: { cc: capa.cc, ativo: true }, select: { id: true } })) return ccDeOutroTp(capa.cc);
 
       const unidade = await tx.unidade.create({ data: { codigo: capa.numero, nome: nomeDaUnidade(capa.objeto), cc: capa.cc } });
       await tx.usuarioUnidade.create({ data: { usuarioId: ctx.usuarioId, unidadeId: unidade.id } });
+      // O vínculo muda o usuário: a versão dele sobe, para a ficha aberta antes na tela de usuários (US-031)
+      // não apagar o vínculo ao salvar (ela recusa a versão antiga com "alterado por outro").
+      await tx.usuario.updateMany({ where: { id: ctx.usuarioId }, data: { versao: { increment: 1 }, atualizadoEm: deps.agora() } });
       // A RLS da capa e da versão exige a unidade nova no app.unidades desta transação.
       await aplicarUnidades(tx, { ...ctx, unidades: [...(ctx.unidades ?? []), unidade.id] });
       const proposta = await tx.propostaTp.create({
@@ -177,20 +185,21 @@ export async function criarProposta(
         descricao: `Proposta do TP ${capa.numero} criada em Rascunho, com o CC ${capa.cc}`,
         depois: retrato(capa, 1, 'RASCUNHO'),
       });
+      // Como na tela de usuários (US-031): o evento do usuário não é de uma unidade, e a unidade vai no depois.
       await auditar(tx, {
-        contexto,
+        contexto: { ...contexto, unidadeId: null },
         funcionalidade: FUNCIONALIDADE_USUARIOS,
         tipo: 'INSERCAO',
         registroId: ctx.usuarioId,
         descricao: `Unidade ${capa.numero} associada ao usuário ${ctx.usuarioRotulo}, que criou a proposta do TP`,
-        depois: { unidade: capa.numero },
+        depois: { unidadeId: unidade.id, numero: capa.numero },
       });
       return ok({ id: proposta.id, unidadeId: unidade.id, numero: capa.numero });
     });
   } catch (erro) {
     if (!violouUnicidade(erro)) throw erro;
     // A transação perdeu a corrida: quem ganhou já gravou; a leitura de agora diz qual índice foi.
-    if (await deps.cliente.unidade.findUnique({ where: { codigo: capa.numero }, select: { id: true } })) return numeroDuplicado(capa.numero);
+    if (await numeroEmUso(deps.cliente, capa.numero)) return numeroDuplicado(capa.numero);
     if (await deps.cliente.unidade.findFirst({ where: { cc: capa.cc, ativo: true }, select: { id: true } })) return ccDeOutroTp(capa.cc);
     throw erro;
   }
