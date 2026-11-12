@@ -54,11 +54,11 @@ Quando uma migration falha, o Prisma a marca como falha em `_prisma_migrations` 
 
 A imagem traz a seed (`prisma/seed.ts` em bundle, `/app/seed/seed.mjs`): configuração de acesso, perfis, catálogo, administrador inicial e os dados de referência do `cad`. Ela roda **só** num serviço próprio, nunca no `app` nem no `worker`.
 
-- **Serviço `migracao`** (um por ambiente): a mesma imagem, com `implantar` no campo de argumentos. Ele migra, semeia e fica **parado e saudável** (`[IMPLANTAR_CONCLUIDO]` no log), para o Swarm do Easypanel não reiniciá-lo em laço. Uma falha na migração ou na seed encerra o contêiner com erro.
+- **Serviço `migracao`** (um por ambiente): a mesma imagem, com o modo `implantar` (veja "Comando dos serviços no Easypanel", abaixo). Ele migra, semeia e fica **parado e saudável** (`[IMPLANTAR_CONCLUIDO]` no log), para o Swarm do Easypanel não reiniciá-lo em laço. Uma falha na migração ou na seed encerra o contêiner com erro.
   - Variáveis: `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `AMBIENTE` (`hml` ou `producao`).
   - Em hml, também `CARGA_DADOS_REFERENCIA=1`: plano de contas oficial, minuta de CC provisória e cargos sintéticos. Em prod, **sem** ela: a seed recusa (R15).
   - No `app` de hml, `CC_CARGA_PROVISORIA=1`; no de prod, **sem** ela.
-- **Até a Tarefa 6 (sem webhook do `migracao`):** o deploy **não** semeia sozinho. A cada release com seed nova (catálogo, perfis, dados de referência), o PO faz o *redeploy* do serviço `migracao` no Easypanel **antes** do `app`.
+- **Sem webhook do `migracao`:** o deploy **não** semeia sozinho. A cada release com seed nova (catálogo, perfis, dados de referência), o PO faz o *redeploy* do serviço `migracao` no Easypanel **antes** do `app`.
 - **Ordem:** `migracao` → `app` → `worker`. Os webhooks são assíncronos e o `app` também migra: a ordem **não é garantida**. As duas migrações juntas são seguras (o Prisma usa trava consultiva). Mas um `app` novo pode subir antes da seed; até ela terminar, o primeiro acesso e as funcionalidades novas do catálogo ficam indisponíveis.
 - **Rollback:** voltar uma versão **não** chama o `migracao` (a seed antiga contra o schema novo não é testada). A seed da versão nova continua valendo.
 
@@ -137,12 +137,27 @@ A imagem traz a seed (`prisma/seed.ts` em bundle, `/app/seed/seed.mjs`): configu
   Um alerta de dentro da VPS cairia junto com ela. A conta e o e-mail do monitor não entram no repositório.
 - **Sem sessão, só esse caminho exato:** o `src/proxy.ts` libera só `/int/saude` (#401), e o teste de arquitetura aceita nele só o `GET` sem `definirRota` (#402).
 
+## Comando dos serviços no Easypanel
+
+O campo **Command** do serviço *App* do Easypanel **substitui o *entrypoint*** da imagem e roda o texto num `sh`. Só o modo (`implantar`, `worker`) não basta: o serviço sai com `/bin/sh: 1: implantar: not found` (código 127) e reinicia em laço. Use o comando completo, com o `tini` e o entrypoint da imagem:
+
+| Serviço | Command |
+| --- | --- |
+| `migracao` | `/usr/bin/tini -s -g -- /app/docker/entrypoint.sh implantar` |
+| `app` | `/usr/bin/tini -s -g -- /app/docker/entrypoint.sh app` |
+| `worker` | `/usr/bin/tini -s -g -- /app/docker/entrypoint.sh worker` |
+| `db` (Postgres) | **vazio**. Um comando aqui derruba o banco |
+
+- O `-s` registra o `tini` como *subreaper*. Sem ele, o log avisa que o `tini` não é o PID 1, e os processos zumbis não são recolhidos.
+- O *healthcheck* da imagem continua valendo, porque o Easypanel não o troca.
+- A imagem é privada no GHCR. Em **Source → Docker Image**, use o usuário do GitHub e um PAT clássico **só com `read:packages`**, um por ambiente.
+
 ## A imagem
 
 - `docker/app.Dockerfile`: app Next.js *standalone*, o worker (bundle do esbuild em `/app/worker/index.mjs`), a seed (bundle em `/app/seed/seed.mjs`, `docker/seed/build.mjs`) e o migrador autossuficiente em `/opt/migrador`. O `tini -g` é o PID 1, e ele e o entrypoint (com a migração) rodam como root. O servidor desce para o usuário `node` com `setpriv`, sem capacidades. Os arquivos pertencem ao root, e o `node` grava só em `/app/.next/cache`. Se uma rota futura usar ISR ou `revalidate`, ela vai precisar de escrita em `/app/.next/server`.
 - `docker/entrypoint.sh app`: migra o banco e só sobe o servidor se a migração passar. O servidor sobe **sem** a `MIGRATE_DATABASE_URL` no ambiente, e o usuário `node` não lê o ambiente do PID 1, onde ela está. O passo 7 do `testar-imagem.sh` prova isso.
 - Variáveis do serviço `app`: `DATABASE_URL` (`sgo_app`), `MIGRATE_DATABASE_URL` (`sgo_migrator`) e `URL_PUBLICA` (o endereço público com `https`, que o app exige em produção desde a US-026; ver `CONFIAR_PROXY` no `.env.example`). Para a IA, também a `ANTHROPIC_API_KEY` (ver o serviço `worker`, abaixo).
-- **Serviço `worker`:** a mesma imagem, com `worker` no campo de **argumentos** (o CMD) do Easypanel, sem trocar o *entrypoint*. O *healthcheck* e o `tini` dependem do *entrypoint* da imagem. Variáveis: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), `AMBIENTE` (`hml` ou `producao`) e `URL_PUBLICA` (a **mesma** do app), além das de e-mail abaixo. Sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
+- **Serviço `worker`:** a mesma imagem, com o modo `worker` (veja "Comando dos serviços no Easypanel", abaixo). Variáveis: `DATABASE_URL` (`sgo_app`), `FILA_DATABASE_URL` (`sgo_fila`), `SYNC_DATABASE_URL` (`sgo_sync`, só nele; `docs/operacao/ambientes.md`), `AMBIENTE` (`hml` ou `producao`) e `URL_PUBLICA` (a **mesma** do app), além das de e-mail abaixo. Sem a `MIGRATE_DATABASE_URL`, porque quem migra é só o app.
   - **Partida:** sem `AMBIENTE` válido ou sem `URL_PUBLICA`, o worker não parte (`AMBIENTE ausente ou inválido`, `[URL_PUBLICA_AUSENTE]`, `[URL_PUBLICA_INVALIDA]`). Uma `URL_PUBLICA` diferente da do app faz todo e-mail ser recusado na revalidação (falha definitiva no Histórico), nunca sair com link errado.
   - **IA (US-018/US-019):** `ANTHROPIC_API_KEY` **no `app` e no `worker`**. O app chama a IA nas telas, e o worker nos jobs, como o revisor antes do envio para aprovação (US-064, fila `orc.revisar`). As chaves de hml e de prod são separadas, e cada uma fica só nas variáveis do Easypanel, nunca no repositório nem em `.env`. Sem a chave, nada quebra: a IA responde "A IA não está configurada neste ambiente." (`ia.desabilitada`), e o revisor sai só com os achados das regras. A chave só habilita o provedor. Ligar a IA é na tela **Inteligência artificial** (`/int/ia`, Administrador): chave geral, casos de uso e tetos mensais, tudo desligado por padrão.
   - **E-mail (US-025):** `SMTP_HOST`, `SMTP_PORTA`, `SMTP_SEGURANCA` (`tls` ou `starttls`; `nenhuma` só no Mailpit de dev), `SMTP_USUARIO`, `SMTP_SENHA` e `EMAIL_REMETENTE` (`Nome <nao-responda@dominio>`), **só no serviço `worker`**. Sem `SMTP_HOST`, o log mostra `[EMAIL_SEM_SMTP]` e cada e-mail falha até a configuração (pendência P7 do plano do P4, GAP-INF-001).
