@@ -87,6 +87,10 @@ function migrarDeploy(urlMigrator: string): void {
   }
 }
 
+// A mesma imagem do CI (.github/workflows/ci.yml) e de hml/prod (docker/postgres-ambiente.Dockerfile),
+// fixada pelo digest (#165): a tag pg16 anda sozinha. Ao trocar, trocar nos três lugares.
+export const IMAGEM_BANCO = 'pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a';
+
 export async function iniciarBancoTeste(): Promise<{
   urlApp: string;
   urlMigrator: string;
@@ -94,7 +98,7 @@ export async function iniciarBancoTeste(): Promise<{
   idContainer: string;
   parar(): Promise<void>;
 }> {
-  const container = await new PostgresLocal('pgvector/pgvector:pg16').start();
+  const container = await new PostgresLocal(IMAGEM_BANCO).start();
   try {
     const host = `${container.getHost()}:${container.getPort()}`;
     await aplicarPapeis(container.getConnectionUri());
