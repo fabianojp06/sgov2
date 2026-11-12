@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedAdm } from '@/modules/adm';
-import { custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
+import { cargosExemplo, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo } from '@/modules/cad/servidor';
 import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { criarProvedorIAFalso, criarServicoIA, ErroIA, type CodigoErroIA, type ProvedorIA } from '@/shared/ia';
@@ -8,6 +8,7 @@ import { carregarPermissoes, manutencaoEfetiva, obterConfiguracaoAcesso, obterEs
 import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_ORC } from '../domain/mensagens';
+import { AVISO_SO_POSICOES } from '../domain/revisor-regras';
 import { seedOrc } from '../infrastructure/seed';
 import { criarTrabalhadorRevisor } from '../infrastructure/trabalhador-revisor';
 import { recalcularExercicio } from './calculo-linhas';
@@ -48,6 +49,10 @@ const PACOTES = ['consultar', 'incluir', 'alterar', 'excluir'].map((a) => perm('
 const VE_TUDO = [...APROVACAO, perm('orc.pacotes', 'consultar'), perm('orc.posicoes', 'consultar'), perm('orc.posicoes', 'alterar')];
 // Salário de valor único, numa posição sozinha no CC 4.4: nenhum valor dela pode ir para a IA.
 const SALARIO = '7777.77';
+
+// A posição da fixture não tem cargo do cadastro: fica fora da R4 e da R5, com o aviso só para quem
+// consulta posições (plano do P15, D-P15-4).
+const SEM_CARGO = `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(1)}`;
 
 const ctx = (usuarioId: string, permissoes: string[] = APROVACAO): ContextoRequisicao => ({
   usuarioId,
@@ -260,7 +265,7 @@ describe('processarRevisao', () => {
     const r = await revisao(id);
     expect(r.situacao).toBe('CONCLUIDA');
     expect(r.concluidoEm).not.toBeNull();
-    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    expect(r.avisos).toEqual([SEM_CARGO, MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
     expect(falso.chamadas).toHaveLength(0);
     const tela = await ultimaRevisao(ctx(p.id, VE_TUDO), e.id, { cliente: app, obterEscopo: async () => null });
     expect(tela?.achados.map((a) => [a.origem, a.tipo])).toEqual([
@@ -291,7 +296,7 @@ describe('processarRevisao', () => {
     const id = await pedir(e, p.id);
     await processarRevisao(id, depsRev());
     const r = await revisao(id);
-    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), SEM_CARGO, MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
     expect((r.achados as { tipo: string }[]).map((a) => a.tipo)).toEqual(['DUPLICADO', 'DESEJAVEIS_ACIMA_DO_TETO']);
   });
 
@@ -310,7 +315,7 @@ describe('processarRevisao', () => {
     await processarRevisao(id, depsRev());
     const r = await revisao(id);
     expect(r.situacao).toBe('CONCLUIDA');
-    expect(r.avisos).toEqual([]);
+    expect(r.avisos).toEqual([SEM_CARGO]);
     expect(await chamadas()).toBeGreaterThan(0);
     const ia = (r.achados as { origem: string }[]).filter((a) => a.origem === 'IA');
     expect(ia).toEqual([
@@ -371,7 +376,7 @@ describe('processarRevisao', () => {
     expect(falso.chamadas).toHaveLength(1);
     expect(falso.chamadas[0]!.mensagem).not.toContain('POS-');
     expect(falso.chamadas[0]!.mensagem).not.toContain('Analista');
-    expect((await revisao(id)).avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_POSICOES]);
+    expect((await revisao(id)).avisos).toEqual([SEM_CARGO, MENSAGENS_ORC.REVISAO_SEM_POSICOES]);
   });
 
   it('sem orc.ia_revisor:executar: só as regras, com o aviso de ia.sem_permissao', async () => {
@@ -382,7 +387,7 @@ describe('processarRevisao', () => {
     const r = await revisao(id);
     expect(falso.chamadas).toHaveLength(0);
     expect(r.situacao).toBe('CONCLUIDA');
-    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_ERRO_IA(new ErroIA('ia.sem_permissao').message)]);
+    expect(r.avisos).toEqual([SEM_CARGO, MENSAGENS_ORC.REVISAO_ERRO_IA(new ErroIA('ia.sem_permissao').message)]);
     expect((r.achados as { origem: string }[]).every((a) => a.origem === 'REGRA')).toBe(true);
   });
 
@@ -394,7 +399,7 @@ describe('processarRevisao', () => {
     await processarRevisao(id, depsRev());
     const r = await revisao(id);
     expect(falso.chamadas).toHaveLength(0);
-    expect(r).toMatchObject({ situacao: 'CONCLUIDA', avisos: [MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
+    expect(r).toMatchObject({ situacao: 'CONCLUIDA', avisos: [SEM_CARGO, MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
     expect((r.achados as unknown[]).length).toBe(4);
   });
 
@@ -409,7 +414,7 @@ describe('processarRevisao', () => {
     await mudar(p);
     await processarRevisao(id, depsRev());
     expect(falso.chamadas).toHaveLength(0);
-    expect(await revisao(id)).toMatchObject({ situacao: 'CONCLUIDA', avisos: [MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
+    expect(await revisao(id)).toMatchObject({ situacao: 'CONCLUIDA', avisos: [SEM_CARGO, MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
   });
 
   it('sistema em manutenção: sem chamada, só as regras, com o aviso', async () => {
@@ -423,7 +428,7 @@ describe('processarRevisao', () => {
       await migrator.configuracaoAcesso.update({ where: { id: 1 }, data: { manutencao: false } });
     }
     expect(falso.chamadas).toHaveLength(0);
-    expect(await revisao(id)).toMatchObject({ situacao: 'CONCLUIDA', avisos: [MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
+    expect(await revisao(id)).toMatchObject({ situacao: 'CONCLUIDA', avisos: [SEM_CARGO, MENSAGENS_ORC.REVISAO_SEM_ACESSO] });
   });
 
   it('sem orc.pacotes:consultar: nem pacotes nem totais na mensagem, com o aviso', async () => {
@@ -437,7 +442,7 @@ describe('processarRevisao', () => {
     expect(m).not.toContain('Totais por CC');
     expect(m).not.toContain('Cadeiras novas');
     expect(m).toContain('POS-1');
-    expect((await revisao(id)).avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_PACOTES]);
+    expect((await revisao(id)).avisos).toEqual([SEM_CARGO, MENSAGENS_ORC.REVISAO_SEM_PACOTES]);
   });
 
   it('tempo esgotado: CONCLUIDA com o aviso do tempo, não o do cancelamento', async () => {
@@ -454,7 +459,7 @@ describe('processarRevisao', () => {
     };
     const id = await pedir(e, p.id);
     await processarRevisao(id, depsRev({ ia: criarServicoIA({ cliente: app, obterProvedor: () => lento }), sinalIa: () => AbortSignal.timeout(20) }));
-    expect((await revisao(id)).avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_ERRO_IA(MENSAGENS_ORC.IA_TEMPO_ESGOTADO)]);
+    expect((await revisao(id)).avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), SEM_CARGO, MENSAGENS_ORC.REVISAO_ERRO_IA(MENSAGENS_ORC.IA_TEMPO_ESGOTADO)]);
   });
 
   it('PENDENTE parada há mais de 15 minutos: o worker conclui como FALHOU, sem chamar a IA', async () => {
@@ -482,7 +487,7 @@ describe('processarRevisao', () => {
     await processarRevisao(id, depsRev({ pessoa }));
     erro.mockRestore();
     const r = await revisao(id);
-    expect(r).toMatchObject({ situacao: 'FALHOU', avisos: [MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_PARADA] });
+    expect(r).toMatchObject({ situacao: 'FALHOU', avisos: [MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), SEM_CARGO, MENSAGENS_ORC.REVISAO_PARADA] });
     expect((r.achados as { tipo: string }[]).map((a) => a.tipo)).toEqual(['DUPLICADO', 'DESEJAVEIS_ACIMA_DO_TETO']);
   });
 
@@ -519,7 +524,7 @@ describe('processarRevisao', () => {
     await processarRevisao(id, depsRev());
     const r = await revisao(id);
     expect(r.situacao).toBe('CONCLUIDA');
-    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_ERRO_IA(new ErroIA(codigo).message)]);
+    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), SEM_CARGO, MENSAGENS_ORC.REVISAO_ERRO_IA(new ErroIA(codigo).message)]);
     expect((r.achados as { tipo: string }[]).map((a) => a.tipo)).toEqual(['DUPLICADO', 'DESEJAVEIS_ACIMA_DO_TETO']);
   });
 
@@ -577,5 +582,225 @@ describe('processarRevisao', () => {
     expect(falso.chamadas).toHaveLength(0);
     expect(r.situacao).toBe('CONCLUIDA');
     expect(r.avisos).toContain(MENSAGENS_ORC.REVISAO_GRANDE);
+  });
+});
+
+// Regras de pessoal (US-064; plano do P15, Task 2): R4, posição sem benefício, e R5, salário fora da
+// faixa do cargo. Cargos do falso: C001 (faixa 7.500,00 a 9.800,00), C002 (3.800,00 a 4.600,00), C003
+// (sem faixa) e C004 (inativo, 4.000,00 a 5.000,00). O exercício não tem linhas: nada de R1 a R3.
+describe('processarRevisao: regras de pessoal (R4 e R5)', () => {
+  const [C001, C002, , C004] = cargosExemplo();
+  const CAD_SALARIOS = perm('cad.salarios', 'consultar');
+
+  async function exercicioPessoal(posicoes: { cc: string; cargo: typeof C001 | null; salario: string; texto?: string }[]) {
+    const a = ano;
+    ano += 2;
+    const e = await migrator.orcamentoExercicio.create({ data: { ano: a } });
+    await migrator.$executeRaw`UPDATE orc_exercicio SET situacao = 'EM_ELABORACAO' WHERE id = ${e.id}::uuid`;
+    const criadas = [];
+    for (const p of posicoes) {
+      criadas.push(
+        await migrator.posicaoOrcada.create({
+          data: {
+            exercicioId: e.id,
+            cc: p.cc,
+            cargo: p.texto ?? p.cargo?.nome ?? 'Cargo em texto',
+            cargoId: p.cargo?.id ?? null,
+            quantidade: 1,
+            salarioMensal: p.salario,
+            mesInicio: 1,
+            mesSaida: 12,
+            origem: 'TELA',
+          },
+        }),
+      );
+    }
+    const versao = async () => (await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versao;
+    return { ...e, ano: a, posicoes: criadas, versao };
+  }
+
+  const custoDe = (a: number) => custoPessoalFalso([premissasExemplo(a)], cargosExemplo());
+  const regras = (achados: unknown) => (achados as { origem: string; tipo: string; texto: string; links: { href: string; salario?: boolean }[] }[]).filter((x) => x.origem === 'REGRA');
+  const tela = (usuarioId: string, e: { id: string }, permissoes: string[]) => ultimaRevisao(ctx(usuarioId, permissoes), e.id, { cliente: app, obterEscopo: async () => null });
+
+  it('R5: só a posição fora da faixa, com o link marcado com salário e sem valor no texto', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const e = await exercicioPessoal([
+      { cc: '4.3.0', cargo: C001!, salario: '7000.00' },
+      { cc: '4.4', cargo: C002!, salario: '4200.00' },
+    ]);
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custoDe(e.ano) }));
+    const r = await revisao(id);
+    expect(r.situacao).toBe('CONCLUIDA');
+    const [r5, ...resto] = regras(r.achados);
+    expect(resto).toEqual([]);
+    expect(r5).toEqual({
+      origem: 'REGRA',
+      tipo: 'SALARIO_FORA_DA_FAIXA',
+      texto: 'CC 4.3.0, cargo Analista de orçamento: salário mensal abaixo do mínimo da faixa de mercado do cargo.',
+      links: [{ rotulo: 'Posição 4.3.0 · Analista de orçamento', href: `/orc/posicoes?ano=${e.ano}&cc=4.3.0&editar=${e.posicoes[0]!.id}`, tipo: 'posicao', salario: true }],
+    });
+    // Todas as posições têm cargo: nenhum aviso de posição sem cargo.
+    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+  });
+
+  it('R4: só a posição do cargo sem benefício; R5 avalia o cargo inativo', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const e = await exercicioPessoal([
+      { cc: '4.3.0', cargo: C001!, salario: '8000.00' },
+      { cc: '4.4', cargo: C002!, salario: '4200.00' },
+      { cc: '4.3.2.10', cargo: C004!, salario: '6000.00' },
+    ]);
+    const falso = custoDe(e.ano);
+    const custo = { ...falso, beneficiosDoCargo: async (tx: Parameters<typeof falso.beneficiosDoCargo>[0], a: number, cargoId: string) => (cargoId === C002!.id ? { beneficios: [], avisos: [] } : falso.beneficiosDoCargo(tx, a, cargoId)) };
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custo }));
+    const achados = regras((await revisao(id)).achados);
+    expect(achados.map((a) => a.tipo)).toEqual(['POSICAO_SEM_BENEFICIO', 'SALARIO_FORA_DA_FAIXA']);
+    expect(achados[0]).toMatchObject({
+      texto: 'Cargo Técnico de manutenção: 1 posição sem benefício calculável no exercício.',
+      links: [{ href: `/orc/posicoes?ano=${e.ano}&cc=4.4&editar=${e.posicoes[1]!.id}`, tipo: 'posicao' }],
+    });
+    expect(achados[0]!.links[0]!.salario).toBeUndefined();
+    expect(achados[1]).toMatchObject({ texto: expect.stringContaining('cargo Cargo extinto: salário mensal acima do máximo'), links: [{ salario: true }] });
+  });
+
+  it('posições sem cargo do cadastro: fora da R4 e da R5, com o aviso marcado para quem consulta posições', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const e = await exercicioPessoal([
+      { cc: '4.3.0', cargo: null, salario: '1.00', texto: 'Analista de orçamento' },
+      { cc: '4.4', cargo: null, salario: '99999.00', texto: 'Técnico' },
+    ]);
+    const custo = { ...custoDe(e.ano), beneficiosDoCargo: async () => ({ beneficios: [], avisos: [] }) };
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custo }));
+    const r = await revisao(id);
+    expect(regras(r.achados)).toEqual([]);
+    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(2)}`, MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    expect(MENSAGENS_ORC.REVISAO_SEM_CARGO(2)).toContain('2 posições');
+  });
+
+  it('ano sem premissas: a R4 não roda e avisa (a R5 roda)', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const e = await exercicioPessoal([{ cc: '4.3.0', cargo: C001!, salario: '7000.00' }]);
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custoPessoalFalso([], cargosExemplo()) }));
+    const r = await revisao(id);
+    expect(regras(r.achados).map((a) => a.tipo)).toEqual(['SALARIO_FORA_DA_FAIXA']);
+    expect(r.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano)}`, MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    // O aviso revela que há posição com cargo: só para quem consulta posições, sem o prefixo.
+    expect((await tela(p.id, e, [...APROVACAO, perm('orc.posicoes', 'consultar')]))!.avisos).toContain(MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano));
+    expect((await tela(p.id, e, APROVACAO))!.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+  });
+
+  it('cargo que não está mais no cadastro: fora das regras, com aviso próprio, separado do de posição sem cargo', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const sumido = { ...C001!, id: '00000000-0000-4000-8000-0000000000ff', nome: 'Cargo sumido' };
+    const e = await exercicioPessoal([
+      { cc: '4.3.0', cargo: sumido, salario: '1.00' },
+      { cc: '4.4', cargo: null, salario: '1.00' },
+    ]);
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custoDe(e.ano) }));
+    const r = await revisao(id);
+    expect(regras(r.achados)).toEqual([]);
+    expect(r.avisos).toEqual([
+      MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1),
+      `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(1)}`,
+      `${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(1)}`,
+      MENSAGENS_ORC.REVISAO_IA_DESLIGADA,
+    ]);
+    expect(MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(1)).toBe('1 posição ligada a cargo que não está mais no cadastro ficou fora das regras de pessoal.');
+    expect(MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(2)).toBe('2 posições ligadas a cargo que não está mais no cadastro ficaram fora das regras de pessoal.');
+    expect((await tela(p.id, e, APROVACAO))!.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+  });
+
+  describe('IA (Review Focus 1)', () => {
+    // POS-1: C001 abaixo da faixa (R5); POS-2: C002 sem benefício (R4).
+    async function cenario(sem: string[] = []) {
+      const p = await gfin(sem);
+      const e = await exercicioPessoal([
+        { cc: '4.3.0', cargo: C001!, salario: '7000.00', texto: 'Texto antigo do cargo' },
+        { cc: '4.4', cargo: C002!, salario: '4200.00' },
+      ]);
+      const falso2 = custoDe(e.ano);
+      const custo = { ...falso2, beneficiosDoCargo: async (tx: Parameters<typeof falso2.beneficiosDoCargo>[0], a: number, cargoId: string) => (cargoId === C002!.id ? { beneficios: [], avisos: [] } : falso2.beneficiosDoCargo(tx, a, cargoId)) };
+      return { p, e, custo };
+    }
+
+    it('a R4 vai pelos apelidos; a R5, o salário e a faixa não vão; o nome do cadastro substitui o texto', async () => {
+      const { p, e, custo } = await cenario();
+      const id = await pedir(e, p.id);
+      await processarRevisao(id, depsRev({ custoPessoal: custo }));
+      expect(falso.chamadas).toHaveLength(1);
+      const m = falso.chamadas[0]!.mensagem;
+      expect(m).toContain('Posições sem benefício: POS-2');
+      expect(m).toContain('POS-1 | 4.3.0 | <<<Analista de orçamento>>> | 1 | 1 | 12');
+      expect(m).not.toContain('Texto antigo do cargo');
+      for (const proibido of ['faixa', 'Faixa', '7.000,00', '7000', '4.200,00', '4200', '7.500,00', '7500', '9.800,00', '9800', 'abaixo', 'acima do', 'Salário fora']) expect(m).not.toContain(proibido);
+      expect(m).not.toContain('acima do máximo');
+      expect(m).not.toContain('abaixo do mínimo');
+    });
+
+    it('sem orc.posicoes:consultar de quem pediu: a linha da R4 também não vai', async () => {
+      const { p, e, custo } = await cenario(['orc.posicoes']);
+      // Um pacote, para a IA ter o que ler (sem posições nem pacotes, ela não é chamada).
+      await migrator.pacoteBaseZero.create({
+        data: { exercicioId: e.id, cc: '4.3.0', conta: '4.1.1.5.005', justificativa: 'Material de escritório', prioridade: 'ESSENCIAL', quantidade: 1, valorUnitario: '10.00', corrigirIpca: false, distribuicao: 'MENSAL', origem: 'IMPORTACAO' },
+      });
+      const id = await pedir(e, p.id);
+      await processarRevisao(id, depsRev({ custoPessoal: custo }));
+      expect(falso.chamadas).toHaveLength(1);
+      expect(falso.chamadas[0]!.mensagem).not.toContain('Posições sem benefício');
+      expect(falso.chamadas[0]!.mensagem).not.toContain('POS-');
+      // As regras rodam mesmo assim (a tela filtra por quem vê).
+      expect(regras((await revisao(id)).achados).map((a) => a.tipo)).toEqual(['POSICAO_SEM_BENEFICIO', 'SALARIO_FORA_DA_FAIXA']);
+    });
+
+    it('achado da IA que cita a posição da R5 ganha a marca de salário; o de outra posição, não', async () => {
+      const { p, e, custo } = await cenario();
+      falso.roteiro.estruturado = {
+        achados: [
+          { tipo: 'OUTRO', referencias: [{ tipo: 'posicao', id: 'POS-1' }], texto: 'Sobre a posição da R5.' },
+          { tipo: 'OUTRO', referencias: [{ tipo: 'posicao', id: 'POS-2' }], texto: 'Sobre outra posição.' },
+        ],
+      };
+      const id = await pedir(e, p.id);
+      await processarRevisao(id, depsRev({ custoPessoal: custo }));
+      const ia = (await revisao(id)).achados as { origem: string; texto: string; links: { salario?: boolean; rotulo: string }[] }[];
+      const r5 = ia.find((a) => a.texto === 'Sobre a posição da R5.')!;
+      const outra = ia.find((a) => a.texto === 'Sobre outra posição.')!;
+      expect(r5.links).toEqual([expect.objectContaining({ tipo: 'posicao', salario: true, rotulo: 'Posição 4.3.0 · Analista de orçamento' })]);
+      expect(outra.links[0]!.salario).toBeUndefined();
+
+      // Tela (B3, B4): o R5 e o achado da IA da posição R5 só para quem vê o salário e o cad.salarios.
+      const base = [...APROVACAO, perm('orc.posicoes', 'consultar')];
+      const textos = async (permissoes: string[]) => (await tela(p.id, e, permissoes))!.achados.map((a) => a.texto);
+      const consulta = await textos(base);
+      expect(consulta).toEqual(['Cargo Técnico de manutenção: 1 posição sem benefício calculável no exercício.', 'Sobre outra posição.']);
+      expect(await textos([...base, perm('orc.posicoes', 'alterar')])).toEqual(consulta);
+      expect(await textos([...base, CAD_SALARIOS])).toEqual(consulta);
+      const tudo = await textos([...base, perm('orc.posicoes', 'alterar'), CAD_SALARIOS]);
+      expect(tudo).toHaveLength(4);
+      expect(tudo).toEqual(expect.arrayContaining(['Sobre a posição da R5.', expect.stringContaining('abaixo do mínimo')]));
+    });
+  });
+
+  it('tela: o aviso das posições sem cargo só para quem consulta posições, sem o prefixo', async () => {
+    await ligarCaso(false);
+    const p = await gfin();
+    const e = await exercicioPessoal([{ cc: '4.3.0', cargo: null, salario: '5000.00' }]);
+    const id = await pedir(e, p.id);
+    await processarRevisao(id, depsRev({ custoPessoal: custoDe(e.ano) }));
+    const comPosicoes = await tela(p.id, e, [...APROVACAO, perm('orc.posicoes', 'consultar')]);
+    expect(comPosicoes!.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_SEM_CARGO(1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
+    const sem = await tela(p.id, e, APROVACAO);
+    expect(sem!.avisos).toEqual([MENSAGENS_ORC.REVISAO_SEM_ANTERIOR(e.ano - 1), MENSAGENS_ORC.REVISAO_IA_DESLIGADA]);
   });
 });

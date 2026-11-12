@@ -140,4 +140,14 @@ export const MENSAGENS_ORC = {
   REVISAO_SEM_ANTERIOR: (ano: number) => `Não há orçamento oficializado de ${ano}; a comparação com o ano anterior não foi feita.`,
   REVISAO_SEM_PACOTES: 'Sem permissão para consultar os pacotes base zero, a IA não leu os pacotes nem os totais.',
   REVISAO_SEM_POSICOES: 'Sem permissão para consultar as posições de pessoal, a IA não leu as posições.',
+  // Regras de pessoal do revisor (plano do P15, D-P15-4) [PROVISÓRIOS].
+  REVISAO_SEM_PREMISSAS: (ano: number) => `O exercício ${ano} não tem premissas; a regra de benefícios não rodou.`,
+  REVISAO_SEM_CARGO: (n: number) =>
+    n === 1
+      ? '1 posição sem cargo do cadastro ficou fora das regras de benefício e de faixa salarial.'
+      : `${n} posições sem cargo do cadastro ficaram fora das regras de benefício e de faixa salarial.`,
+  REVISAO_CARGO_FORA_DO_CADASTRO: (n: number) =>
+    n === 1
+      ? '1 posição ligada a cargo que não está mais no cadastro ficou fora das regras de pessoal.'
+      : `${n} posições ligadas a cargo que não está mais no cadastro ficaram fora das regras de pessoal.`,
 } as const;

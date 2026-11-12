@@ -1,21 +1,32 @@
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
-import { listarArvoreCentrosCusto, listarArvoreContas } from '@/modules/cad/servidor';
+import {
+  beneficiosDoCargo,
+  listarArvoreCentrosCusto,
+  listarArvoreContas,
+  listarCargosSemSalarioCifrado,
+  obterPremissasExercicio,
+  type CargoExercicio,
+} from '@/modules/cad/servidor';
 import { ErroIA, servicoIA, type ServicoIA } from '@/shared/ia';
 import { Dinheiro } from '@/shared/kernel';
 import { MENSAGENS_ORC } from '../domain/mensagens';
 import type { Prioridade } from '../domain/pacote';
 import { calcularPainel } from '../domain/resultado';
 import {
+  AVISO_SO_POSICOES,
   regraAumento,
   regraDesejaveis,
   regraDuplicados,
+  regraForaDaFaixa,
+  regraSemBeneficio,
   TIPOS_ACHADO_IA,
   REVISAO_PARADA_MS,
   type Achado,
   type AchadoRegra,
   type LinkAchado,
   type PacoteRegra,
+  type PosicaoRegra,
 } from '../domain/revisor-regras';
 import { ROTULO_PRIORIDADE } from '../domain/sugestao-ia';
 import { semMarcas } from '../domain/texto';
@@ -28,7 +39,9 @@ import { FUNCOES_PESSOA_IA, remontarPessoaIA, type FuncoesPessoaIA } from './ia-
 // perfil) e a chamada à IA vai em nome dessa pessoa, nunca do sistema. Este arquivo não importa a
 // autorização de tela nem as dependências de página (o worker/bundle.test.ts reprova).
 //
-// - As regras R1 a R3 (domain/revisor-regras.ts) rodam sempre, sobre o exercício inteiro.
+// - As regras R1 a R5 (domain/revisor-regras.ts) rodam sempre, sobre o exercício inteiro. A R4 e a R5
+//   (plano do P15, D-P15-4) usam o cadastro de cargos sem a cifra (cad/servidor) e o salário gravado na
+//   posição, lido numa consulta só para elas; nem o salário nem a faixa vão à IA.
 // - A IA recebe só o que a pessoa pode consultar (orc.pacotes, orc.posicoes) e nunca salário: as
 //   posições vão sem salário, e os totais por CC × conta vão sem nenhum par que tenha linha de pessoal
 //   (num CC com uma posição só, o total revelaria o salário).
@@ -51,6 +64,12 @@ export type DepsRevisor = {
   agora: () => Date;
   sinalIa: () => AbortSignal;
   estrutura: { listarArvoreCentrosCusto: typeof listarArvoreCentrosCusto; listarArvoreContas: typeof listarArvoreContas };
+  // C2, acréscimo de C&S (P15): a versão sem a cifra; o worker não tem a chave.
+  custoPessoal: {
+    listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
+    beneficiosDoCargo: typeof beneficiosDoCargo;
+    obterPremissasExercicio: typeof obterPremissasExercicio;
+  };
   pessoa: FuncoesPessoaIA;
 };
 
@@ -61,6 +80,7 @@ export function resolverDepsRevisor(d: Partial<DepsRevisor> & Pick<DepsRevisor, 
     agora: d.agora ?? (() => new Date()),
     sinalIa: d.sinalIa ?? (() => AbortSignal.timeout(TEMPO_LIMITE_REVISOR_MS)),
     estrutura: d.estrutura ?? { listarArvoreCentrosCusto, listarArvoreContas },
+    custoPessoal: d.custoPessoal ?? { listarCargosSemSalarioCifrado, beneficiosDoCargo, obterPremissasExercicio },
     pessoa: d.pessoa ?? FUNCOES_PESSOA_IA,
   };
 }
@@ -94,7 +114,7 @@ const hrefPosicao = (ano: number, cc: string, id: string) => `/orc/posicoes?${ne
 const hrefVisao = (ano: number, cc: string) => `/orc/orcamento?${new URLSearchParams({ ano: String(ano), cc })}`;
 
 type PacoteLido = PacoteRegra & { distribuicao: string };
-type PosicaoLida = { id: string; cc: string; cargo: string; quantidade: number; mesInicio: number; mesSaida: number };
+type PosicaoLida = { id: string; cc: string; cargo: string; cargoId: string | null; quantidade: number; mesInicio: number; mesSaida: number };
 type LinhaLida = { cc: string; conta: string; origem: string; total: Dinheiro };
 
 // Snapshot do ano anterior (§6.2): só as linhas interessam (CC, conta, origem e total, como texto).
@@ -168,14 +188,16 @@ type Revisada = { achados: Achado[]; avisos: string[] };
 async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: DepsRevisor, parcial: Revisada): Promise<Revisada> {
   const c = deps.cliente;
   const e = await c.orcamentoExercicio.findUniqueOrThrow({ where: { id: r.exercicioId } });
-  const [pacotesDb, posicoes, linhasDb, receitas, anterior, arvoreContas, arvoreCcs] = await Promise.all([
+  const [pacotesDb, posicoes, salariosRegras, linhasDb, receitas, anterior, arvoreContas, arvoreCcs] = await Promise.all([
     c.pacoteBaseZero.findMany({ where: { exercicioId: e.id }, include: { linhas: { select: { total: true } } }, orderBy: [{ cc: 'asc' }, { conta: 'asc' }, { id: 'asc' }] }),
     // Sem o salário: ele nem sai do banco.
     c.posicaoOrcada.findMany({
       where: { exercicioId: e.id },
-      select: { id: true, cc: true, cargo: true, quantidade: true, mesInicio: true, mesSaida: true },
+      select: { id: true, cc: true, cargo: true, cargoId: true, quantidade: true, mesInicio: true, mesSaida: true },
       orderBy: [{ cc: 'asc' }, { cargo: 'asc' }, { id: 'asc' }],
     }),
+    // Só para a R4 e a R5 (D-P15-4): o salário das posições com cargo do cadastro. Não vai à IA.
+    c.posicaoOrcada.findMany({ where: { exercicioId: e.id, cargoId: { not: null } }, select: { id: true, cc: true, cargoId: true, salarioMensal: true } }),
     c.linhaOrcada.findMany({ where: { exercicioId: e.id }, select: { cc: true, conta: true, origem: true, meses: true, total: true } }),
     c.receitaRateio.findMany({ where: { exercicioId: e.id }, select: { situacao: true, meses: true } }),
     c.orcamentoExercicio.findFirst({ where: { ano: e.ano - 1, situacao: 'OFICIALIZADO' }, include: { snapshot: true } }),
@@ -214,17 +236,62 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   };
   // Par com linha de pessoal, no ano ou no anterior: a tela só o mostra a quem vê salário, e a IA nunca o recebe.
   const comPessoal = new Set([...linhas, ...(linhasAnteriores ?? [])].filter((l) => l.origem === 'PESSOAL').map((l) => `${l.cc}|${l.conta}`));
-  const regras = [...r1, ...r2, ...r3];
-  for (const a of regras) {
-    parcial.achados.push({
-      origem: 'REGRA',
-      tipo: a.tipo,
-      texto: a.texto,
-      links: a.par
-        ? [{ rotulo: `Visão do CC ${a.par.cc}`, href: hrefVisao(e.ano, a.par.cc), tipo: 'par', pessoal: comPessoal.has(`${a.par.cc}|${a.par.conta}`) }]
-        : a.pacotes.map(linkPacote),
-    });
+  // Cargos do cadastro, lidos depois da R1 a R3 (um erro na leitura não as perde); o nome do cadastro
+  // substitui o texto gravado quando a posição tem cargo.
+  const cargos = new Map<string, CargoExercicio>();
+  const nomeCargo = (p: { cargo: string; cargoId: string | null }) => (p.cargoId !== null ? cargos.get(p.cargoId)?.nome : undefined) ?? p.cargo;
+  const posicaoPorId = new Map(posicoes.map((p) => [p.id, p]));
+  const linkPosicao = (id: string): LinkAchado => {
+    const p = posicaoPorId.get(id)!;
+    return { rotulo: `Posição ${p.cc} · ${umaLinha(nomeCargo(p))}`, href: hrefPosicao(e.ano, p.cc, p.id), tipo: 'posicao' };
+  };
+  const registrar = (as: readonly AchadoRegra[]) => {
+    for (const a of as) {
+      parcial.achados.push({
+        origem: 'REGRA',
+        tipo: a.tipo,
+        texto: a.texto,
+        links: a.par
+          ? [{ rotulo: `Visão do CC ${a.par.cc}`, href: hrefVisao(e.ano, a.par.cc), tipo: 'par', pessoal: comPessoal.has(`${a.par.cc}|${a.par.conta}`) }]
+          : a.posicoes.length > 0
+            ? a.posicoes.map((id) => ({ ...linkPosicao(id), ...(a.salario ? { salario: true } : {}) }))
+            : a.pacotes.map(linkPacote),
+      });
+    }
+  };
+  registrar([...r1, ...r2, ...r3]);
+
+  // R4 e R5 (D-P15-4): só as posições com cargo do cadastro. Cargos sem a cifra, com os inativos.
+  for (const k of salariosRegras.length > 0 ? await deps.custoPessoal.listarCargosSemSalarioCifrado(c, { incluirInativos: true }) : []) cargos.set(k.id, k);
+  const posicoesRegra: PosicaoRegra[] = salariosRegras.flatMap((p) => {
+    // As duas leituras não são uma transação: só a posição que também está na outra leitura entra.
+    const k = p.cargoId === null || !posicaoPorId.has(p.id) ? undefined : cargos.get(p.cargoId);
+    return k ? [{ id: p.id, cc: p.cc, cargoId: k.id, cargoNome: umaLinha(k.nome), salarioMensal: din(p.salarioMensal) }] : [];
+  });
+  let r4: AchadoRegra[] = [];
+  if (posicoesRegra.length > 0) {
+    if (await deps.custoPessoal.obterPremissasExercicio(c, e.ano)) {
+      const semBeneficio = new Set<string>();
+      for (const cargoId of new Set(posicoesRegra.map((p) => p.cargoId))) {
+        if ((await deps.custoPessoal.beneficiosDoCargo(c, e.ano, cargoId)).beneficios.length === 0) semBeneficio.add(cargoId);
+      }
+      r4 = regraSemBeneficio(posicoesRegra, semBeneficio);
+    } else {
+      // Com o prefixo: o aviso revela que há posição com cargo (só para quem consulta posições).
+      avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_PREMISSAS(e.ano)}`);
+    }
   }
+  const r5 = regraForaDaFaixa(posicoesRegra, new Map([...cargos.values()].map((k) => [k.id, k.faixa])));
+  registrar([...r4, ...r5]);
+  // Sem cargo do cadastro, ou com um que não está mais nele: fora das duas, cada caso com o seu aviso, que
+  // só aparece a quem consulta posições (B3; ultimaRevisao).
+  const semCargo = posicoes.filter((p) => p.cargoId === null).length;
+  const cargoSumido = posicoes.filter((p) => p.cargoId !== null && !cargos.has(p.cargoId)).length;
+  if (semCargo > 0) avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_SEM_CARGO(semCargo)}`);
+  if (cargoSumido > 0) avisos.push(`${AVISO_SO_POSICOES}${MENSAGENS_ORC.REVISAO_CARGO_FORA_DO_CADASTRO(cargoSumido)}`);
+  const regras = [...r1, ...r2, ...r3, ...r4];
+  // Posições da R5: todo achado da IA que cita uma delas leva a marca de salário (D-P15-4).
+  const posicoesR5 = new Set(r5.flatMap((a) => a.posicoes));
   const achados = parcial.achados;
 
   // A parte da IA (D-P14-6, D-P14-8).
@@ -256,8 +323,9 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   const posicoesIa = vePosicoes
     ? posicoes.map((p, i) => {
         const apelido = `POS-${i + 1}`;
-        apelidos.set(apelido, { tipo: 'posicao', id: p.id, rotulo: `Posição ${p.cc} · ${umaLinha(p.cargo)}`, href: hrefPosicao(e.ano, p.cc, p.id) });
-        return { ...p, apelido };
+        apelidos.set(apelido, { ...linkPosicao(p.id), tipo: 'posicao', id: p.id });
+        // O nome do cadastro substitui o texto gravado quando há cargo (D-P15-4).
+        return { ...p, cargo: nomeCargo(p), apelido };
       })
     : null;
   const apelidoDe = new Map([...apelidos.entries()].map(([apelido, a]) => [a.id, apelido]));
@@ -287,6 +355,8 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
   const resumoRegras = regras.flatMap((a): string[] => {
     if (a.tipo === 'DUPLICADO') return vePacotes ? [`Pacotes iguais: ${ids(a.pacotes).join(', ')}`] : [];
     if (a.tipo === 'AUMENTO_ANO_ANTERIOR') return a.par && !comPessoal.has(`${a.par.cc}|${a.par.conta}`) ? [`Aumento de mais de 50 % sobre o ano anterior: CC ${a.par.cc}, conta ${a.par.conta}`] : [];
+    // R4: só os apelidos, e só se quem pediu consulta posições. A R5 nunca vai (fica fora de `regras`).
+    if (a.tipo === 'POSICAO_SEM_BENEFICIO') return vePosicoes ? [`Posições sem benefício: ${ids(a.posicoes).join(', ')}`] : [];
     return [`Orçado acima do teto${vePacotes && a.pacotes.length > 0 ? `; pacotes Desejáveis: ${ids(a.pacotes).join(', ')}` : ''}`];
   });
 
@@ -311,7 +381,7 @@ async function revisar(r: { exercicioId: string; solicitadoPor: string }, deps: 
         const alvo = apelidos.get(ref.id.trim());
         if (!alvo || alvo.tipo !== ref.tipo || vistos.has(alvo.id)) continue;
         vistos.add(alvo.id);
-        links.push({ rotulo: alvo.rotulo, href: alvo.href, tipo: alvo.tipo });
+        links.push({ rotulo: alvo.rotulo, href: alvo.href, tipo: alvo.tipo, ...(alvo.tipo === 'posicao' && posicoesR5.has(alvo.id) ? { salario: true } : {}) });
       }
       if (links.length > 0) achados.push({ origem: 'IA', tipo: a.tipo, texto: a.texto, links });
     }

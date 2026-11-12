@@ -3,7 +3,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { registrarNoOutbox } from '@/shared/filas';
 import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
 import { MENSAGENS_ORC } from '../domain/mensagens';
-import { filtrarAchados, REVISAO_PARADA_MS, type Achado, type AlcanceRevisao, type RevisaoTela, type SituacaoRevisao } from '../domain/revisor-regras';
+import { AVISO_SO_POSICOES, filtrarAchados, REVISAO_PARADA_MS, type Achado, type AlcanceRevisao, type RevisaoTela, type SituacaoRevisao } from '../domain/revisor-regras';
 import { travarExercicio } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { exigirSemEscopo } from './escopo';
@@ -63,13 +63,29 @@ const alcance = (ctx: ContextoRequisicao): AlcanceRevisao => ({
   posicoes: ctx.permissoes.has('orc.posicoes:consultar'),
   // D-P12-3: o salário (e o total de pessoal, que o revela) só para quem inclui ou altera posição.
   salario: ctx.permissoes.has('orc.posicoes:incluir') || ctx.permissoes.has('orc.posicoes:alterar'),
+  // R24 (plano do P15, D-P15-4): a faixa de mercado do cargo é dado de cad.salarios.
+  salariosCargo: ctx.permissoes.has('cad.salarios:consultar'),
 });
+
+/** Avisos para quem vê: o marcado só para quem consulta posições perde o prefixo ou sai (B3). */
+function avisosPara(avisos: readonly string[], a: AlcanceRevisao): string[] {
+  return avisos.flatMap((x) => (!x.startsWith(AVISO_SO_POSICOES) ? [x] : a.posicoes ? [x.slice(AVISO_SO_POSICOES.length)] : []));
+}
 
 const ACHADO = z.object({
   origem: z.enum(['REGRA', 'IA']),
   tipo: z.string(),
   texto: z.string(),
-  links: z.array(z.object({ rotulo: z.string(), href: z.string().startsWith('/orc/'), tipo: z.enum(['pacote', 'posicao', 'par']), pessoal: z.boolean().optional() })),
+  links: z.array(
+    z.object({
+      rotulo: z.string(),
+      href: z.string().startsWith('/orc/'),
+      tipo: z.enum(['pacote', 'posicao', 'par']),
+      pessoal: z.boolean().optional(),
+      // Sem isto o Zod descartaria a marca na leitura e o achado da R5 vazaria (D-P15-4).
+      salario: z.boolean().optional(),
+    }),
+  ),
 });
 
 /** A última revisão do exercício, para quem pode pedir; null sem revisão (ou com CC de escopo). */
@@ -85,11 +101,12 @@ export async function ultimaRevisao(ctx: ContextoRequisicao, exercicioId: string
   if (!r || !ex) return null;
   const parada = r.situacao === 'PENDENTE' && deps.agora().getTime() - r.criadoEm.getTime() > REVISAO_PARADA_MS;
   const lidos = z.array(ACHADO).safeParse(r.achados);
+  const quem = alcance(ctx);
   return {
     situacao: parada ? 'FALHOU' : (r.situacao as SituacaoRevisao),
     // Só o que quem vê pode consultar (a revisão foi feita com o alcance de quem pediu).
-    achados: lidos.success ? filtrarAchados(lidos.data as Achado[], alcance(ctx)) : [],
-    avisos: parada ? [MENSAGENS_ORC.REVISAO_PARADA] : r.avisos,
+    achados: lidos.success ? filtrarAchados(lidos.data as Achado[], quem) : [],
+    avisos: parada ? [MENSAGENS_ORC.REVISAO_PARADA] : avisosPara(r.avisos, quem),
     desatualizada: r.versaoExercicio !== ex.versao,
     concluidaEm: r.concluidoEm,
   };
