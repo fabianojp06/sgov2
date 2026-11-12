@@ -7,7 +7,7 @@ export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './appli
 export { sugerirContaCcAcao, sugerirJustificativaAcao } from './application/acoes-ia';
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
-export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
+export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, ligarCargoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
 export { ultimaRevisao } from './application/revisor';
@@ -29,12 +29,14 @@ export {
   type OpcoesPosicao,
   type PosicaoTela,
 } from './application/posicoes';
+export { listarCorrespondencias, type ItemCorrespondencia, type ListaCorrespondencia } from './application/correspondencia-cargos';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
 export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
 export { MENSAGENS_ORC } from './domain/mensagens';
 export { FUNCIONALIDADES_ORC, seedOrc } from './infrastructure/seed';
 export { FormReceita, type ReceitaFormulario } from './ui/form-receita';
 export { TelaPacotes, textoAvisoPacote } from './ui/tela-pacotes';
+export { TelaCorrespondencia } from './ui/tela-correspondencia';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';
 export { PainelRevisao } from './ui/painel-revisao';

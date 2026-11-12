@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { definirAcao } from '@/shared/authz';
 import { ok } from '@/shared/kernel';
 import { entradaBruta } from './entrada-exercicio';
+import { ligarCargoPosicoes } from './correspondencia-cargos';
 import { alterarPosicao, excluirPosicao, incluirPosicao, previaPosicao, type ResultadoPosicao } from './posicoes';
 
 // Ações da tela de posições de pessoal (US-056). Depois do sucesso, voltam à lista do CC com o aviso.
@@ -34,4 +35,11 @@ export const previaPosicaoAcao = definirAcao({ funcionalidade: 'orc.posicoes', a
   if (!r.ok) return r;
   const { massa, feriasDecimo, encargos, beneficios, anual, aviso } = r.valor;
   return ok({ massa: massa.paraString(), feriasDecimo: feriasDecimo.paraString(), encargos: encargos.paraString(), beneficios: beneficios.paraString(), anual: anual.paraString(), aviso });
+});
+
+// Correspondência do cargo em texto com o cadastro (P16): volta à tela com a quantidade ligada.
+export const ligarCargoAcao = definirAcao({ funcionalidade: 'orc.posicoes', acao: 'alterar', entrada: entradaBruta }, async (e, ctx) => {
+  const r = await ligarCargoPosicoes(ctx, e);
+  if (!r.ok) return r;
+  return redirect(`/orc/posicoes/correspondencia?ano=${r.valor.ano}&ligadas=${r.valor.posicoes}`);
 });

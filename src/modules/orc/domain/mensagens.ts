@@ -111,6 +111,9 @@ export const MENSAGENS_ORC = {
   CARGO_MANTER_TEXTO: (cargo: string) => `Manter o cargo em texto: ${cargo}`,
   // Tela de correspondência do cargo em texto com o cadastro (US-056; plano do P16) [PROVISÓRIOS].
   CORRESPONDENCIA_SEM_POSICOES: 'Nenhuma posição com esse cargo em texto. Recarregue a tela.',
+  CORRESPONDENCIA_SEM_CARGOS: 'Não há cargo do cadastro disponível para ligar (ativo e com salário na Fonte Ativa).',
+  CORRESPONDENCIA_RECALCULO_BARROU: 'Nenhuma posição foi ligada: o recálculo do orçamento encontrou erro em outro lançamento do exercício.',
+  CORRESPONDENCIA_SEM_FONTE_ATIVA: 'A Fonte Ativa dos cargos não aparece para o seu perfil ou está indisponível no momento.',
   CORRESPONDENCIA_VAZIA: 'Nenhuma posição com cargo em texto neste exercício.',
   CORRESPONDENCIA_LIGADA: (n: number) => (n === 1 ? '1 posição ligada ao cargo do cadastro.' : `${n} posições ligadas ao cargo do cadastro.`),
   CORRESPONDENCIA_ERRO_POSICAO: (cc: string, mensagem: string) => `CC ${cc}: ${mensagem}`,

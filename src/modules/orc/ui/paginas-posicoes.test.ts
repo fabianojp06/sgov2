@@ -20,6 +20,7 @@ const caso = vi.hoisted(() => ({
   cargos: { cargos: [] as OpcaoCargoTeste[], comSalario: false, aviso: null as string | null },
   chamadasCargos: 0,
   semCcs: false,
+  escopoTotal: true,
 }));
 const C001 = '00000000-0000-4000-8000-000000000001';
 const C004 = '00000000-0000-4000-8000-000000000004';
@@ -41,7 +42,7 @@ vi.mock('@/modules/orc', async (original) => {
     listarPosicoes: async (ctx: ContextoRequisicao) => ({ posicoes: [p(ctx)], editavel: editavel(), veSalario: ve(ctx) }),
     opcoesPosicao: async () => ({
       ccs: caso.semCcs ? [] : [{ classificacao: '4.3.0', descricao: 'Gabinete' }], quantidadeMaxima: 9999,
-      situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', editavel: editavel(),
+      situacao: caso.situacao, rotuloSituacao: caso.situacao === 'RASCUNHO' ? 'Rascunho' : 'Em Aprovação', editavel: editavel(), escopoTotal: caso.escopoTotal,
     }),
     cargosParaPosicao: async () => {
       caso.chamadasCargos++;
@@ -67,6 +68,7 @@ beforeEach(() => {
   caso.cargos = { cargos: [opcaoC001(false)], comSalario: false, aviso: 'O salário da Fonte Ativa não aparece para o seu perfil. Informe o salário mensal.' };
   caso.chamadasCargos = 0;
   caso.semCcs = false;
+  caso.escopoTotal = true;
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -220,5 +222,30 @@ describe('cargo do cadastro de C&S na posição (P15)', () => {
     expect(h).toContain('<input type="hidden" name="cargoId" value=""/>');
     expect(h).toContain('Não há cargo do cadastro disponível; informe o cargo em texto.');
     expect(h).toContain('name="cargo"');
+  });
+});
+
+describe('link da correspondência do cargo em texto (P16)', () => {
+  const LINK = 'href="/orc/posicoes/correspondencia?ano=2027"';
+  it('aparece para quem altera com escopo TOTAL, num exercício editável com posição sem cargo', async () => {
+    contexto = ctx(TUDO);
+    const h = await html();
+    expect(h).toContain(LINK);
+    expect(h).toContain('Ligar cargos em texto ao cadastro');
+  });
+
+  it('não aparece com subárvore, sem alterar, com o exercício fechado ou sem posição em texto', async () => {
+    contexto = ctx(TUDO);
+    caso.escopoTotal = false;
+    expect(await html()).not.toContain(LINK);
+    caso.escopoTotal = true;
+    contexto = ctx(['orc.posicoes:consultar', 'orc.posicoes:incluir']);
+    expect(await html()).not.toContain(LINK);
+    contexto = ctx(TUDO);
+    caso.situacao = 'EM_APROVACAO';
+    expect(await html()).not.toContain(LINK);
+    caso.situacao = 'RASCUNHO';
+    caso.cargoId = C001;
+    expect(await html()).not.toContain(LINK);
   });
 });

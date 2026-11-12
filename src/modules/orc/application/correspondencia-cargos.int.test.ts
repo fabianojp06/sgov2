@@ -140,11 +140,16 @@ describe('ligarCargoPosicoes', () => {
     expect(h!.antes).toMatchObject({ versaoPremissas: 1 });
     expect(h!.depois).toMatchObject({ versaoPremissas: 2 });
     expect((await migrator.orcamentoExercicio.findUniqueOrThrow({ where: { id: e.id } })).versaoPremissas).toBe(2);
+    expect(await migrator.posicaoOrcada.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ cargoId: C001 });
+    expect((await componentes(a.id)).some((x) => x?.startsWith('beneficio.'))).toBe(true);
   });
 
-  it('versão do exercício diferente da lida (duas abas) → alterado por outro, nada gravado', async () => {
+  it('outra pessoa mexeu no exercício depois da leitura da tela (duas abas) → alterado por outro, nada gravado', async () => {
     const { e, a } = await cenario();
-    const r = await ligar(e, { versao: String((await e.versao()) + 1) });
+    const lida = await e.versao();
+    // Outra escrita no exercício (como a de uma posição pela tela) sobe a versão.
+    await migrator.orcamentoExercicio.update({ where: { id: e.id }, data: { versao: { increment: 1 } } });
+    const r = await ligar(e, { versao: String(lida) });
     expect(r).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Este registro foi alterado por outro usuário. Recarregue a tela.' }] });
     expect(await migrator.posicaoOrcada.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ cargoId: null });
     expect(await historicos(a.id)).toEqual([]);

@@ -143,7 +143,7 @@ export async function ligarCargoPosicoes(ctx: ContextoRequisicao, bruto: unknown
       return ok({ ano: e.ano, posicoes: ligadas.length });
     });
   } catch (erro) {
-    if (erro instanceof ErroRecalculo) return falha([{ campo: '_', mensagem: MENSAGENS_ORC.RECALCULO_BARROU_POSICAO }, ...erro.erros]);
+    if (erro instanceof ErroRecalculo) return falha([{ campo: '_', mensagem: MENSAGENS_ORC.CORRESPONDENCIA_RECALCULO_BARROU }, ...erro.erros]);
     if (erro instanceof ConflitoConcorrencia) return falha([{ campo: '_', mensagem: MENSAGENS_ORC.ALTERADO_POR_OUTRO }]);
     throw erro;
   }
