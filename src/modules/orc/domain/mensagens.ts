@@ -161,4 +161,28 @@ export const MENSAGENS_ORC = {
     n === 1
       ? '1 posição ligada a cargo que não está mais no cadastro ficou fora das regras de pessoal.'
       : `${n} posições ligadas a cargo que não está mais no cadastro ficaram fora das regras de pessoal.`,
+  // Proposta de TP (US-065; plano do P17). E1 e E2 do UC 3.05 e E2 do UC 3.07, sem a marca
+  // "[TRAVA O ERRO]" (como na alçada); a E1 soma o número e o CC (D-P17-4) e a E2 usa os 30 dias da
+  // RN_TP_002 (D-P17-5) [PROVISÓRIO]. As demais [PROVISÓRIAS].
+  PROPOSTA_OBRIGATORIOS:
+    'Operação Rejeitada: Os campos Tipo, Número do TP, Nome/Objeto, Data de Início, Data de Término, Categoria e Centro de Custo são obrigatórios e não podem ser nulos.',
+  PROPOSTA_CAMPO_OBRIGATORIO: 'Campo obrigatório.',
+  PROPOSTA_VIGENCIA_CURTA: 'Erro de Validação: A Data de Término precisa ser pelo menos 30 dias depois da Data de Início do Termo de Parceria.',
+  PROPOSTA_DATA_INVALIDA: 'Data inválida.',
+  PROPOSTA_TIPO_INVALIDO: 'Tipo obrigatório: Contrato ou Termo de Parceria.',
+  PROPOSTA_CATEGORIA_INVALIDA: 'Categoria obrigatória: Consolidada ou Meta.',
+  PROPOSTA_NUMERO_LONGO: (limite: number) => `O número do TP pode ter no máximo ${limite} caracteres.`,
+  PROPOSTA_OBJETO_LONGO: (limite: number) => `O Nome/Objeto pode ter no máximo ${limite} caracteres.`,
+  PROPOSTA_PARCEIRO_LONGO: (limite: number) => `O Parceiro/Cliente pode ter no máximo ${limite} caracteres.`,
+  PROPOSTA_DADOS_INVALIDOS: 'Dados da proposta inválidos. Recarregue a tela.',
+  NUMERO_DUPLICADO: (numero: string) => `Já existe um TP com o número ${numero}, ativo ou excluído.`,
+  CC_DE_OUTRO_TP: (cc: string) => `O centro de custo ${cc} já é de outro TP ativo. Escolha outro.`,
+  CC_INVALIDO_TP: (cc: string) => `O centro de custo ${cc} não é um CC analítico ativo de TP.`,
+  SEM_CC_LIVRE_TP: 'Não há centro de custo de TP livre. Peça à GFIN para cadastrar o CC do novo TP.',
+  PROPOSTA_INEXISTENTE: 'Proposta não encontrada.',
+  PROPOSTA_NAO_EXCLUIVEL:
+    'Ação Negada: O ciclo de vida atual do projeto não permite exclusão. Só a proposta em Rascunho pode ser excluída.',
+  CONFIRMA_EXCLUSAO_PROPOSTA: 'Deseja realmente excluir esta versão de Proposta?',
+  PROPOSTA_CRIADA: (numero: string) => `Proposta do TP ${numero} criada em Rascunho.`,
+  PROPOSTA_EXCLUIDA: (numero: string) => `Proposta do TP ${numero} excluída.`,
 } as const;
