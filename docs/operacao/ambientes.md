@@ -103,6 +103,8 @@ No `psql` como `postgres`, use `\password sgo_app` (pede a senha sem eco e não 
 
 ## Estado do hml (12/11/2026)
 
+A operação do dia a dia (deploy, rollback, restauração e incidentes) está em `runbook.md`.
+
 O `sgo-hml` está no ar no Easypanel, com HTTPS (Let's Encrypt) e `/int/saude` ok. O endereço e as credenciais ficam com o PO.
 
 - **Serviços:** `db` (`pgvector/pgvector:pg16`, sem porta pública), `migracao`, `app` (domínio com HTTPS na porta 3000) e `worker`. O comando de cada serviço está em `docs/operacao/deploy.md`, "Comando dos serviços no Easypanel".

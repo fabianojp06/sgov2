@@ -94,7 +94,7 @@ Backup com recuperação ponto a ponto (PITR), dump diário cifrado e teste de r
 
 ## Restaurar de verdade
 
-- **Ponto no tempo (PITR):** com o `db` parado, num contêiner da imagem do banco com o volume dele, rode `pgbackrest --stanza=sgo --delta --type=time --target='AAAA-MM-DD HH:MM:SS+00' --target-action=promote restore` e suba o `db`. Antes, tire o snapshot da VPS (hPanel). O procedimento completo entra no runbook (US-119).
+- **Ponto no tempo (PITR):** com o `db` parado, num contêiner da imagem do banco com o volume dele, rode `pgbackrest --stanza=sgo --delta --type=time --target='AAAA-MM-DD HH:MM:SS+00' --target-action=promote restore` e suba o `db`. Antes, tire o snapshot da VPS (hPanel). O procedimento completo está em `runbook.md`, procedimento 4.
 - **Dump:** sempre **fora da VPS**.
   1. Baixe com `rclone copyto sgo:<bucket>/dumps/<ambiente>/<data>.dump.age .`, usando uma chave de leitura.
   2. Decifre com `age -d -i chave-sgo.txt -o sgo.dump <data>.dump.age`.

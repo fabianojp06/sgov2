@@ -1,6 +1,6 @@
 # Deploy do SGO: hml e prod
 
-Como a imagem chega a hml e a prod (US-013; plano do P3, Tarefa 4). O runbook completo, com rollback, restauração e incidentes, vem na US-119 (Tarefa 8).
+Como a imagem chega a hml e a prod (US-013; plano do P3, Tarefa 4). O runbook completo, com rollback, restauração e incidentes, está em `runbook.md` (US-119).
 
 ## Como funciona
 
