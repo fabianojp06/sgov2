@@ -20,7 +20,8 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     nivelLog: 'SIMPLES',
     ajuda:
       'Consulte o plano de contas de 5 níveis. A estrutura só muda pela importação da planilha .xlsx (não há inclusão nem ' +
-      'alteração manual): o arquivo é validado inteiro, e qualquer erro o reprova sem gravar nada.',
+      'alteração manual): o arquivo é validado inteiro, e qualquer erro o reprova sem gravar nada. Em "Parâmetros locais", a ' +
+      'GFIN define a natureza (OPEX/CAPEX) e, se quiser, faixas do semáforo próprias de cada conta analítica.',
     acoes: ['consultar', 'exportar', 'executar'],
     perfisPadrao: {
       GFIN: ['consultar', 'exportar', 'executar'],
