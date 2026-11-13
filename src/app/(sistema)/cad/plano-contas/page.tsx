@@ -9,7 +9,8 @@ export default async function PlanoContas() {
     <div>
       <h1>Plano de Contas</h1>
       {ctx.permissoes.has('cad.plano_contas:executar') && <a href="/cad/plano-contas/importar">Importar arquivo</a>}{' '}
-      <a href="/cad/plano-contas/parametros-locais">Parâmetros locais (natureza e semáforo)</a>
+      <a href="/cad/plano-contas/parametros-locais">Parâmetros locais (natureza e semáforo)</a>{' '}
+      <a href="/cad/plano-contas/agrupadores">Agrupadores de contas</a>
       <ArvoreContas
         nos={nos}
         escopoSessao={escopoDaSessao(ctx)}

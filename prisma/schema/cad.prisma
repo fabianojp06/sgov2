@@ -53,6 +53,7 @@ model ContaContabil {
   pai            ContaContabil?       @relation("ContaPai", fields: [paiId], references: [id], onDelete: Restrict)
   filhos         ContaContabil[]      @relation("ContaPai")
   parametroLocal ContaParametroLocal?
+  agrupadores    AgrupadorContaItem[]
   ativa          Boolean              @default(true)
   inativadaEm    DateTime?            @map("inativada_em") @db.Timestamptz(6)
   cargaId        String               @map("carga_id") @db.Uuid
@@ -418,4 +419,28 @@ model AliquotaImposto {
 
   @@id([impostoId, competencia])
   @@map("aliquota_imposto")
+}
+
+// Agrupadores de contas (US-047; RF_PLA_REQ_005, RN_PLA_007–011): rótulos do SGO que reúnem contas
+// analíticas (N:N, ao menos duas) para subtotalizar nos relatórios. Não são contas do plano.
+model AgrupadorConta {
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String               @db.VarChar(100)
+  versao       Int                  @default(1)
+  criadoEm     DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+  itens        AgrupadorContaItem[]
+
+  @@map("agrupador_conta")
+}
+
+model AgrupadorContaItem {
+  agrupadorId String         @map("agrupador_id") @db.Uuid
+  agrupador   AgrupadorConta @relation(fields: [agrupadorId], references: [id], onDelete: Cascade)
+  contaId     String         @map("conta_id") @db.Uuid
+  conta       ContaContabil  @relation(fields: [contaId], references: [id], onDelete: Restrict)
+
+  @@id([agrupadorId, contaId])
+  @@index([contaId])
+  @@map("agrupador_conta_item")
 }
