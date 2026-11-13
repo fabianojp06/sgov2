@@ -47,6 +47,10 @@ export {
 // só pelo index.ts (app), com o salário decifrado; o servidor.ts (worker) tem o listarCargosSemSalarioCifrado.
 export { beneficiosDoCargo, beneficiosDosCargos, type BeneficiosCargo, type CargoExercicio, type OpcoesCargosExercicio } from './infrastructure/cargos-exercicio';
 export type { FonteAtiva } from './domain/cargo';
+// Impostos (US-052; acréscimo ao C2): a alíquota vigente por competência, que a proposta congela no
+// snapshot da oficialização (RN_TAX_03).
+export { impostosVigentes, type ImpostoVigente } from './infrastructure/impostos';
+export { aliquotaVigente, incideEm, type Competencia, type Incidencia } from './domain/impostos';
 
 export {
   cargosExemplo,

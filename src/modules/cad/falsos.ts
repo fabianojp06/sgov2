@@ -27,6 +27,7 @@ import type {
   obterPremissasExercicio,
 } from './infrastructure/premissas';
 import type { beneficiosDoCargo, beneficiosDosCargos, CargoExercicio, listarCargosSemSalarioCifrado } from './infrastructure/cargos-exercicio';
+import type { impostosVigentes, ImpostoVigente } from './infrastructure/impostos';
 
 // Adaptadores falsos dos contratos do cad, só para testes dos módulos consumidores (spec §12.6).
 
@@ -213,6 +214,7 @@ export function cargosExemplo(): readonly CargoExercicio[] {
 export function custoPessoalFalso(
   premissas: readonly PremissasExercicio[] = [premissasExemplo()],
   cargos: readonly CargoExercicio[] = cargosExemplo(),
+  impostos: readonly ImpostoVigente[] = [],
 ): {
   calcularCustoPosicao: typeof calcularCustoPosicao;
   obterPremissasExercicio: typeof obterPremissasExercicio;
@@ -222,6 +224,7 @@ export function custoPessoalFalso(
   listarCargosSemSalarioCifrado: typeof listarCargosSemSalarioCifrado;
   beneficiosDoCargo: typeof beneficiosDoCargo;
   beneficiosDosCargos: typeof beneficiosDosCargos;
+  impostosVigentes: typeof impostosVigentes;
   chamadas: { posicao: PosicaoPessoal; premissas: PremissasExercicio }[];
   congelados: ReadonlySet<number>;
 } {
@@ -268,5 +271,8 @@ export function custoPessoalFalso(
     beneficiosDoCargo: async (_tx, ano, cargoId) => beneficiosFalsos(ano, cargoId),
     // Como o real: todo id pedido entra no mapa, o desconhecido com listas vazias.
     beneficiosDosCargos: async (_tx, ano, cargoIds) => new Map(cargoIds.map((id) => [id, beneficiosFalsos(ano, id)])),
+    // O falso devolve a lista dada, filtrada pelo tipo como o real (a competência fica com quem montou a lista).
+    impostosVigentes: async (_tx, _competencia, opcoes = {}) =>
+      impostos.filter((i) => !opcoes.tipo || i.incidencia === 'AMBOS' || i.incidencia === opcoes.tipo),
   };
 }
