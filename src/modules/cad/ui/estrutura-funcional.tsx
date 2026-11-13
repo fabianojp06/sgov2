@@ -36,7 +36,8 @@ export function EstruturaFuncional({
   const [aviso, setAviso] = useState('');
   const [erros, setErros] = useState<readonly ErroCampo[]>([]);
   const [salvando, iniciar] = useTransition();
-  const executar = <T,>(chamada: () => Promise<Resposta<T>>, sucesso: string) =>
+  // onSucesso: o formulário só fecha ou limpa quando a gravação deu certo.
+  const executar = <T,>(chamada: () => Promise<Resposta<T>>, sucesso: string, onSucesso?: () => void) =>
     iniciar(async () => {
       setAviso('');
       try {
@@ -44,6 +45,7 @@ export function EstruturaFuncional({
         if (r.ok) {
           setErros([]);
           setAviso(sucesso);
+          onSucesso?.();
         } else {
           setErros(r.erros);
         }
@@ -62,7 +64,14 @@ export function EstruturaFuncional({
           ))}
         </ul>
       )}
-      {podeIncluir && <NovaUnidade arvore={arvore} salvando={salvando} incluir={(e) => executar(() => acoes.incluir(e), `Unidade "${e.nome.trim()}" incluída.`)} />}
+      {podeIncluir && (
+        <NovaUnidade
+          arvore={arvore}
+          salvando={salvando}
+          erros={erros}
+          incluir={(e, limpar) => executar(() => acoes.incluir(e), `Unidade "${e.nome.trim()}" incluída.`, limpar)}
+        />
+      )}
       {arvore.length === 0 ? (
         <p>Nenhuma unidade cadastrada.</p>
       ) : (
@@ -89,7 +98,7 @@ function No({
   podeAlterar: boolean;
   salvando: boolean;
   acoes: AcoesEstrutura;
-  executar: <T>(chamada: () => Promise<Resposta<T>>, sucesso: string) => void;
+  executar: <T>(chamada: () => Promise<Resposta<T>>, sucesso: string, onSucesso?: () => void) => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [nome, setNome] = useState(no.nome);
@@ -101,7 +110,15 @@ function No({
       {podeAlterar && !editando && (
         <>
           {' '}
-          <button type="button" onClick={() => setEditando(true)} disabled={salvando} aria-label={`Renomear ${rotulo}`}>
+          <button
+            type="button"
+            onClick={() => {
+              setNome(no.nome);
+              setEditando(true);
+            }}
+            disabled={salvando}
+            aria-label={`Renomear ${rotulo}`}
+          >
             Renomear
           </button>{' '}
           <button
@@ -118,8 +135,7 @@ function No({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            executar(() => acoes.renomear({ id: no.id, versao: no.versao, nome }), `Unidade renomeada para "${nome.trim()}".`);
-            setEditando(false);
+            executar(() => acoes.renomear({ id: no.id, versao: no.versao, nome }), `Unidade renomeada para "${nome.trim()}".`, () => setEditando(false));
           }}
         >
           <label htmlFor={`nome-${no.id}`}>Novo nome de {rotulo}</label>{' '}
@@ -152,11 +168,13 @@ function No({
 function NovaUnidade({
   arvore,
   salvando,
+  erros,
   incluir,
 }: {
   arvore: readonly NoUnidade[];
   salvando: boolean;
-  incluir: (e: { nome: string; tipo: string; superiorId: string | null }) => void;
+  erros: readonly ErroCampo[];
+  incluir: (e: { nome: string; tipo: string; superiorId: string | null }, limpar: () => void) => void;
 }) {
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState<TipoUnidade>('DIRETORIA');
@@ -167,18 +185,22 @@ function NovaUnidade({
     [arvore, tipo],
   );
   const podeTopo = SUPERIORES_ACEITOS[tipo].includes(null);
+  // Superior que saiu da lista (inativado ou de outro tipo) não é enviado.
+  const superiorEfetivo = opcoes.some((o) => o.id === superiorId) ? superiorId : '';
+  const erroDe = (campo: string) => erros.filter((e) => e.campo === campo).map((e) => e.mensagem).join(' ');
+  const aria = (campo: string) => (erroDe(campo) ? { 'aria-invalid': true, 'aria-describedby': `nova-${campo}-erro` } : {});
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        incluir({ nome, tipo, superiorId: superiorId || null });
-        setNome('');
+        incluir({ nome, tipo, superiorId: superiorEfetivo || null }, () => setNome(''));
       }}
     >
       <fieldset>
         <legend>Nova unidade</legend>
         <label htmlFor="nova-nome">Nome da unidade</label>{' '}
-        <input id="nova-nome" value={nome} maxLength={TAMANHO_NOME_UNIDADE} onChange={(e) => setNome(e.target.value)} />{' '}
+        <input id="nova-nome" value={nome} maxLength={TAMANHO_NOME_UNIDADE} onChange={(e) => setNome(e.target.value)} {...aria('nome')} />{' '}
+        {erroDe('nome') && <span id="nova-nome-erro">{erroDe('nome')}</span>}{' '}
         <label htmlFor="nova-tipo">Tipo</label>{' '}
         <select
           id="nova-tipo"
@@ -195,7 +217,7 @@ function NovaUnidade({
           ))}
         </select>{' '}
         <label htmlFor="nova-superior">Unidade superior</label>{' '}
-        <select id="nova-superior" value={superiorId} onChange={(e) => setSuperiorId(e.target.value)}>
+        <select id="nova-superior" value={superiorEfetivo} onChange={(e) => setSuperiorId(e.target.value)} {...aria('superiorId')}>
           {podeTopo && <option value="">Nenhuma (topo)</option>}
           {!podeTopo && <option value="">Escolha</option>}
           {opcoes.map((n) => (
@@ -204,6 +226,7 @@ function NovaUnidade({
             </option>
           ))}
         </select>{' '}
+        {erroDe('superiorId') && <span id="nova-superiorId-erro">{erroDe('superiorId')}</span>}{' '}
         <button type="submit" disabled={salvando}>
           Incluir
         </button>

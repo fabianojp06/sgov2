@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@/generated/prisma/client';
+import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma, type TxCliente } from '@/shared/db';
@@ -28,9 +28,25 @@ const contextoDe = (ctx: ContextoRequisicao) => ({
   unidadeId: null,
 });
 
-/** Violação de índice único (nome repetido entre as ativas do mesmo superior). */
-const ehNomeRepetido = (e: unknown) => /unidade_funcional_nome_ativa_key|23505/.test(String((e as { message?: string })?.message ?? '') + String((e as { code?: string })?.code ?? ''));
+/** Violação de índice único (nome repetido entre as ativas do mesmo superior): P2002 ou 23505 no texto. */
+const ehNomeRepetido = (e: unknown) =>
+  (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') || (e instanceof Error && /\b23505\b|unidade_funcional_nome_ativa_key/.test(e.message));
 const MSG_NOME_REPETIDO = 'Já existe uma unidade ativa com esse nome sob a mesma unidade superior.';
+
+// Regras do trigger (check_violation) que a conferência do caso de uso não pegou, por corrida entre
+// dois usuários: viram mensagem, sem nada gravado.
+const REGRAS_DO_BANCO: readonly [RegExp, string][] = [
+  [/Unidade com cargos ativos vinculados/, 'A unidade passou a ter cargo ativo vinculado. Recarregue a tela.'],
+  [/Unidade com unidades ativas abaixo/, 'A unidade passou a ter unidade ativa abaixo. Recarregue a tela.'],
+  [/A unidade superior está inativa/, 'A unidade superior foi inativada. Recarregue a tela.'],
+  [/A unidade superior não existe/, 'A unidade superior não existe. Recarregue a tela.'],
+  [/Vínculo hierárquico inválido/, 'Vínculo hierárquico inválido. Recarregue a tela.'],
+];
+// O texto do RAISE identifica a regra (o adapter nem sempre traz o código 23514).
+function regraDoBanco(e: unknown): string | null {
+  const texto = e instanceof Error ? e.message : '';
+  return REGRAS_DO_BANCO.find(([re]) => re.test(texto))?.[1] ?? null;
+}
 
 export type CargoOcupante = Readonly<{ id: string; codigo: string; nome: string }>;
 export type TelaEstruturaFuncional = Readonly<{
@@ -90,6 +106,8 @@ export async function incluirUnidade(
     });
   } catch (e) {
     if (ehNomeRepetido(e)) return falha([{ campo: 'nome', mensagem: MSG_NOME_REPETIDO }]);
+    const regra = regraDoBanco(e);
+    if (regra) return falha([{ campo: '_', mensagem: regra }]);
     throw e;
   }
 }
@@ -121,6 +139,8 @@ export async function renomearUnidade(ctx: ContextoRequisicao, id: string, versa
     });
   } catch (e) {
     if (ehNomeRepetido(e)) return falha([{ campo: 'nome', mensagem: MSG_NOME_REPETIDO }]);
+    const regra = regraDoBanco(e);
+    if (regra) return falha([{ campo: '_', mensagem: regra }]);
     throw e;
   }
 }
@@ -171,6 +191,8 @@ export async function definirSituacaoUnidade(
   } catch (e) {
     // Reativação com o nome já usado por outra ativa do mesmo superior.
     if (ehNomeRepetido(e)) return falha([{ campo: '_', mensagem: MSG_NOME_REPETIDO }]);
+    const regra = regraDoBanco(e);
+    if (regra) return falha([{ campo: '_', mensagem: regra }]);
     throw e;
   }
 }

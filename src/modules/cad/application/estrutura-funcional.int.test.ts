@@ -142,6 +142,20 @@ describe('estrutura funcional (US-048)', () => {
     await expect(migrator.query('UPDATE cargo SET vinculo_funcional_id = $1 WHERE id = $2', [ids.setor2, outro])).rejects.toThrow(/analítica ativa/);
   });
 
+  it('nome repetido também no renomear e na reativação (índice único entre as ativas)', async () => {
+    // Renomear a Coordenadoria para o nome do Setor irmão.
+    const vc = await versao(ids.coord!);
+    expect(await renomearUnidade(grh(), ids.coord!, vc, 'Setor de Compras', { cliente: app })).toMatchObject({ ok: false, erros: [{ campo: 'nome' }] });
+    // Inativa uma folha nova, cria outra ativa com o mesmo nome e tenta reativar a primeira.
+    await incluir('folha', 'Setor Temporário', 'SETOR', 'ger');
+    expect(await definirSituacaoUnidade(grh(), ids.folha!, await versao(ids.folha!), false, { cliente: app })).toMatchObject({ ok: true });
+    await incluir('folha2', 'Setor Temporário', 'SETOR', 'ger');
+    expect(await definirSituacaoUnidade(grh(), ids.folha!, await versao(ids.folha!), true, { cliente: app })).toMatchObject({
+      ok: false,
+      erros: [{ mensagem: expect.stringContaining('Já existe uma unidade ativa') }],
+    });
+  });
+
   it('sem a permissão, nada muda', async () => {
     await expect(incluirUnidade(leitor(), { nome: 'X', tipo: 'DIRETORIA', superiorId: null }, { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);
     await expect(renomearUnidade(leitor(), ids.dir!, 1, 'Y', { cliente: app })).rejects.toBeInstanceOf(ErroPermissao);

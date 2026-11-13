@@ -133,7 +133,7 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     grupo: 'Pessoal',
     nome: 'Tabela Mestre de Benefícios',
     rota: '/cad/beneficios',
-    ordem: 1,
+    ordem: 5,
     nivelLog: 'SIMPLES',
     acoes: ['consultar', 'incluir', 'alterar'],
     perfisPadrao: {

@@ -63,9 +63,12 @@ BEGIN
         RAISE EXCEPTION 'Unidade com unidades ativas abaixo' USING ERRCODE = 'check_violation';
       END IF;
     END IF;
-    IF NOT OLD."ativa" AND NEW."ativa" AND NEW."superior_id" IS NOT NULL
-       AND NOT EXISTS (SELECT 1 FROM "unidade_funcional" WHERE "id" = NEW."superior_id" AND "ativa") THEN
-      RAISE EXCEPTION 'A unidade superior está inativa' USING ERRCODE = 'check_violation';
+    IF NOT OLD."ativa" AND NEW."ativa" AND NEW."superior_id" IS NOT NULL THEN
+      -- FOR SHARE: conflita com o UPDATE que inativa o superior ao mesmo tempo (serializa os dois).
+      SELECT "ativa" INTO superior_ativa FROM "unidade_funcional" WHERE "id" = NEW."superior_id" FOR SHARE;
+      IF NOT superior_ativa THEN
+        RAISE EXCEPTION 'A unidade superior está inativa' USING ERRCODE = 'check_violation';
+      END IF;
     END IF;
     IF NEW IS DISTINCT FROM OLD THEN
       NEW."atualizado_em" := clock_timestamp();
@@ -79,7 +82,12 @@ BEGIN
     END IF;
     RETURN NEW;
   END IF;
-  SELECT "tipo", "ativa" INTO tipo_superior, superior_ativa FROM "unidade_funcional" WHERE "id" = NEW."superior_id";
+  -- FOR SHARE: uma inativação do superior ao mesmo tempo espera esta inclusão (e vê o filho) ou
+  -- termina antes (e esta leitura já a vê inativa).
+  SELECT "tipo", "ativa" INTO tipo_superior, superior_ativa FROM "unidade_funcional" WHERE "id" = NEW."superior_id" FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'A unidade superior não existe' USING ERRCODE = 'check_violation';
+  END IF;
   IF NOT superior_ativa THEN
     RAISE EXCEPTION 'A unidade superior está inativa' USING ERRCODE = 'check_violation';
   END IF;
@@ -96,16 +104,25 @@ CREATE TRIGGER "unidade_funcional_regras" BEFORE INSERT OR UPDATE ON "unidade_fu
   FOR EACH ROW EXECUTE FUNCTION "cad_unidade_funcional_regras"();
 
 -- Cargo só se vincula a unidade analítica e ativa (RN_EST_02, RN_CAR_08); desvincular é permitido.
+-- A recarga do Rubi (sgo_sync) pode reativar um cargo vinculado a unidade que foi inativada: o Rubi é
+-- a fonte e não é bloqueado. Esse cargo conta como "pendente de alocação" (RN_EST_05), junto com o sem
+-- vínculo, na tela de cargos (US-048 parte 2).
 CREATE FUNCTION "cad_cargo_vinculo_funcional"() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  ok boolean;
 BEGIN
-  IF NEW."vinculo_funcional_id" IS NOT NULL AND NEW."vinculo_funcional_id" IS DISTINCT FROM OLD."vinculo_funcional_id"
-     AND NOT EXISTS (SELECT 1 FROM "unidade_funcional" WHERE "id" = NEW."vinculo_funcional_id" AND "ativa"
-                     AND "tipo" IN ('ASSESSORIA', 'COORDENADORIA', 'SETOR')) THEN
-    RAISE EXCEPTION 'Cargo só se vincula a unidade analítica ativa' USING ERRCODE = 'check_violation';
+  IF NEW."vinculo_funcional_id" IS NOT NULL
+     AND (TG_OP = 'INSERT' OR NEW."vinculo_funcional_id" IS DISTINCT FROM OLD."vinculo_funcional_id") THEN
+    -- FOR SHARE: serializa com a inativação da mesma unidade (RN_EST_04).
+    SELECT "ativa" AND "tipo" IN ('ASSESSORIA', 'COORDENADORIA', 'SETOR') INTO ok
+      FROM "unidade_funcional" WHERE "id" = NEW."vinculo_funcional_id" FOR SHARE;
+    IF ok IS NOT TRUE THEN
+      RAISE EXCEPTION 'Cargo só se vincula a unidade analítica ativa' USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
   RETURN NEW;
 END $$;
-CREATE TRIGGER "cargo_vinculo_funcional" BEFORE UPDATE OF "vinculo_funcional_id" ON "cargo"
+CREATE TRIGGER "cargo_vinculo_funcional" BEFORE INSERT OR UPDATE OF "vinculo_funcional_id" ON "cargo"
   FOR EACH ROW EXECUTE FUNCTION "cad_cargo_vinculo_funcional"();
 
 -- Privilégios: o app inclui, renomeia e (in)ativa, sem apagar; o sgo_sync lê (a recarga do Rubi não
