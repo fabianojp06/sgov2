@@ -314,6 +314,7 @@ describe('listarPropostas', () => {
       cc: '9.1',
       situacao: 'RASCUNHO',
       versaoAtual: 1,
+      excluivel: true,
       valorGlobal: expect.any(Dinheiro),
       versao: 0,
     });
@@ -601,6 +602,19 @@ describe('novaVersaoProposta', () => {
     expect(await versoesDe(p.id)).toEqual(['1:EM_ELABORACAO', '2:RASCUNHO', '3:RASCUNHO']);
   });
 
+  it('a V2 em Rascunho não abre caminho para excluir a V1 Em Elaboração: a exclusão exige todas em Rascunho (revisão 12.12)', async () => {
+    const p = await criar({ cc: '9.1' });
+    await migrator.$executeRaw`UPDATE orc_versao_proposta SET situacao = 'EM_ELABORACAO' WHERE proposta_id = ${p.id}::uuid`;
+    expect(await novaVersaoProposta(await ctx(orcamentista), { id: p.id, versao: 0 }, comDeps())).toMatchObject({ ok: true });
+    expect(await excluirProposta(await ctx(orcamentista), { id: p.id, versao: 1 }, comDeps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: M.PROPOSTA_NAO_EXCLUIVEL }],
+    });
+    expect(await migrator.propostaTp.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ versao: 1, excluidaEm: null });
+    // A lista não oferece a exclusão.
+    expect((await listarPropostas(await ctx(orcamentista), comDeps())).find((x) => x.id === p.id)).toMatchObject({ situacao: 'RASCUNHO', excluivel: false });
+  });
+
   it.each(['EM_APROVACAO', 'OFICIALIZADO', 'ENCERRADO'])('última versão %s → VERSAO_NAO_PERMITIDA, nada muda (D-P18-1)', async (situacao) => {
     const p = await criar({ cc: '9.1' });
     await migrator.$executeRaw`UPDATE orc_versao_proposta SET situacao = ${situacao} WHERE proposta_id = ${p.id}::uuid`;
@@ -706,8 +720,14 @@ describe('novaVersaoProposta', () => {
       novaVersaoProposta(contexto, { id: p.id, versao: 0 }, comDeps()),
     ]);
     expect([exclusao.ok, versao.ok].filter(Boolean)).toHaveLength(1);
-    // Quem perde: ALTERADO_POR_OUTRO; a nova versão que só chega depois da exclusão gravada não acha a proposta.
-    expect([alterado, inexistente]).toContainEqual(exclusao.ok ? versao : exclusao);
+    if (exclusao.ok) {
+      // A nova versão perdeu: pela trava (ALTERADO_POR_OUTRO) ou, se só leu depois do commit da exclusão, inexistente.
+      expect([alterado, inexistente]).toContainEqual(versao);
+    } else {
+      // A exclusão perdeu: sempre pela trava da capa.
+      expect(exclusao).toEqual(alterado);
+      expect(versao).toEqual({ ok: true, valor: { numero: p.numero, versao: 2 } });
+    }
     const capaFinal = await migrator.propostaTp.findUniqueOrThrow({ where: { id: p.id } });
     expect(capaFinal.versao).toBe(1);
     expect(await versoesDe(p.id)).toEqual(exclusao.ok ? ['1:RASCUNHO'] : ['1:RASCUNHO', '2:RASCUNHO']);

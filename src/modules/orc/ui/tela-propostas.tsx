@@ -62,7 +62,7 @@ export function TelaPropostas({
   /** Só com ?duplicar= e orc.propostas:incluir. */
   duplicacao?: DuplicacaoAberta | null;
 }) {
-  const podeExcluir = (p: PropostaTela) => permissoes.podeExcluir && p.situacao === 'RASCUNHO';
+  const podeExcluir = (p: PropostaTela) => permissoes.podeExcluir && p.excluivel;
   const podeVersionar = (p: PropostaTela) => permissoes.podeIncluir && versionavel(p.situacao);
   const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir);
   const origem = duplicacao?.origem ?? null;

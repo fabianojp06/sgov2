@@ -49,6 +49,8 @@ export type PropostaTela = {
   cc: string | null;
   situacao: SituacaoProposta;
   versaoAtual: number;
+  /** Todas as versões em Rascunho: a exclusão (da proposta inteira) só vale assim (UC 3.07 E2). */
+  excluivel: boolean;
   /** Sempre calculado (§6.2, RN_TP_003): zero até existirem lançamentos (R4 seguinte). */
   valorGlobal: Dinheiro;
   /** Versão de concorrência da capa (para a exclusão). */
@@ -242,6 +244,10 @@ export async function criarProposta(ctx: ContextoRequisicao, bruto: unknown, dep
  * quem chama (duplicar: última versão da origem → V1 da nova; nova versão: anterior → seguinte). Ainda não há
  * linhas: cada história de lançamento (US-067 e US-070 a 072) acrescenta aqui a cópia das suas, com os
  * testes da RN_DUP_003, 007 e 008.
+ *
+ * Regra para essas histórias (revisão 12.12 do #445): toda edição de linha sobe a `versao` da capa. A
+ * duplicação confere essa versão no fim e não trava a origem; sem a regra, copiaria um conjunto misturado
+ * de linhas lidas em comandos separados (ou ela passa a ler a origem com FOR SHARE).
  */
 export const copiarLinhasDaVersao: (
   tx: TxCliente,
@@ -392,12 +398,16 @@ export async function novaVersaoProposta(
       { cliente: deps.cliente },
     );
   } catch (erro) {
-    if (erro instanceof ConflitoConcorrencia) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
+    // O índice (proposta_id, numero) é a segunda barreira, atrás da trava da capa: violado, também é
+    // concorrência (revisão 12.12 do #445).
+    if (erro instanceof ConflitoConcorrencia || violouUnicidade(erro)) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
     throw erro;
   }
 }
 
 /** UC 3.04: as propostas dos TPs do usuário (RLS), sem as excluídas, pela ordem do número. */
+const todasEmRascunho = (versoes: readonly { situacao: string }[]) => versoes.length > 0 && versoes.every((v) => v.situacao === 'RASCUNHO');
+
 export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly PropostaTela[]> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'consultar');
@@ -406,7 +416,7 @@ export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Par
     (tx) =>
       tx.propostaTp.findMany({
         where: { excluidaEm: null },
-        include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, take: 1, select: { numero: true, situacao: true } } },
+        include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, select: { numero: true, situacao: true } } },
       }),
     { cliente: deps.cliente },
   );
@@ -424,6 +434,7 @@ export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Par
         cc: p.unidade.cc,
         situacao: (p.versoes[0]?.situacao ?? 'RASCUNHO') as SituacaoProposta,
         versaoAtual: p.versoes[0]?.numero ?? 1,
+        excluivel: todasEmRascunho(p.versoes),
         valorGlobal: Dinheiro.zero(),
         versao: p.versao,
       }),
@@ -450,12 +461,14 @@ export async function excluirProposta(ctx: ContextoRequisicao, bruto: unknown, d
       async (tx) => {
         const p = await tx.propostaTp.findFirst({
           where: { id, excluidaEm: null },
-          include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, take: 1, select: { numero: true, situacao: true } } },
+          include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, select: { numero: true, situacao: true } } },
         });
         if (!p) return inexistente;
         if (p.versao !== versao) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
-        const atual = p.versoes[0];
-        if (atual?.situacao !== 'RASCUNHO') return falha([{ campo: '_', mensagem: M.PROPOSTA_NAO_EXCLUIVEL }]);
+        // A exclusão leva a proposta inteira (todas as versões): só com todas em Rascunho. Sem isso, uma V2
+        // em Rascunho abriria caminho para excluir uma V1 Em Elaboração (revisão 12.12 do #445). A exclusão
+        // de uma versão só é o UC03.11 (fora, D-P18-9).
+        if (!todasEmRascunho(p.versoes)) return falha([{ campo: '_', mensagem: M.PROPOSTA_NAO_EXCLUIVEL }]);
 
         exigirUmaLinha(
           await tx.propostaTp.updateMany({
@@ -480,7 +493,7 @@ export async function excluirProposta(ctx: ContextoRequisicao, bruto: unknown, d
           tipo: 'EXCLUSAO',
           registroId: p.id,
           descricao: `Proposta do TP ${capa.numero} excluída`,
-          antes: retrato(capa, atual.numero, 'RASCUNHO'),
+          antes: retrato(capa, p.versoes[0]!.numero, 'RASCUNHO'),
         });
         return ok({ numero: capa.numero });
       },
