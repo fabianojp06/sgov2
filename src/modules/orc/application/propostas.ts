@@ -251,12 +251,8 @@ export const copiarLinhasDaVersao: (
 
 const ultimaVersao = { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true } } as const;
 
-/** Os valores do modal de duplicar (D-P18-3): os campos da origem, com "Cópia de " no objeto. Nulo se não vê. */
-export async function dadosParaDuplicar(
-  ctx: ContextoRequisicao,
-  id: string,
-  depsParciais: Partial<DepsOrc> = {},
-): Promise<{
+/** Os valores do modal de duplicar (D-P18-3): os campos da origem, com "Cópia de " no objeto. */
+export type DadosDuplicar = {
   origemId: string;
   versaoOrigem: number;
   numeroOrigem: string;
@@ -266,7 +262,10 @@ export async function dadosParaDuplicar(
   inicio: string;
   fim: string;
   categoria: CategoriaProposta;
-} | null> {
+};
+
+/** Os valores do modal de duplicar; nulo se o usuário não vê a proposta (RLS) ou ela foi excluída. */
+export async function dadosParaDuplicar(ctx: ContextoRequisicao, id: string, depsParciais: Partial<DepsOrc> = {}): Promise<DadosDuplicar | null> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'incluir');
   if (!uuid.safeParse(id).success) return null;

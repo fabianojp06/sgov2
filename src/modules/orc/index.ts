@@ -8,7 +8,7 @@ export { sugerirContaCcAcao, sugerirJustificativaAcao } from './application/acoe
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
 export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, ligarCargoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
-export { criarPropostaAcao, excluirPropostaAcao } from './application/acoes-propostas';
+export { criarPropostaAcao, duplicarPropostaAcao, excluirPropostaAcao, novaVersaoPropostaAcao } from './application/acoes-propostas';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
 export { ultimaRevisao } from './application/revisor';
@@ -31,7 +31,7 @@ export {
   type PosicaoTela,
 } from './application/posicoes';
 export { listarCorrespondencias, type ItemCorrespondencia, type ListaCorrespondencia } from './application/correspondencia-cargos';
-export { ccsLivresParaTp, listarPropostas, type CcLivreTp, type PropostaTela } from './application/propostas';
+export { ccsLivresParaTp, dadosParaDuplicar, listarPropostas, type CcLivreTp, type DadosDuplicar, type PropostaTela } from './application/propostas';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
 export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
 export { MENSAGENS_ORC } from './domain/mensagens';
