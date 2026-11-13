@@ -82,6 +82,12 @@ describe('seed da ajuda do manual', () => {
 });
 
 describe('ajudaManualLiberada', () => {
+  it('a seed de novo preserva o caso ligado e o teto definidos pelo Administrador', async () => {
+    await executarSeeds(migrator, [seedAdm, seedRel]);
+    const c = await migrator.iaCasoUso.findUniqueOrThrow({ where: { codigo: CASO_AJUDA_MANUAL.codigo } });
+    expect({ ativo: c.ativo, teto: c.tetoMensalUsd.toFixed(2) }).toEqual({ ativo: true, teto: '10.00' });
+  });
+
   it('o campo aparece só com a permissão do caso e o caso ligado', async () => {
     expect(await ajudaManualLiberada(ctx(), deps())).toBe(true);
     expect(await ajudaManualLiberada(ctx([EXPORTACOES]), deps())).toBe(false);
@@ -127,7 +133,12 @@ describe('perguntarAoManual', () => {
     expect(await perguntarAoManual(ctx(), { pergunta: '  oi ' }, deps())).toEqual(curta);
     expect(await perguntarAoManual(ctx(), { pergunta: '<<<>>><<<>>>' }, deps())).toEqual(curta);
     expect(await perguntarAoManual(ctx(), {}, deps())).toEqual(curta);
-    expect(await perguntarAoManual(ctx(), { pergunta: 'x'.repeat(501) }, deps())).toEqual({ ok: false, erros: [{ campo: 'pergunta', mensagem: MENSAGENS_AJUDA.PERGUNTA_LONGA }] });
+    const longa = { ok: false, erros: [{ campo: 'pergunta', mensagem: MENSAGENS_AJUDA.PERGUNTA_LONGA }] };
+    expect(await perguntarAoManual(ctx(), { pergunta: 'x'.repeat(501) }, deps())).toEqual(longa);
+    // Entrada montada para o semMarcas repetir passadas (revisão 12.12): recusada pelo tamanho bruto, na hora.
+    const inicio = performance.now();
+    expect(await perguntarAoManual(ctx(), { pergunta: '<>>'.repeat(40_000) + '><<'.repeat(40_000) }, deps())).toEqual(longa);
+    expect(performance.now() - inicio).toBeLessThan(1000);
     expect(falso.chamadas.length).toBe(antes);
   });
 

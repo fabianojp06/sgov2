@@ -8,7 +8,6 @@ import { falha, ok, type Resultado } from '@/shared/kernel';
 import {
   conferirAjuda,
   contarCaracteres,
-  MAXIMO_CITACOES,
   MAXIMO_PERGUNTA,
   MAXIMO_RESPOSTA,
   mensagemAjuda,
@@ -35,11 +34,15 @@ export const MENSAGENS_AJUDA = {
   TEMPO_ESGOTADO: 'A IA demorou demais para responder. Tente de novo.',
 } as const;
 
+// Sem teto no número de trechos: a conferência corta em MAXIMO_CITACOES (11 citações não viram erro).
 const SAIDA = z.object({
   encontrou: z.boolean(),
   resposta: z.string().max(MAXIMO_RESPOSTA),
-  trechos: z.array(z.string().max(10)).max(MAXIMO_CITACOES * 2),
+  trechos: z.array(z.string().max(10)),
 });
+// Teto do texto bruto, antes de tirar as marcas: o semMarcas repete passadas até não mudar e, sem
+// limite, uma entrada montada para isso prenderia a CPU (revisão 12.12).
+const MAXIMO_BRUTO = MAXIMO_PERGUNTA * 4;
 
 const ENTRADA = z.object({ pergunta: z.unknown().optional() }).passthrough();
 
@@ -64,6 +67,7 @@ export async function perguntarAoManual(ctx: ContextoRequisicao, bruto: unknown,
   if (!ctx.permissoes.has(PERMISSAO)) return erro(new ErroIA('ia.sem_permissao').message);
   const lido = ENTRADA.safeParse(bruto);
   const valor = lido.success ? lido.data.pergunta : undefined;
+  if (typeof valor === 'string' && valor.length > MAXIMO_BRUTO) return erro(MENSAGENS_AJUDA.PERGUNTA_LONGA, 'pergunta');
   // As marcas saem antes de contar: '<<<>>>' e espaços não valem como pergunta.
   const pergunta = semMarcas(typeof valor === 'string' ? valor : '').trim();
   if (contarCaracteres(pergunta) < MINIMO_PERGUNTA) return erro(MENSAGENS_AJUDA.PERGUNTA_CURTA, 'pergunta');

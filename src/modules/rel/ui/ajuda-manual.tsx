@@ -60,6 +60,7 @@ export function ConteudoAjuda({ estado }: { estado: EstadoAjuda }) {
 export function AjudaManualIA({ perguntar }: { perguntar: (entrada: { pergunta: string }) => Promise<RespostaAjudaTela> }) {
   const [estado, setEstado] = useState<EstadoAjuda>({ tipo: 'OCIOSO' });
   const [pergunta, setPergunta] = useState('');
+  const [erroCampo, setErroCampo] = useState(false);
   // Ref, e não só o estado: dois envios seguidos não disparam duas consultas.
   const ocupado = useRef(false);
   const enviar = async (e: React.FormEvent) => {
@@ -67,8 +68,11 @@ export function AjudaManualIA({ perguntar }: { perguntar: (entrada: { pergunta: 
     if (ocupado.current) return;
     ocupado.current = true;
     setEstado({ tipo: 'CONSULTANDO' });
+    setErroCampo(false);
     try {
-      setEstado(estadoDaResposta(await perguntar({ pergunta })));
+      const r = await perguntar({ pergunta });
+      setErroCampo(!r.ok && r.erros.some((e) => e.campo === 'pergunta'));
+      setEstado(estadoDaResposta(r));
     } catch {
       setEstado({ tipo: 'ERRO', mensagem: TEXTOS_AJUDA.FALHA });
     } finally {
@@ -88,7 +92,8 @@ export function AjudaManualIA({ perguntar }: { perguntar: (entrada: { pergunta: 
             maxLength={MAXIMO_PERGUNTA}
             value={pergunta}
             onChange={(e) => setPergunta(e.target.value)}
-            aria-describedby="ajuda-ia-aviso"
+            aria-invalid={erroCampo || undefined}
+            aria-describedby={erroCampo ? 'ajuda-ia-aviso ajuda-ia-resultado' : 'ajuda-ia-aviso'}
           />
         </p>
         <p role="note" id="ajuda-ia-aviso">
@@ -99,7 +104,7 @@ export function AjudaManualIA({ perguntar }: { perguntar: (entrada: { pergunta: 
           {TEXTOS_AJUDA.BOTAO}
         </button>
       </form>
-      <div role="status" aria-live="polite">
+      <div role="status" aria-live="polite" id="ajuda-ia-resultado">
         <ConteudoAjuda estado={estado} />
       </div>
     </section>
