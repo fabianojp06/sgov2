@@ -251,7 +251,7 @@ model MetaProposta {
 // Empregado (headcount) da proposta (US-070; plano do P20, D-P20-2): é da versão, com a meta obrigatória na
 // categoria Meta (no caso de uso) e FK RESTRICT. Nome nulo é a vaga "A CONTRATAR" (RN0249). O cargo é do
 // cadastro de C&S, sem FK (como a posição, P15), e o salário é a Fonte Ativa herdada ao salvar. A ordem é
-// única por versão e meta (índice NULLS NOT DISTINCT, só na migration). CHECKs na migration. RLS por unidade_id.
+// única por versão e meta. CHECKs na migration. RLS por unidade_id.
 model EmpregadoProposta {
   id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   unidadeId        String         @map("unidade_id") @db.Uuid
@@ -272,6 +272,8 @@ model EmpregadoProposta {
   criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   versao           Int            @default(0)
 
+  // NULLS NOT DISTINCT só na migration (o Prisma não o declara): a meta nula da Consolidada é um grupo só.
+  @@unique([versaoPropostaId, metaId, ordem], map: "orc_empregado_versao_meta_ordem_key")
   @@index([unidadeId])
   @@index([versaoPropostaId])
   @@index([metaId])
