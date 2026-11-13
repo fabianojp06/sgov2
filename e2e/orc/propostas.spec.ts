@@ -3,7 +3,8 @@ import pg from 'pg';
 import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoio';
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
-// do P18, Task 2, Step 3) e as metas (US-067; plano do P19, Task 2, Step 3).
+// do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3) e o pessoal (US-070; plano do P20,
+// Task 2, Step 3).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -12,8 +13,8 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // global 0,00; o seletor de unidade da tela principal passa a mostrar o TP (o criador é vinculado na
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
 // a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
-// copiando as metas; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
-// livre (D-P17-10). O afterAll apaga as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
+// copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// livre (D-P17-10). O afterAll apaga o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
 // Usuário: o Orçamentista E2E de e2e/aut/apoio.ts (orc.menu), que outros specs também usam. O vínculo
@@ -40,6 +41,8 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query('BEGIN');
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
+      await cliente.query(`DELETE FROM orc_qtde_empregado WHERE unidade_id IN ${unidade}`);
+      await cliente.query(`DELETE FROM orc_empregado WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_meta WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_versao_proposta WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_proposta WHERE unidade_id IN ${unidade}`);
@@ -161,6 +164,40 @@ test.describe.serial('proposta de TP', () => {
     await caixa.getByRole('button', { name: 'Sim' }).click();
     await expect(page.getByText('Meta M1 excluída.')).toBeVisible();
     await expect(bloco.getByRole('row', { name: /^M1 / })).toHaveCount(0);
+  });
+
+  test('3c. na versão nova, uma vaga "A CONTRATAR" na meta e um quantitativo que a conta', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto(`/orc/metas?proposta=${NUMERO_COPIA}`);
+    await page.getByRole('link', { name: `Nova meta na proposta ${NUMERO_COPIA}` }).click();
+    await page.getByLabel('Número da meta').fill('M2');
+    await page.getByLabel('Nome da meta').fill('Atendimento');
+    await page.getByLabel('Valor global (R$)').fill('0');
+    await page.getByRole('button', { name: 'Incluir meta' }).click();
+    await expect(page.getByText('Meta M2 incluída.')).toBeVisible();
+
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Empregados da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/empregados\?proposta=/);
+    await page.getByRole('link', { name: `Novo empregado na proposta ${NUMERO_COPIA}` }).click();
+    await page.locator('#novo-empregado-meta').selectOption({ label: 'M2 – Atendimento' });
+    const cargo = await page.locator('#novo-empregado-cargo option', { hasText: 'SINT-001' }).getAttribute('value');
+    await page.locator('#novo-empregado-cargo').selectOption(cargo!);
+    await page.locator('#novo-empregado-inicio').fill('2027-03');
+    await page.getByRole('button', { name: 'Incluir empregado' }).click();
+    await expect(page.getByText('Empregado 1 (A CONTRATAR) incluído.')).toBeVisible();
+    const grupo = page.getByRole('region', { name: /^Meta M2 – Atendimento/ });
+    await expect(grupo.getByRole('row', { name: /^1 / })).toContainText('A CONTRATAR');
+    await expect(grupo.getByRole('row', { name: /^1 / })).toContainText('03/2027 a 12/2027');
+    await expect(grupo).toContainText('Total da meta M2: Empregados 1 · Estagiários 0 · Jovens Aprendizes 0');
+
+    await page.goto(`/orc/qtde-empregados?proposta=${NUMERO_COPIA}`);
+    await page.getByRole('link', { name: `Novo quantitativo na proposta ${NUMERO_COPIA}` }).click();
+    await page.locator('#nova-qtde-meta').selectOption({ label: 'M2 – Atendimento' });
+    await page.getByLabel('Número do documento').fill('AP-E2E');
+    await page.getByRole('button', { name: 'Incluir quantitativo' }).click();
+    await expect(page.getByText('Quantitativo do documento AP-E2E incluído.')).toBeVisible();
+    await expect(page.getByRole('row', { name: /^AP-E2E / })).toHaveText(/AP-E2E\s*01\/2027\s*12\/2027\s*1\s*0\s*0/);
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
