@@ -16,3 +16,8 @@ export { baixarExportacao, DIAS_DISPONIVEL, listarMinhasExportacoes, type Arquiv
 // Manual do usuário e roteiro de treinamento por perfil (US-118), montados do catálogo.
 export { obterManual, type TelaManual } from './application/manual';
 export { listarAcoes, type FuncionalidadeManual, type ModuloManual, type PassoTreinamento } from './domain/manual';
+
+// Ajuda "como faço..." com base no manual (US-108): a ação, a liberação do campo e o componente.
+export { perguntarAoManualAcao } from './application/acoes-ajuda-manual';
+export { ajudaManualLiberada } from './application/ajuda-manual';
+export { AjudaManualIA } from './ui/ajuda-manual';

@@ -1,11 +1,12 @@
-import { listarAcoes, obterManual } from '@/modules/rel';
+import { AjudaManualIA, ajudaManualLiberada, listarAcoes, obterManual, perguntarAoManualAcao } from '@/modules/rel';
 import { exigirPagina } from '@/shared/authz';
 
 // Manual do usuário e roteiro de treinamento (US-118): o do perfil de quem lê, montado do catálogo
-// de funcionalidades, sempre igual ao sistema no ar.
+// de funcionalidades, sempre igual ao sistema no ar. Com a IA ligada para o perfil, o campo "Pergunte
+// ao manual" (US-108) aparece no topo.
 export default async function Manual() {
   const ctx = await exigirPagina('aut.tela_principal', 'consultar');
-  const { manual, roteiro } = await obterManual(ctx);
+  const [{ manual, roteiro }, ajudaIa] = await Promise.all([obterManual(ctx), ajudaManualLiberada(ctx)]);
   return (
     <div>
       <h1>Manual do usuário</h1>
@@ -13,6 +14,7 @@ export default async function Manual() {
         Este manual mostra só o que o seu perfil de acesso permite, na ordem do menu. Ele acompanha o sistema: quando uma funcionalidade muda
         ou é liberada para você, o manual muda junto. Em cada tela, o botão Ajuda da barra de status traz o mesmo texto.
       </p>
+      {ajudaIa && manual.length > 0 && <AjudaManualIA perguntar={perguntarAoManualAcao} />}
       {manual.length === 0 ? (
         <p>Nenhuma funcionalidade disponível para o seu perfil de acesso. Contate o Administrador.</p>
       ) : (
