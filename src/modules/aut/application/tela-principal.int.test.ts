@@ -125,7 +125,7 @@ describe('exibirNoMenu', () => {
     expect(ctx.permissoes.has(['orc.ia_justificativa', 'executar'].join(':'))).toBe(true);
     const orc = codigosDoMenu(await carregarTelaPrincipal(ctx, { cliente: app })).filter((c) => c.startsWith('orc.'));
     // P17: a consulta das propostas de TP fica no menu Cadastros, que vem antes da Administração Central.
-    expect(orc).toEqual(['orc.propostas', 'orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao']);
+    expect(orc).toEqual(['orc.propostas', 'orc.metas', 'orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao']);
   });
 
   it('ADMINISTRADOR (#403): só a permissão da sugestão de conta no orc, para a avaliação na /int/ia; nada do orc no menu', async () => {
