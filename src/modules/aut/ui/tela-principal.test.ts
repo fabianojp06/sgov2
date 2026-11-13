@@ -24,6 +24,7 @@ describe('TelaPrincipal (UC01.03)', () => {
     expect(html).toContain('Ana Maria');
     expect(html).toContain('11/11/2026, 09:00'); // horário de Brasília
     expect(html).toContain('Ajuda');
+    expect(html).toMatch(/href="\/rel\/manual"[^>]*>Manual</);
     expect(html).toMatch(/href="\/troca-senha"[^>]*>Alterar senha/);
     expect(html).toContain('Sair');
     expect(html).toContain('Usuários');
