@@ -26,6 +26,10 @@ export { CamposAprovacaoDirex } from './ui/importar-cc';
 // Parâmetros do exercício e salário mínimo (US-053 parte 2): ações, dados das telas e formulários.
 export { acaoAlterarParametros, acaoAlterarSalarioMinimo } from './application/acoes-parametros';
 export { obterTelaParametros, obterTelaSalarioMinimo } from './application/tela-parametros';
+// Impostos e alíquotas (US-052).
+export { acaoAlterarImposto, acaoIncluirAliquota, acaoIncluirImposto, acaoRemoverAliquota } from './application/acoes-impostos';
+export { alterarImposto, incluirAliquota, incluirImposto, obterTelaImpostos, removerAliquotaFutura, type ImpostoTela, type TelaImpostos } from './application/impostos';
+export { Impostos } from './ui/impostos';
 // Estrutura funcional (US-048).
 export { acaoDefinirSituacaoUnidade, acaoIncluirUnidade, acaoRenomearUnidade } from './application/acoes-estrutura-funcional';
 export {

@@ -208,4 +208,32 @@ describe('privilégios do cad (R6)', () => {
     const sync = await migrator.query(`SELECT 1 FROM information_schema.column_privileges WHERE table_name = 'beneficio_cargo' AND grantee = 'sgo_sync'`);
     expect(sync.rows).toEqual([]);
   });
+
+  it('impostos (US-052): o app lê, inclui só nome e incidência, altera nome, incidência e situação e apaga só alíquota; o sync só lê', async () => {
+    const t = await migrator.query<{ l: string }>(
+      `SELECT table_name || ' ' || grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants
+       WHERE table_name IN ('imposto', 'aliquota_imposto') AND grantee = ANY($1) ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(t.rows.map((r) => r.l)).toEqual([
+      'aliquota_imposto sgo_app DELETE',
+      'aliquota_imposto sgo_app SELECT',
+      'aliquota_imposto sgo_sync SELECT',
+      'imposto sgo_app SELECT',
+      'imposto sgo_sync SELECT',
+    ]);
+    const c = await migrator.query<{ l: string }>(
+      `SELECT r.rolname || ' ' || cl.relname || ' ' || x.privilege_type || ' ' || a.attname AS l
+       FROM pg_attribute a JOIN pg_class cl ON cl.oid = a.attrelid, aclexplode(a.attacl) x JOIN pg_roles r ON r.oid = x.grantee
+       WHERE cl.relname IN ('imposto', 'aliquota_imposto') AND r.rolname = ANY($1) AND a.attacl IS NOT NULL ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(c.rows.map((r) => r.l)).toEqual(
+      [
+        ...['competencia', 'imposto_id', 'percentual'].map((x) => `sgo_app aliquota_imposto INSERT ${x}`),
+        ...['incidencia', 'nome'].map((x) => `sgo_app imposto INSERT ${x}`),
+        ...['ativo', 'atualizado_em', 'incidencia', 'nome', 'versao'].map((x) => `sgo_app imposto UPDATE ${x}`),
+      ].sort(),
+    );
+  });
 });

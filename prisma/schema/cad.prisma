@@ -385,3 +385,37 @@ model BeneficioCargo {
   @@index([ano, codigo])
   @@map("beneficio_cargo")
 }
+
+enum IncidenciaImposto {
+  CONTRATO
+  TERMO_PARCERIA
+  AMBOS
+}
+
+// Impostos (US-052; UC03.01, REQ_TAX_001, RN_TAX_05): nome único sem diferenciar maiúsculas (índice
+// em lower(nome) na migration), até 20 caracteres, e o tipo de incidência.
+model Imposto {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String
+  incidencia   IncidenciaImposto
+  ativo        Boolean           @default(true)
+  versao       Int               @default(1)
+  aliquotas    AliquotaImposto[]
+  criadoEm     DateTime          @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm DateTime          @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@map("imposto")
+}
+
+// Alíquota por competência (o 1º dia do mês em que passa a valer). Sem retroatividade na inclusão; a
+// que já começou a valer não muda nem sai (trigger, RN_TAX_05/06).
+model AliquotaImposto {
+  impostoId   String   @map("imposto_id") @db.Uuid
+  imposto     Imposto  @relation(fields: [impostoId], references: [id], onDelete: Restrict)
+  competencia DateTime @db.Date
+  percentual  Decimal  @db.Decimal(9, 4)
+  criadoEm    DateTime @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+
+  @@id([impostoId, competencia])
+  @@map("aliquota_imposto")
+}
