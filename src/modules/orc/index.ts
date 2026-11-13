@@ -9,6 +9,14 @@ export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
 export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, ligarCargoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
 export { alterarMetaAcao, excluirMetaAcao, incluirMetaAcao } from './application/acoes-metas';
+export {
+  alterarEmpregadoAcao,
+  alterarQtdeAcao,
+  excluirEmpregadoAcao,
+  excluirQtdeAcao,
+  incluirEmpregadoAcao,
+  incluirQtdeAcao,
+} from './application/acoes-empregados';
 export { criarPropostaAcao, duplicarPropostaAcao, excluirPropostaAcao, novaVersaoPropostaAcao } from './application/acoes-propostas';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
@@ -33,6 +41,15 @@ export {
 } from './application/posicoes';
 export { listarCorrespondencias, type ItemCorrespondencia, type ListaCorrespondencia } from './application/correspondencia-cargos';
 export { listarMetas, type BlocoMetas, type FiltrosMetas, type MetaTela } from './application/metas';
+export {
+  cargosParaEmpregado,
+  listarEmpregados,
+  type BlocoEmpregados,
+  type EmpregadoTela,
+  type GrupoEmpregados,
+  type OpcaoCargoEmpregado,
+} from './application/empregados';
+export { listarQtdes, type BlocoQtdes, type QtdeTela } from './application/qtde-empregados';
 export { ccsLivresParaTp, dadosParaDuplicar, listarPropostas, type CcLivreTp, type DadosDuplicar, type PropostaTela } from './application/propostas';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
 export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
@@ -42,6 +59,8 @@ export { FormReceita, type ReceitaFormulario } from './ui/form-receita';
 export { TelaPacotes, textoAvisoPacote } from './ui/tela-pacotes';
 export { TelaCorrespondencia } from './ui/tela-correspondencia';
 export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMeta } from './ui/tela-metas';
+export { TelaEmpregados, textoAvisoEmpregado, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
+export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
 export { TelaPropostas, textoAvisoProposta } from './ui/tela-propostas';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';

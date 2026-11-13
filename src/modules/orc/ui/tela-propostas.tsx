@@ -44,8 +44,11 @@ const versionavel = (s: SituacaoProposta) => (SITUACOES_VERSIONAVEIS as readonly
 /** O formulário de duplicar aberto (?duplicar=): a origem, ou nulo se o usuário não a vê. */
 export type DuplicacaoAberta = { origem: DadosDuplicar | null };
 
-/** podeVerMetas: orc.metas:consultar, para o link das metas na proposta de categoria Meta (US-067). */
-export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean };
+/**
+ * podeVerMetas: orc.metas:consultar, para o link das metas na proposta de categoria Meta (US-067).
+ * podeVerEmpregados: orc.empregados:consultar, para o link dos empregados em qualquer proposta (US-070).
+ */
+export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean; podeVerEmpregados?: boolean };
 
 export function TelaPropostas({
   propostas,
@@ -67,7 +70,8 @@ export function TelaPropostas({
   const podeExcluir = (p: PropostaTela) => permissoes.podeExcluir && p.excluivel;
   const podeVersionar = (p: PropostaTela) => permissoes.podeIncluir && versionavel(p.situacao);
   const verMetas = (p: PropostaTela) => permissoes.podeVerMetas === true && p.categoria === 'META';
-  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas);
+  const verEmpregados = permissoes.podeVerEmpregados === true;
+  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas) || (verEmpregados && propostas.length > 0);
   const origem = duplicacao?.origem ?? null;
   return (
     <>
@@ -109,6 +113,7 @@ export function TelaPropostas({
                   {acoesNaLinha && (
                     <td>
                       {verMetas(p) && <a href={`/orc/metas?proposta=${encodeURIComponent(p.numero)}`}>{`Metas da proposta ${p.numero}`}</a>}
+                      {verEmpregados && <a href={`/orc/empregados?proposta=${encodeURIComponent(p.numero)}`}>{`Empregados da proposta ${p.numero}`}</a>}
                       {podeVersionar(p) && (
                         <AcaoConfirmada
                           rotulo={`Nova versão da proposta ${p.numero}`}

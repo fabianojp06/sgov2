@@ -20,6 +20,7 @@ import {
 } from '../domain/proposta';
 import { contextoAuditoria } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
+import { copiarPessoalDaVersao } from './empregados';
 import { copiarMetasDaVersao } from './metas';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
@@ -257,6 +258,8 @@ export async function copiarLinhasDaVersao(
   criadoPor: string,
 ): Promise<void> {
   await copiarMetasDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
+  // Depois das metas: o pessoal aponta para a meta de destino de mesmo número (D-P20-8).
+  await copiarPessoalDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
 }
 
 const ultimaVersao = { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true } } as const;

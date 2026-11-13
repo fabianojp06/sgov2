@@ -243,6 +243,19 @@ const ehCifraIndisponivel = (e: unknown) => e instanceof ErroDominio && e.codigo
 // no caminho da seed, da importação e do worker (D-P15-2).
 const decifrados = async (deps: DepsOrc) => deps.cargosDecifrados ?? (await import('@/modules/cad')).listarCargosExercicio;
 
+/**
+ * A Fonte Ativa decifrada do cargo, para quem herda o salário (o empregado da proposta, P20, D-P20-2). Nula
+ * sem a chave da cifra ou sem salário na fonte.
+ */
+export async function salarioFonteAtiva(tx: TxCliente, cargoId: string, deps: DepsOrc): Promise<Dinheiro | null> {
+  try {
+    return (await (await decifrados(deps))(tx, { incluirInativos: true })).find((c) => c.id === cargoId)?.salarioFonteAtiva ?? null;
+  } catch (e) {
+    if (ehCifraIndisponivel(e)) return null;
+    throw e;
+  }
+}
+
 // O cargo escolhido tem salário na Fonte Ativa? Pela versão decifrada; sem a chave, só pela fonte
 // escolhida no cadastro (D-P15-2).
 async function semFonteAtiva(tx: TxCliente, cargo: CargoExercicio, deps: DepsOrc): Promise<boolean> {

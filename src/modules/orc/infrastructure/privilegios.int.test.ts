@@ -35,6 +35,8 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_proposta: ['INSERT', 'SELECT'], // UPDATE só por coluna (P17)
   orc_versao_proposta: ['INSERT', 'SELECT'],
   orc_meta: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P19); a exclusão é física (D-P19-6)
+  orc_empregado: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P20); a exclusão é física (D-P20-9)
+  orc_qtde_empregado: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P20)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -110,6 +112,9 @@ describe('privilégios do orc', () => {
     expect(await colunas('orc_versao_proposta')).toEqual([]);
     // Meta (P19): o número, a versão da proposta e a unidade não mudam.
     expect(await colunas('orc_meta')).toEqual(['nome', 'observacao', 'status', 'valor', 'versao']);
+    // Pessoal (P20): a versão da proposta, a meta, a ordem e a unidade não mudam.
+    expect(await colunas('orc_empregado')).toEqual(['cargo_id', 'categoria', 'dependentes', 'fim', 'inicio', 'nome', 'salario_mensal', 'versao']);
+    expect(await colunas('orc_qtde_empregado')).toEqual(['documento', 'fim', 'inicio', 'versao']);
     expect(await colunas('unidade')).toEqual(['ativo', 'nome']);
   });
 

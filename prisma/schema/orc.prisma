@@ -205,16 +205,18 @@ model PropostaTp {
 // Versão da proposta (§6.2): nasce a nº 1 em Rascunho, com a data e a hora do servidor (RN_PROP_002).
 // O ciclo de vida (avançar, enviar, aprovar) fica para as histórias seguintes. RLS por unidade_id.
 model VersaoProposta {
-  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  unidadeId  String         @map("unidade_id") @db.Uuid
-  unidade    Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
-  propostaId String         @map("proposta_id") @db.Uuid
-  proposta   PropostaTp     @relation(fields: [propostaId], references: [id], onDelete: Restrict)
+  id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId  String                  @map("unidade_id") @db.Uuid
+  unidade    Unidade                 @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  propostaId String                  @map("proposta_id") @db.Uuid
+  proposta   PropostaTp              @relation(fields: [propostaId], references: [id], onDelete: Restrict)
   numero     Int
-  situacao   String         @default("RASCUNHO")
-  criadoPor  String         @map("criado_por") @db.Uuid
-  criadoEm   DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  situacao   String                  @default("RASCUNHO")
+  criadoPor  String                  @map("criado_por") @db.Uuid
+  criadoEm   DateTime                @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   metas      MetaProposta[]
+  empregados EmpregadoProposta[]
+  qtdes      QtdeEmpregadoProposta[]
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -225,21 +227,78 @@ model VersaoProposta {
 // a copiam (RN_DUP_003). Número único na versão sem diferença de maiúsculas (índice de expressão
 // orc_meta_versao_numero_key, só na migration). Status e limites com CHECK na migration. RLS por unidade_id.
 model MetaProposta {
+  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String                  @map("unidade_id") @db.Uuid
+  unidade          Unidade                 @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String                  @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta          @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  numero           String
+  nome             String
+  valor            Decimal                 @db.Decimal(15, 2)
+  status           String                  @default("ATIVO")
+  observacao       String?
+  criadoPor        String                  @map("criado_por") @db.Uuid
+  criadoEm         DateTime                @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int                     @default(0)
+  empregados       EmpregadoProposta[]
+  qtdes            QtdeEmpregadoProposta[]
+
+  @@index([unidadeId])
+  @@index([versaoPropostaId])
+  @@map("orc_meta")
+}
+
+// Empregado (headcount) da proposta (US-070; plano do P20, D-P20-2): é da versão, com a meta obrigatória na
+// categoria Meta (no caso de uso) e FK RESTRICT. Nome nulo é a vaga "A CONTRATAR" (RN0249). O cargo é do
+// cadastro de C&S, sem FK (como a posição, P15), e o salário é a Fonte Ativa herdada ao salvar. A ordem é
+// única por versão e meta. CHECKs na migration. RLS por unidade_id.
+model EmpregadoProposta {
   id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   unidadeId        String         @map("unidade_id") @db.Uuid
   unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
   versaoPropostaId String         @map("versao_proposta_id") @db.Uuid
   versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
-  numero           String
-  nome             String
-  valor            Decimal        @db.Decimal(15, 2)
-  status           String         @default("ATIVO")
-  observacao       String?
+  metaId           String?        @map("meta_id") @db.Uuid
+  meta             MetaProposta?  @relation(fields: [metaId], references: [id], onDelete: Restrict)
+  ordem            Int
+  categoria        String
+  nome             String?
+  cargoId          String         @map("cargo_id") @db.Uuid
+  salarioMensal    Decimal        @map("salario_mensal") @db.Decimal(15, 2)
+  inicio           DateTime       @db.Date
+  fim              DateTime       @db.Date
+  dependentes      Int            @default(0)
+  criadoPor        String         @map("criado_por") @db.Uuid
+  criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int            @default(0)
+
+  // NULLS NOT DISTINCT só na migration (o Prisma não o declara): a meta nula da Consolidada é um grupo só.
+  @@unique([versaoPropostaId, metaId, ordem], map: "orc_empregado_versao_meta_ordem_key")
+  @@index([unidadeId])
+  @@index([versaoPropostaId])
+  @@index([metaId])
+  @@map("orc_empregado")
+}
+
+// Quantitativo de pessoal por período (US-070; plano do P20, D-P20-6): só o período e o documento são
+// digitados; as quantidades são contadas dos empregados (RN0457). RLS por unidade_id.
+model QtdeEmpregadoProposta {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  metaId           String?        @map("meta_id") @db.Uuid
+  meta             MetaProposta?  @relation(fields: [metaId], references: [id], onDelete: Restrict)
+  inicio           DateTime       @db.Date
+  fim              DateTime       @db.Date
+  documento        String
   criadoPor        String         @map("criado_por") @db.Uuid
   criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   versao           Int            @default(0)
 
   @@index([unidadeId])
   @@index([versaoPropostaId])
-  @@map("orc_meta")
+  @@index([metaId])
+  @@map("orc_qtde_empregado")
 }

@@ -174,6 +174,45 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       DIREX: ['consultar'],
     },
   },
+  {
+    // Empregados da proposta (US-070; plano do P20, D-P20-10) [PROVISÓRIO]: no menu Cadastros › Empregados
+    // (UC03.24). Orçamentista e Analista GRH lançam (§11.3: o GRH tem os Empregados e parte o WA05); GFIN,
+    // Auditor e DIREX leem, sem o custo (D-P20-5). Cada um vê só os TPs a que está vinculado (RLS).
+    codigo: 'orc.empregados',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Empregados',
+    rota: '/orc/empregados',
+    ordem: 3,
+    ajuda: 'Lança os empregados e as vagas "A CONTRATAR" da última versão das propostas, por meta, cargo e competência, com o custo pelo motor de pessoal.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      ANALISTA_GRH: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
+  },
+  {
+    // Quantitativos de pessoal por período (US-070; plano do P20, D-P20-6 e D-P20-10) [PROVISÓRIO]: no menu
+    // Cadastros › Qtde. Empregados (UC03.20), com a matriz de orc.empregados.
+    codigo: 'orc.qtde_empregados',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Qtde. Empregados',
+    rota: '/orc/qtde-empregados',
+    ordem: 4,
+    ajuda: 'Registra os períodos de vigência com o documento de respaldo e mostra, contadas dos empregados, as quantidades de empregados, estagiários e jovens aprendizes.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      ANALISTA_GRH: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
+  },
 ];
 
 export const seedOrc: Seed = {
