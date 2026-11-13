@@ -283,8 +283,9 @@ model Cargo {
   fonteAtiva               FonteAtiva?           @map("fonte_ativa")
   adicionalTipo            AdicionalTrabalhista? @map("adicional_tipo")
   adicionalGrau            GrauInsalubridade?    @map("adicional_grau")
-  // R11: opcional e sem FK até a US-048 (pendência P2).
+  // Vínculo 1:1 com uma unidade analítica ativa da estrutura funcional (US-048; RN_CAR_08, C2).
   vinculoFuncionalId       String?               @map("vinculo_funcional_id") @db.Uuid
+  vinculoFuncional         UnidadeFuncional?     @relation(fields: [vinculoFuncionalId], references: [id], onDelete: Restrict)
   // Controle.
   ativo                    Boolean               @default(true)
   versao                   Int                   @default(1)
@@ -295,7 +296,36 @@ model Cargo {
   criadoEm                 DateTime              @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm             DateTime              @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
 
+  @@index([vinculoFuncionalId])
   @@map("cargo")
+}
+
+enum TipoUnidadeFuncional {
+  DIRETORIA
+  GERENCIA
+  ASSESSORIA
+  COORDENADORIA
+  SETOR
+}
+
+// Estrutura funcional (US-048; UC03.18): Diretoria e Gerência sintéticas; Assessoria, Coordenadoria e
+// Setor analíticas. Hierarquia, imutabilidade do tipo e do superior e a inativação com carga viva
+// (RN_EST_04) ficam no trigger da migration; nome único entre as ativas do mesmo superior.
+model UnidadeFuncional {
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String
+  tipo         TipoUnidadeFuncional
+  superiorId   String?              @map("superior_id") @db.Uuid
+  superior     UnidadeFuncional?    @relation("UnidadeSuperior", fields: [superiorId], references: [id], onDelete: Restrict)
+  abaixo       UnidadeFuncional[]   @relation("UnidadeSuperior")
+  ativa        Boolean              @default(true)
+  versao       Int                  @default(1)
+  cargos       Cargo[]
+  criadoEm     DateTime             @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm DateTime             @default(dbgenerated("clock_timestamp()")) @map("atualizado_em") @db.Timestamptz(6)
+
+  @@index([superiorId])
+  @@map("unidade_funcional")
 }
 
 // Senioridades da tabela salarial (US-049 parte 3; UC03.19 RN_TAB_01): Júnior, Pleno e Sênior são

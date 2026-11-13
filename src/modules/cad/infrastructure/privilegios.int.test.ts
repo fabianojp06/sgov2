@@ -134,6 +134,28 @@ describe('privilégios do cad (R6)', () => {
     );
   });
 
+  it('estrutura funcional (US-048): o app lê, inclui só nome, tipo e superior e altera só nome e situação; o sync só lê; ninguém apaga', async () => {
+    const t = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants WHERE table_name = 'unidade_funcional' AND grantee = ANY($1) ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(t.rows.map((r) => r.l)).toEqual(['sgo_app SELECT', 'sgo_sync SELECT']);
+    const c = await migrator.query<{ l: string }>(
+      `SELECT grantee || ' ' || privilege_type || ' ' || column_name AS l FROM information_schema.column_privileges
+       WHERE table_name = 'unidade_funcional' AND grantee = ANY($1) AND privilege_type IN ('INSERT', 'UPDATE') ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(c.rows.map((r) => r.l)).toEqual([
+      'sgo_app INSERT nome',
+      'sgo_app INSERT superior_id',
+      'sgo_app INSERT tipo',
+      'sgo_app UPDATE ativa',
+      'sgo_app UPDATE atualizado_em',
+      'sgo_app UPDATE nome',
+      'sgo_app UPDATE versao',
+    ]);
+  });
+
   it('Tabela Mestre (B1): o sync não toca; o app lê, insere e altera só as colunas de valor; ninguém apaga', async () => {
     const t = await migrator.query<{ l: string }>(
       `SELECT grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants WHERE table_name = 'beneficio_mestre' AND grantee = ANY($1) ORDER BY 1`,

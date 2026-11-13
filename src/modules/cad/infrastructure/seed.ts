@@ -56,6 +56,25 @@ export const FUNCIONALIDADES_CAD: readonly DeclaracaoFuncionalidade[] = [
     },
   },
   {
+    // US-048 (UC03.18): a árvore de unidades e o vínculo 1:1 do cargo (RN_CAR_08, C2).
+    codigo: 'cad.estrutura_funcional',
+    modulo: 'CADASTROS',
+    grupo: 'Pessoal',
+    nome: 'Estrutura funcional',
+    rota: '/cad/estrutura-funcional',
+    ordem: 1,
+    nivelLog: 'SIMPLES',
+    ajuda:
+      'Mantenha a árvore de unidades: Diretoria e Gerência consolidam; Assessoria, Coordenadoria e Setor recebem os cargos. Uma ' +
+      'unidade com cargo ativo vinculado ou com unidade ativa abaixo não pode ser inativada.',
+    acoes: ['consultar', 'incluir', 'alterar'],
+    perfisPadrao: {
+      ANALISTA_GRH: ['consultar', 'incluir', 'alterar'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+    },
+  },
+  {
     codigo: 'cad.cargos',
     modulo: 'CADASTROS',
     grupo: 'Pessoal',

@@ -26,6 +26,17 @@ export { CamposAprovacaoDirex } from './ui/importar-cc';
 // Parâmetros do exercício e salário mínimo (US-053 parte 2): ações, dados das telas e formulários.
 export { acaoAlterarParametros, acaoAlterarSalarioMinimo } from './application/acoes-parametros';
 export { obterTelaParametros, obterTelaSalarioMinimo } from './application/tela-parametros';
+// Estrutura funcional (US-048).
+export { acaoDefinirSituacaoUnidade, acaoIncluirUnidade, acaoRenomearUnidade } from './application/acoes-estrutura-funcional';
+export {
+  definirSituacaoUnidade,
+  incluirUnidade,
+  obterTelaEstruturaFuncional,
+  renomearUnidade,
+  type CargoOcupante,
+  type TelaEstruturaFuncional,
+} from './application/estrutura-funcional';
+export { EstruturaFuncional } from './ui/estrutura-funcional';
 // Parâmetros locais das contas analíticas (US-045).
 export { acaoAlterarParametroLocal } from './application/acoes-parametros-locais';
 export { alterarParametroLocal, obterTelaParametrosLocais, type ParametroLocalTela, type TelaParametrosLocais } from './application/parametros-locais-conta';
