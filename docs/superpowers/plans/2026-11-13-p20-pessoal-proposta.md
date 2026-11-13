@@ -69,6 +69,7 @@ As do P17 a P19 valem todas:
   - **Exclusão:** física (UC03.23). A trava de viagens (RN0145) chega com a US-071.
 - **D-P20-7 (ciclo de vida):** incluir, alterar e excluir só com a última versão em Rascunho ou Em Elaboração (RN0183, RN0159), como na D-P19-5. Fora disso, a mensagem do E2 do UC03.27 ou do E1 do UC03.23.
 - **D-P20-8 (cópia):** a nova versão e a duplicação copiam empregados e quantitativos com ids novos, a mesma ordem e a meta de destino de mesmo número.
+  - **Emenda da revisão 12.12 do #467:** a duplicação pode mudar a capa. Com outra categoria, o pessoal não é copiado. Com outra vigência, só é copiado o que cabe nela.
 - **D-P20-9 (exclusão do empregado):** física (UC03.27). A trava de viagens e diárias (RN0254) vira FK `RESTRICT` quando a US-071 ligar a viagem ao empregado. O caso de uso já trata a violação 23503 com a mensagem do E1.
 - **D-P20-10 (permissões) [PROVISÓRIO]:**
   - **`orc.empregados`:** Cadastros › Empregados, ordem 3.
