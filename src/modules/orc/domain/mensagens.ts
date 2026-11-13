@@ -185,4 +185,12 @@ export const MENSAGENS_ORC = {
   CONFIRMA_EXCLUSAO_PROPOSTA: 'Deseja realmente excluir esta versão de Proposta?',
   PROPOSTA_CRIADA: (numero: string) => `Proposta do TP ${numero} criada em Rascunho.`,
   PROPOSTA_EXCLUIDA: (numero: string) => `Proposta do TP ${numero} excluída.`,
+  // Duplicar e nova versão (US-066; plano do P18) [PROVISÓRIAS]; a recusa por situação segue o D-P18-1
+  // [PROVISÓRIO até o UC03.09 ser reescrito, C16].
+  VERSAO_NAO_PERMITIDA:
+    'Ação Negada: só se cria nova versão a partir da última versão em Rascunho ou Em Elaboração. A proposta Oficializada muda por Termo Aditivo.',
+  CONFIRMA_NOVA_VERSAO: (numero: string) =>
+    `Deseja realmente criar uma nova versão da proposta do TP ${numero}? A versão atual fica guardada, somente leitura.`,
+  PROPOSTA_DUPLICADA: (numero: string) => `Proposta do TP ${numero} criada em Rascunho, por duplicação.`,
+  VERSAO_CRIADA: (numero: string) => `Nova versão da proposta do TP ${numero} criada em Rascunho.`,
 } as const;

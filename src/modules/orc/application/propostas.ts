@@ -9,7 +9,9 @@ import { aplicarUnidades, emUnidade } from '@/shared/unidade';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import {
   nomeDaUnidade,
+  objetoDaCopia,
   RAIZ_CC_TP,
+  SITUACOES_VERSIONAVEIS,
   validarCapa,
   type CapaValidada,
   type CategoriaProposta,
@@ -25,6 +27,10 @@ import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 // cc = CC do TP), o vínculo do criador, a capa, a Versão 1 em Rascunho e o Histórico (D-P17-2, D-P17-3).
 // A capa e a versão têm RLS: depois de criar a unidade, o app.unidades da transação é refeito com ela.
 // O CC é lido do C1 (sem gravar nada da frente B); a unicidade é do índice unidade_cc_ativa_key (D-P17-7).
+// Duplicar e nova versão (US-066, UC03.08 e UC03.09; plano do P18, Task 1): duplicar é uma criação com os
+// campos da origem pré-preenchidos (gravarPropostaNova, comum às duas); a nova versão é a revisão seguinte
+// da mesma proposta. Toda operação sobre as versões começa subindo a versão da capa (updateMany condicional
+// e exigirUmaLinha): a linha da capa fica travada até o commit, e a concorrente cai em ALTERADO_POR_OUTRO.
 
 const FUNCIONALIDADE = 'orc.propostas';
 // O vínculo do criador vai também ao Histórico do usuário, como na tela de usuários (US-031).
@@ -43,6 +49,8 @@ export type PropostaTela = {
   cc: string | null;
   situacao: SituacaoProposta;
   versaoAtual: number;
+  /** Todas as versões em Rascunho: a exclusão (da proposta inteira) só vale assim (UC 3.07 E2). */
+  excluivel: boolean;
   /** Sempre calculado (§6.2, RN_TP_003): zero até existirem lançamentos (R4 seguinte). */
   valorGlobal: Dinheiro;
   /** Versão de concorrência da capa (para a exclusão). */
@@ -84,6 +92,9 @@ const entradaCriar = z
   .strict();
 
 const entradaExcluir = z.object({ id: z.string(), versao: z.coerce.number().int().min(0) }).strict();
+const entradaNovaVersao = entradaExcluir;
+// Duplicar (D-P18-3): número e CC novos; os demais campos, se ausentes, vêm da origem.
+const entradaDuplicar = entradaCriar.extend({ origemId: z.string(), versaoOrigem: z.coerce.number().int().min(0) }).required({ origemId: true, versaoOrigem: true });
 const uuid = z.uuid();
 
 // O C1 inteiro (deps.estruturaCompleta): o deps.estrutura do orc vê só a raiz 4 da Adm. Central (C37), e os
@@ -129,73 +140,79 @@ const ccDeOutroTp = (cc: string) => falha([{ campo: 'cc', mensagem: M.CC_DE_OUTR
 const violouUnicidade = (e: unknown) =>
   (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') || (e instanceof Error && /\b23505\b/.test(e.message));
 
+type PropostaNova = { id: string; unidadeId: string; numero: string };
+/** De onde vem a proposta duplicada (D-P18-5): vai ao Histórico e à cópia das linhas. */
+type OrigemDuplicacao = { propostaId: string; numero: string; versaoId: string };
+
 /**
- * UC 3.05: cria a proposta. Valida a capa (domínio), o CC contra o C1 e a unicidade do número e do CC
- * (RN_TP_001). Na corrida, o índice único decide: quem perde recebe a mensagem, sem nada gravado.
+ * Miolo transacional da criação, comum à criação (UC 3.05) e à duplicação (UC03.08): confere a unicidade do
+ * número e do CC (RN_TP_001) e grava a unidade, o vínculo do criador, a capa, a Versão 1 em Rascunho e o
+ * Histórico. Recusa só antes de gravar; depois de gravar, erro é exceção (a transação desfaz tudo).
  */
-export async function criarProposta(
+async function gravarPropostaNova(
+  tx: TxCliente,
   ctx: ContextoRequisicao,
-  bruto: unknown,
-  depsParciais: Partial<DepsOrc> = {},
-): Promise<Resultado<{ id: string; unidadeId: string; numero: string }>> {
-  const deps = resolverDeps(depsParciais);
-  exigir(ctx, FUNCIONALIDADE, 'incluir');
-  await recusarCamposBlindados(ctx, FUNCIONALIDADE, bruto, CAMPOS_ORIGEM_BLINDADA.proposta, deps);
-  const parse = entradaCriar.safeParse(bruto);
-  if (!parse.success) return falha([{ campo: '_', mensagem: M.PROPOSTA_DADOS_INVALIDOS }]);
-  const v = validarCapa(parse.data);
-  if (!v.ok) return v;
-  const capa = v.valor;
-  if (!(await ccsDeTp(deps)).includes(capa.cc)) return falha([{ campo: 'cc', mensagem: M.CC_INVALIDO_TP(capa.cc) }]);
+  capa: CapaValidada,
+  deps: DepsOrc,
+  origem?: OrigemDuplicacao,
+): Promise<Resultado<PropostaNova>> {
+  // Conferência antes de gravar, para a mensagem certa sem depender do erro do índice.
+  if (await numeroEmUso(tx, capa.numero)) return numeroDuplicado(capa.numero);
+  if (await tx.unidade.findFirst({ where: { cc: capa.cc, ativo: true }, select: { id: true } })) return ccDeOutroTp(capa.cc);
 
+  const unidade = await tx.unidade.create({ data: { codigo: capa.numero, nome: nomeDaUnidade(capa.objeto), cc: capa.cc } });
+  await tx.usuarioUnidade.create({ data: { usuarioId: ctx.usuarioId, unidadeId: unidade.id } });
+  // O vínculo muda o usuário: a versão dele sobe, para a ficha aberta antes na tela de usuários (US-031)
+  // não apagar o vínculo ao salvar (ela recusa a versão antiga com "alterado por outro").
+  await tx.usuario.updateMany({ where: { id: ctx.usuarioId }, data: { versao: { increment: 1 }, atualizadoEm: deps.agora() } });
+  // A RLS da capa e da versão exige a unidade nova no app.unidades desta transação (as do usuário ficam).
+  await aplicarUnidades(tx, { ...ctx, unidades: [...(ctx.unidades ?? []), unidade.id] });
+  const proposta = await tx.propostaTp.create({
+    data: {
+      unidadeId: unidade.id,
+      tipo: capa.tipo,
+      objeto: capa.objeto,
+      parceiro: capa.parceiro,
+      inicio: data(capa.inicio),
+      fim: data(capa.fim),
+      categoria: capa.categoria,
+      criadoPor: ctx.usuarioId,
+    },
+    select: { id: true },
+  });
+  const v1 = await tx.versaoProposta.create({
+    data: { unidadeId: unidade.id, propostaId: proposta.id, numero: 1, situacao: 'RASCUNHO', criadoPor: ctx.usuarioId },
+    select: { id: true },
+  });
+  if (origem) await copiarLinhasDaVersao(tx, { propostaId: origem.propostaId, versaoId: origem.versaoId }, { propostaId: proposta.id, versaoId: v1.id });
+
+  const contexto = { ...contextoAuditoria(ctx), unidadeId: unidade.id };
+  await auditar(tx, {
+    contexto,
+    funcionalidade: FUNCIONALIDADE,
+    tipo: 'INSERCAO',
+    registroId: proposta.id,
+    descricao: origem
+      ? `Proposta do TP ${capa.numero} duplicada da proposta do TP ${origem.numero}`
+      : `Proposta do TP ${capa.numero} criada em Rascunho, com o CC ${capa.cc}`,
+    depois: origem ? { ...retrato(capa, 1, 'RASCUNHO'), propostaOrigemId: origem.propostaId, numeroOrigem: origem.numero } : retrato(capa, 1, 'RASCUNHO'),
+  });
+  // Como na tela de usuários (US-031): o evento do usuário não é de uma unidade, e a unidade vai no depois.
+  await auditar(tx, {
+    contexto: { ...contexto, unidadeId: null },
+    funcionalidade: FUNCIONALIDADE_USUARIOS,
+    tipo: 'INSERCAO',
+    registroId: ctx.usuarioId,
+    descricao: `Unidade ${capa.numero} associada ao usuário ${ctx.usuarioRotulo}, que ${origem ? 'duplicou' : 'criou'} a proposta do TP`,
+    depois: { unidadeId: unidade.id, numero: capa.numero },
+  });
+  return ok({ id: proposta.id, unidadeId: unidade.id, numero: capa.numero });
+}
+
+/** Na corrida, o índice único decide: quem perde recebe a mensagem do número ou do CC, sem nada gravado. */
+async function decidirCorrida<T>(deps: DepsOrc, capa: CapaValidada, gravar: () => Promise<Resultado<T>>): Promise<Resultado<T>> {
   try {
-    return await deps.cliente.$transaction(async (tx) => {
-      // Conferência antes de gravar, para a mensagem certa sem depender do erro do índice.
-      if (await numeroEmUso(tx, capa.numero)) return numeroDuplicado(capa.numero);
-      if (await tx.unidade.findFirst({ where: { cc: capa.cc, ativo: true }, select: { id: true } })) return ccDeOutroTp(capa.cc);
-
-      const unidade = await tx.unidade.create({ data: { codigo: capa.numero, nome: nomeDaUnidade(capa.objeto), cc: capa.cc } });
-      await tx.usuarioUnidade.create({ data: { usuarioId: ctx.usuarioId, unidadeId: unidade.id } });
-      // O vínculo muda o usuário: a versão dele sobe, para a ficha aberta antes na tela de usuários (US-031)
-      // não apagar o vínculo ao salvar (ela recusa a versão antiga com "alterado por outro").
-      await tx.usuario.updateMany({ where: { id: ctx.usuarioId }, data: { versao: { increment: 1 }, atualizadoEm: deps.agora() } });
-      // A RLS da capa e da versão exige a unidade nova no app.unidades desta transação.
-      await aplicarUnidades(tx, { ...ctx, unidades: [...(ctx.unidades ?? []), unidade.id] });
-      const proposta = await tx.propostaTp.create({
-        data: {
-          unidadeId: unidade.id,
-          tipo: capa.tipo,
-          objeto: capa.objeto,
-          parceiro: capa.parceiro,
-          inicio: data(capa.inicio),
-          fim: data(capa.fim),
-          categoria: capa.categoria,
-          criadoPor: ctx.usuarioId,
-        },
-        select: { id: true },
-      });
-      await tx.versaoProposta.create({ data: { unidadeId: unidade.id, propostaId: proposta.id, numero: 1, situacao: 'RASCUNHO', criadoPor: ctx.usuarioId }, select: { id: true } });
-
-      const contexto = { ...contextoAuditoria(ctx), unidadeId: unidade.id };
-      await auditar(tx, {
-        contexto,
-        funcionalidade: FUNCIONALIDADE,
-        tipo: 'INSERCAO',
-        registroId: proposta.id,
-        descricao: `Proposta do TP ${capa.numero} criada em Rascunho, com o CC ${capa.cc}`,
-        depois: retrato(capa, 1, 'RASCUNHO'),
-      });
-      // Como na tela de usuários (US-031): o evento do usuário não é de uma unidade, e a unidade vai no depois.
-      await auditar(tx, {
-        contexto: { ...contexto, unidadeId: null },
-        funcionalidade: FUNCIONALIDADE_USUARIOS,
-        tipo: 'INSERCAO',
-        registroId: ctx.usuarioId,
-        descricao: `Unidade ${capa.numero} associada ao usuário ${ctx.usuarioRotulo}, que criou a proposta do TP`,
-        depois: { unidadeId: unidade.id, numero: capa.numero },
-      });
-      return ok({ id: proposta.id, unidadeId: unidade.id, numero: capa.numero });
-    });
+    return await gravar();
   } catch (erro) {
     if (!violouUnicidade(erro)) throw erro;
     // A transação perdeu a corrida: quem ganhou já gravou; a leitura de agora diz qual índice foi.
@@ -205,7 +222,192 @@ export async function criarProposta(
   }
 }
 
+/**
+ * UC 3.05: cria a proposta. Valida a capa (domínio), o CC contra o C1 e a unicidade do número e do CC
+ * (RN_TP_001). Na corrida, o índice único decide: quem perde recebe a mensagem, sem nada gravado.
+ */
+export async function criarProposta(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<PropostaNova>> {
+  const deps = resolverDeps(depsParciais);
+  exigir(ctx, FUNCIONALIDADE, 'incluir');
+  await recusarCamposBlindados(ctx, FUNCIONALIDADE, bruto, CAMPOS_ORIGEM_BLINDADA.proposta, deps);
+  const parse = entradaCriar.safeParse(bruto);
+  if (!parse.success) return falha([{ campo: '_', mensagem: M.PROPOSTA_DADOS_INVALIDOS }]);
+  const v = validarCapa(parse.data);
+  if (!v.ok) return v;
+  const capa = v.valor;
+  if (!(await ccsDeTp(deps)).includes(capa.cc)) return falha([{ campo: 'cc', mensagem: M.CC_INVALIDO_TP(capa.cc) }]);
+  return decidirCorrida(deps, capa, () => deps.cliente.$transaction((tx) => gravarPropostaNova(tx, ctx, capa, deps)));
+}
+
+/**
+ * Ponto de extensão (plano do P18): copia as linhas de lançamento de uma versão para outra, na transação de
+ * quem chama (duplicar: última versão da origem → V1 da nova; nova versão: anterior → seguinte). Ainda não há
+ * linhas: cada história de lançamento (US-067 e US-070 a 072) acrescenta aqui a cópia das suas, com os
+ * testes da RN_DUP_003, 007 e 008.
+ *
+ * Regra para essas histórias (revisão 12.12 do #445): toda edição de linha sobe a `versao` da capa. A
+ * duplicação confere essa versão no fim e não trava a origem; sem a regra, copiaria um conjunto misturado
+ * de linhas lidas em comandos separados (ou ela passa a ler a origem com FOR SHARE).
+ */
+export const copiarLinhasDaVersao: (
+  tx: TxCliente,
+  origem: { propostaId: string; versaoId: string },
+  destino: { propostaId: string; versaoId: string },
+) => Promise<void> = async () => {};
+
+const ultimaVersao = { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true } } as const;
+
+/** Os valores do modal de duplicar (D-P18-3): os campos da origem, com "Cópia de " no objeto. */
+export type DadosDuplicar = {
+  origemId: string;
+  versaoOrigem: number;
+  numeroOrigem: string;
+  tipo: TipoProposta;
+  objeto: string;
+  parceiro: string | null;
+  inicio: string;
+  fim: string;
+  categoria: CategoriaProposta;
+};
+
+/** Os valores do modal de duplicar; nulo se o usuário não vê a proposta (RLS) ou ela foi excluída. */
+export async function dadosParaDuplicar(ctx: ContextoRequisicao, id: string, depsParciais: Partial<DepsOrc> = {}): Promise<DadosDuplicar | null> {
+  const deps = resolverDeps(depsParciais);
+  exigir(ctx, FUNCIONALIDADE, 'incluir');
+  if (!uuid.safeParse(id).success) return null;
+  const p = await emUnidade(ctx, (tx) => tx.propostaTp.findFirst({ where: { id, excluidaEm: null }, include: { unidade: { select: { codigo: true } } } }), {
+    cliente: deps.cliente,
+  });
+  if (!p) return null;
+  return {
+    origemId: p.id,
+    versaoOrigem: p.versao,
+    numeroOrigem: p.unidade.codigo,
+    tipo: p.tipo as TipoProposta,
+    objeto: objetoDaCopia(p.objeto),
+    parceiro: p.parceiro,
+    inicio: dia(p.inicio),
+    fim: dia(p.fim),
+    categoria: p.categoria as CategoriaProposta,
+  };
+}
+
+/**
+ * UC03.08: duplica a proposta numa proposta nova e independente (TP novo, com unidade, número e CC próprios,
+ * em Rascunho, Versão 1). A origem pode estar em qualquer situação (RN_DUP_001) e não muda; a excluída ou de
+ * outra unidade é inexistente (D-P18-7). A versão da capa de origem é conferida no início e no fim, sem subir
+ * (D-P18-8): origem mudada no meio desfaz tudo, com ALTERADO_POR_OUTRO.
+ */
+export async function duplicarProposta(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<PropostaNova>> {
+  const deps = resolverDeps(depsParciais);
+  exigir(ctx, FUNCIONALIDADE, 'incluir');
+  await recusarCamposBlindados(ctx, FUNCIONALIDADE, bruto, CAMPOS_ORIGEM_BLINDADA.proposta, deps);
+  const parse = entradaDuplicar.safeParse(bruto);
+  if (!parse.success) return falha([{ campo: '_', mensagem: M.PROPOSTA_DADOS_INVALIDOS }]);
+  const { origemId, versaoOrigem, ...campos } = parse.data;
+  const inexistente = falha([{ campo: '_', mensagem: M.PROPOSTA_INEXISTENTE }]);
+  const alterado = falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
+
+  const origem = await dadosParaDuplicar(ctx, origemId, deps);
+  if (!origem) return inexistente;
+  if (origem.versaoOrigem !== versaoOrigem) return alterado;
+  const v = validarCapa({
+    tipo: campos.tipo ?? origem.tipo,
+    numero: campos.numero,
+    objeto: campos.objeto ?? origem.objeto,
+    parceiro: campos.parceiro ?? origem.parceiro ?? '',
+    inicio: campos.inicio ?? origem.inicio,
+    fim: campos.fim ?? origem.fim,
+    categoria: campos.categoria ?? origem.categoria,
+    cc: campos.cc,
+  });
+  if (!v.ok) return v;
+  const capa = v.valor;
+  if (!(await ccsDeTp(deps)).includes(capa.cc)) return falha([{ campo: 'cc', mensagem: M.CC_INVALIDO_TP(capa.cc) }]);
+
+  try {
+    return await decidirCorrida(deps, capa, () =>
+      deps.cliente.$transaction(async (tx) => {
+        await aplicarUnidades(tx, ctx);
+        const o = await tx.propostaTp.findFirst({ where: { id: origemId, excluidaEm: null, versao: versaoOrigem }, select: { versoes: ultimaVersao } });
+        const versaoDaOrigem = o?.versoes[0];
+        if (!versaoDaOrigem) throw new ConflitoConcorrencia();
+        const r = await gravarPropostaNova(tx, ctx, capa, deps, { propostaId: origemId, numero: origem.numeroOrigem, versaoId: versaoDaOrigem.id });
+        if (!r.ok) return r;
+        // RNF_DUP_REQ_003: a origem precisa estar como estava; se mudou no meio, nada fica gravado.
+        if ((await tx.propostaTp.count({ where: { id: origemId, excluidaEm: null, versao: versaoOrigem } })) !== 1) throw new ConflitoConcorrencia();
+        return r;
+      }),
+    );
+  } catch (erro) {
+    if (erro instanceof ConflitoConcorrencia) return alterado;
+    throw erro;
+  }
+}
+
+/**
+ * UC03.09: cria a versão seguinte da mesma proposta, em Rascunho (D-P18-1) [PROVISÓRIO até o UC03.09 ser
+ * reescrito, C16]. Só da última versão, em Rascunho ou Em Elaboração; a anterior fica como estava, só leitura
+ * (D-P18-2). Começa subindo a versão da capa: a capa fica travada até o commit, e a exclusão ou outra nova
+ * versão concorrente cai em ALTERADO_POR_OUTRO (D-P18-8).
+ */
+export async function novaVersaoProposta(
+  ctx: ContextoRequisicao,
+  bruto: unknown,
+  depsParciais: Partial<DepsOrc> = {},
+): Promise<Resultado<{ numero: string; versao: number }>> {
+  const deps = resolverDeps(depsParciais);
+  exigir(ctx, FUNCIONALIDADE, 'incluir');
+  const parse = entradaNovaVersao.safeParse(bruto);
+  if (!parse.success) return falha([{ campo: '_', mensagem: M.PROPOSTA_DADOS_INVALIDOS }]);
+  const { id, versao } = parse.data;
+  const inexistente = falha([{ campo: '_', mensagem: M.PROPOSTA_INEXISTENTE }]);
+  if (!uuid.safeParse(id).success) return inexistente;
+  try {
+    return await emUnidade(
+      ctx,
+      async (tx) => {
+        const p = await tx.propostaTp.findFirst({ where: { id, excluidaEm: null }, include: { unidade: { select: { codigo: true } }, versoes: ultimaVersao } });
+        if (!p) return inexistente;
+        if (p.versao !== versao) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
+        const anterior = p.versoes[0];
+        if (!anterior || !(SITUACOES_VERSIONAVEIS as readonly string[]).includes(anterior.situacao)) return falha([{ campo: '_', mensagem: M.VERSAO_NAO_PERMITIDA }]);
+
+        // A trava: daqui ao commit, nenhuma outra operação sobre as versões desta proposta passa.
+        exigirUmaLinha(await tx.propostaTp.updateMany({ where: { id, versao, excluidaEm: null }, data: { versao: { increment: 1 } } }));
+        // Com a capa travada, a última versão lida antes precisa ser a mesma (situação mudada no meio: conflito).
+        const agora = await tx.versaoProposta.findFirst({ where: { propostaId: id }, ...ultimaVersao });
+        if (agora?.id !== anterior.id || agora.situacao !== anterior.situacao) throw new ConflitoConcorrencia();
+
+        const n = anterior.numero + 1;
+        const nova = await tx.versaoProposta.create({
+          data: { unidadeId: p.unidadeId, propostaId: id, numero: n, situacao: 'RASCUNHO', criadoPor: ctx.usuarioId },
+          select: { id: true },
+        });
+        await copiarLinhasDaVersao(tx, { propostaId: id, versaoId: anterior.id }, { propostaId: id, versaoId: nova.id });
+        await auditar(tx, {
+          contexto: { ...contextoAuditoria(ctx), unidadeId: p.unidadeId },
+          funcionalidade: FUNCIONALIDADE,
+          tipo: 'INSERCAO',
+          registroId: id,
+          descricao: `Versão ${n} da proposta do TP ${p.unidade.codigo} criada em Rascunho`,
+          depois: { versao: n, situacao: 'RASCUNHO', versaoAnterior: anterior.numero },
+        });
+        return ok({ numero: p.unidade.codigo, versao: n });
+      },
+      { cliente: deps.cliente },
+    );
+  } catch (erro) {
+    // O índice (proposta_id, numero) é a segunda barreira, atrás da trava da capa: violado, também é
+    // concorrência (revisão 12.12 do #445).
+    if (erro instanceof ConflitoConcorrencia || violouUnicidade(erro)) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
+    throw erro;
+  }
+}
+
 /** UC 3.04: as propostas dos TPs do usuário (RLS), sem as excluídas, pela ordem do número. */
+const todasEmRascunho = (versoes: readonly { situacao: string }[]) => versoes.length > 0 && versoes.every((v) => v.situacao === 'RASCUNHO');
+
 export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly PropostaTela[]> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'consultar');
@@ -214,7 +416,7 @@ export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Par
     (tx) =>
       tx.propostaTp.findMany({
         where: { excluidaEm: null },
-        include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, take: 1, select: { numero: true, situacao: true } } },
+        include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, select: { numero: true, situacao: true } } },
       }),
     { cliente: deps.cliente },
   );
@@ -232,6 +434,7 @@ export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Par
         cc: p.unidade.cc,
         situacao: (p.versoes[0]?.situacao ?? 'RASCUNHO') as SituacaoProposta,
         versaoAtual: p.versoes[0]?.numero ?? 1,
+        excluivel: todasEmRascunho(p.versoes),
         valorGlobal: Dinheiro.zero(),
         versao: p.versao,
       }),
@@ -258,12 +461,14 @@ export async function excluirProposta(ctx: ContextoRequisicao, bruto: unknown, d
       async (tx) => {
         const p = await tx.propostaTp.findFirst({
           where: { id, excluidaEm: null },
-          include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, take: 1, select: { numero: true, situacao: true } } },
+          include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, select: { numero: true, situacao: true } } },
         });
         if (!p) return inexistente;
         if (p.versao !== versao) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
-        const atual = p.versoes[0];
-        if (atual?.situacao !== 'RASCUNHO') return falha([{ campo: '_', mensagem: M.PROPOSTA_NAO_EXCLUIVEL }]);
+        // A exclusão leva a proposta inteira (todas as versões): só com todas em Rascunho. Sem isso, uma V2
+        // em Rascunho abriria caminho para excluir uma V1 Em Elaboração (revisão 12.12 do #445). A exclusão
+        // de uma versão só é o UC03.11 (fora, D-P18-9).
+        if (!todasEmRascunho(p.versoes)) return falha([{ campo: '_', mensagem: M.PROPOSTA_NAO_EXCLUIVEL }]);
 
         exigirUmaLinha(
           await tx.propostaTp.updateMany({
@@ -288,7 +493,7 @@ export async function excluirProposta(ctx: ContextoRequisicao, bruto: unknown, d
           tipo: 'EXCLUSAO',
           registroId: p.id,
           descricao: `Proposta do TP ${capa.numero} excluída`,
-          antes: retrato(capa, atual.numero, 'RASCUNHO'),
+          antes: retrato(capa, p.versoes[0]!.numero, 'RASCUNHO'),
         });
         return ok({ numero: capa.numero });
       },

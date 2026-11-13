@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MENSAGENS_ORC as M } from './mensagens';
-import { nomeDaUnidade, ROTULO_SITUACAO_PROPOSTA, validarCapa, type CapaValidada } from './proposta';
+import { nomeDaUnidade, objetoDaCopia, ROTULO_SITUACAO_PROPOSTA, SITUACOES_VERSIONAVEIS, validarCapa, type CapaValidada } from './proposta';
 
 // Capa da proposta de TP (US-065; plano do P17, Task 1): UC 3.05 E1/E2, RN_TP_002 e D-P17-4.
 const valida = {
@@ -96,5 +96,28 @@ describe('ROTULO_SITUACAO_PROPOSTA', () => {
       OFICIALIZADO: 'Oficializado',
       ENCERRADO: 'Encerrado',
     });
+  });
+});
+
+describe('objetoDaCopia (RN_DUP_002; plano do P18, D-P18-3)', () => {
+  it('prefixa "Cópia de "', () => {
+    expect(objetoDaCopia('Objeto X')).toBe('Cópia de Objeto X');
+  });
+
+  it('acima de 500 caracteres, corta (contados como o char_length)', () => {
+    const r = objetoDaCopia('🚀'.repeat(500));
+    expect([...r].length).toBe(500);
+    expect(r.startsWith('Cópia de 🚀')).toBe(true);
+    expect(validarCapa({ tipo: 'CONTRATO', numero: 'N', objeto: r, inicio: '2027-01-01', fim: '2027-12-31', categoria: 'META', cc: '9.1' }).ok).toBe(true);
+  });
+
+  it('a cópia da cópia é aceita como está', () => {
+    expect(objetoDaCopia('Cópia de X')).toBe('Cópia de Cópia de X');
+  });
+});
+
+describe('SITUACOES_VERSIONAVEIS (D-P18-1)', () => {
+  it('só Rascunho e Em Elaboração', () => {
+    expect(SITUACOES_VERSIONAVEIS).toEqual(['RASCUNHO', 'EM_ELABORACAO']);
   });
 });

@@ -6,11 +6,15 @@ import { configurarAuditorNegacao, configurarProvedorContexto } from '@/shared/a
 import { limparJanelaNegacoes } from '@/shared/authz/guarda';
 import { Dinheiro } from '@/shared/kernel';
 
-// Página das propostas de TP (US-065; plano do P17, Task 2, Step 1).
+// Página das propostas de TP (US-065; plano do P17, Task 2, Step 1), com duplicar e nova versão (US-066;
+// plano do P18, Task 2, Step 1).
 vi.mock('next/server', () => ({ connection: async () => undefined }));
+const ID = '00000000-0000-4000-8000-0000000000a1';
+const ID_OFICIALIZADA = '00000000-0000-4000-8000-0000000000a2';
 const caso = vi.hoisted(() => ({
   ccsLivres: [] as { classificacao: string; descricao: string }[],
   chamadasCcs: 0,
+  chamadasDuplicar: [] as string[],
 }));
 vi.mock('@/modules/orc', async (original) => {
   const { exigir } = await import('@/shared/authz');
@@ -20,7 +24,7 @@ vi.mock('@/modules/orc', async (original) => {
       exigir(ctx, 'orc.propostas', 'consultar');
       return [
         {
-          id: '00000000-0000-4000-8000-0000000000a1',
+          id: ID,
           numero: 'TP-2027/001',
           tipo: 'TERMO_PARCERIA',
           objeto: 'Apoio à gestão orçamentária',
@@ -31,10 +35,43 @@ vi.mock('@/modules/orc', async (original) => {
           cc: '9.1',
           situacao: 'RASCUNHO',
           versaoAtual: 1,
+          excluivel: true,
           valorGlobal: Dinheiro.zero(),
           versao: 3,
         },
+        {
+          id: ID_OFICIALIZADA,
+          numero: 'TP-2027/002',
+          tipo: 'CONTRATO',
+          objeto: 'Contrato oficializado',
+          parceiro: 'Parceiro',
+          inicio: '2027-01-01',
+          fim: '2027-12-31',
+          categoria: 'META',
+          cc: '9.4',
+          situacao: 'OFICIALIZADO',
+          versaoAtual: 2,
+          excluivel: false,
+          valorGlobal: Dinheiro.zero(),
+          versao: 5,
+        },
       ];
+    },
+    dadosParaDuplicar: async (ctx: ContextoRequisicao, id: string) => {
+      exigir(ctx, 'orc.propostas', 'incluir');
+      caso.chamadasDuplicar.push(id);
+      if (id !== ID) return null;
+      return {
+        origemId: ID,
+        versaoOrigem: 3,
+        numeroOrigem: 'TP-2027/001',
+        tipo: 'TERMO_PARCERIA',
+        objeto: 'Cópia de Apoio à gestão orçamentária',
+        parceiro: null,
+        inicio: '2027-01-01',
+        fim: '2027-12-31',
+        categoria: 'CONSOLIDADA',
+      };
     },
     ccsLivresParaTp: async (ctx: ContextoRequisicao) => {
       exigir(ctx, 'orc.propostas', 'incluir');
@@ -57,6 +94,7 @@ beforeEach(() => {
     { classificacao: '9.3', descricao: 'TP sintético 3' },
   ];
   caso.chamadasCcs = 0;
+  caso.chamadasDuplicar = [];
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -73,7 +111,7 @@ describe('página das propostas de TP', () => {
     contexto = ctx(ORCAMENTISTA);
     const h = await html();
     expect(h).toContain(
-      '<th scope="row">TP-2027/001</th><td>Termo de Parceria</td><td>Apoio à gestão orçamentária</td><td>Consolidada</td><td>01/01/2027 a 31/12/2027</td><td>9.1</td><td><span class="selo">Rascunho</span></td><td>0,00</td>',
+      '<th scope="row">TP-2027/001</th><td>Termo de Parceria</td><td>Apoio à gestão orçamentária</td><td>Consolidada</td><td>01/01/2027 a 31/12/2027</td><td>9.1</td><td>1</td><td><span class="selo">Rascunho</span></td><td>0,00</td>',
     );
     expect(h).toContain('Excluir a proposta TP-2027/001');
     expect(h).toContain('Nova proposta');
@@ -101,9 +139,67 @@ describe('página das propostas de TP', () => {
     expect(h).not.toContain('<form');
   });
 
+  it('a coluna Versão mostra o número da última versão; "Nova versão" só na última em Rascunho ou Em Elaboração; "Duplicar" em todas', async () => {
+    contexto = ctx(ORCAMENTISTA);
+    const h = await html();
+    expect(h).toContain('<th scope="col">Versão</th>');
+    expect(h).toMatch(/<th scope="row">TP-2027\/002<\/th>(<td>[^<]*<\/td>){5}<td>2<\/td><td><span class="selo">Oficializado<\/span>/);
+    expect(h).toContain('Nova versão da proposta TP-2027/001');
+    expect(h).not.toContain('Nova versão da proposta TP-2027/002');
+    expect(h).not.toContain('Excluir a proposta TP-2027/002');
+    expect(h).toContain(`<a href="/orc/propostas?duplicar=${ID}">Duplicar a proposta TP-2027/001</a>`);
+    expect(h).toContain(`<a href="/orc/propostas?duplicar=${ID_OFICIALIZADA}">Duplicar a proposta TP-2027/002</a>`);
+    expect(caso.chamadasDuplicar).toEqual([]);
+  });
+
+  it('?duplicar=<id>: o formulário de duplicar com os campos da origem, o Número em branco e o CC só com os livres; sem o "Nova proposta"', async () => {
+    contexto = ctx(ORCAMENTISTA);
+    const h = await html({ duplicar: ID });
+    expect(caso.chamadasDuplicar).toEqual([ID]);
+    expect(h).toContain('Duplicar a proposta do TP TP-2027/001');
+    expect(h).not.toContain('Nova proposta</h2>');
+    expect(h).toMatch(/<input type="hidden" name="origemId" value="00000000-0000-4000-8000-0000000000a1"\/>/);
+    expect(h).toMatch(/<input type="hidden" name="versaoOrigem" value="3"\/>/);
+    expect(h).toMatch(/<option value="TERMO_PARCERIA" selected="">Termo de Parceria<\/option>/);
+    expect(h).toMatch(/<option value="CONSOLIDADA" selected="">Consolidada<\/option>/);
+    expect(h).toMatch(/<textarea id="duplicar-proposta-objeto" name="objeto"[^>]*>Cópia de Apoio à gestão orçamentária<\/textarea>/);
+    expect(h).toMatch(/<input id="duplicar-proposta-numero"(?![^>]*value=)[^>]*name="numero"\/>/);
+    expect(h).toMatch(/<input id="duplicar-proposta-inicio"[^>]*type="date"[^>]*value="2027-01-01"/);
+    expect(h).toMatch(/<input id="duplicar-proposta-fim"[^>]*type="date"[^>]*value="2027-12-31"/);
+    const seletor = /<select id="duplicar-proposta-cc"[^>]*>(.*?)<\/select>/.exec(h)?.[1] ?? '';
+    expect([...seletor.matchAll(/<option value="([^"]*)"/g)].map((m) => m[1])).toEqual(['', '9.2', '9.3']);
+    expect(h).toContain('Duplicar proposta</button>');
+    expect(h).toContain('<a href="/orc/propostas">Cancelar</a>');
+  });
+
+  it('?duplicar com proposta que não se vê: a mensagem de inexistente e o "Nova proposta" de sempre', async () => {
+    contexto = ctx(ORCAMENTISTA);
+    const h = await html({ duplicar: 'outra' });
+    expect(h).toContain('Proposta não encontrada.');
+    expect(h).toContain('Nova proposta</h2>');
+    expect(h).not.toContain('name="origemId"');
+  });
+
+  it('?duplicar sem CC de TP livre: a mensagem e nenhum formulário', async () => {
+    contexto = ctx(ORCAMENTISTA);
+    caso.ccsLivres = [];
+    const h = await html({ duplicar: ID });
+    expect(h).toContain('Não há centro de custo de TP livre.');
+    expect(h).not.toContain('<form');
+  });
+
+  it('os avisos depois de duplicar e de criar nova versão', async () => {
+    contexto = ctx(ORCAMENTISTA);
+    expect(await html({ aviso: 'duplicada', tp: 'TP-2027/009' })).toContain('<p role="status">Proposta do TP TP-2027/009 criada em Rascunho, por duplicação.</p>');
+    expect(await html({ aviso: 'versao', tp: 'TP-2027/001' })).toContain('<p role="status">Nova versão da proposta do TP TP-2027/001 criada em Rascunho.</p>');
+  });
+
   it('Auditor (só consultar): a lista, sem formulário nem Excluir, e sem ler os CCs livres', async () => {
     contexto = ctx(['orc.propostas:consultar']);
-    const h = await html();
+    const h = await html({ duplicar: ID });
+    expect(h).not.toContain('Nova versão');
+    expect(h).not.toContain('Duplicar');
+    expect(caso.chamadasDuplicar).toEqual([]);
     expect(h).toContain('<th scope="row">TP-2027/001</th>');
     expect(h).not.toContain('Nova proposta');
     expect(h).not.toContain('Excluir');
