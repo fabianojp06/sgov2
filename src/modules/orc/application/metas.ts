@@ -150,10 +150,11 @@ export async function listarMetas(ctx: ContextoRequisicao, filtros: FiltrosMetas
 type VersaoEditavel = { unidadeId: string; numeroTp: string; versaoId: string; versaoNumero: number };
 
 /**
- * Confere a proposta (existe, categoria Meta, versão da capa, última versão editável) e trava a capa,
- * subindo a versão dela. Recusa só antes de travar; depois, a última versão mudada é conflito.
+ * Confere a proposta (existe, categoria Meta, versão da capa, última versão editável e, no alterar e no
+ * excluir, a meta nessa versão) e trava a capa, subindo a versão dela. Recusa só antes de travar: a recusa é
+ * um Resultado, e a transação seria confirmada com a capa subida. Depois, a última versão mudada é conflito.
  */
-async function travarVersaoEditavel(tx: TxCliente, propostaId: string, versaoCapa: number): Promise<Resultado<VersaoEditavel>> {
+async function travarVersaoEditavel(tx: TxCliente, propostaId: string, versaoCapa: number, versaoDaMeta?: string): Promise<Resultado<VersaoEditavel>> {
   if (!uuid.safeParse(propostaId).success) return falha([{ campo: '_', mensagem: M.PROPOSTA_INEXISTENTE }]);
   const p = await tx.propostaTp.findFirst({ where: { id: propostaId, excluidaEm: null }, include: { unidade: { select: { codigo: true } }, versoes: ultimaVersao } });
   if (!p) return falha([{ campo: '_', mensagem: M.PROPOSTA_INEXISTENTE }]);
@@ -161,6 +162,8 @@ async function travarVersaoEditavel(tx: TxCliente, propostaId: string, versaoCap
   if (p.versao !== versaoCapa) return alterado();
   const v = p.versoes[0];
   if (!v || !SITUACOES_EDITAVEIS.includes(v.situacao)) return falha([{ campo: '_', mensagem: M.META_VERSAO_IMUTAVEL }]);
+  // A meta de versão anterior fica como estava; a recusa vem antes da trava, que seria gravada com ela.
+  if (versaoDaMeta !== undefined && versaoDaMeta !== v.id) return falha([{ campo: '_', mensagem: M.META_VERSAO_IMUTAVEL }]);
 
   exigirUmaLinha(await tx.propostaTp.updateMany({ where: { id: propostaId, versao: versaoCapa, excluidaEm: null }, data: { versao: { increment: 1 } } }));
   const agora = await tx.versaoProposta.findFirst({ where: { propostaId }, ...ultimaVersao });
@@ -246,10 +249,9 @@ export async function alterarMeta(ctx: ContextoRequisicao, bruto: unknown, depsP
   return executar(ctx, deps, async (tx) => {
     const m = await lerMeta(tx, id);
     if (!m) return falha([{ campo: '_', mensagem: M.META_INEXISTENTE }]);
-    const alvo = await travarVersaoEditavel(tx, m.versaoProposta.propostaId, versaoCapa);
+    const alvo = await travarVersaoEditavel(tx, m.versaoProposta.propostaId, versaoCapa, m.versaoPropostaId);
     if (!alvo.ok) return alvo;
-    const { unidadeId, numeroTp, versaoId, versaoNumero } = alvo.valor;
-    if (m.versaoPropostaId !== versaoId) return falha([{ campo: '_', mensagem: M.META_VERSAO_IMUTAVEL }]);
+    const { unidadeId, numeroTp, versaoNumero } = alvo.valor;
     if (m.versao !== versaoMeta) throw new ConflitoConcorrencia();
     exigirUmaLinha(await tx.metaProposta.updateMany({ where: { id, versao: versaoMeta }, data: { ...dadosGravados(novo), versao: { increment: 1 } } }));
     await auditar(tx, {
@@ -276,10 +278,9 @@ export async function excluirMeta(ctx: ContextoRequisicao, bruto: unknown, depsP
     return await executar(ctx, deps, async (tx) => {
       const m = await lerMeta(tx, id);
       if (!m) return falha([{ campo: '_', mensagem: M.META_INEXISTENTE }]);
-      const alvo = await travarVersaoEditavel(tx, m.versaoProposta.propostaId, versaoCapa);
+      const alvo = await travarVersaoEditavel(tx, m.versaoProposta.propostaId, versaoCapa, m.versaoPropostaId);
       if (!alvo.ok) return alvo;
-      const { unidadeId, numeroTp, versaoId, versaoNumero } = alvo.valor;
-      if (m.versaoPropostaId !== versaoId) return falha([{ campo: '_', mensagem: M.META_VERSAO_IMUTAVEL }]);
+      const { unidadeId, numeroTp, versaoNumero } = alvo.valor;
       if (m.versao !== versaoMeta) throw new ConflitoConcorrencia();
       exigirUmaLinha(await tx.metaProposta.deleteMany({ where: { id, versao: versaoMeta } }));
       await auditar(tx, {

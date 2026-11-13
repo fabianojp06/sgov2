@@ -202,6 +202,9 @@ describe('alterarMeta (UC03.16)', () => {
     expect(await novaVersaoProposta(await ctx(), { id: p.id, versao: 1 }, comDeps())).toMatchObject({ ok: true });
     const semNumero = campos({ nome: 'Outro' });
     expect(await alterarMeta(await ctx(), { id: m.id, versao: 0, versaoCapa: 2, ...semNumero }, comDeps())).toEqual(erroGeral(M.META_VERSAO_IMUTAVEL));
+    expect(await excluirMeta(await ctx(), { id: m.id, versao: 0, versaoCapa: 2 }, comDeps())).toEqual(erroGeral(M.META_VERSAO_IMUTAVEL));
+    // A recusa não sobe a versão da capa (revisão 12.12): outra aba aberta continua valendo.
+    expect(await versaoCapa(p.id)).toBe(2);
     expect(await alterarMeta(await ctx(outro), { id: m.id, versao: 0, versaoCapa: 2, ...semNumero }, comDeps())).toEqual(erroGeral(M.META_INEXISTENTE));
     expect(await alterarMeta(await ctx(), { id: 'x', versao: 0, versaoCapa: 2, ...semNumero }, comDeps())).toEqual(erroGeral(M.META_INEXISTENTE));
   });
