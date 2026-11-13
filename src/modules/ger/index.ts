@@ -20,6 +20,8 @@ export {
   type PropsGradeArvore,
 } from './ui/grade-arvore';
 export { AcaoConfirmada, MENSAGEM_FALHA_ACAO, type AcaoFormulario } from './ui/acao-confirmada';
+// Impeditivos de exclusão (US-023): o caso de uso devolve, a AcaoConfirmada lista.
+export { CAMPO_IMPEDITIVO, impeditivos, type Impeditivo } from './domain/impeditivos';
 export { ErroDoCampo, Formulario, LegendaComErro, type PropsFormulario } from './ui/formulario';
 export {
   aplicarFiltros,

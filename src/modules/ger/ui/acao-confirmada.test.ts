@@ -56,3 +56,23 @@ describe('AcaoConfirmada (C3)', () => {
     expect(ger.MENSAGEM_FALHA_ACAO).toBe(MENSAGEM_FALHA_ACAO);
   });
 });
+
+describe('AcaoConfirmada na exclusão (US-023)', () => {
+  it('a caixa mostra o impacto e o descreve para o leitor de tela', () => {
+    const h = renderToString(createElement(AcaoConfirmada, { ...props, rotulo: 'Excluir', aberto: true, impacto: ['2 contas deixam o agrupador', 'O subtotal sai dos relatórios'] }));
+    const id = /<div id="([^"]+)"><p>O que será afetado:<\/p>/.exec(h)?.[1];
+    expect(id).toBeDefined();
+    expect(h).toMatch(new RegExp(`role="alertdialog"[^>]*aria-describedby="${id}"`));
+    expect(h).toContain('<li>2 contas deixam o agrupador</li><li>O subtotal sai dos relatórios</li>');
+  });
+
+  it('sem impacto, nada de aria-describedby nem lista', () => {
+    const h = renderToString(createElement(AcaoConfirmada, { ...props, aberto: true }));
+    expect(h).not.toContain('aria-describedby');
+    expect(h).not.toContain('O que será afetado');
+  });
+
+  it('exporta o auxiliar dos impeditivos pelo index.ts', () => {
+    expect(ger.impeditivos([{ descricao: 'Propostas ativas', quantidade: 1 }])).toEqual([{ campo: ger.CAMPO_IMPEDITIVO, mensagem: 'Propostas ativas: 1' }]);
+  });
+});
