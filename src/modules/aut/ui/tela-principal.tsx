@@ -22,8 +22,8 @@ const formatarAcesso = (iso: string) =>
   new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
 
 // Tela principal (UC01.03): cabeçalho com o sistema e o TP, menu lateral por permissão e barra de
-// status com o usuário, a data e a hora do acesso, Ajuda, Alterar senha e Sair (REQ0046). Marca
-// neutra (spec §6.7). Server Component: as partes interativas são componentes cliente.
+// status com o usuário, a data e a hora do acesso, Ajuda, Manual (US-118), Alterar senha e Sair
+// (REQ0046). Marca neutra (spec §6.7). Server Component: as partes interativas são componentes cliente.
 export function TelaPrincipal({ menu, unidades, unidadeAtiva, usuario, trocarUnidade, children }: Props) {
   return (
     <div className="sgo-tela">
@@ -42,6 +42,8 @@ export function TelaPrincipal({ menu, unidades, unidadeAtiva, usuario, trocarUni
         <span>{usuario.nome}</span>
         <span>Acesso em {formatarAcesso(usuario.acessoEm)}</span>
         <Ajuda menu={menu} />
+        {/* Manual e roteiro de treinamento do perfil (US-118, página do rel). */}
+        <a href="/rel/manual">Manual</a>
         <a href="/troca-senha">Alterar senha</a>
         <BotaoSair />
       </footer>
