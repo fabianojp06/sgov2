@@ -13,7 +13,7 @@ Roteiro da carga dos cadastros antes do go-live (US-115, #137; plano do P7, Task
 | SMTP de prod configurado | a senha inicial de cada usuário vai **só por e-mail** (RN0059) | PO |
 | **Aprovação da DIREX** dos centros de custo (data e documento) | em prod, a carga de CC exige a aprovação (R16, GAP-CC-001). A carga provisória não existe em prod | GFIN e DIREX |
 | Administrador inicial com a senha trocada (`deploy.md`) | quem cadastra os usuários | PO |
-| `instituicao.nome_exibicao` | **lacuna:** hoje não há tela para definir o nome de exibição da instituição. Vazio, o sistema funciona e os e-mails saem só com "SGO". Falta uma tela, e a frente B a propôs ao PO | — |
+| `instituicao.nome_exibicao` | o nome exibido nas telas e nos e-mails (spec §6.7). Vazio, o sistema funciona e os e-mails saem só com "SGO". Defina em `/cad/instituicao` (GFIN, `cad.instituicao:alterar`; tela do #437) | GFIN |
 
 ## Ordem e passos
 
@@ -51,4 +51,4 @@ A ordem segue as dependências: o CC de escopo dos usuários depende dos CC, as 
 
 | Data | Passo | Tempo | Resultado | Divergências e correções |
 | --- | --- | --- | --- | --- |
-| — | — | — | pendente: depende do SMTP de hml, dos arquivos reais e da janela do PO | — |
+| — | — | — | pendente: depende do PO (banco do hml recriado vazio, regra 3), do SMTP de hml e dos arquivos reais da GFIN e da GRH. A frente B não recria o banco nem carrega os arquivos (D-P7-7) | — |
