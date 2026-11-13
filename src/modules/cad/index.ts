@@ -30,6 +30,11 @@ export { obterTelaParametros, obterTelaSalarioMinimo } from './application/tela-
 export { acaoAlterarImposto, acaoIncluirAliquota, acaoIncluirImposto, acaoRemoverAliquota } from './application/acoes-impostos';
 export { alterarImposto, incluirAliquota, incluirImposto, obterTelaImpostos, removerAliquotaFutura, type ImpostoTela, type TelaImpostos } from './application/impostos';
 export { Impostos } from './ui/impostos';
+// Agrupadores de contas (US-047).
+export { acaoAlterarAgrupador, acaoExcluirAgrupador, acaoIncluirAgrupador } from './application/acoes-agrupadores';
+export { alterarAgrupador, excluirAgrupador, incluirAgrupador, obterTelaAgrupadores, type AgrupadorTela, type ContaAgrupavel, type TelaAgrupadores } from './application/agrupadores';
+export { agrupadoresDeContas, type AgrupadorRelatorio } from './infrastructure/agrupadores';
+export { Agrupadores } from './ui/agrupadores';
 // Estrutura funcional (US-048).
 export { acaoDefinirSituacaoUnidade, acaoIncluirUnidade, acaoRenomearUnidade } from './application/acoes-estrutura-funcional';
 export {

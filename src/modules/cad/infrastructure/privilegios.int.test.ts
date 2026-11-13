@@ -236,4 +236,31 @@ describe('privilégios do cad (R6)', () => {
       ].sort(),
     );
   });
+
+  it('agrupadores (US-047): o app lê e exclui, inclui só o nome e os pares, renomeia; o sync não toca', async () => {
+    const t = await migrator.query<{ l: string }>(
+      `SELECT table_name || ' ' || grantee || ' ' || privilege_type AS l FROM information_schema.role_table_grants
+       WHERE table_name IN ('agrupador_conta', 'agrupador_conta_item') AND grantee = ANY($1) ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(t.rows.map((r) => r.l)).toEqual([
+      'agrupador_conta sgo_app DELETE',
+      'agrupador_conta sgo_app SELECT',
+      'agrupador_conta_item sgo_app DELETE',
+      'agrupador_conta_item sgo_app SELECT',
+    ]);
+    const c = await migrator.query<{ l: string }>(
+      `SELECT r.rolname || ' ' || cl.relname || ' ' || x.privilege_type || ' ' || a.attname AS l
+       FROM pg_attribute a JOIN pg_class cl ON cl.oid = a.attrelid, aclexplode(a.attacl) x JOIN pg_roles r ON r.oid = x.grantee
+       WHERE cl.relname IN ('agrupador_conta', 'agrupador_conta_item') AND r.rolname = ANY($1) AND a.attacl IS NOT NULL ORDER BY 1`,
+      [PAPEIS],
+    );
+    expect(c.rows.map((r) => r.l)).toEqual(
+      [
+        'sgo_app agrupador_conta INSERT nome',
+        ...['atualizado_em', 'nome', 'versao'].map((x) => `sgo_app agrupador_conta UPDATE ${x}`),
+        ...['agrupador_id', 'conta_id'].map((x) => `sgo_app agrupador_conta_item INSERT ${x}`),
+      ].sort(),
+    );
+  });
 });
