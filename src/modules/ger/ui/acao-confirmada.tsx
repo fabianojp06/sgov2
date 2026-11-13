@@ -3,6 +3,7 @@
 import { unstable_rethrow } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import type { ErroCampo, Resultado } from '@/shared/kernel';
+import { separarImpeditivos } from '../domain/impeditivos';
 
 // Contrato C3 (#230; R13 do plano do P6): a caixa de confirmação Sim/Não que o adm e o orc tinham
 // em cópia. A Server Action do módulo dono vem por props e recebe os `campos` (id, versão) num
@@ -36,12 +37,17 @@ export async function executarAcao(acao: AcaoFormulario, campos: Readonly<Record
 // fechar, volta ao botão de origem; Esc fecha. Depois do Sim, mostra o sucesso ou os erros do
 // Resultado. A ação roda numa transição: o redirect dela segue pelo roteador do Next. A caixa não é
 // modal de propósito (UC02.13 A7/A8): sem aria-modal nem trava de foco; Esc fecha com o foco nela.
+//
+// Exclusão (US-023; UC0.04): `impacto` lista na caixa o que a operação vai afetar (RF_EXC_002); os
+// erros com o campo CAMPO_IMPEDITIVO (auxiliar impeditivos do ger) aparecem como a lista dos vínculos
+// que impedem a exclusão (RF_EXC_003), separados dos demais erros.
 export function AcaoConfirmada({
   rotulo,
   pergunta,
   acao,
   campos,
   mensagemSucesso,
+  impacto,
   aberto = false,
 }: {
   rotulo: string;
@@ -49,6 +55,8 @@ export function AcaoConfirmada({
   acao: AcaoFormulario;
   campos: Readonly<Record<string, string>>;
   mensagemSucesso?: string;
+  /** O que a operação vai afetar, mostrado na caixa antes do Sim (RF_EXC_002). */
+  impacto?: readonly string[];
   /** Só o estado inicial (testes e telas que já abrem perguntando); mudar a prop depois não reabre. */
   aberto?: boolean;
 }) {
@@ -57,6 +65,8 @@ export function AcaoConfirmada({
   const [erros, setErros] = useState<readonly ErroCampo[]>([]);
   const [sucesso, setSucesso] = useState(false);
   const idPergunta = useId();
+  const idImpacto = useId();
+  const { impeditivos, outros } = separarImpeditivos(erros);
   const origem = useRef<HTMLButtonElement>(null);
   const nao = useRef<HTMLButtonElement>(null);
   const abriu = useRef(false);
@@ -99,11 +109,22 @@ export function AcaoConfirmada({
         <div
           role="alertdialog"
           aria-labelledby={idPergunta}
+          {...(impacto && impacto.length > 0 ? { 'aria-describedby': idImpacto } : {})}
           onKeyDown={(e) => {
             if (e.key === 'Escape' && !pendente) setConfirmando(false);
           }}
         >
           <p id={idPergunta}>{pergunta}</p>
+          {impacto && impacto.length > 0 && (
+            <div id={idImpacto}>
+              <p>O que será afetado:</p>
+              <ul>
+                {impacto.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <button type="button" disabled={pendente} onClick={confirmar}>
             Sim
           </button>
@@ -114,12 +135,22 @@ export function AcaoConfirmada({
       ) : null}
       {/* Região viva sempre montada: o leitor de tela anuncia quando o texto muda. */}
       <p role="status">{sucesso && mensagemSucesso ? mensagemSucesso : null}</p>
-      {erros.length > 0 && (
+      {outros.length > 0 && (
         <ul role="alert">
-          {erros.map((e, i) => (
+          {outros.map((e, i) => (
             <li key={i}>{e.mensagem}</li>
           ))}
         </ul>
+      )}
+      {impeditivos.length > 0 && (
+        <div role="alert">
+          <p>A exclusão não foi feita. Estes vínculos impedem:</p>
+          <ul>
+            {impeditivos.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </div>
       )}
     </>
   );
