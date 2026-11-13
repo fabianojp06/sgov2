@@ -62,17 +62,17 @@ VPS Hostinger srv2039095 (Ubuntu 24.04.5, 2 vCPU, 7,8 GiB, 96 GB), com Docker Sw
 
 ## Pendências
 
-- [ ] Teste de pico de memória (US-122 Step 10): rodar quando não houver fluxo de agentes em execução, porque o teste pode encerrar processos de dev.
+- [ ] Teste de pico de memória (US-122 Step 10): rodar quando não houver fluxo de agentes em execução, porque o teste pode encerrar processos de dev. Em 13/11/2026, a sessão da frente B tentou rodar e a permissão da sessão bloqueou. **Precisa da autorização do PO**: um `stress-ng --vm 1 --vm-bytes 7G --vm-keep --timeout 240s` (o `stress-ng` já está instalado e está no `--prefer` do earlyoom), acompanhando a saúde do hml, os contêineres `sgo-hml_*` sem reinício, o journal do earlyoom e o OOM do kernel.
 - [ ] **Reboot de prova** (P2 Tarefa 2 Step 9), numa janela combinada com o PO: conferir `swapon` 8G, `swappiness` 10, earlyoom/fail2ban/ufw/timers `sgo-*` ativos, `docker ps` com o Easypanel e, quando existir, a regra da `DOCKER-USER`. O fail2ban só se valida com tentativas reais: depois de algumas falhas de login de fora, `fail2ban-client status sshd` deve mostrar `Total failed` maior que 0.
 - [ ] Agora que `sgo-hml` existe, e quando `sgo-prod` existir (US-014): reserva de memória nos serviços, swap travado nos contêineres de produção (`memory.swap.max=0` ou `memswap_limit` = `mem_limit`) e conferência do −500 com `sgo-ajustar-oom --simular`.
-- [ ] Compose de dev com `mem_limit` e `oom_score_adj` 500 (P1, Tarefa 3).
+- [x] Compose de dev com `mem_limit` e `oom_score_adj` 500 (P1, Tarefa 3): conferido em 13/11/2026 no `docker-compose.yml`, em todos os serviços, com `memswap_limit` igual ao `mem_limit`.
 - [ ] Aceite do PO para o desvio Easypanel/Traefik −300.
 - [ ] Aceite do PO para o earlyoom sem `node`/`next-server` no `--prefer`, e ajuste da spec §4.3 na próxima versão.
-- [ ] `ops/vps/docker-user.sh` e `sgo-docker-user.service` (plano P2, Tarefa 2): serão criados junto com a aplicação da regra da porta 3000.
-- [ ] **Risco aceito até a pendência acima:** o Easypanel segue aberto na 3000 por HTTP; a senha do painel trafega sem criptografia. Registrar a data do aceite do PO.
+- [x] ~~`ops/vps/docker-user.sh` e `sgo-docker-user.service`~~: não são mais necessários, porque o firewall do hPanel fechou a 3000 em 12/11/2026, antes da VPS e sem mexer no Docker.
+- [x] ~~Risco aceito da 3000 aberta por HTTP~~: encerrado em 12/11/2026 com o firewall do hPanel. Continua público o painel em HTTPS no domínio padrão do Easypanel, por isso a 2FA (pendência do PO).
 - [ ] Atualizar `docs/memoria/memoria-do-projeto.md` no encerramento do P2.
 - [x] Verificar os hooks das sessões (US-122 Step 12): verificado numa sessão nova da frente B em 04/11/2026, com as travas de produção, da `main` e de banco ativas (#145).
-- [ ] Chave SSH do PO → SSH só por chave → fail2ban mais rígido (5 tentativas, 1 h).
-- [ ] Fechar a 3000 na `DOCKER-USER` (com o túnel combinado com o PO), no `iptables` **e** no `ip6tables` (ou com a publicação em IPv6 desligada no Docker): só a regra IPv4 deixaria a 3000 aberta pelo IPv6 da VPS. Conferir de fora pelos dois endereços.
+- [ ] Chave SSH do PO → SSH só por chave → fail2ban mais rígido (5 tentativas, 1 h). Em 13/11/2026, o `authorized_keys` do root estava vazio, e os logins dos últimos 7 dias foram todos por senha. Desligar a senha agora trancaria o PO fora: **primeiro** o PO cadastra a chave e entra com ela, e só depois sai `PasswordAuthentication`.
+- [x] ~~Fechar a 3000 na `DOCKER-USER`~~: substituído pelo firewall do hPanel (12/11/2026), conferido de fora pelo PO.
 - [ ] Canal do alerta (`ALERTA_WEBHOOK_URL`). Depois do merge do PR #308, reinstalar o `alerta-memoria.sh` (pelo `instalar.sh` ou só com `install -m 0755 ops/vps/alerta-memoria.sh /usr/local/sbin/sgo-alerta-memoria`): a URL passou a ir pelo stdin do `curl`, fora do `ps`.
 - [ ] Opcional, com a chave SSH do PO: `ignoreip = 127.0.0.1/8 ::1 <IP fixo do PO>` no `jail-sgo.local`, se o PO tiver IP fixo. Com IP dinâmico, fica o console do hPanel como acesso de emergência.
