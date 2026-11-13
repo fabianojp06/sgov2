@@ -28,6 +28,10 @@ export type CargoTela = {
   salariosIlegiveis: readonly ('funcaoGratificada' | 'real' | 'definido')[];
   ativo: boolean;
   versao: number;
+  /** Unidade da estrutura funcional do cargo (US-048; RN_CAR_08), ou null sem vínculo. */
+  lotacao: { id: string; rotulo: string; ativa: boolean } | null;
+  /** RN_EST_05: cargo ativo sem vínculo, ou vinculado a unidade inativa (a recarga do Rubi não é bloqueada). */
+  pendenteAlocacao: boolean;
 };
 
 export const ROTULO_FONTE: Readonly<Record<FonteAtiva, string>> = {

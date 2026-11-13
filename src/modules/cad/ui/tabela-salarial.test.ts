@@ -94,6 +94,8 @@ const cargoBase: CargoTela = {
   adicional: null,
   desvioDeMercado: null,
   salariosIlegiveis: [],
+  lotacao: null,
+  pendenteAlocacao: false,
   ativo: true,
   versao: 1,
 };

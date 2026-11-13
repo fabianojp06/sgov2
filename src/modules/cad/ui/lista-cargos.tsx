@@ -7,7 +7,7 @@ import { ROTULO_DESVIO, ROTULO_FONTE, type CargoTela } from '../domain/cargo-tel
 
 // Lista dos cargos (US-049 parte 2): só leitura, sem Novo (os cargos entram pelo Rubi). Cada linha leva
 // ao cargo. Sem a permissão de ver salários, a coluna do salário vem "mascarado" (R24).
-type Colunas = 'codigo' | 'nome' | 'tabela' | 'faixa' | 'nivel' | 'fonte' | 'salario' | 'desvio' | 'situacao';
+type Colunas = 'codigo' | 'nome' | 'tabela' | 'faixa' | 'nivel' | 'lotacao' | 'fonte' | 'salario' | 'desvio' | 'situacao';
 type RespostaRegravar = { ok: true; valor: { manuais: number; cargaId: string | null } } | { ok: false; erros: readonly ErroCampo[] };
 
 export function ListaCargos({
@@ -33,6 +33,8 @@ export function ListaCargos({
       tabela: c.tabelaSalarial,
       faixa: c.faixa,
       nivel: c.nivel,
+      // RN_EST_05: sem vínculo ou com a unidade inativada.
+      lotacao: c.pendenteAlocacao ? 'Pendente de alocação' : (c.lotacao?.rotulo ?? null),
       fonte: c.fonteAtiva ? ROTULO_FONTE[c.fonteAtiva] : null,
       salario: c.mascarado ? 'mascarado' : c.salariosIlegiveis.length > 0 && c.salarioDaFonte === null ? 'ilegível' : c.salarioDaFonte,
       desvio: c.desvioDeMercado ? ROTULO_DESVIO[c.desvioDeMercado] : null,
@@ -77,6 +79,7 @@ export function ListaCargos({
           { campo: 'tabela', titulo: 'Tabela salarial', tipo: 'texto' },
           { campo: 'faixa', titulo: 'Faixa', tipo: 'texto' },
           { campo: 'nivel', titulo: 'Nível', tipo: 'texto' },
+          { campo: 'lotacao', titulo: 'Lotação', tipo: 'texto' },
           { campo: 'fonte', titulo: 'Fonte ativa', tipo: 'texto' },
           { campo: 'salario', titulo: 'Salário da fonte', tipo: cargos.some((c) => c.mascarado) ? 'texto' : 'dinheiro' },
           { campo: 'desvio', titulo: 'Mercado', tipo: 'texto' },

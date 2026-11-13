@@ -37,6 +37,9 @@ export {
   type TelaEstruturaFuncional,
 } from './application/estrutura-funcional';
 export { EstruturaFuncional } from './ui/estrutura-funcional';
+export { acaoVincularCargo } from './application/acoes-vinculo-cargo';
+export { listarUnidadesParaVinculo, vincularCargo, type UnidadeParaVinculo } from './application/vinculo-cargo';
+export { FormVinculoCargo } from './ui/form-vinculo-cargo';
 // Parâmetros locais das contas analíticas (US-045).
 export { acaoAlterarParametroLocal } from './application/acoes-parametros-locais';
 export { alterarParametroLocal, obterTelaParametrosLocais, type ParametroLocalTela, type TelaParametrosLocais } from './application/parametros-locais-conta';
