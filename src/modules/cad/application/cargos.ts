@@ -58,6 +58,7 @@ const SELECAO = {
   adicionalGrau: true,
   ativo: true,
   versao: true,
+  vinculoFuncional: { select: { id: true, nome: true, ativa: true } },
 } as const;
 type CargoBanco = Prisma.CargoGetPayload<{ select: typeof SELECAO }>;
 
@@ -123,6 +124,10 @@ function paraTela(c: CargoBanco, lidos: { salarios: SalariosCargo; ilegiveis: Il
     salariosIlegiveis: lidos?.ilegiveis ?? [],
     ativo: c.ativo,
     versao: c.versao,
+    lotacao: c.vinculoFuncional
+      ? { id: c.vinculoFuncional.id, rotulo: c.vinculoFuncional.nome, ativa: c.vinculoFuncional.ativa }
+      : null,
+    pendenteAlocacao: c.ativo && (c.vinculoFuncional === null || !c.vinculoFuncional.ativa),
   };
 }
 

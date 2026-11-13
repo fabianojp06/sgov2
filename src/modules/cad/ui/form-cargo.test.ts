@@ -17,6 +17,7 @@ vi.mock('@/modules/cad', async (original) => ({
   listarCargos: async () => [],
   listarBeneficiosCargo: async () => ({ ano: null, itens: [], mascarado: false }),
   listarTabelaSalarial: async () => ({ faixas: [], senioridades: [] }),
+  listarUnidadesParaVinculo: async () => [{ id: '7d9c1a4e-2b3f-4c5d-8e6f-0a1b2c3d4e5f', rotulo: 'Setor de Compras (Gerência de Operações)' }],
 }));
 const { default: PaginaCargo } = await import('../../../app/(sistema)/cad/cargos/[id]/page');
 const { default: PaginaImportar } = await import('../../../app/(sistema)/cad/cargos/importar/page');
@@ -37,6 +38,8 @@ const aberto: CargoTela = {
   adicional: null,
   desvioDeMercado: 'DENTRO',
   salariosIlegiveis: [],
+  lotacao: null,
+  pendenteAlocacao: false,
   ativo: true,
   versao: 2,
 };
@@ -140,7 +143,13 @@ describe('páginas de cargo', () => {
   it('o cargo: "Salvar" só com alterar e salários; cargo que não existe → 404', async () => {
     falso.cargo = aberto;
     contexto = ctx(['cad.cargos', 'consultar'], ['cad.cargos', 'alterar']);
-    expect(await render(PaginaCargo({ params }))).not.toContain('>Salvar</button>');
+    const semSalarios = await render(PaginaCargo({ params }));
+    expect(semSalarios).not.toContain('>Salvar</button>');
+    // O vínculo com a estrutura funcional (US-048) não mexe em salário: basta alterar.
+    expect(semSalarios).toContain('>Salvar vínculo</button>');
+    expect(semSalarios).toContain('Pendente de alocação');
+    contexto = ctx(['cad.cargos', 'consultar']);
+    expect(await render(PaginaCargo({ params }))).not.toContain('>Salvar vínculo</button>');
     contexto = ctx(['cad.cargos', 'consultar'], ['cad.cargos', 'alterar'], ['cad.salarios', 'consultar']);
     expect(await render(PaginaCargo({ params }))).toContain('>Salvar</button>');
     falso.cargo = null;

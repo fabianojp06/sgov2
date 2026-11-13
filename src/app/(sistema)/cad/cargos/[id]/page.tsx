@@ -3,11 +3,14 @@ import {
   acaoAlterarBeneficiosCargo,
   acaoAlterarCargo,
   acaoCopiarFaixaParaCargo,
+  acaoVincularCargo,
   BlocoEncargo,
   calcularCustoCargo,
   FormCargo,
+  FormVinculoCargo,
   listarBeneficiosCargo,
   listarTabelaSalarial,
+  listarUnidadesParaVinculo,
   obterCargo,
   paraTelaCusto,
 } from "@/modules/cad";
@@ -55,6 +58,15 @@ export default async function Cargo({
         copiarFaixa={acaoCopiarFaixaParaCargo}
         beneficios={b.ano === null ? null : { ano: b.ano, itens: b.itens }}
         alterarBeneficios={acaoAlterarBeneficiosCargo}
+      />
+      {/* Vínculo com a estrutura funcional (US-048 parte 2): só cad.cargos:alterar, sem ver salários. */}
+      <FormVinculoCargo
+        key={`vinculo-${cargo.id}`}
+        cargoId={cargo.id}
+        lotacao={cargo.lotacao}
+        unidades={await listarUnidadesParaVinculo(ctx)}
+        podeAlterar={ctx.permissoes.has("cad.cargos:alterar")}
+        vincular={acaoVincularCargo}
       />
       {custo && b.ano !== null && <BlocoEncargo custo={custo} ano={b.ano} />}
     </div>
