@@ -47,13 +47,15 @@ export function TelaPrincipal({ menu, unidades, unidadeAtiva, usuario, trocarUni
       </footer>
       <style>{`
         body { margin: 0; }
-        .sgo-tela { min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; font-family: system-ui, sans-serif; }
+        .sgo-tela { height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; font-family: system-ui, sans-serif; }
         .sgo-cabecalho { background: #1F3864; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; }
-        .sgo-corpo { flex: 1; display: flex; }
+        .sgo-corpo { flex: 1; display: flex; min-height: 0; }
         .sgo-menu { width: 280px; background: #f3f6fa; border-right: 3px solid #2E75B6; padding: 12px; overflow-y: auto; }
-        .sgo-menu h2 { color: #1F3864; font-size: 1rem; }
-        .sgo-menu h3 { color: #2E75B6; font-size: .9rem; }
-        .sgo-conteudo { flex: 1; padding: 16px; }
+        .sgo-menu h2 { color: #1F3864; font-size: 1rem; margin: 12px 0 4px; }
+        .sgo-menu h3 { color: #2E75B6; font-size: .9rem; margin: 8px 0 2px; }
+        .sgo-menu ul { margin: 0; padding-left: 16px; }
+        .sgo-menu li { margin: 2px 0; }
+        .sgo-conteudo { flex: 1; padding: 16px; overflow-y: auto; min-width: 0; }
         .sgo-status { background: #2E75B6; color: #fff; display: flex; gap: 16px; align-items: center; padding: 6px 16px; }
         .sgo-status a { color: #fff; }
       `}</style>
