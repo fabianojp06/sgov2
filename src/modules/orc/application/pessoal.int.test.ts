@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   CENTROS_CUSTO_EXEMPLO,
+  calcularCustoPosicao,
   cargosExemplo,
   custoPessoalFalso,
   estruturaFinanceiraFalsa,
@@ -235,6 +236,26 @@ describe('listarEmpregados (UC03.24)', () => {
     expect(b!.totais).toEqual({ EMPREGADO: 1, ESTAGIARIO: 1, JOVEM_APRENDIZ: 0 });
   });
 
+  it('cada ano com os benefícios dele (motor real do cad): o cache de benefícios do cargo é por ano', async () => {
+    const p2027 = premissasExemplo(2027);
+    const p2028 = { ...premissasExemplo(2028), beneficios: premissasExemplo(2028).beneficios.map((b) => (b.forma === 'VALOR_MENSAL' ? { ...b, valorMensal: Dinheiro.de('999.00') } : b)) };
+    const falso = custoPessoalFalso([p2027, p2028]);
+    const deps = comDeps(cargosExemplo(), { custoPessoal: { ...falso, calcularCustoPosicao } });
+    const p = await proposta({ fim: '2028-12-31' });
+    const m = await meta(p.id);
+    await incluir(p.id, { metaId: m.id, inicio: '2027-12', fim: '2028-01' }, deps);
+    const [b] = await listarEmpregados(await ctx(), { proposta: p.numero }, deps);
+    const e = b!.grupos[0]!.empregados[0]!;
+    const base = { quantidade: 1, salarioMensal: Dinheiro.de('7500') };
+    const r2027 = calcularCustoPosicao({ ...base, mesInicio: 12, mesSaida: 12 }, p2027);
+    const r2028 = calcularCustoPosicao({ ...base, mesInicio: 1, mesSaida: 1 }, p2028);
+    if (!r2027.ok || !r2028.ok) throw new Error('motor');
+    expect(r2027.valor.total.paraString()).not.toBe(r2028.valor.total.paraString());
+    expect(e.avisos).toEqual([]);
+    expect(e.custoMensal!.paraString()).toBe(r2027.valor.total.paraString());
+    expect(e.custoPeriodo!.paraString()).toBe(r2027.valor.total.somar(r2028.valor.total).paraString());
+  });
+
   it('quem só consulta não recebe custo nem avisos (D-P20-5); quem não vê a unidade não vê o bloco (RLS)', async () => {
     const p = await proposta();
     const m = await meta(p.id);
@@ -384,5 +405,24 @@ describe('cópia (RN_DUP_003, D-P20-8)', () => {
     const nova = await migrator.versaoProposta.findFirstOrThrow({ where: { propostaId: d.valor.id }, include: { metas: true, empregados: true, qtdes: true } });
     expect(nova.empregados.map((x) => [x.nome, x.unidadeId, x.metaId])).toEqual([['Ana', d.valor.unidadeId, nova.metas[0]!.id]]);
     expect(nova.qtdes).toHaveLength(1);
+  });
+
+  it('duplicação com outra vigência só copia o que cabe nela; com outra categoria, não copia o pessoal (revisão 12.12)', async () => {
+    const p = await proposta({ fim: '2028-12-31' });
+    const m = await meta(p.id);
+    await incluir(p.id, { metaId: m.id, nome: 'Em 2027', inicio: '2027-01', fim: '2027-12' });
+    await incluir(p.id, { metaId: m.id, nome: 'Em 2028', inicio: '2028-01', fim: '2028-06' });
+    const duplicar = async (extra: Record<string, unknown>) => {
+      await migrator.$executeRaw`UPDATE unidade SET ativo = false WHERE codigo LIKE 'TP-D%'`;
+      const d = await duplicarProposta(
+        await ctx(),
+        { origemId: p.id, versaoOrigem: await versaoCapa(p.id), numero: `TP-D${++seq}`, cc: '9.2', ...extra },
+        comDeps(),
+      );
+      if (!d.ok) throw new Error(JSON.stringify(d.erros));
+      return migrator.empregadoProposta.findMany({ where: { versaoProposta: { propostaId: d.valor.id } } });
+    };
+    expect((await duplicar({ inicio: '2028-01-01', fim: '2028-12-31' })).map((e) => e.nome)).toEqual(['Em 2028']);
+    expect(await duplicar({ categoria: 'CONSOLIDADA' })).toEqual([]);
   });
 });

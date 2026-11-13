@@ -8,6 +8,7 @@ import { emUnidade } from '@/shared/unidade';
 import {
   A_CONTRATAR,
   CATEGORIAS_EMPREGADO,
+  competenciaDe,
   competenciaParaTexto,
   mesesDoAno,
   validarEmpregado,
@@ -122,8 +123,13 @@ const retrato = (
   dependentes: e.dependentes,
 });
 
-/** Premissas por ano, lidas uma vez por chamada (nulas: o ano não tem parâmetros). */
-type CachePremissas = Map<number, PremissasExercicio | null>;
+/**
+ * Premissas e benefícios por ano, lidos uma vez por chamada (premissas nulas: o ano não tem parâmetros). Os
+ * benefícios do cargo mudam de ano para ano, e o cache do custo-posicao é por cargo: um por ano, com os
+ * mesmos cargos.
+ */
+type CacheAnos = { cargos: CacheCargos; porAno: Map<number, { premissas: PremissasExercicio | null; cache: CacheCargos }> };
+const cacheAnos = (cargos: CacheCargos): CacheAnos => ({ cargos, porAno: new Map() });
 
 type CustoEmpregado = { mensal: Dinheiro | null; periodo: Dinheiro; avisos: string[]; erros: string[] };
 
@@ -135,20 +141,23 @@ type CustoEmpregado = { mensal: Dinheiro | null; periodo: Dinheiro; avisos: stri
 async function custoDoEmpregado(
   tx: TxCliente,
   deps: DepsOrc,
-  cache: CacheCargos,
-  premissas: CachePremissas,
+  anos: CacheAnos,
   e: Competencias & { cargoId: string; salarioMensal: Dinheiro },
 ): Promise<CustoEmpregado> {
   const r: CustoEmpregado = { mensal: null, periodo: Dinheiro.zero(), avisos: [], erros: [] };
   for (let ano = e.inicio.getUTCFullYear(); ano <= e.fim.getUTCFullYear(); ano++) {
-    if (!premissas.has(ano)) premissas.set(ano, await deps.custoPessoal.obterPremissasExercicio(tx, ano));
-    const p = premissas.get(ano);
+    let doAno = anos.porAno.get(ano);
+    if (!doAno) {
+      doAno = { premissas: await deps.custoPessoal.obterPremissasExercicio(tx, ano), cache: { porId: anos.cargos.porId, beneficios: new Map() } };
+      anos.porAno.set(ano, doAno);
+    }
+    const p = doAno.premissas;
     if (!p) {
       r.avisos.push(M.EMPREGADO_SEM_PARAMETROS(ano));
       continue;
     }
     const meses = mesesDoAno(e, ano)!;
-    const serie = await custoDaPosicao(tx, deps, cache, p, { quantidade: 1, salarioMensal: e.salarioMensal, cargoId: e.cargoId, ...meses });
+    const serie = await custoDaPosicao(tx, deps, doAno.cache, p, { quantidade: 1, salarioMensal: e.salarioMensal, cargoId: e.cargoId, ...meses });
     if (!serie.ok) {
       r.erros.push(...serie.erros.map((x) => `${ano}: ${x.mensagem}`));
       continue;
@@ -180,7 +189,7 @@ export async function listarEmpregados(ctx: ContextoRequisicao, filtros: Filtros
         },
       });
       const cache = await carregarCargos(tx, deps);
-      const premissas: CachePremissas = new Map();
+      const anos = cacheAnos(cache);
       const blocos: BlocoEmpregados[] = [];
       for (const p of propostas) {
         const v = p.versoes[0];
@@ -200,7 +209,7 @@ export async function listarEmpregados(ctx: ContextoRequisicao, filtros: Filtros
           const empregados: EmpregadoTela[] = [];
           const doTotal = zerados();
           for (const e of doGrupo) {
-            const custo = comCusto ? await custoDoEmpregado(tx, deps, cache, premissas, { ...e, salarioMensal: Dinheiro.de(e.salarioMensal) }) : null;
+            const custo = comCusto ? await custoDoEmpregado(tx, deps, anos, { ...e, salarioMensal: Dinheiro.de(e.salarioMensal) }) : null;
             const categoria = e.categoria as CategoriaEmpregado;
             doTotal[categoria]++;
             empregados.push({
@@ -267,7 +276,7 @@ async function prepararCargo(
   if (!cargo.ok) return cargo;
   const salario = gravado && gravado.cargoId === e.cargoId ? gravado.salario : await salarioFonteAtiva(tx, e.cargoId, deps);
   if (!salario) return falha([{ campo: 'cargoId', mensagem: M.EMPREGADO_CARGO_SEM_SALARIO }]);
-  const custo = await custoDoEmpregado(tx, deps, cache, new Map(), { ...e, salarioMensal: salario });
+  const custo = await custoDoEmpregado(tx, deps, cacheAnos(cache), { ...e, salarioMensal: salario });
   if (custo.erros.length > 0) return falha(custo.erros.map((mensagem) => ({ campo: '_', mensagem })));
   return ok({ cargoId: e.cargoId, salario });
 }
@@ -405,7 +414,9 @@ export async function excluirEmpregado(ctx: ContextoRequisicao, bruto: unknown, 
 
 /**
  * RN_DUP_003 (D-P20-8): copia empregados e quantitativos de uma versão para outra, com ids novos, a mesma
- * ordem e a meta de destino de mesmo número. Chamada pelo copiarLinhasDaVersao depois das metas.
+ * ordem e a meta de destino de mesmo número. Chamada pelo copiarLinhasDaVersao depois das metas. A duplicação
+ * pode mudar a capa (revisão 12.12 do #467): com outra categoria, o pessoal não vem (a meta seria incoerente,
+ * RN0245); com outra vigência, só vem o que cabe nela (RN0252, RN0154).
  */
 export async function copiarPessoalDaVersao(tx: TxCliente, origemVersaoId: string, destinoVersaoId: string, criadoPor: string): Promise<void> {
   const [empregados, qtdes] = await Promise.all([
@@ -413,13 +424,23 @@ export async function copiarPessoalDaVersao(tx: TxCliente, origemVersaoId: strin
     tx.qtdeEmpregadoProposta.findMany({ where: { versaoPropostaId: origemVersaoId }, include: { meta: { select: { numero: true } } } }),
   ]);
   if (empregados.length === 0 && qtdes.length === 0) return;
-  const destino = await tx.versaoProposta.findUniqueOrThrow({ where: { id: destinoVersaoId }, select: { unidadeId: true, metas: { select: { id: true, numero: true } } } });
+  const capa = { select: { categoria: true, inicio: true, fim: true } } as const;
+  const origem = await tx.versaoProposta.findUniqueOrThrow({ where: { id: origemVersaoId }, select: { proposta: capa } });
+  const destino = await tx.versaoProposta.findUniqueOrThrow({
+    where: { id: destinoVersaoId },
+    select: { unidadeId: true, proposta: capa, metas: { select: { id: true, numero: true } } },
+  });
+  if (origem.proposta.categoria !== destino.proposta.categoria) return;
+  const vigencia = { inicio: competenciaDe(destino.proposta.inicio), fim: competenciaDe(destino.proposta.fim) };
+  const cabe = (p: Competencias) => p.inicio >= vigencia.inicio && p.fim <= vigencia.fim;
   const metaDe = new Map(destino.metas.map((m) => [m.numero, m.id]));
   const metaNoDestino = (m: { numero: string } | null) => (m ? (metaDe.get(m.numero) ?? null) : null);
   const base = { unidadeId: destino.unidadeId, versaoPropostaId: destinoVersaoId, criadoPor };
-  if (empregados.length > 0) {
+  const empregadosQueCabem = empregados.filter(cabe);
+  const qtdesQueCabem = qtdes.filter(cabe);
+  if (empregadosQueCabem.length > 0) {
     await tx.empregadoProposta.createMany({
-      data: empregados.map((e) => ({
+      data: empregadosQueCabem.map((e) => ({
         ...base,
         metaId: metaNoDestino(e.meta),
         ordem: e.ordem,
@@ -433,9 +454,9 @@ export async function copiarPessoalDaVersao(tx: TxCliente, origemVersaoId: strin
       })),
     });
   }
-  if (qtdes.length > 0) {
+  if (qtdesQueCabem.length > 0) {
     await tx.qtdeEmpregadoProposta.createMany({
-      data: qtdes.map((q) => ({ ...base, metaId: metaNoDestino(q.meta), inicio: q.inicio, fim: q.fim, documento: q.documento })),
+      data: qtdesQueCabem.map((q) => ({ ...base, metaId: metaNoDestino(q.meta), inicio: q.inicio, fim: q.fim, documento: q.documento })),
     });
   }
 }
