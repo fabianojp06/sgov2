@@ -19,6 +19,9 @@ export const CAMPOS_ORIGEM_BLINDADA = {
   // Proposta de TP (US-065, D-P17-4 e D-P17-6): o Valor Global é sempre calculado (RN_TP_003); a
   // situação, a versão e a unidade são do servidor.
   proposta: ['valorGlobal', 'situacao', 'versaoAtual', 'unidadeId', 'versao'],
+  // Meta da proposta (US-067, D-P19-3): tipo e proposta vêm da capa (RN0140); a versão da proposta, a
+  // unidade e os totais são do servidor. No alterar, o número também (UC03.16, passo 4).
+  meta: ['tipo', 'unidadeId', 'versaoPropostaId', 'valorGlobal', 'totalMetas', 'saldo'],
 } as const satisfies Record<string, readonly string[]>;
 
 export async function recusarCamposBlindados(

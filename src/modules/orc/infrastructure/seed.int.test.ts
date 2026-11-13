@@ -47,7 +47,12 @@ describe('seedOrc', () => {
   it('proposta de TP no menu Cadastros › Propostas (US-065, D-P17-9)', async () => {
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.propostas' } });
     expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Propostas', rota: '/orc/propostas', exibirNoMenu: true, acoes: ['consultar', 'incluir', 'excluir'] });
-    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(11);
+    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(12);
+  });
+
+  it('metas da proposta no menu Cadastros › Metas, no grupo Propostas (US-067, D-P19-8)', async () => {
+    const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.metas' } });
+    expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Metas', rota: '/orc/metas', exibirNoMenu: true, acoes: ['consultar', 'incluir', 'alterar', 'excluir'] });
   });
 
   it('perfis padrão da tabela da Task 1 (D-P6-4, D-P6-6)', async () => {
@@ -56,6 +61,7 @@ describe('seedOrc', () => {
       'orc.exercicios:alterar', 'orc.exercicios:consultar', 'orc.exercicios:incluir',
       'orc.ia_justificativa:executar', 'orc.ia_revisor:executar', 'orc.ia_sugestao_conta:executar',
       'orc.importacao:consultar', 'orc.importacao:executar',
+      'orc.metas:consultar',
       'orc.orcamento:alterar', 'orc.orcamento:consultar',
       'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.posicoes:alterar', 'orc.posicoes:consultar', 'orc.posicoes:excluir', 'orc.posicoes:incluir',
@@ -63,11 +69,11 @@ describe('seedOrc', () => {
       'orc.receitas:alterar', 'orc.receitas:consultar', 'orc.receitas:excluir', 'orc.receitas:incluir',
     ]);
     expect(await permissoes('DIREX')).toEqual([
-      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.receitas:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
-      'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.receitas:consultar',
     ]);
     expect(await permissoes('GESTOR_DIRETORIA')).toEqual([
@@ -77,7 +83,10 @@ describe('seedOrc', () => {
     ]);
     // #403: o Administrador pede a avaliação da sugestão de conta na /int/ia; sem orc.pacotes, não lança pacote.
     expect(await permissoes('ADMINISTRADOR')).toEqual(['orc.ia_sugestao_conta:executar']);
-    expect(await permissoes('ORCAMENTISTA')).toEqual(['orc.propostas:consultar', 'orc.propostas:excluir', 'orc.propostas:incluir']);
+    expect(await permissoes('ORCAMENTISTA')).toEqual([
+      'orc.metas:alterar', 'orc.metas:consultar', 'orc.metas:excluir', 'orc.metas:incluir',
+      'orc.propostas:consultar', 'orc.propostas:excluir', 'orc.propostas:incluir',
+    ]);
     for (const perfil of ['ANALISTA_GRH', 'OPERADOR_VIAGENS']) {
       expect(await permissoes(perfil)).toEqual([]);
     }
