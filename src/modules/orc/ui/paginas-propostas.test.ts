@@ -207,6 +207,15 @@ describe('página das propostas de TP', () => {
     expect(caso.chamadasCcs).toBe(0);
   });
 
+  it('com orc.metas:consultar, o link para as metas só na proposta de categoria Meta (US-067)', async () => {
+    contexto = ctx([...ORCAMENTISTA, 'orc.metas:consultar']);
+    const h = await html();
+    expect(h).toContain('<a href="/orc/metas?proposta=TP-2027%2F002">Metas da proposta TP-2027/002</a>');
+    expect(h).not.toContain('Metas da proposta TP-2027/001');
+    contexto = ctx(['orc.propostas:consultar']);
+    expect(await html()).not.toContain('Metas da proposta');
+  });
+
   it('sem orc.propostas:consultar: 404 com a negação auditada', async () => {
     contexto = ctx(['orc.posicoes:consultar']);
     expect(await digest(Propostas({ searchParams: Promise.resolve({}) }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');

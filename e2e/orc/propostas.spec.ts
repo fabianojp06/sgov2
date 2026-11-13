@@ -3,7 +3,7 @@ import pg from 'pg';
 import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoio';
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
-// do P18, Task 2, Step 3).
+// do P18, Task 2, Step 3) e as metas (US-067; plano do P19, Task 2, Step 3).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -11,8 +11,10 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // Roteiro: o Orçamentista cria a proposta com o CC 9.1; ela aparece na lista em Rascunho, com o valor
 // global 0,00; o seletor de unidade da tela principal passa a mostrar o TP (o criador é vinculado na
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
-// a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC livre (D-P17-10).
-// O afterAll apaga as capas, as versões, os vínculos e as unidades dos dois TPs (o Histórico fica).
+// a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
+// copiando as metas; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// livre (D-P17-10). O afterAll apaga as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
+// (o Histórico fica).
 //
 // Usuário: o Orçamentista E2E de e2e/aut/apoio.ts (orc.menu), que outros specs também usam. O vínculo
 // com a unidade fica depois da exclusão lógica (D-P17-10); o afterAll o apaga para não mudar o seletor
@@ -38,6 +40,7 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query('BEGIN');
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
+      await cliente.query(`DELETE FROM orc_meta WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_versao_proposta WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_proposta WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM usuario_unidade WHERE unidade_id IN ${unidade}`);
@@ -106,6 +109,8 @@ test.describe.serial('proposta de TP', () => {
     await expect(opcoesDoCc(page).filter({ hasText: new RegExp(`^${CC.replace('.', '\\.')} – `) })).toHaveCount(0);
     await page.getByLabel('Número do TP').fill(NUMERO_COPIA);
     await page.getByLabel('Centro de custo').selectOption(CC_COPIA);
+    // A cópia opera por metas (passo 3b).
+    await page.getByLabel('Categoria').selectOption('META');
     await page.getByRole('button', { name: 'Duplicar proposta' }).click();
     await expect(page).toHaveURL(/\/orc\/propostas\?aviso=duplicada&tp=/);
     await expect(page.getByText(`Proposta do TP ${NUMERO_COPIA} criada em Rascunho, por duplicação.`)).toBeVisible();
@@ -116,6 +121,46 @@ test.describe.serial('proposta de TP', () => {
     await expect(copia).toContainText(CC_COPIA);
     await expect(copia).toContainText('Rascunho');
     await expect(versaoDa(page, NUMERO_COPIA)).toHaveText('1');
+  });
+
+  test('3b. o Orçamentista inclui, altera e exclui metas na cópia; a nova versão copia as metas', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Metas da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/metas\?proposta=/);
+    const bloco = page.getByRole('region', { name: `${NUMERO_COPIA} – Cópia de ${OBJETO}` });
+    await page.getByRole('link', { name: `Nova meta na proposta ${NUMERO_COPIA}` }).click();
+    await expect(page.locator('#nova-meta-proposta')).toHaveValue(`${NUMERO_COPIA} – Cópia de ${OBJETO}`);
+    await page.getByLabel('Número da meta').fill('M1');
+    await page.getByLabel('Nome da meta').fill('Oficinas de capacitação');
+    await page.getByLabel('Valor global (R$)').fill('1.234,56');
+    await page.getByRole('button', { name: 'Incluir meta' }).click();
+    await expect(page).toHaveURL(/\/orc\/metas\?aviso=incluida&m=M1/);
+    await expect(page.getByText('Meta M1 incluída.')).toBeVisible();
+    await expect(bloco.getByRole('row', { name: /^M1 / })).toContainText('Oficinas de capacitação');
+    await expect(bloco.getByText('Total das metas ativas (R$)').locator('xpath=following-sibling::dd[1]')).toHaveText('1.234,56');
+
+    await bloco.getByRole('link', { name: 'Editar a meta M1' }).click();
+    await expect(page.getByLabel('Número da meta')).toHaveValue('M1');
+    await page.getByLabel('Nome da meta').fill('Oficinas regionais');
+    await page.getByRole('button', { name: 'Salvar meta' }).click();
+    await expect(page.getByText('Meta M1 alterada.')).toBeVisible();
+    await expect(bloco.getByRole('row', { name: /^M1 / })).toContainText('Oficinas regionais');
+
+    // A nova versão leva a meta (RN_DUP_003), e a exclusão age na versão nova.
+    await page.goto('/orc/propostas');
+    await page.getByRole('button', { name: `Nova versão da proposta ${NUMERO_COPIA}` }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(page.getByText(`Nova versão da proposta do TP ${NUMERO_COPIA} criada em Rascunho.`)).toBeVisible();
+    await page.goto('/orc/metas');
+    await expect(bloco).toContainText('Versão 2');
+    await expect(bloco.getByRole('row', { name: /^M1 / })).toContainText('Oficinas regionais');
+    await bloco.getByRole('button', { name: 'Excluir a meta M1' }).click();
+    const caixa = page.getByRole('alertdialog');
+    await expect(caixa).toContainText('Deseja realmente excluir esta meta? Esta ação não poderá ser desfeita.');
+    await caixa.getByRole('button', { name: 'Sim' }).click();
+    await expect(page.getByText('Meta M1 excluída.')).toBeVisible();
+    await expect(bloco.getByRole('row', { name: /^M1 / })).toHaveCount(0);
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {

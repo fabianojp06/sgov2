@@ -8,6 +8,7 @@ export { sugerirContaCcAcao, sugerirJustificativaAcao } from './application/acoe
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
 export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, ligarCargoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
+export { alterarMetaAcao, excluirMetaAcao, incluirMetaAcao } from './application/acoes-metas';
 export { criarPropostaAcao, duplicarPropostaAcao, excluirPropostaAcao, novaVersaoPropostaAcao } from './application/acoes-propostas';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
@@ -31,6 +32,7 @@ export {
   type PosicaoTela,
 } from './application/posicoes';
 export { listarCorrespondencias, type ItemCorrespondencia, type ListaCorrespondencia } from './application/correspondencia-cargos';
+export { listarMetas, type BlocoMetas, type FiltrosMetas, type MetaTela } from './application/metas';
 export { ccsLivresParaTp, dadosParaDuplicar, listarPropostas, type CcLivreTp, type DadosDuplicar, type PropostaTela } from './application/propostas';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
 export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
@@ -39,6 +41,7 @@ export { FUNCIONALIDADES_ORC, seedOrc } from './infrastructure/seed';
 export { FormReceita, type ReceitaFormulario } from './ui/form-receita';
 export { TelaPacotes, textoAvisoPacote } from './ui/tela-pacotes';
 export { TelaCorrespondencia } from './ui/tela-correspondencia';
+export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMeta } from './ui/tela-metas';
 export { TelaPropostas, textoAvisoProposta } from './ui/tela-propostas';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';

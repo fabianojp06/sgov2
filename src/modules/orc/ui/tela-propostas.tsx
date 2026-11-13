@@ -21,6 +21,7 @@ import { FormProposta } from './form-proposta';
 // Versão mostra a última; "Nova versão" (com confirmação) só quando a última está em Rascunho ou Em
 // Elaboração (D-P18-1); "Duplicar" é um link para ?duplicar=<id>, que troca o "Nova proposta" pelo
 // formulário de duplicar. "Excluir" e "Nova versão" agem sobre a última versão, com a versão da capa.
+// Na proposta de categoria Meta, o link para as metas dela, com orc.metas:consultar (US-067; plano do P19).
 
 /** AAAA-MM-DD → dd/mm/aaaa (sem Date: a data é civil e não pode mudar de dia pelo fuso). */
 const dataParaTela = (v: string) => {
@@ -43,7 +44,8 @@ const versionavel = (s: SituacaoProposta) => (SITUACOES_VERSIONAVEIS as readonly
 /** O formulário de duplicar aberto (?duplicar=): a origem, ou nulo se o usuário não a vê. */
 export type DuplicacaoAberta = { origem: DadosDuplicar | null };
 
-export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean };
+/** podeVerMetas: orc.metas:consultar, para o link das metas na proposta de categoria Meta (US-067). */
+export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean };
 
 export function TelaPropostas({
   propostas,
@@ -64,7 +66,8 @@ export function TelaPropostas({
 }) {
   const podeExcluir = (p: PropostaTela) => permissoes.podeExcluir && p.excluivel;
   const podeVersionar = (p: PropostaTela) => permissoes.podeIncluir && versionavel(p.situacao);
-  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir);
+  const verMetas = (p: PropostaTela) => permissoes.podeVerMetas === true && p.categoria === 'META';
+  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas);
   const origem = duplicacao?.origem ?? null;
   return (
     <>
@@ -105,6 +108,7 @@ export function TelaPropostas({
                   <td>{valorParaTela(p.valorGlobal)}</td>
                   {acoesNaLinha && (
                     <td>
+                      {verMetas(p) && <a href={`/orc/metas?proposta=${encodeURIComponent(p.numero)}`}>{`Metas da proposta ${p.numero}`}</a>}
                       {podeVersionar(p) && (
                         <AcaoConfirmada
                           rotulo={`Nova versão da proposta ${p.numero}`}
