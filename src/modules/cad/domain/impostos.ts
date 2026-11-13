@@ -14,9 +14,9 @@ export const ROTULO_INCIDENCIA: Readonly<Record<Incidencia, string>> = {
 export const TAMANHO_NOME_IMPOSTO = 20;
 
 /** Competência no formato AAAA-MM. */
-export type Competencia = `${number}-${number}`;
+export type AnoMes = `${number}-${number}`;
 const COMPETENCIA = /^(\d{4})-(0[1-9]|1[0-2])$/;
-export const ehCompetencia = (t: string): t is Competencia => COMPETENCIA.test(t);
+export const ehCompetencia = (t: string): t is AnoMes => COMPETENCIA.test(t);
 
 export function validarImposto(e: { nome: string; incidencia: string }): Resultado<{ nome: string; incidencia: Incidencia }> {
   const erros: ErroCampo[] = [];
@@ -31,7 +31,7 @@ export function validarImposto(e: { nome: string; incidencia: string }): Resulta
  * A alíquota nova: percentual de 0 a 100 (com vírgula ou ponto, até 4 casas) e competência atual ou
  * futura (RN_TAX_05, E4: sem retroatividade). `mesAtual` vem do servidor (AAAA-MM, fuso de Brasília).
  */
-export function validarAliquota(e: { competencia: string; percentual: string }, mesAtual: Competencia): Resultado<{ competencia: Competencia; percentual: Percentual }> {
+export function validarAliquota(e: { competencia: string; percentual: string }, mesAtual: AnoMes): Resultado<{ competencia: AnoMes; percentual: Percentual }> {
   const erros: ErroCampo[] = [];
   const competencia = e.competencia.trim();
   if (!ehCompetencia(competencia)) erros.push({ campo: 'competencia', mensagem: 'Informe a competência no formato AAAA-MM.' });
@@ -39,11 +39,11 @@ export function validarAliquota(e: { competencia: string; percentual: string }, 
   const p = percentualDoTexto(e.percentual);
   if (p === null) erros.push({ campo: 'percentual', mensagem: 'Informe a alíquota com até 4 casas decimais.' });
   else if (p.comoFracao().lt(0) || p.comoFracao().gt(1)) erros.push({ campo: 'percentual', mensagem: 'A alíquota deve ficar entre 0 e 100%.' });
-  return erros.length > 0 ? falha(erros) : ok({ competencia: competencia as Competencia, percentual: p! });
+  return erros.length > 0 ? falha(erros) : ok({ competencia: competencia as AnoMes, percentual: p! });
 }
 
 /** A alíquota que vale na competência: a de maior competência até ela; null se nenhuma começou. */
-export function aliquotaVigente<T extends { competencia: Competencia }>(aliquotas: readonly T[], competencia: Competencia): T | null {
+export function aliquotaVigente<T extends { competencia: AnoMes }>(aliquotas: readonly T[], competencia: AnoMes): T | null {
   let vigente: T | null = null;
   for (const a of aliquotas) if (a.competencia <= competencia && (vigente === null || a.competencia > vigente.competencia)) vigente = a;
   return vigente;
@@ -53,10 +53,10 @@ export function aliquotaVigente<T extends { competencia: Competencia }>(aliquota
 export const incideEm = (incidencia: Incidencia, tipo: 'CONTRATO' | 'TERMO_PARCERIA') => incidencia === 'AMBOS' || incidencia === tipo;
 
 /** AAAA-MM do instante no fuso de Brasília (o mesmo do trigger da migration). */
-export function competenciaDe(instante: Date): Competencia {
+export function competenciaDe(instante: Date): AnoMes {
   const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(instante);
   const ano = partes.find((p) => p.type === 'year')!.value;
   const mes = partes.find((p) => p.type === 'month')!.value;
-  return `${ano}-${mes}` as Competencia;
+  return `${ano}-${mes}` as AnoMes;
 }
 

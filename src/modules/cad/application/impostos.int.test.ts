@@ -5,7 +5,7 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { ErroPermissao } from '@/shared/authz';
 import { criarPrisma, executarSeeds, type TxCliente } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
-import { competenciaDe, type Competencia } from '../domain/impostos';
+import { competenciaDe, type AnoMes } from '../domain/impostos';
 import { impostosVigentes } from '../infrastructure/impostos';
 import { seedCad } from '../infrastructure/seed';
 import { alterarImposto, incluirAliquota, incluirImposto, obterTelaImpostos, removerAliquotaFutura } from './impostos';
@@ -26,9 +26,9 @@ const ctx = (permissoes: string[]): ContextoRequisicao => ({
 });
 const gfin = () => ctx(['cad.impostos:consultar', 'cad.impostos:incluir', 'cad.impostos:alterar']);
 const leitor = () => ctx(['cad.impostos:consultar']);
-const somar = (c: Competencia, meses: number): Competencia => {
+const somar = (c: AnoMes, meses: number): AnoMes => {
   const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 1 + meses, 1));
-  return d.toISOString().slice(0, 7) as Competencia;
+  return d.toISOString().slice(0, 7) as AnoMes;
 };
 const atual = competenciaDe(new Date());
 const idDo = async (nome: string) => (await migrator.query('SELECT id FROM imposto WHERE nome = $1', [nome])).rows[0].id as string;
@@ -92,6 +92,8 @@ describe('impostos e alíquotas (US-052)', () => {
     expect(await ultimoHistorico()).toMatchObject({ tipo: 'ALTERACAO', antes: { incidencia: 'TERMO_PARCERIA', ativo: true }, depois: { incidencia: 'AMBOS', ativo: false } });
     const velha = await alterarImposto(gfin(), id, 1, { nome: 'IRRF', incidencia: 'CONTRATO', ativo: false }, { cliente: app });
     expect(velha.ok).toBe(false);
+    // A mesma versão velha, com os dados que já estão no banco: também é concorrência.
+    expect((await alterarImposto(gfin(), id, 1, { nome: 'IRRF', incidencia: 'AMBOS', ativo: false }, { cliente: app })).ok).toBe(false);
     const repetido = await alterarImposto(gfin(), id, 2, { nome: 'pis', incidencia: 'AMBOS', ativo: false }, { cliente: app });
     expect(repetido).toEqual({ ok: false, erros: [{ campo: 'nome', mensagem: 'Operação rejeitada: já existe um imposto cadastrado com o nome pis.' }] });
   });
@@ -156,5 +158,32 @@ describe('impostos e alíquotas (US-052)', () => {
     const tp = await ler(somar(atual, 1), { tipo: 'TERMO_PARCERIA' });
     expect(tp.map((i) => [i.nome, i.percentual?.paraString() ?? null, i.desde])).toEqual([['ISS', '5.0000', somar(atual, 1)]]);
     expect(await ler('2026-13')).toEqual([]);
+  });
+});
+
+describe('impostos: a recusa do banco chega como mensagem (relógio do app atrasado em relação ao banco)', () => {
+  it('alíquota que o app julga atual, mas o banco já vê como retroativa, e remoção da que já passou a valer', async () => {
+    const pis = await idDo('PIS');
+    const mesPassado = somar(atual, -1);
+    const noMesPassado = () => new Date(Date.UTC(Number(mesPassado.slice(0, 4)), Number(mesPassado.slice(5, 7)) - 1, 15, 12));
+    expect(await incluirAliquota(gfin(), pis, { competencia: mesPassado, percentual: '1' }, { cliente: app, agora: noMesPassado })).toEqual({
+      ok: false,
+      erros: [{ campo: 'competencia', mensagem: 'A vigência de uma alíquota não pode ser retroativa.' }],
+    });
+    expect(await removerAliquotaFutura(gfin(), pis, atual, { cliente: app, agora: noMesPassado })).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: 'A alíquota passou a valer. Recarregue a tela.' }],
+    });
+  });
+
+  it('a seed não recria imposto renomeado e grava Histórico só na primeira vez', async () => {
+    const { rows } = await migrator.query(`SELECT count(*)::int AS n FROM historico_operacao WHERE funcionalidade = 'cad.impostos' AND tipo_operacao = 'SISTEMA'`);
+    expect(rows[0].n).toBe(3);
+    const pis = await idDo('PIS');
+    expect((await alterarImposto(gfin(), pis, 1, { nome: 'PIS-PASEP', incidencia: 'CONTRATO', ativo: true }, { cliente: app })).ok).toBe(true);
+    const m = criarPrisma(banco.urlMigrator);
+    await executarSeeds(m, [seedAdm, seedCad]);
+    await m.$disconnect();
+    expect((await migrator.query(`SELECT count(*)::int AS n FROM imposto WHERE lower(nome) = 'pis'`)).rows[0].n).toBe(0);
   });
 });

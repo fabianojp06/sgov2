@@ -3,7 +3,7 @@ import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma, type TxCliente } from '@/shared/db';
 import { falha, ok, type Resultado } from '@/shared/kernel';
-import { aliquotaVigente, competenciaDe, ehCompetencia, validarAliquota, validarImposto, type Competencia, type Incidencia } from '../domain/impostos';
+import { aliquotaVigente, competenciaDe, ehCompetencia, validarAliquota, validarImposto, type AnoMes, type Incidencia } from '../domain/impostos';
 import { competenciaDaData } from '../infrastructure/impostos';
 import { MSG_CONCORRENCIA } from '../infrastructure/parametro-sistema';
 
@@ -27,9 +27,11 @@ const pctTela = (d: { toFixed(n: number): string }) => {
 };
 const nomeRepetido = (e: unknown) =>
   (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') || (e instanceof Error && /\b23505\b|imposto_nome_key/.test(e.message));
+// A recusa do trigger (check_violation, 23514) com o texto do RAISE; o Prisma 7 com driver adapter traz os dois na mensagem.
+const recusaDoBanco = (e: unknown, texto: RegExp) => e instanceof Error && texto.test(e.message);
 const MSG_NOME = (nome: string) => `Operação rejeitada: já existe um imposto cadastrado com o nome ${nome}.`;
 
-export type AliquotaTela = Readonly<{ competencia: Competencia; percentual: string; futura: boolean }>;
+export type AliquotaTela = Readonly<{ competencia: AnoMes; percentual: string; futura: boolean }>;
 export type ImpostoTela = Readonly<{
   id: string;
   nome: string;
@@ -41,7 +43,7 @@ export type ImpostoTela = Readonly<{
   /** Histórico, da mais recente para a mais antiga. */
   aliquotas: readonly AliquotaTela[];
 }>;
-export type TelaImpostos = Readonly<{ mesAtual: Competencia; impostos: readonly ImpostoTela[] }>;
+export type TelaImpostos = Readonly<{ mesAtual: AnoMes; impostos: readonly ImpostoTela[] }>;
 
 export async function obterTelaImpostos(ctx: ContextoRequisicao, deps: Deps = {}): Promise<TelaImpostos> {
   exigir(ctx, 'cad.impostos', 'consultar');
@@ -104,8 +106,9 @@ export async function alterarImposto(
   if (!v.ok) return v;
   try {
     return await (deps.cliente ?? prisma).$transaction(async (tx: TxCliente) => {
-      const antes = await tx.imposto.findUnique({ where: { id }, select: { nome: true, incidencia: true, ativo: true } });
+      const antes = await tx.imposto.findUnique({ where: { id }, select: { nome: true, incidencia: true, ativo: true, versao: true } });
       if (!antes) return falha([{ campo: '_', mensagem: 'Imposto não encontrado. Recarregue a tela.' }]);
+      if (antes.versao !== versao) return falha([{ campo: '_', mensagem: MSG_CONCORRENCIA }]);
       if (antes.nome === v.valor.nome && antes.incidencia === v.valor.incidencia && antes.ativo === dados.ativo) return ok({ versao });
       const r = await tx.imposto.updateMany({
         where: { id, versao },
@@ -135,7 +138,7 @@ export async function incluirAliquota(
   impostoId: string,
   dados: { competencia: string; percentual: string },
   deps: Deps = {},
-): Promise<Resultado<{ competencia: Competencia }>> {
+): Promise<Resultado<{ competencia: AnoMes }>> {
   exigir(ctx, 'cad.impostos', 'alterar');
   if (!UUID.test(impostoId)) return falha([{ campo: '_', mensagem: 'Imposto inválido. Recarregue a tela.' }]);
   const v = validarAliquota(dados, competenciaDe((deps.agora ?? (() => new Date()))()));
@@ -163,7 +166,7 @@ export async function incluirAliquota(
     if (e instanceof Error && /\b23505\b|aliquota_imposto_pkey/.test(e.message)) {
       return falha([{ campo: 'competencia', mensagem: 'Já existe alíquota para essa competência. Remova a futura antes de incluir outra.' }]);
     }
-    if (e instanceof Error && /Alíquota retroativa/.test(e.message)) {
+    if (recusaDoBanco(e, /Alíquota retroativa/)) {
       return falha([{ campo: 'competencia', mensagem: 'A vigência de uma alíquota não pode ser retroativa.' }]);
     }
     throw e;
@@ -195,7 +198,7 @@ export async function removerAliquotaFutura(ctx: ContextoRequisicao, impostoId: 
       return ok({ removida: true });
     });
   } catch (e) {
-    if (e instanceof Error && /Alíquota em vigor ou passada não sai/.test(e.message)) {
+    if (recusaDoBanco(e, /Alíquota em vigor ou passada não sai/)) {
       return falha([{ campo: '_', mensagem: 'A alíquota passou a valer. Recarregue a tela.' }]);
     }
     throw e;

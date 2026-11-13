@@ -50,7 +50,7 @@ export type { FonteAtiva } from './domain/cargo';
 // Impostos (US-052; acréscimo ao C2): a alíquota vigente por competência, que a proposta congela no
 // snapshot da oficialização (RN_TAX_03).
 export { impostosVigentes, type ImpostoVigente } from './infrastructure/impostos';
-export { aliquotaVigente, incideEm, type Competencia, type Incidencia } from './domain/impostos';
+export { aliquotaVigente, incideEm, type AnoMes, type Incidencia } from './domain/impostos';
 
 export {
   cargosExemplo,

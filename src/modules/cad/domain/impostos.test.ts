@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aliquotaVigente, competenciaDe, incideEm, validarAliquota, validarImposto, type Competencia } from './impostos';
+import { aliquotaVigente, competenciaDe, incideEm, validarAliquota, validarImposto, type AnoMes } from './impostos';
 
 describe('validarImposto (US-052, RN_TAX_05)', () => {
   it('nome até 20 caracteres, sem os espaços das pontas; incidência conhecida', () => {
@@ -11,7 +11,7 @@ describe('validarImposto (US-052, RN_TAX_05)', () => {
 });
 
 describe('validarAliquota (RN_TAX_05, E4)', () => {
-  const mes = '2026-11' as Competencia;
+  const mes = '2026-11' as AnoMes;
   it('competência atual ou futura; 0 a 100% com vírgula ou ponto', () => {
     const r = validarAliquota({ competencia: '2026-11', percentual: '0,65' }, mes);
     expect(r.ok && r.valor.percentual.comoFracao().toString()).toBe('0.0065');
@@ -30,7 +30,7 @@ describe('validarAliquota (RN_TAX_05, E4)', () => {
 });
 
 describe('aliquotaVigente', () => {
-  const hist = [{ competencia: '2026-01' as Competencia, p: 'a' }, { competencia: '2027-01' as Competencia, p: 'b' }, { competencia: '2026-07' as Competencia, p: 'c' }];
+  const hist = [{ competencia: '2026-01' as AnoMes, p: 'a' }, { competencia: '2027-01' as AnoMes, p: 'b' }, { competencia: '2026-07' as AnoMes, p: 'c' }];
   it('a de maior competência até a pedida; antes da primeira, nenhuma', () => {
     expect(aliquotaVigente(hist, '2026-06')?.p).toBe('a');
     expect(aliquotaVigente(hist, '2026-07')?.p).toBe('c');

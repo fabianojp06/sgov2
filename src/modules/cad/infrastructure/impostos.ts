@@ -1,6 +1,6 @@
 import type { TxCliente } from '@/shared/db';
 import { Percentual } from '@/shared/kernel';
-import { aliquotaVigente, ehCompetencia, incideEm, type Competencia, type Incidencia } from '../domain/impostos';
+import { aliquotaVigente, ehCompetencia, incideEm, type AnoMes, type Incidencia } from '../domain/impostos';
 
 // Contrato do cad para os impostos (US-052; acréscimo ao C2, combinado na #138): a alíquota vigente de
 // cada imposto ativo numa competência. A proposta (frente A) congela o percentual devolvido no snapshot
@@ -14,10 +14,10 @@ export type ImpostoVigente = Readonly<{
   /** Null: o imposto ainda não tem alíquota que valha na competência. */
   percentual: Percentual | null;
   /** A competência (AAAA-MM) em que a alíquota devolvida começou a valer, ou null. */
-  desde: Competencia | null;
+  desde: AnoMes | null;
 }>;
 
-export const competenciaDaData = (d: Date): Competencia => d.toISOString().slice(0, 7) as Competencia;
+export const competenciaDaData = (d: Date): AnoMes => d.toISOString().slice(0, 7) as AnoMes;
 
 /**
  * Impostos ativos, em ordem de nome, com a alíquota que vale na competência (AAAA-MM). Com `tipo`, só

@@ -238,10 +238,22 @@ export const seedCad: Seed = {
       });
     }
     // Os três impostos da UC03.01, sem alíquota (RN_TAX_01: o percentual é parâmetro da GFIN). PIS e
-    // COFINS incidem só em contrato (RN_PRO_010: imunidade do TP); o ISS, nos dois. Idempotente.
-    for (const [nome, incidencia] of [['PIS', 'CONTRATO'], ['COFINS', 'CONTRATO'], ['ISS', 'AMBOS']] as const) {
-      await tx.$executeRaw`INSERT INTO "imposto" ("nome", "incidencia") VALUES (${nome}, ${incidencia}::"IncidenciaImposto")
-        ON CONFLICT (lower("nome")) DO NOTHING`;
+    // COFINS incidem só em contrato (RN_PRO_010: imunidade do TP); o ISS, nos dois. Só com a tabela vazia:
+    // um imposto renomeado ou inativado pela GFIN não volta no deploy seguinte.
+    if ((await tx.imposto.count()) === 0) {
+      for (const [nome, incidencia] of [['PIS', 'CONTRATO'], ['COFINS', 'CONTRATO'], ['ISS', 'AMBOS']] as const) {
+        const [criado] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "imposto" ("nome", "incidencia")
+          VALUES (${nome}, ${incidencia}::"IncidenciaImposto") RETURNING "id"`;
+        await auditar(tx, {
+          contexto: SISTEMA,
+          origem: 'SISTEMA',
+          funcionalidade: 'cad.impostos',
+          tipo: 'SISTEMA',
+          registroId: criado!.id,
+          descricao: `Seed: imposto ${nome} incluído, sem alíquota`,
+          depois: { nome, incidencia },
+        });
+      }
     }
     for (const chave of CHAVES_PARAMETRO_SISTEMA) {
       await tx.parametroSistema.upsert({ where: { chave }, create: { chave, valor: '' }, update: {} });
