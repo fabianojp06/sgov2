@@ -4,7 +4,11 @@ import { entrarNaTelaPrincipal, USUARIOS } from '../aut/apoio';
 // US-022: o Formulario do ger (C3) não perde o que foi digitado quando a ação falha. Com a rede caída,
 // o envio vira a mensagem geral no resumo de erros, a tela fica (sem o error.tsx) e o campo mantém o
 // valor. Usa a configuração geral da IA (Administrador) sem gravar nada.
-test('falha de rede ao salvar: mensagem no formulário e o que foi digitado continua lá', async ({ page, context }) => {
+//
+// Em fixme até o banco do E2E ter a seed do int (e2e/aut/semear.ts, da frente A, não roda a seedInt
+// do prisma/seed.ts): com ela, o menu do Administrador passa de 720 px (e2e/aut/menu.spec.ts), o
+// mesmo que já acontece em produção. Combinado na #138. A lógica está coberta por formulario.test.ts.
+test.fixme('falha de rede ao salvar: mensagem no formulário e o que foi digitado continua lá', async ({ page, context }) => {
   await entrarNaTelaPrincipal(page, USUARIOS.admin.login);
   await page.goto('/int/ia');
   const limite = page.getByLabel('Pedidos por minuto de cada pessoa');
