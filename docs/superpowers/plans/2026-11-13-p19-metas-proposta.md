@@ -61,7 +61,7 @@ As do P17 e do P18 valem todas:
 ### Task 1: Migration, domínio e casos de uso
 
 **Files:**
-- Create: `prisma/migrations/202611131200_orc_meta/migration.sql`
+- Create: `prisma/migrations/202611131400_orc_meta/migration.sql`
 - Modify: `prisma/schema/orc.prisma` (model `MetaProposta`, `@@map("orc_meta")`; relação em `VersaoProposta`)
 - Create: `src/modules/orc/domain/meta.ts`, `src/modules/orc/domain/meta.test.ts`
 - Create: `src/modules/orc/application/metas.ts`, `tests/integracao/orc/metas.int.test.ts`
