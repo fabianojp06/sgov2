@@ -84,6 +84,14 @@ beforeEach(async () => {
   vi.restoreAllMocks();
 });
 
+// O texto procurado ("7500", "8100") pode aparecer por acaso no envelope cifrado (base64url), num uuid
+// ou nos microssegundos de um timestamp: eles saem antes da busca, e só o valor em claro reprova.
+const semRuido = (t: string) =>
+  t
+    .replace(/v1:[A-Za-z0-9_:-]+/g, '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '')
+    .replace(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?|Z)?/g, '');
+
 describe('importação dos cargos do Rubi (R20)', () => {
   it('entram com o salário real cifrado: nenhum SELECT acha "7500"; o envelope decifra no app', async () => {
     await carregar([linha('C1'), linha('C2', { 'Salário Real': null })]);
@@ -92,8 +100,9 @@ describe('importação dos cargos do Rubi (R20)', () => {
     expect(c1.salario_real_cifrado).toMatch(new RegExp(`^v1:${ID_CHAVE_TESTE}:`));
     expect(cifra.decifrar(c1.salario_real_cifrado, { codigoCargo: 'C1', campo: 'salario_real' }).paraString()).toBe('7500.00');
     expect((await cargo('C2')).salario_real_cifrado).toBeNull();
-    const vazamento = await migrator.query(`SELECT 1 FROM cargo t WHERE t::text LIKE '%7500%'`);
-    expect(vazamento.rows).toEqual([]);
+    const linhas = await migrator.query<{ t: string }>(`SELECT t::text AS t FROM cargo t`);
+    expect(linhas.rows.length).toBeGreaterThan(0);
+    expect(linhas.rows.filter(({ t }) => semRuido(t).includes('7500'))).toEqual([]);
   });
 
   it('I9: salário inválido dá erro sem repetir o valor (só a linha e a coluna "Salário Real")', async () => {
@@ -217,7 +226,7 @@ describe('importação dos cargos do Rubi (R20)', () => {
     const h = await migrator.query(`SELECT coalesce(antes::text, '') || coalesce(depois::text, '') AS t FROM historico_operacao WHERE funcionalidade = 'cad.cargos' AND registro_id = 'C1'`);
     expect(h.rows.length).toBeGreaterThan(0);
     for (const { t } of h.rows) {
-      expect(t).not.toMatch(/7500|8100/);
+      expect(semRuido(t)).not.toMatch(/7500|8100/);
     }
     expect(h.rows.some(({ t }) => t.includes(depois))).toBe(true);
   });
