@@ -79,10 +79,15 @@ const traduzir = (e: unknown, nome: string) => {
 };
 
 async function incluirItens(tx: TxCliente, agrupadorId: string, contaIds: readonly string[]) {
-  for (const contaId of contaIds) {
-    await tx.$executeRaw`INSERT INTO "agrupador_conta_item" ("agrupador_id", "conta_id") VALUES (${agrupadorId}::uuid, ${contaId}::uuid)`;
-  }
+  if (contaIds.length === 0) return;
+  await tx.$executeRaw`INSERT INTO "agrupador_conta_item" ("agrupador_id", "conta_id")
+    SELECT ${agrupadorId}::uuid, c FROM unnest(${[...contaIds]}::uuid[]) AS c`;
 }
+
+// O mínimo de duas contas é conferido por constraint trigger diferido; aqui ele roda já, e a recusa
+// sai dentro da transação, antes do Histórico (não no COMMIT).
+const conferirMinimo = (tx: TxCliente) =>
+  tx.$executeRaw`SET CONSTRAINTS "agrupador_conta_minimo_contas", "agrupador_conta_item_minimo_contas" IMMEDIATE`;
 
 /** Inclui um agrupador com as contas (cad.plano_contas:executar). */
 export async function incluirAgrupador(ctx: ContextoRequisicao, dados: EntradaAgrupador, deps: Deps = {}): Promise<Resultado<{ id: string }>> {
@@ -94,6 +99,7 @@ export async function incluirAgrupador(ctx: ContextoRequisicao, dados: EntradaAg
       // SQL explícito: o sgo_app só insere o nome (o Prisma mandaria os defaults).
       const [criado] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "agrupador_conta" ("nome") VALUES (${v.valor.nome}) RETURNING "id"`;
       await incluirItens(tx, criado!.id, v.valor.contaIds);
+      await conferirMinimo(tx);
       await auditar(tx, {
         contexto: contextoDe(ctx),
         funcionalidade: 'cad.plano_contas',
@@ -138,6 +144,7 @@ export async function alterarAgrupador(
       if (r.count === 0) return falha([{ campo: '_', mensagem: MSG_CONCORRENCIA }]);
       if (sair.length > 0) await tx.agrupadorContaItem.deleteMany({ where: { agrupadorId: id, contaId: { in: sair } } });
       await incluirItens(tx, id, entrar);
+      await conferirMinimo(tx);
       await auditar(tx, {
         contexto: contextoDe(ctx),
         funcionalidade: 'cad.plano_contas',

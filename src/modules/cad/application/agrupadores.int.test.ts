@@ -121,6 +121,34 @@ describe('agrupadores de contas (US-047)', () => {
     expect((await migrator.query(`SELECT count(*)::int AS n FROM agrupador_conta_item WHERE agrupador_id = $1`, [idPassagens])).rows[0].n).toBe(2);
   });
 
+  it('conta inativada por recarga continua no agrupador; editar só o nome a mantém; tirá-la é escolha do usuário', async () => {
+    await migrator.query(`UPDATE conta_contabil SET ativa = false, inativada_em = now() WHERE id = $1`, [analiticas[2]!.id]);
+    const tela = await obterTelaAgrupadores(leitor(), { cliente: app });
+    expect(tela.agrupadores.find((a) => a.id === idPassagens)!.contas.map((c) => [c.id, c.ativa])).toEqual([
+      [analiticas[1]!.id, true],
+      [analiticas[2]!.id, false],
+    ]);
+    expect(tela.contas.some((c) => c.id === analiticas[2]!.id)).toBe(false);
+    // A tela manda as contas que tinha (inclusive a inativa): só o nome muda.
+    const r = await alterarAgrupador(gfin(), idPassagens, 2, { nome: 'Passagens (rev.)', contaIds: [analiticas[1]!.id, analiticas[2]!.id] }, { cliente: app });
+    expect(r).toEqual({ ok: true, valor: { versao: 3 } });
+    expect((await migrator.query(`SELECT count(*)::int AS n FROM agrupador_conta_item WHERE agrupador_id = $1`, [idPassagens])).rows[0].n).toBe(2);
+    // Tirar a inativa deixaria uma conta só: recusado, dentro da transação, com a mensagem da minuta.
+    expect(await alterarAgrupador(gfin(), idPassagens, 3, { nome: 'Passagens (rev.)', contaIds: [analiticas[1]!.id] }, { cliente: app })).toEqual({
+      ok: false,
+      erros: [{ campo: 'contas', mensagem: MSG_MINIMO }],
+    });
+    // Reativada pela recarga, a conta segue no agrupador como qualquer outra.
+    await migrator.query(`UPDATE conta_contabil SET ativa = true, inativada_em = NULL WHERE id = $1`, [analiticas[2]!.id]);
+    expect((await alterarAgrupador(gfin(), idPassagens, 3, { nome: 'Passagens', contaIds: [analiticas[1]!.id, analiticas[2]!.id] }, { cliente: app })).ok).toBe(true);
+  });
+
+  it('agrupador inexistente: edição e exclusão respondem sem gravar', async () => {
+    const nada = '00000000-0000-4000-8000-000000000000';
+    expect((await alterarAgrupador(gfin(), nada, 1, { nome: 'X', contaIds: [analiticas[0]!.id, analiticas[1]!.id] }, { cliente: app })).ok).toBe(false);
+    expect((await excluirAgrupador(gfin(), nada, 1, { cliente: app })).ok).toBe(false);
+  });
+
   it('agrupadoresDeContas (para os relatórios): cada agrupador com as contas, em ordem', async () => {
     const lidos = await app.$transaction((tx: TxCliente) => agrupadoresDeContas(tx));
     expect(lidos.map((a) => [a.nome, a.contas.map((c) => c.classificacao)])).toEqual([
@@ -131,16 +159,16 @@ describe('agrupadores de contas (US-047)', () => {
 
   it('exclui com a versão, levando as vinculações, com Histórico; versão velha é concorrência', async () => {
     expect((await excluirAgrupador(gfin(), idPassagens, 1, { cliente: app })).ok).toBe(false);
-    expect(await excluirAgrupador(gfin(), idPassagens, 2, { cliente: app })).toEqual({ ok: true, valor: { excluido: true } });
+    expect(await excluirAgrupador(gfin(), idPassagens, 4, { cliente: app })).toEqual({ ok: true, valor: { excluido: true } });
     expect(await ultimoHistorico()).toMatchObject({ tipo: 'EXCLUSAO', registro_id: idPassagens, antes: { agrupador: 'Passagens' } });
     expect((await migrator.query(`SELECT count(*)::int AS n FROM agrupador_conta_item WHERE agrupador_id = $1`, [idPassagens])).rows[0].n).toBe(0);
   });
 
   it('referência de documento (FK RESTRICT) barra a exclusão com a mensagem da RN_PLA_010', async () => {
-    const outro = (await migrator.query(`SELECT id FROM agrupador_conta WHERE nome = 'Outro'`)).rows[0].id;
+    const { id: outro, versao } = (await migrator.query(`SELECT id, versao FROM agrupador_conta WHERE nome = 'Outro'`)).rows[0];
     await migrator.query(`CREATE TABLE documento_teste (agrupador_id UUID REFERENCES agrupador_conta(id) ON DELETE RESTRICT)`);
     await migrator.query(`INSERT INTO documento_teste VALUES ($1)`, [outro]);
-    const r = await excluirAgrupador(gfin(), outro, 1, { cliente: app });
+    const r = await excluirAgrupador(gfin(), outro, versao, { cliente: app });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.erros[0]!.mensagem).toMatch(/^Exclusão Bloqueada/);
     await migrator.query(`DROP TABLE documento_teste`);

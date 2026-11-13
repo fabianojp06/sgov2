@@ -17,7 +17,9 @@ export type AcoesAgrupadores = {
 };
 
 const FALHA_REDE = 'Não foi possível salvar. Confira a conexão e tente de novo.';
-type Edicao = { id: string | null; versao: number; nome: string; contaIds: readonly string[] };
+// As contas inativas (uma recarga inativou depois) continuam no agrupador e aparecem marcadas no
+// formulário: só saem se o usuário desmarcar.
+type Edicao = { id: string | null; versao: number; nome: string; contaIds: readonly string[]; inativas: readonly ContaAgrupavel[] };
 
 export function Agrupadores({
   agrupadores,
@@ -65,7 +67,7 @@ export function Agrupadores({
             type="button"
             onClick={() => {
               setErros([]);
-              setEdicao({ id: null, versao: 0, nome: '', contaIds: [] });
+              setEdicao({ id: null, versao: 0, nome: '', contaIds: [], inativas: [] });
             }}
           >
             Novo Agrupador
@@ -123,7 +125,7 @@ export function Agrupadores({
                       aria-label={`Editar o agrupador ${a.nome}`}
                       onClick={() => {
                         setErros([]);
-                        setEdicao({ id: a.id, versao: a.versao, nome: a.nome, contaIds: a.contas.filter((c) => c.ativa).map((c) => c.id) });
+                        setEdicao({ id: a.id, versao: a.versao, nome: a.nome, contaIds: a.contas.map((c) => c.id), inativas: a.contas.filter((c) => !c.ativa) });
                       }}
                     >
                       Editar
@@ -134,9 +136,9 @@ export function Agrupadores({
                       aria-label={`Excluir o agrupador ${a.nome}`}
                       onClick={() => {
                         if (!window.confirm(`Deseja excluir o Agrupador ${a.nome}? Esta ação removerá o subtotal correspondente de todos os relatórios vinculados.`)) return;
-                        executar(() => acoes.excluir({ id: a.id, versao: a.versao }), `Agrupador ${a.nome} excluído.`, () => {
-                          if (edicao?.id === a.id) setEdicao(null);
-                        });
+                        executar(() => acoes.excluir({ id: a.id, versao: a.versao }), `Agrupador ${a.nome} excluído.`, () =>
+                          setEdicao((e) => (e?.id === a.id ? null : e)),
+                        );
                       }}
                     >
                       Excluir
@@ -170,10 +172,12 @@ function FormAgrupador({
   const [nome, setNome] = useState(edicao.nome);
   const [marcadas, setMarcadas] = useState<ReadonlySet<string>>(new Set(edicao.contaIds));
   const [filtro, setFiltro] = useState('');
+  const inativas = useMemo(() => new Set(edicao.inativas.map((c) => c.id)), [edicao.inativas]);
   const visiveis = useMemo(() => {
     const f = filtro.trim().toLowerCase();
-    return f ? contas.filter((c) => c.classificacao.includes(f) || c.descricao.toLowerCase().includes(f)) : contas;
-  }, [contas, filtro]);
+    const todas = [...edicao.inativas, ...contas].sort((x, y) => (x.classificacao < y.classificacao ? -1 : 1));
+    return f ? todas.filter((c) => c.classificacao.includes(f) || c.descricao.toLowerCase().includes(f)) : todas;
+  }, [contas, edicao.inativas, filtro]);
   const invalido = (campo: string) => (erros.some((e) => e.campo === campo) ? { 'aria-invalid': true, 'aria-describedby': 'agrupador-erros' } : {});
   const alternar = (id: string) =>
     setMarcadas((m) => {
@@ -199,16 +203,17 @@ function FormAgrupador({
           <label htmlFor="agrupador-filtro">Filtrar contas</label>{' '}
           <input id="agrupador-filtro" type="search" value={filtro} onChange={(e) => setFiltro(e.target.value)} /> {marcadas.size} conta(s) selecionada(s)
         </p>
-        <fieldset {...invalido('contas')} style={{ maxHeight: '18rem', overflowY: 'auto' }}>
+        <fieldset style={{ maxHeight: '18rem', overflowY: 'auto' }}>
           <legend>Contas analíticas (ao menos duas)</legend>
           {visiveis.length === 0 ? (
             <p>Nenhuma conta analítica ativa com esse filtro.</p>
           ) : (
             visiveis.map((c) => (
               <div key={c.id}>
-                <input type="checkbox" id={`agrupador-conta-${c.id}`} checked={marcadas.has(c.id)} onChange={() => alternar(c.id)} />{' '}
+                <input type="checkbox" id={`agrupador-conta-${c.id}`} checked={marcadas.has(c.id)} onChange={() => alternar(c.id)} {...invalido('contas')} />{' '}
                 <label htmlFor={`agrupador-conta-${c.id}`}>
                   {c.classificacao} — {c.descricao}
+                  {inativas.has(c.id) && ' (inativa: desmarque para tirar do agrupador)'}
                 </label>
               </div>
             ))
@@ -218,7 +223,7 @@ function FormAgrupador({
           <button type="submit" disabled={salvando}>
             Salvar Agrupador
           </button>{' '}
-          <button type="button" onClick={cancelar}>
+          <button type="button" onClick={cancelar} disabled={salvando}>
             Cancelar
           </button>
         </p>
