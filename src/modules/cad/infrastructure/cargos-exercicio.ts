@@ -24,7 +24,14 @@ export type CargoExercicio = Readonly<{
   /** Faixa de mercado do cargo (a mesma do desvio de mercado); null sem mínimo ou sem máximo. */
   faixa: Readonly<{ minimo: Dinheiro; maximo: Dinheiro }> | null;
   adicional: AdicionalTrabalhista | null;
+  /**
+   * Vínculo Funcional do cargo (RN_EMP_008, pedido da frente A na #138, 13/11): a unidade analítica da
+   * estrutura funcional ligada ao cargo (US-048). Null: cargo ainda sem vínculo.
+   */
+  vinculoFuncional: VinculoFuncionalCargo | null;
 }>;
+
+export type VinculoFuncionalCargo = Readonly<{ id: string; nome: string; tipo: 'ASSESSORIA' | 'COORDENADORIA' | 'SETOR' }>;
 
 export type OpcoesCargosExercicio = { incluirInativos?: boolean };
 
@@ -61,6 +68,7 @@ export async function listarCargosComCifra(
       salarioDefinidoCifrado: true,
       adicionalTipo: true,
       adicionalGrau: true,
+      vinculoFuncional: { select: { id: true, nome: true, tipo: true } },
     },
   });
   return linhas.map((c) => {
@@ -87,8 +95,16 @@ export async function listarCargosComCifra(
       salarioFonteAtiva: salario,
       faixa: minimo && maximo ? { minimo, maximo } : null,
       adicional,
+      vinculoFuncional: vinculoDoCargo(c.vinculoFuncional),
     };
   });
+}
+
+// O trigger da migration só aceita unidade analítica (RN_CAR_08); o tipo sintético aqui seria dado inválido.
+function vinculoDoCargo(v: { id: string; nome: string; tipo: string } | null): VinculoFuncionalCargo | null {
+  if (!v) return null;
+  if (v.tipo !== 'ASSESSORIA' && v.tipo !== 'COORDENADORIA' && v.tipo !== 'SETOR') return null;
+  return { id: v.id, nome: v.nome, tipo: v.tipo };
 }
 
 export type BeneficiosCargo = Readonly<{ beneficios: readonly BeneficioPremissa[]; avisos: readonly string[] }>;

@@ -186,6 +186,7 @@ export function cargosExemplo(): readonly CargoExercicio[] {
       salarioFonteAtiva: Dinheiro.de('7500.00'),
       faixa: { minimo: Dinheiro.de('7500.00'), maximo: Dinheiro.de('9800.00') },
       adicional: null,
+      vinculoFuncional: { id: '00000000-0000-4000-8000-0000000000f1', nome: 'Setor de Orçamento', tipo: 'SETOR' },
     },
     {
       id: '00000000-0000-4000-8000-000000000002',
@@ -196,8 +197,9 @@ export function cargosExemplo(): readonly CargoExercicio[] {
       salarioFonteAtiva: Dinheiro.de('4200.00'),
       faixa: { minimo: Dinheiro.de('3800.00'), maximo: Dinheiro.de('4600.00') },
       adicional: { tipo: 'PERICULOSIDADE' },
+      vinculoFuncional: null,
     },
-    { id: '00000000-0000-4000-8000-000000000003', codigo: 'C003', nome: 'Assessor', ativo: true, fonteAtiva: null, salarioFonteAtiva: null, faixa: null, adicional: null },
+    { id: '00000000-0000-4000-8000-000000000003', codigo: 'C003', nome: 'Assessor', ativo: true, fonteAtiva: null, salarioFonteAtiva: null, faixa: null, adicional: null, vinculoFuncional: null },
     {
       id: '00000000-0000-4000-8000-000000000004',
       codigo: 'C004',
@@ -207,6 +209,7 @@ export function cargosExemplo(): readonly CargoExercicio[] {
       salarioFonteAtiva: Dinheiro.de('5000.00'),
       faixa: { minimo: Dinheiro.de('4000.00'), maximo: Dinheiro.de('5000.00') },
       adicional: null,
+      vinculoFuncional: null,
     },
   ];
 }

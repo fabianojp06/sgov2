@@ -64,6 +64,12 @@ beforeAll(async () => {
   // Z4: sem Fonte Ativa; Z5: inativo.
   await inserir('ZZ4', `INSERT INTO cargo (codigo, nome_oficial) VALUES ($CODIGO, 'Sem fonte') RETURNING id`);
   await inserir('ZZ5', `INSERT INTO cargo (codigo, nome_oficial, mercado_minimo, mercado_maximo, fonte_ativa, ativo) VALUES ($CODIGO, 'Extinto', 3000, 3500, 'MAXIMO', false) RETURNING id`);
+  // Vínculo Funcional (RN_EMP_008): Z1 ligado a um setor da estrutura funcional; os outros sem vínculo.
+  const unidade = async (nome: string, tipo: string, superior: string | null) =>
+    (await migrator.query(`INSERT INTO unidade_funcional (nome, tipo, superior_id) VALUES ($1, $2, $3) RETURNING id`, [nome, tipo, superior])).rows[0].id as string;
+  const ger = await unidade('Gerência ZZ', 'GERENCIA', await unidade('Diretoria ZZ', 'DIRETORIA', null));
+  ids.setor = await unidade('Setor ZZ', 'SETOR', ger);
+  await migrator.query('UPDATE cargo SET vinculo_funcional_id = $1 WHERE id = $2', [ids.setor, ids.ZZ1]);
 }, 180_000);
 
 afterAll(async () => {
@@ -83,7 +89,8 @@ describe('listarCargosExercicio', () => {
     expect(z2).toMatchObject({ nome: 'Técnico', fonteAtiva: 'REAL', faixa: null, adicional: { tipo: 'INSALUBRIDADE', grau: 'MEDIO' } });
     expect(z2!.salarioFonteAtiva?.paraString()).toBe('4200.00');
     expect(z3).toMatchObject({ fonteAtiva: 'REAL', salarioFonteAtiva: null });
-    expect(z4).toMatchObject({ fonteAtiva: null, salarioFonteAtiva: null, faixa: null, adicional: null });
+    expect(z4).toMatchObject({ fonteAtiva: null, salarioFonteAtiva: null, faixa: null, adicional: null, vinculoFuncional: null });
+    expect(z1!.vinculoFuncional).toEqual({ id: ids.setor, nome: 'Setor ZZ', tipo: 'SETOR' });
   });
 
   it('incluirInativos: também os inativos, com ativo = false', async () => {
