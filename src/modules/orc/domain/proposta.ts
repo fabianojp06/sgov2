@@ -12,6 +12,12 @@ export const CATEGORIAS_PROPOSTA = ['CONSOLIDADA', 'META'] as const;
 /** Ciclo de vida da versão (§6.2). A proposta nasce em Rascunho (RN_PROP_002, D-P17-6). */
 export const SITUACOES_PROPOSTA = ['RASCUNHO', 'EM_ELABORACAO', 'EM_APROVACAO', 'OFICIALIZADO', 'ENCERRADO'] as const;
 
+/**
+ * De onde se cria nova versão (UC03.09; plano do P18, D-P18-1) [PROVISÓRIO até o UC03.09 ser reescrito, C16]:
+ * só da última versão, e só nestas situações. O Oficializado muda por Termo Aditivo (§6.2, F4).
+ */
+export const SITUACOES_VERSIONAVEIS = ['RASCUNHO', 'EM_ELABORACAO'] as const satisfies readonly SituacaoProposta[];
+
 export type TipoProposta = (typeof TIPOS_PROPOSTA)[number];
 export type CategoriaProposta = (typeof CATEGORIAS_PROPOSTA)[number];
 export type SituacaoProposta = (typeof SITUACOES_PROPOSTA)[number];
@@ -101,3 +107,8 @@ export function validarCapa(bruto: Readonly<Record<string, unknown>>): Resultado
 
 /** Nome da unidade do TP: o objeto cortado em 120 caracteres (D-P17-2). */
 export const nomeDaUnidade = (objeto: string): string => [...objeto].slice(0, LIMITE_NOME_UNIDADE).join('');
+
+const PREFIXO_COPIA = 'Cópia de ';
+
+/** Objeto da proposta duplicada (RN_DUP_002; D-P18-3): "Cópia de " + o objeto, cortado em 500 caracteres. */
+export const objetoDaCopia = (objeto: string): string => [...`${PREFIXO_COPIA}${objeto}`].slice(0, LIMITE_OBJETO).join('');
