@@ -20,6 +20,7 @@ import {
 } from '../domain/proposta';
 import { contextoAuditoria } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
+import { copiarMetasDaVersao } from './metas';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 // Proposta de TP: capa, Versão 1 e CC próprio (US-065, UC 3.04, 3.05 e 3.07; plano do P17, Task 1).
@@ -184,7 +185,7 @@ async function gravarPropostaNova(
     data: { unidadeId: unidade.id, propostaId: proposta.id, numero: 1, situacao: 'RASCUNHO', criadoPor: ctx.usuarioId },
     select: { id: true },
   });
-  if (origem) await copiarLinhasDaVersao(tx, { propostaId: origem.propostaId, versaoId: origem.versaoId }, { propostaId: proposta.id, versaoId: v1.id });
+  if (origem) await copiarLinhasDaVersao(tx, { propostaId: origem.propostaId, versaoId: origem.versaoId }, { propostaId: proposta.id, versaoId: v1.id }, ctx.usuarioId);
 
   const contexto = { ...contextoAuditoria(ctx), unidadeId: unidade.id };
   await auditar(tx, {
@@ -240,20 +241,23 @@ export async function criarProposta(ctx: ContextoRequisicao, bruto: unknown, dep
 }
 
 /**
- * Ponto de extensão (plano do P18): copia as linhas de lançamento de uma versão para outra, na transação de
- * quem chama (duplicar: última versão da origem → V1 da nova; nova versão: anterior → seguinte). Ainda não há
- * linhas: cada história de lançamento (US-067 e US-070 a 072) acrescenta aqui a cópia das suas, com os
- * testes da RN_DUP_003, 007 e 008.
+ * Ponto de extensão (plano do P18): copia as linhas de uma versão para outra, na transação de quem chama
+ * (duplicar: última versão da origem → V1 da nova; nova versão: anterior → seguinte). Copia as metas (US-067,
+ * RN_DUP_003; plano do P19); cada história de lançamento (US-070 a 072) acrescenta aqui a cópia das suas, com
+ * os testes da RN_DUP_003, 007 e 008.
  *
  * Regra para essas histórias (revisão 12.12 do #445): toda edição de linha sobe a `versao` da capa. A
  * duplicação confere essa versão no fim e não trava a origem; sem a regra, copiaria um conjunto misturado
  * de linhas lidas em comandos separados (ou ela passa a ler a origem com FOR SHARE).
  */
-export const copiarLinhasDaVersao: (
+export async function copiarLinhasDaVersao(
   tx: TxCliente,
   origem: { propostaId: string; versaoId: string },
   destino: { propostaId: string; versaoId: string },
-) => Promise<void> = async () => {};
+  criadoPor: string,
+): Promise<void> {
+  await copiarMetasDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
+}
 
 const ultimaVersao = { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true } } as const;
 
@@ -384,7 +388,7 @@ export async function novaVersaoProposta(
           data: { unidadeId: p.unidadeId, propostaId: id, numero: n, situacao: 'RASCUNHO', criadoPor: ctx.usuarioId },
           select: { id: true },
         });
-        await copiarLinhasDaVersao(tx, { propostaId: id, versaoId: anterior.id }, { propostaId: id, versaoId: nova.id });
+        await copiarLinhasDaVersao(tx, { propostaId: id, versaoId: anterior.id }, { propostaId: id, versaoId: nova.id }, ctx.usuarioId);
         await auditar(tx, {
           contexto: { ...contextoAuditoria(ctx), unidadeId: p.unidadeId },
           funcionalidade: FUNCIONALIDADE,

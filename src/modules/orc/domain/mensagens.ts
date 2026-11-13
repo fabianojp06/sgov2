@@ -193,4 +193,23 @@ export const MENSAGENS_ORC = {
     `Deseja realmente criar uma nova versão da proposta do TP ${numero}? A versão atual fica guardada, somente leitura.`,
   PROPOSTA_DUPLICADA: (numero: string) => `Proposta do TP ${numero} criada em Rascunho, por duplicação.`,
   VERSAO_CRIADA: (numero: string) => `Nova versão da proposta do TP ${numero} criada em Rascunho.`,
+  // Metas da proposta (US-067; plano do P19). E2 do UC03.14 e E1 do UC03.17 como na especificação, sem a
+  // marca "[TRAVA O ERRO]"; as demais [PROVISÓRIAS].
+  META_OBRIGATORIOS: 'Operação Rejeitada: Os campos Número da Meta, Nome da Meta, Valor Global e Status são obrigatórios e não podem ser nulos.',
+  META_NUMERO_LONGO: (limite: number) => `O número da meta pode ter no máximo ${limite} caracteres.`,
+  META_NOME_LONGO: (limite: number) => `O nome da meta pode ter no máximo ${limite} caracteres.`,
+  META_OBSERVACAO_LONGA: (limite: number) => `A observação pode ter no máximo ${limite} caracteres.`,
+  META_STATUS_INVALIDO: 'Status obrigatório: Ativo ou Inativo.',
+  META_VALOR_INVALIDO: 'Valor global inválido: use um valor maior ou igual a zero, com até 2 casas decimais (ex.: 1.234,56).',
+  META_DADOS_INVALIDOS: 'Dados da meta inválidos. Recarregue a tela.',
+  META_NUMERO_DUPLICADO: (numero: string) => `Já existe a meta ${numero} nesta versão da proposta.`,
+  META_INEXISTENTE: 'Meta não encontrada.',
+  META_SEM_CATEGORIA: 'Esta proposta não opera por metas: a categoria dela é Consolidada.',
+  META_VERSAO_IMUTAVEL: 'Manutenção Rejeitada: Este snapshot está homologado e tornou-se permanentemente imutável por ciclo de vida.',
+  META_EXCLUSAO_VINCULADA:
+    'Exclusão Rejeitada: Operação bloqueada. A meta possui registros operacionais vinculados ou o ciclo de vida atual do projeto não permite alterações.',
+  CONFIRMA_EXCLUSAO_META: 'Deseja realmente excluir esta meta? Esta ação não poderá ser desfeita.',
+  META_INCLUIDA: (numero: string) => `Meta ${numero} incluída.`,
+  META_ALTERADA: (numero: string) => `Meta ${numero} alterada.`,
+  META_EXCLUIDA: (numero: string) => `Meta ${numero} excluída.`,
 } as const;

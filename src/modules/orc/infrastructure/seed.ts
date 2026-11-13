@@ -156,6 +156,24 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       DIREX: ['consultar'],
     },
   },
+  {
+    // Metas da proposta (US-067; plano do P19, D-P19-8) [PROVISÓRIO]: no menu Cadastros › Metas (UC03.14),
+    // com a matriz de orc.propostas. Cada um vê só as metas dos TPs a que está vinculado (RLS).
+    codigo: 'orc.metas',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Metas',
+    rota: '/orc/metas',
+    ordem: 2,
+    ajuda: 'Cadastra, altera e exclui as metas da última versão das propostas de categoria Meta, em Rascunho ou Em Elaboração, e mostra o total das metas e o saldo a distribuir.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
+  },
 ];
 
 export const seedOrc: Seed = {

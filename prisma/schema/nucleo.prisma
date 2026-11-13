@@ -75,6 +75,7 @@ model Unidade {
   usuarios        UsuarioUnidade[]
   proposta        PropostaTp?
   versoesProposta VersaoProposta[]
+  metasProposta   MetaProposta[]
 
   @@map("unidade")
 }

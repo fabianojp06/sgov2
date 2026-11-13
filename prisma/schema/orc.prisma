@@ -205,17 +205,41 @@ model PropostaTp {
 // Versão da proposta (§6.2): nasce a nº 1 em Rascunho, com a data e a hora do servidor (RN_PROP_002).
 // O ciclo de vida (avançar, enviar, aprovar) fica para as histórias seguintes. RLS por unidade_id.
 model VersaoProposta {
-  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  unidadeId  String     @map("unidade_id") @db.Uuid
-  unidade    Unidade    @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
-  propostaId String     @map("proposta_id") @db.Uuid
-  proposta   PropostaTp @relation(fields: [propostaId], references: [id], onDelete: Restrict)
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId  String         @map("unidade_id") @db.Uuid
+  unidade    Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  propostaId String         @map("proposta_id") @db.Uuid
+  proposta   PropostaTp     @relation(fields: [propostaId], references: [id], onDelete: Restrict)
   numero     Int
-  situacao   String     @default("RASCUNHO")
-  criadoPor  String     @map("criado_por") @db.Uuid
-  criadoEm   DateTime   @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  situacao   String         @default("RASCUNHO")
+  criadoPor  String         @map("criado_por") @db.Uuid
+  criadoEm   DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  metas      MetaProposta[]
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
   @@map("orc_versao_proposta")
+}
+
+// Meta da proposta (US-067; plano do P19, D-P19-1 a D-P19-6): é da versão, e a nova versão e a duplicação
+// a copiam (RN_DUP_003). Número único na versão sem diferença de maiúsculas (índice de expressão
+// orc_meta_versao_numero_key, só na migration). Status e limites com CHECK na migration. RLS por unidade_id.
+model MetaProposta {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  numero           String
+  nome             String
+  valor            Decimal        @db.Decimal(15, 2)
+  status           String         @default("ATIVO")
+  observacao       String?
+  criadoPor        String         @map("criado_por") @db.Uuid
+  criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int            @default(0)
+
+  @@index([unidadeId])
+  @@index([versaoPropostaId])
+  @@map("orc_meta")
 }
