@@ -59,11 +59,17 @@ Assim, sempre dá para voltar uma versão.
 4. **Desfazer:** corrija o defeito numa release nova (`vX.Y.Z+1`), pelo procedimento 1.
 5. **Se a migration nova não for compatível:** não faça só o rollback do app. Vá para o procedimento 4 (rollback com dado), ou corrija para a frente com uma release nova.
 
+**Em hml** (não há tag nem job de rollback):
+1. **Digest anterior:** no run do `imagem.yml` do commit anterior na `main`, abra o job "Publicar e implantar em hml" e copie a linha `DIGEST: sha256:…`.
+2. No Easypanel, em *Source* do `app` e do `worker`, troque a imagem para `ghcr.io/fabianojp06/sgov2@sha256:<digest>`. Mantenha o usuário e o token do registro. Clique em *Deploy*.
+3. **Verificar:** a saúde responde `ok`, e o contêiner roda o digest anterior (`docker image inspect` no host, ou o serviço no Easypanel).
+4. **Volte a imagem para `ghcr.io/fabianojp06/sgov2:hml`** assim que a correção entrar na `main`. Enquanto o serviço aponta para um digest, o webhook do próximo merge reimplanta o digest antigo, e o hml para de acompanhar a `main` sem dar erro.
+
 ## 3. Migration presa (P3009)
 
 **Sintoma:** o `app` novo não sobe. O log mostra a migration com falha, e a versão anterior continua no ar, porque a atualização é *start-first*.
 
-1. No Easypanel, volte o `app` para a imagem anterior. Em prod, use o procedimento 2. Em hml, use o digest anterior, que aparece no histórico de deploys do serviço.
+1. No Easypanel, volte o `app` para a imagem anterior. Em prod, use o procedimento 2. Em hml, use o rollback em hml do procedimento 2.
 2. No console do `app` (o console entra como root), rode:
    ```
    /app/docker/entrypoint.sh resolver <nome-da-migration>
@@ -108,8 +114,9 @@ Detalhe em `backup.md`, "Restaurar de verdade".
   1. baixe o arquivo com `rclone copyto sgo:<bucket>/dumps/<ambiente>/<data>.dump.age .`;
   2. decifre com `age -d -i chave-sgo.txt`;
   3. num servidor novo, rode **antes** o `01-papeis-ambiente.sql`, porque o dump leva só o banco `sgo`, sem os papéis;
-  4. restaure como `postgres` com `pg_restore -d sgo <arquivo>.dump`. Os donos e os GRANTs voltam, porque os papéis já existem.
-- **Verificar:** a mesma conferência do teste mensal (`backup.md`) e o login de um usuário.
+  4. restaure como `postgres` com `pg_restore -d sgo <arquivo>.dump`. Os donos e os GRANTs voltam, porque os papéis já existem. O único erro esperado é `schema "pgboss" already exists` (`errors ignored on restore: 1`), porque o script de papéis já cria esse schema. Qualquer outro erro reprova a restauração.
+  5. use a imagem do banco do projeto (`sgov2-postgres`). O `postgres:16` puro não tem o pgvector, e o script de papéis falha em `extension "vector" is not available`.
+- **Verificar:** a mesma conferência do teste mensal (`backup.md`) e o login de um usuário. Com a origem acessível, compare também, nos dois bancos, o número de tabelas do `public`, a contagem de linhas de cada tabela, o `max(ocorrido_em)` do Histórico e os GRANTs dos papéis `sgo*` (`information_schema.role_table_grants` e `column_privileges`). Use os GRANTs de coluna também, porque o `sgo_app` grava algumas tabelas só por coluna.
 - O teste mensal (`sgo-backup-restauracao@<ambiente>.timer`) prova sozinho que o backup volta. Cada resultado vai para `restauracoes.md`.
 
 ## 6. Incidentes
@@ -202,5 +209,7 @@ O critério de aceite da US-119 pede o rollback e a restauração **testados seg
 
 | Data | Procedimento | Ambiente | Resultado | Tempo | Correções no texto |
 | --- | --- | --- | --- | --- | --- |
-| — | 2. Rollback do app | hml ou prod (`v0.1.1` → `v0.1.0`) | pendente: depende do `sgo-prod` e da primeira tag | — | — |
-| — | 5. Restauração | hml | pendente: depende do storage (US-015) | — | — |
+| 13/11/2026 | 2. Rollback do app, em hml | hml (#457 → #456 → `sgov2:hml`) | **ok**: app e worker no digest anterior, saúde `ok`, e de volta ao `sgov2:hml` no digest atual | ~10 s cada sentido | O texto não dizia como fazer em hml, nem onde achar o digest anterior. Faltava avisar que é preciso voltar para a tag `hml` |
+| 13/11/2026 | 5. Restauração do dump cifrado, passos 2 a 4 (sem o `rclone`) | dev da frente B, num contêiner descartável | **ok**: 35 tabelas, a mesma contagem de linhas, o mesmo Histórico e os mesmos GRANTs da origem | 10 s | O erro esperado do `pgboss`, a imagem do banco com pgvector e a conferência com a origem |
+| — | 2. Rollback do app, em prod | prod (`v0.1.1` → `v0.1.0`) | pendente: depende do `sgo-prod` e da primeira tag | — | — |
+| — | 5. Restauração pelo storage (backup físico e `rclone`) | hml | pendente: depende do storage (US-015) | — | — |
