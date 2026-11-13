@@ -13,7 +13,12 @@ export type TelaManual = Readonly<{ manual: readonly ModuloManual[]; roteiro: re
 
 export async function obterManual(ctx: ContextoRequisicao, deps: Deps = {}): Promise<TelaManual> {
   exigir(ctx, 'aut.tela_principal', 'consultar');
-  const catalogo = await (deps.cliente ?? prisma).$transaction((tx: TxCliente) => listarCatalogoDoMenu(tx));
-  const manual = montarManual(catalogo, ctx.permissoes);
+  const manual = await manualDoPerfil(ctx, deps.cliente ?? prisma);
   return { manual, roteiro: roteiroTreinamento(manual) };
+}
+
+/** O manual das permissões da pessoa, sem conferir permissão: quem chama confere (a tela ou a ajuda da IA). */
+export async function manualDoPerfil(ctx: ContextoRequisicao, cliente: PrismaClient): Promise<readonly ModuloManual[]> {
+  const catalogo = await cliente.$transaction((tx: TxCliente) => listarCatalogoDoMenu(tx));
+  return montarManual(catalogo, ctx.permissoes);
 }
