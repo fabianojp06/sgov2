@@ -78,6 +78,8 @@ model Unidade {
   metasProposta      MetaProposta[]
   empregadosProposta EmpregadoProposta[]
   qtdesEmpregado     QtdeEmpregadoProposta[]
+  tetosViagem        TetoViagemProposta[]
+  viagensProposta    ViagemProposta[]
 
   @@map("unidade")
 }

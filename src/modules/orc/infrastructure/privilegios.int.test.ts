@@ -37,6 +37,8 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_meta: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P19); a exclusão é física (D-P19-6)
   orc_empregado: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P20); a exclusão é física (D-P20-9)
   orc_qtde_empregado: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P20)
+  orc_teto_viagem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P21)
+  orc_viagem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P21); a exclusão é física (D-P21-9)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -115,6 +117,9 @@ describe('privilégios do orc', () => {
     // Pessoal (P20): a versão da proposta, a meta, a ordem e a unidade não mudam.
     expect(await colunas('orc_empregado')).toEqual(['cargo_id', 'categoria', 'dependentes', 'fim', 'inicio', 'nome', 'salario_mensal', 'versao']);
     expect(await colunas('orc_qtde_empregado')).toEqual(['documento', 'fim', 'inicio', 'versao']);
+    // Viagens (P21): no teto, só o valor; na viagem, a meta e as contas de passagem e de diária não mudam (RN_VIA_07).
+    expect(await colunas('orc_teto_viagem')).toEqual(['valor', 'versao']);
+    expect(await colunas('orc_viagem')).toEqual(['conta_transporte', 'dias', 'localidade', 'pessoas', 'valor_diaria', 'valor_passagem', 'valor_transporte', 'versao']);
     expect(await colunas('unidade')).toEqual(['ativo', 'nome']);
   });
 
