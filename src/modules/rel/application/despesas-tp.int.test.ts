@@ -10,6 +10,7 @@ import { seedRel } from '../infrastructure/seed';
 import { exportarDespesasTp, MENSAGENS_DESPESAS, type PortaRealizado } from './despesas-tp';
 import { exportarReceitasDespesasTp } from './receitas-despesas';
 import { exportarViagensTp } from './viagens-tp';
+import { exportarPessoalTp, type PortaPessoal } from './pessoal-tp';
 
 // Demonstrativos de despesas, de receitas e despesas (US-096 partes 1 e 2) e de viagens (US-097) do TP num Postgres real (Testcontainers, D12): a seed e a
 // exportação com a EXPORTACAO no Histórico. A porta do realizado é falsa aqui (a frente A a testa com a carga real).
@@ -115,5 +116,48 @@ describe('demonstrativo de despesas com viagens do TP (UC05.03)', () => {
     expect(h).toHaveLength(3);
     expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', depois: { filtros: expect.arrayContaining([{ rotulo: 'Conta ou descrição', valor: 'Salários' }]) } });
     await expect(exportarViagensTp(ctxV(['consultar']), { tp: 'TP-3' }, 'xlsx', porta, depsV())).rejects.toThrow();
+  });
+});
+
+describe('relatórios de pessoal do TP (UC05.05 e UC05.06)', () => {
+  const ctxP = (acoes: string[]): ContextoRequisicao => ({ ...ctx([]), permissoes: new Set([...acoes, 'orc.realizado:consultar']) });
+  const portaP: PortaPessoal = {
+    tps: async () => [TP],
+    pessoal: async () => ({
+      versao: 2,
+      porMeta: false,
+      veCusto: true,
+      homologado: true,
+      empregados: [
+        { ordem: 1, nome: 'Ana', categoria: 'EMPREGADO', cargo: 'C1 – Analista', vinculoFuncional: 'Custos', inicio: '2026-09', fim: '2028-12', metaNumero: null, metaNome: null, custoMensal: Dinheiro.de('7000.00') },
+      ],
+    }),
+  };
+
+  it('seed: em Prestação de contas, depois do de viagens, para GFIN, DIREX e Auditor', async () => {
+    for (const [codigo, rota, ordem] of [
+      ['rel.salarios_tp', '/rel/salarios-tp', 4],
+      ['rel.distribuicao_pessoal_tp', '/rel/distribuicao-pessoal-tp', 5],
+    ] as const) {
+      expect(await migrator.funcionalidade.findUniqueOrThrow({ where: { codigo } })).toMatchObject({ moduloCodigo: 'RELATORIOS', rota, ordem, exibirNoMenu: true });
+      const pp = await migrator.perfilPermissao.findMany({ where: { funcionalidadeCodigo: codigo, acao: 'exportar' }, select: { perfil: { select: { codigo: true } } } });
+      expect(pp.map((p) => p.perfil.codigo).sort()).toEqual(['AUDITOR', 'DIREX', 'GFIN']);
+    }
+  });
+
+  it('exporta os dois em XLSX, CSV e PDF, com a EXPORTACAO e a origem (versão oficial) no Histórico', async () => {
+    for (const formato of ['xlsx', 'csv', 'pdf'] as const) {
+      expect(await exportarPessoalTp(ctxP(['rel.salarios_tp:exportar', 'rel.salarios_tp:consultar']), 'salarios', { tp: 'TP-3' }, formato, portaP, { cliente: app })).toMatchObject({
+        ok: true,
+        valor: { nome: `salarios-TP-3.${formato}` },
+      });
+      expect(
+        await exportarPessoalTp(ctxP(['rel.distribuicao_pessoal_tp:exportar', 'rel.distribuicao_pessoal_tp:consultar']), 'distribuicao', { tp: 'TP-3' }, formato, portaP, { cliente: app }),
+      ).toMatchObject({ ok: true, valor: { nome: `distribuicao-pessoal-TP-3.${formato}` } });
+    }
+    const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'rel.salarios_tp' }, select: { tipoOperacao: true, depois: true } });
+    expect(h).toHaveLength(3);
+    expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', depois: { registros: 1, filtros: expect.arrayContaining([{ rotulo: 'Origem', valor: expect.stringContaining('versão oficializada 2') }]) } });
+    await expect(exportarPessoalTp(ctxP(['rel.salarios_tp:consultar']), 'salarios', { tp: 'TP-3' }, 'xlsx', portaP, { cliente: app })).rejects.toThrow();
   });
 });
