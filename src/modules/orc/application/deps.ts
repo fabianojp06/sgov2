@@ -58,6 +58,12 @@ export type DepsOrc = {
   cargosDecifrados?: (tx: TxCliente, opcoes?: OpcoesCargosExercicio) => Promise<readonly CargoExercicio[]>;
   obterEscopo: typeof obterEscopoCentroCusto;
   semaforo: ProvedorSemaforo | null;
+  /**
+   * Bens da proposta (US-072, D-P22-3) [PROVISÓRIO]: a conta do grupo Imobilizado e Intangível (natureza CAPEX
+   * do parâmetro local, C27). O cad ainda não expõe a natureza (pedido na #138); sem ele, vale qualquer
+   * analítica ativa.
+   */
+  contaCapex?: (classificacao: string) => boolean;
 };
 
 export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
@@ -79,5 +85,6 @@ export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
     ...(deps.cargosDecifrados ? { cargosDecifrados: deps.cargosDecifrados } : {}),
     obterEscopo: deps.obterEscopo ?? obterEscopoCentroCusto,
     semaforo: deps.semaforo ?? null,
+    ...(deps.contaCapex ? { contaCapex: deps.contaCapex } : {}),
   };
 }

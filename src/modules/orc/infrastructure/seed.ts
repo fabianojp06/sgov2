@@ -233,6 +233,24 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       DIREX: ['consultar'],
     },
   },
+  {
+    // Bens, serviços e equipamentos da proposta (US-072; plano do P22, D-P22-10) [PROVISÓRIO]: no menu Cadastros
+    // (UC03.34). O Orçamentista lança; GFIN (ator do UC03.34), Auditor e DIREX leem. RLS por TP.
+    codigo: 'orc.bens',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Bens, Serviços e Equipamentos',
+    rota: '/orc/bens',
+    ordem: 6,
+    ajuda: 'Cadastra os bens, serviços e equipamentos (CAPEX) da última versão das propostas, por conta analítica, com o valor total = quantidade × valor unitário.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
+  },
 ];
 
 export const seedOrc: Seed = {

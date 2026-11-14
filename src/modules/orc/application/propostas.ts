@@ -23,6 +23,7 @@ import { resolverDeps, type DepsOrc } from './deps';
 import { copiarPessoalDaVersao } from './empregados';
 import { copiarMetasDaVersao } from './metas';
 import { copiarViagensDaVersao } from './viagens';
+import { copiarBensDaVersao } from './bens';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 // Proposta de TP: capa, Versão 1 e CC próprio (US-065, UC 3.04, 3.05 e 3.07; plano do P17, Task 1).
@@ -262,6 +263,7 @@ export async function copiarLinhasDaVersao(
   // Depois das metas: o pessoal aponta para a meta de destino de mesmo número (D-P20-8).
   await copiarPessoalDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
   await copiarViagensDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
+  await copiarBensDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
 }
 
 const ultimaVersao = { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true } } as const;
