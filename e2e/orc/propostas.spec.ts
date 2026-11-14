@@ -480,6 +480,19 @@ test.describe.serial('proposta de TP', () => {
     await expect(tabela.getByRole('row', { name: /^Total de 2027 / })).toBeVisible();
   });
 
+  test('3l. a pré-visualização da cópia mostra as seções, as contas com a origem e o Valor Global', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Pré-visualizar a proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/previa\?proposta=/);
+    for (const secao of ['Proposta', 'Metas', 'Empregados', 'Contas']) await expect(page.getByRole('heading', { name: secao, exact: true })).toBeVisible();
+    const contas = page.getByRole('table', { name: /^Contas da proposta/ });
+    await expect(contas.getByRole('row', { name: /^4\.1\.1\.7\.003 / })).toContainText('Bens');
+    await expect(contas.getByRole('row', { name: /^4\.1\.1\.5\.015 / })).toContainText('Rateio/ISS');
+    await expect(contas.getByRole('row', { name: /^Total geral \(Valor Global\)/ })).toBeVisible();
+    await expect(page.getByText(`Relatório de Pré-Visualização do TP · ${NUMERO_COPIA}`)).toBeVisible();
+  });
+
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
     await entrarNaTelaPrincipal(page, usuario.login);
     await page.goto('/orc/propostas');
