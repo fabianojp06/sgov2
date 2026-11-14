@@ -5,7 +5,7 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
 // Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3), os bens (US-072; plano do P22, Task 2, Step 3) e os
-// totalizadores (US-074; plano do P23, Task 2, Step 3).
+// totalizadores (US-074; plano do P23, Task 2, Step 3) e o Rateio/ISS (US-073; plano do P24, Task 2, Step 2).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -15,8 +15,8 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
 // a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
 // copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; os tetos de passagens
-// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; os totalizadores somam tudo; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
-// livre (D-P17-10). O afterAll apaga os bens, as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
+// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; os totalizadores somam tudo; uma linha de rateio sobre a conta dos bens; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// livre (D-P17-10). O afterAll apaga o rateio, os bens, as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
 // Usuário: o Orçamentista E2E de e2e/aut/apoio.ts (orc.menu), que outros specs também usam. O vínculo
@@ -43,6 +43,7 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query('BEGIN');
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
+      await cliente.query(`DELETE FROM orc_rateio WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_bem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_viagem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_teto_viagem WHERE unidade_id IN ${unidade}`);
@@ -277,6 +278,22 @@ test.describe.serial('proposta de TP', () => {
     await expect(arvore).toContainText(/4\.1\.1\.7\.003 – .*Orçado 3\.703,68/);
     // RN_TOT_01: a aba não tem botão nem campo.
     await expect(page.locator('section[aria-labelledby="totalizadores-titulo"] :is(button, input, select, textarea)')).toHaveCount(0);
+  });
+
+  test('3g. uma linha de rateio com base na conta dos bens, que aparece nos totalizadores', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Rateio/ISS da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page.getByText('Esta versão ainda não tem grade de rateio.')).toBeVisible();
+    await page.locator('#rateio-sintetica').selectOption('4.1.1.7');
+    await page.locator('#rateio-conta_0').selectOption('4.1.1.5.015');
+    await page.locator('input[name="c_0_2027-01"]').fill('100,00');
+    await page.getByRole('button', { name: 'Salvar grade' }).click();
+    await expect(page.getByText(`Grade de rateio da proposta ${NUMERO_COPIA} salva.`)).toBeVisible();
+    await expect(page.getByRole('row', { name: /^4\.1\.1\.5\.015 / }).first()).toContainText('100,00');
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Totalizadores da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page.getByRole('list', { name: new RegExp(`^Totais por conta da proposta ${NUMERO_COPIA}`) })).toContainText(/4\.1\.1\.5\.015 – .*Orçado 100,00/);
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
