@@ -3,6 +3,7 @@
 import { definirAcao } from '@/shared/authz';
 import { entradaBruta } from './entrada-exercicio';
 import { sugerirJustificativa } from './ia-justificativa';
+import { destacarRiscos } from './ia-previsao';
 import { sugerirRecusa } from './ia-recusa';
 import { sugerirContaCc } from './ia-sugestao-conta';
 
@@ -14,3 +15,6 @@ export const sugerirJustificativaAcao = definirAcao({ funcionalidade: 'orc.ia_ju
 export const sugerirContaCcAcao = definirAcao({ funcionalidade: 'orc.ia_sugestao_conta', acao: 'executar', entrada: entradaBruta }, (e, ctx) => sugerirContaCc(ctx, e));
 // A ajuda na recusa da oficialização (US-084, D-P30-6): a guarda confere o caso; o caso de uso, a tarefa do aprovador.
 export const sugerirRecusaAcao = definirAcao({ funcionalidade: 'orc.ia_recusa', acao: 'executar', entrada: entradaBruta }, (e, ctx) => sugerirRecusa(ctx, e));
+// O destaque das contas em risco na previsão de fechamento (US-091, D-P34-3): a guarda confere o caso; o caso de uso,
+// a permissão do Orçado x Realizado e a RLS (pela previsão).
+export const destacarRiscosAcao = definirAcao({ funcionalidade: 'orc.ia_previsao', acao: 'executar', entrada: entradaBruta }, (e, ctx) => destacarRiscos(ctx, e));
