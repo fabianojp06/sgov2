@@ -316,6 +316,7 @@ describe('listarPropostas', () => {
       versaoAtual: 1,
       excluivel: true,
       valorGlobal: expect.any(Dinheiro),
+      valorGlobalSemPessoal: false,
       versao: 0,
     });
     expect(minha!.valorGlobal.paraString()).toBe('0.00');

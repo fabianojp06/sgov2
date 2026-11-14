@@ -24,6 +24,7 @@ import { copiarPessoalDaVersao } from './empregados';
 import { copiarMetasDaVersao } from './metas';
 import { copiarViagensDaVersao } from './viagens';
 import { copiarBensDaVersao } from './bens';
+import { valoresGlobais, vePessoal } from './totalizadores';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
 // Proposta de TP: capa, Versão 1 e CC próprio (US-065, UC 3.04, 3.05 e 3.07; plano do P17, Task 1).
@@ -57,6 +58,8 @@ export type PropostaTela = {
   excluivel: boolean;
   /** Sempre calculado (§6.2, RN_TP_003): zero até existirem lançamentos (R4 seguinte). */
   valorGlobal: Dinheiro;
+  /** O Valor Global saiu sem o custo do pessoal, que quem pede não vê (D-P23-5). */
+  valorGlobalSemPessoal: boolean;
   /** Versão de concorrência da capa (para a exclusão). */
   versao: number;
 };
@@ -422,13 +425,17 @@ const todasEmRascunho = (versoes: readonly { situacao: string }[]) => versoes.le
 export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly PropostaTela[]> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'consultar');
-  const linhas = await emUnidade(
+  // O Valor Global é calculado (RN_TP_003, D-P23-6), na mesma transação, sem o pessoal para quem não o vê (D-P23-5).
+  const { linhas, globais } = await emUnidade(
     ctx,
-    (tx) =>
-      tx.propostaTp.findMany({
+    async (tx) => {
+      const linhas = await tx.propostaTp.findMany({
         where: { excluidaEm: null },
-        include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, select: { numero: true, situacao: true } } },
-      }),
+        include: { unidade: { select: { codigo: true, cc: true } }, versoes: { orderBy: { numero: 'desc' }, select: { id: true, numero: true, situacao: true } } },
+      });
+      const ultimas = new Map(linhas.flatMap((p) => (p.versoes[0] ? [[p.id, p.versoes[0].id] as const] : [])));
+      return { linhas, globais: await valoresGlobais(tx, deps, ultimas, vePessoal(ctx)) };
+    },
     { cliente: deps.cliente },
   );
   return linhas
@@ -446,7 +453,8 @@ export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Par
         situacao: (p.versoes[0]?.situacao ?? 'RASCUNHO') as SituacaoProposta,
         versaoAtual: p.versoes[0]?.numero ?? 1,
         excluivel: todasEmRascunho(p.versoes),
-        valorGlobal: Dinheiro.zero(),
+        valorGlobal: globais.get(p.id)?.valor ?? Dinheiro.zero(),
+        valorGlobalSemPessoal: globais.get(p.id)?.semPessoal ?? false,
         versao: p.versao,
       }),
     )

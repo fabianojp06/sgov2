@@ -9,6 +9,7 @@ import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { validarMeta, type MetaValidada, type StatusMeta } from '../domain/meta';
 import { SITUACOES_VERSIONAVEIS, TIPOS_PROPOSTA, type CategoriaProposta, type SituacaoProposta, type TipoProposta } from '../domain/proposta';
 import { contextoAuditoria } from './calculo-linhas';
+import { valoresGlobais, vePessoal } from './totalizadores';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
@@ -49,6 +50,8 @@ export type BlocoMetas = {
   versaoCapa: number;
   /** Sempre calculado (§6.2): zero até existirem lançamentos (US-070 a 072). */
   valorGlobal: Dinheiro;
+  /** O Valor Global saiu sem o custo do pessoal, que quem pede não vê (D-P23-5). */
+  valorGlobalSemPessoal: boolean;
   /** Soma das metas ativas (RN0149). */
   totalMetas: Dinheiro;
   /** Valor Global − total das metas (RN0142, D-P19-4) [PROVISÓRIO]. */
@@ -105,16 +108,20 @@ export async function listarMetas(ctx: ContextoRequisicao, filtros: FiltrosMetas
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'consultar');
   const tipo = (TIPOS_PROPOSTA as readonly string[]).includes(filtros.tipo ?? '') ? filtros.tipo : undefined;
-  const linhas = await emUnidade(
+  // O Valor Global é calculado (RN_TP_003, D-P23-6), sem o pessoal para quem não o vê (D-P23-5).
+  const { linhas, globais } = await emUnidade(
     ctx,
-    (tx) =>
-      tx.propostaTp.findMany({
+    async (tx) => {
+      const linhas = await tx.propostaTp.findMany({
         where: { excluidaEm: null, ...(tipo ? { tipo } : {}) },
         include: {
           unidade: { select: { codigo: true } },
-          versoes: { orderBy: { numero: 'desc' }, take: 1, select: { numero: true, situacao: true, metas: true } },
+          versoes: { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true, metas: true } },
         },
-      }),
+      });
+      const ultimas = new Map(linhas.flatMap((p) => (p.versoes[0] ? [[p.id, p.versoes[0].id] as const] : [])));
+      return { linhas, globais: await valoresGlobais(tx, deps, ultimas, vePessoal(ctx)) };
+    },
     { cliente: deps.cliente },
   );
   const blocos: BlocoMetas[] = [];
@@ -127,7 +134,7 @@ export async function listarMetas(ctx: ContextoRequisicao, filtros: FiltrosMetas
     const metas = todas.filter((m) => contem(`${m.numero} ${m.nome}`, filtros.meta));
     if (filtros.meta?.trim() && metas.length === 0) continue;
     const totalMetas = Dinheiro.somarTodos(v.metas.map(daMeta).filter((m) => m.ativa).map((m) => m.valor));
-    const valorGlobal = Dinheiro.zero();
+    const valorGlobal = globais.get(p.id)?.valor ?? Dinheiro.zero();
     blocos.push({
       propostaId: p.id,
       numero: p.unidade.codigo,
@@ -139,6 +146,7 @@ export async function listarMetas(ctx: ContextoRequisicao, filtros: FiltrosMetas
       editavel: p.categoria === 'META' && SITUACOES_EDITAVEIS.includes(v.situacao),
       versaoCapa: p.versao,
       valorGlobal,
+      valorGlobalSemPessoal: globais.get(p.id)?.semPessoal ?? false,
       totalMetas,
       saldo: valorGlobal.subtrair(totalMetas),
       metas,

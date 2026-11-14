@@ -46,7 +46,9 @@ export { listarMetas, type BlocoMetas, type FiltrosMetas, type MetaTela } from '
 export {
   cargosParaEmpregado,
   listarEmpregados,
+  MAXIMO_PROPOSTAS_EMPREGADOS,
   type BlocoEmpregados,
+  type FiltrosEmpregados,
   type EmpregadoTela,
   type GrupoEmpregados,
   type OpcaoCargoEmpregado,
@@ -62,6 +64,7 @@ export {
   type TetoTela,
   type ViagemTela,
 } from './application/viagens';
+export { obterTotalizadores, propostasParaTotalizar, type PropostaParaTotalizar, type TotalizadoresTela } from './application/totalizadores';
 export { listarBens, opcoesBem, type BemTela, type BlocoBens, type FiltrosBens, type GrupoBens, type OpcoesBem } from './application/bens';
 export { ccsLivresParaTp, dadosParaDuplicar, listarPropostas, type CcLivreTp, type DadosDuplicar, type PropostaTela } from './application/propostas';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
@@ -74,6 +77,7 @@ export { TelaCorrespondencia } from './ui/tela-correspondencia';
 export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMeta } from './ui/tela-metas';
 export { TelaEmpregados, textoAvisoEmpregado, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
 export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
+export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';
 export { TelaViagens, textoAvisoViagem, type AcoesViagens, type FormularioViagemAberto } from './ui/tela-viagens';
 export { TelaPropostas, textoAvisoProposta } from './ui/tela-propostas';

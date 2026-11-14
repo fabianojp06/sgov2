@@ -111,6 +111,7 @@ function Bloco({ bloco, permissoes, excluir }: { bloco: BlocoMetas; permissoes: 
             <dd>
               {valorParaTela(bloco.saldo)}
               <span> Valor global calculado da proposta menos o total das metas. A soma das metas é conferida no envio para aprovação.</span>
+              {bloco.valorGlobalSemPessoal && <small role="note">{` ${MENSAGENS_ORC.VALOR_GLOBAL_SEM_PESSOAL}`}</small>}
             </dd>
           </dl>
           {permissoes.podeIncluir && bloco.editavel && <a href={`/orc/metas?nova=${bloco.propostaId}`}>{`Nova meta na proposta ${bloco.numero}`}</a>}

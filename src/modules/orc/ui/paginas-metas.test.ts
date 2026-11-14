@@ -27,6 +27,7 @@ const bloco = (extra: Partial<BlocoMetas>): BlocoMetas => ({
   editavel: true,
   versaoCapa: 7,
   valorGlobal: Dinheiro.zero(),
+  valorGlobalSemPessoal: false,
   totalMetas: Dinheiro.de('1234.56'),
   saldo: Dinheiro.de('-1234.56'),
   metas: [

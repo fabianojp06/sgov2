@@ -285,6 +285,8 @@ export const MENSAGENS_ORC = {
   BEM_DATA_FORA_DA_VIGENCIA: (inicio: string, fim: string) => `A data precisa ficar dentro da vigência da proposta (${inicio} a ${fim}).`,
   BEM_CUSTO_FORA_DO_LIMITE: 'O valor total do bem passa do limite de valor do sistema. Revise a quantidade e o valor unitário.',
   BEM_CONTA_ANALITICA: 'Escolha uma conta analítica ativa do plano de contas.',
+  BEM_SEM_CONTAS_CAPEX:
+    'Nenhuma conta do plano está marcada como CAPEX (Cadastros › Plano de Contas › parâmetros locais). Enquanto isso, a lista mostra todas as contas analíticas ativas.',
   BEM_CONTA_NAO_CAPEX: 'A conta escolhida não é do grupo de Imobilizado e Intangível (CAPEX).',
   BEM_DADOS_INVALIDOS: 'Dados do bem inválidos. Recarregue a tela.',
   BEM_INEXISTENTE: 'Bem, serviço ou equipamento não encontrado.',
@@ -295,4 +297,9 @@ export const MENSAGENS_ORC = {
   BEM_ALTERADO: (descricao: string) => `Item "${descricao}" alterado.`,
   BEM_EXCLUIDO: (descricao: string) => `Item "${descricao}" excluído.`,
   BEM_INATIVADO: (descricao: string) => `Item "${descricao}" inativado nesta versão (veio de uma versão anterior).`,
+  // Totalizadores da proposta (US-074; UC03.02; plano do P23).
+  TOTALIZADOR_SEM_DESPESA: 'Nenhuma despesa localizada para esta versão do projeto.',
+  TOTALIZADOR_SEM_PESSOAL: 'O total não inclui o custo do pessoal, que é visível só para quem lança os empregados.',
+  VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
+  TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',
 } as const;

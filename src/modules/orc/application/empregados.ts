@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { PremissasExercicio } from '@/modules/cad/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import type { TxCliente } from '@/shared/db';
@@ -10,7 +9,6 @@ import {
   CATEGORIAS_EMPREGADO,
   competenciaDe,
   competenciaParaTexto,
-  mesesDoAno,
   validarEmpregado,
   type CategoriaEmpregado,
   type Competencias,
@@ -18,7 +16,8 @@ import {
 } from '../domain/empregado';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { contextoAuditoria } from './calculo-linhas';
-import { carregarCargos, custoDaPosicao, type CacheCargos } from './custo-posicao';
+import { cacheAnos, custoDoEmpregado } from './custo-empregado';
+import { carregarCargos, type CacheCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 import {
@@ -125,61 +124,28 @@ const retrato = (
   dependentes: e.dependentes,
 });
 
-/**
- * Premissas e benefícios por ano, lidos uma vez por chamada (premissas nulas: o ano não tem parâmetros). Os
- * benefícios do cargo mudam de ano para ano, e o cache do custo-posicao é por cargo: um por ano, com os
- * mesmos cargos.
- */
-type CacheAnos = { cargos: CacheCargos; porAno: Map<number, { premissas: PremissasExercicio | null; cache: CacheCargos }> };
-const cacheAnos = (cargos: CacheCargos): CacheAnos => ({ cargos, porAno: new Map() });
 
-type CustoEmpregado = { mensal: Dinheiro | null; periodo: Dinheiro; avisos: string[]; erros: string[] };
+/** Teto de propostas da lista (pedido da frente B na #138, revisão 12.12 da US-107): o custo roda por empregado e ano. */
+export const MAXIMO_PROPOSTAS_EMPREGADOS = 200;
 
 /**
- * D-P20-4: o motor (custoDaPosicao do P15, com o adicional e os benefícios do cargo) para cada ano da
- * competência, com uma pessoa e o salário gravado. Ano sem parâmetros fica sem custo, com aviso; recusa do
- * motor vai em `erros` (a gravação recusa; a lista mostra como aviso).
+ * Além dos filtros, quem chama pode pedir `semCusto` (só as contagens, sem rodar o motor; a análise do quadro de
+ * pessoal do rel) e um `maximo` de propostas (de 1 a 200; padrão 200). As propostas além do máximo ficam de fora,
+ * na ordem do número.
  */
-async function custoDoEmpregado(
-  tx: TxCliente,
-  deps: DepsOrc,
-  anos: CacheAnos,
-  e: Competencias & { cargoId: string; salarioMensal: Dinheiro },
-): Promise<CustoEmpregado> {
-  const r: CustoEmpregado = { mensal: null, periodo: Dinheiro.zero(), avisos: [], erros: [] };
-  for (let ano = e.inicio.getUTCFullYear(); ano <= e.fim.getUTCFullYear(); ano++) {
-    let doAno = anos.porAno.get(ano);
-    if (!doAno) {
-      doAno = { premissas: await deps.custoPessoal.obterPremissasExercicio(tx, ano), cache: { porId: anos.cargos.porId, beneficios: new Map() } };
-      anos.porAno.set(ano, doAno);
-    }
-    const p = doAno.premissas;
-    if (!p) {
-      r.avisos.push(M.EMPREGADO_SEM_PARAMETROS(ano));
-      continue;
-    }
-    const meses = mesesDoAno(e, ano)!;
-    const serie = await custoDaPosicao(tx, deps, doAno.cache, p, { quantidade: 1, salarioMensal: e.salarioMensal, cargoId: e.cargoId, ...meses });
-    if (!serie.ok) {
-      r.erros.push(...serie.erros.map((x) => `${ano}: ${x.mensagem}`));
-      continue;
-    }
-    r.periodo = r.periodo.somar(serie.valor.total);
-    if (ano === e.inicio.getUTCFullYear()) r.mensal = serie.valor.totalMes[meses.mesInicio - 1]!;
-  }
-  return r;
-}
+export type FiltrosEmpregados = FiltrosPessoal & { semCusto?: boolean | undefined; maximo?: number | undefined };
 
 /**
  * UC03.24: os empregados da última versão das propostas do usuário (RLS), em blocos por proposta e grupos
  * por meta (RN0148), com os totais por categoria (RN0147, RN0194). Filtros como nas metas (REQ0024,
  * REQ0030): Tipo, Proposta (número ou objeto) e Meta (número ou nome).
  */
-export async function listarEmpregados(ctx: ContextoRequisicao, filtros: FiltrosPessoal = {}, depsParciais: Partial<DepsOrc> = {}): Promise<readonly BlocoEmpregados[]> {
+export async function listarEmpregados(ctx: ContextoRequisicao, filtros: FiltrosEmpregados = {}, depsParciais: Partial<DepsOrc> = {}): Promise<readonly BlocoEmpregados[]> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'consultar');
   const tipo = tipoDoFiltro(filtros.tipo);
-  const comCusto = veCusto(ctx);
+  const comCusto = veCusto(ctx) && filtros.semCusto !== true;
+  const maximo = Math.min(Math.max(Math.trunc(filtros.maximo ?? MAXIMO_PROPOSTAS_EMPREGADOS), 1), MAXIMO_PROPOSTAS_EMPREGADOS);
   return emUnidade(
     ctx,
     async (tx) => {
@@ -193,7 +159,9 @@ export async function listarEmpregados(ctx: ContextoRequisicao, filtros: Filtros
       const cache = await carregarCargos(tx, deps);
       const anos = cacheAnos(cache);
       const blocos: BlocoEmpregados[] = [];
+      propostas.sort((a, b) => a.unidade.codigo.localeCompare(b.unidade.codigo, 'pt-BR', { numeric: true }));
       for (const p of propostas) {
+        if (blocos.length >= maximo) break;
         const v = p.versoes[0];
         if (!v || !contem(`${p.unidade.codigo} ${p.objeto}`, filtros.proposta)) continue;
         const metas = await metasDaVersao(tx, v.id);
