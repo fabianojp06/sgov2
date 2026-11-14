@@ -95,7 +95,11 @@ export type ComparativoTp = {
   valorGlobal: Dinheiro;
   porCategoria: { pessoal: Dinheiro; viagens: Dinheiro; bens: Dinheiro; rateioAdmCentral: Dinheiro; outros: Dinheiro };
   postos: number;
-  metas: readonly { numero: string; valor: Dinheiro }[];
+  /** Privacidade do pessoal no rel (US-107, pedido na #138): custos por pessoa-mês distintos entre os empregados calculados. */
+  custosPessoaDistintos?: number;
+  /** true se todo empregado tem custo calculado (> 0, sem aviso nem erro do motor). */
+  pessoalCalculado?: boolean;
+  metas: readonly { numero: string; valor: Dinheiro; ativa?: boolean }[];
   /** Zero até a execução (F5), como no consolidado. */
   realizado: Dinheiro;
 };
@@ -109,7 +113,19 @@ async function somasPorOrigem(tx: TxCliente, deps: DepsOrc, versaoId: string, an
     tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } }, select: { valor: true } }),
   ]);
   let pessoal = Dinheiro.zero();
-  for (const e of empregados) pessoal = pessoal.somar((await custoDoEmpregado(tx, deps, anos, { ...e, salarioMensal: Dinheiro.de(e.salarioMensal.toString()) })).periodo);
+  const custosPessoa = new Set<string>();
+  let pessoalCalculado = true;
+  for (const e of empregados) {
+    const c = await custoDoEmpregado(tx, deps, anos, { ...e, salarioMensal: Dinheiro.de(e.salarioMensal.toString()) });
+    pessoal = pessoal.somar(c.periodo);
+    const calculado = !c.periodo.ehZero() && c.avisos.length === 0 && c.erros.length === 0;
+    if (!calculado) {
+      pessoalCalculado = false;
+      continue;
+    }
+    const meses = (e.fim.getUTCFullYear() - e.inicio.getUTCFullYear()) * 12 + (e.fim.getUTCMonth() - e.inicio.getUTCMonth()) + 1;
+    custosPessoa.add(c.periodo.dividir(String(meses)).paraString());
+  }
   const viagem = Dinheiro.somarTodos(
     viagens.map((v) => {
       const c = custoDaViagem({
@@ -128,6 +144,8 @@ async function somasPorOrigem(tx: TxCliente, deps: DepsOrc, versaoId: string, an
     bens: Dinheiro.somarTodos(bens.map((b) => totalDoBem({ quantidade: b.quantidade, valorUnitario: Dinheiro.de(b.valorUnitario.toString()) }))),
     rateioAdmCentral: Dinheiro.somarTodos(celulas.map((c) => Dinheiro.de(c.valor.toString()))),
     postos: empregados.length,
+    custosPessoaDistintos: custosPessoa.size,
+    pessoalCalculado,
   };
 }
 
@@ -155,7 +173,7 @@ export async function obterComparativoTps(ctx: ContextoRequisicao, depsParciais:
         const somas = await somasPorOrigem(tx, deps, v.id, anos);
         const calculado = Dinheiro.somarTodos([somas.pessoal, somas.viagens, somas.bens, somas.rateioAdmCentral]);
         const valorGlobal = v.snapshot ? Dinheiro.de(v.snapshot.valorGlobal.toString()) : calculado;
-        const metas = await tx.metaProposta.findMany({ where: { versaoPropostaId: v.id }, select: { numero: true, valor: true } });
+        const metas = await tx.metaProposta.findMany({ where: { versaoPropostaId: v.id }, select: { numero: true, valor: true, status: true } });
         linhas.push({
           numero: p.unidade.codigo,
           tipo: p.tipo as TipoProposta,
@@ -167,7 +185,9 @@ export async function obterComparativoTps(ctx: ContextoRequisicao, depsParciais:
           // O snapshot congelou o pessoal com os parâmetros da época: a diferença para o cálculo de hoje fica em outros.
           porCategoria: { pessoal: somas.pessoal, viagens: somas.viagens, bens: somas.bens, rateioAdmCentral: somas.rateioAdmCentral, outros: valorGlobal.subtrair(calculado) },
           postos: somas.postos,
-          metas: metas.map((m) => ({ numero: m.numero, valor: Dinheiro.de(m.valor.toString()) })).sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true })),
+          custosPessoaDistintos: somas.custosPessoaDistintos,
+          pessoalCalculado: somas.pessoalCalculado,
+          metas: metas.map((m) => ({ numero: m.numero, valor: Dinheiro.de(m.valor.toString()), ativa: m.status === 'ATIVO' })).sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true })),
           realizado: Dinheiro.zero(),
         });
       }

@@ -134,6 +134,9 @@ describe('obterConsolidado (US-101)', () => {
     expect(c01.porCategoria.bens.paraString()).toBe('2000.00');
     expect(c01.porCategoria.pessoal.ehZero()).toBe(false);
     expect(c01.postos).toBe(1);
+    // Privacidade do pessoal (US-107 da frente B): um empregado calculado, um custo por pessoa-mês.
+    expect([c01.custosPessoaDistintos, c01.pessoalCalculado]).toEqual([1, true]);
+    expect([c02.custosPessoaDistintos, c02.pessoalCalculado]).toEqual([0, true]);
     expect(c01.valorGlobal.paraString()).toBe(c01.porCategoria.pessoal.somar(c01.porCategoria.bens).paraString());
     expect(c01.porCategoria.outros.ehZero()).toBe(true);
     // O oficial vale pelo snapshot; sem lançamentos na versão, a diferença fica em outros.
