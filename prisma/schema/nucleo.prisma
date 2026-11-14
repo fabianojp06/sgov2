@@ -80,6 +80,7 @@ model Unidade {
   qtdesEmpregado     QtdeEmpregadoProposta[]
   tetosViagem        TetoViagemProposta[]
   viagensProposta    ViagemProposta[]
+  solicitacoes       SolicitacaoAprovacao[]
   bensProposta       BemProposta[]
 
   @@map("unidade")

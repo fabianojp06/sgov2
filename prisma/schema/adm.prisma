@@ -92,6 +92,8 @@ model Usuario {
   sessoes                SessaoUsuario[]
   alcadasTitular         AlcadaAprovacao[]       @relation("AlcadaTitular")
   alcadasSubstituto      AlcadaAprovacao[]       @relation("AlcadaSubstituto")
+  solicitacoesFeitas     SolicitacaoAprovacao[]  @relation("SolicitacaoSolicitante")
+  solicitacoesAprovar    SolicitacaoAprovacao[]  @relation("SolicitacaoAprovador")
   sessoesEncerradas      SessaoEncerrada[]
   unidades               UsuarioUnidade[]
   desativacoesSistema    ConfiguracaoAcesso[]    @relation("ManutencaoPor")
