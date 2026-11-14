@@ -1,3 +1,4 @@
+import { MENSAGENS_ALCADA } from '@/modules/adm';
 import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 import type { BlocoEmpregados, GrupoEmpregados, OpcaoCargoEmpregado, TotaisCategoria } from '../application/empregados';
 import type { FiltrosPessoal } from '../application/pessoal-comum';
@@ -17,6 +18,8 @@ import { FormEmpregado } from './form-empregado';
 
 /** Aviso depois de incluir, alterar ou excluir, com a ordem e o nome vindos da ação (?o= e ?n=). */
 export function textoAvisoEmpregado(aviso: string | undefined, ordem: string | undefined, nome: string | undefined): string | undefined {
+  // US-080: depois de finalizar, ?n= traz o número do TP.
+  if (aviso === 'finalizado') return nome && [...nome].length <= 60 ? MENSAGENS_ORC.LOTE_FINALIZADO(nome) : undefined;
   if (!ordem || !/^\d{1,6}$/.test(ordem) || !nome || [...nome].length > LIMITE_NOME_EMPREGADO) return undefined;
   const o = Number(ordem);
   if (aviso === 'incluido') return MENSAGENS_ORC.EMPREGADO_INCLUIDO(o, nome);
@@ -25,7 +28,12 @@ export function textoAvisoEmpregado(aviso: string | undefined, ordem: string | u
   return undefined;
 }
 
-export type PermissoesPessoal = { podeIncluir: boolean; podeAlterar: boolean; podeExcluir: boolean };
+export type PermissoesPessoal = { podeIncluir: boolean; podeAlterar: boolean; podeExcluir: boolean; podeFinalizar?: boolean };
+
+const ROTULO_LOTE = { EM_ELABORACAO: 'Pessoal em elaboração', EM_APROVACAO: 'Pessoal em aprovação (WA05)', HOMOLOGADO: 'Pessoal homologado' } as const;
+
+/** O [Finalizar Lançamentos] (US-080): a ação e os aprovadores da alçada WA05 (nulo: sem alçada ativa). */
+export type FinalizacaoPessoal = { acao: AcaoFormulario; aprovadores: { titular: string; substituto: string } | null };
 
 /** O formulário aberto pela URL: incluir numa proposta ou alterar um registro. */
 export type FormularioPessoalAberto = { modo: 'incluir'; propostaId: string } | { modo: 'alterar'; id: string };
@@ -107,7 +115,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoEmpregados; 
   );
 }
 
-function Bloco({ bloco, permissoes, excluir }: { bloco: BlocoEmpregados; permissoes: PermissoesPessoal; excluir: AcaoFormulario }) {
+function Bloco({ bloco, permissoes, excluir, finalizacao }: { bloco: BlocoEmpregados; permissoes: PermissoesPessoal; excluir: AcaoFormulario; finalizacao?: FinalizacaoPessoal | undefined }) {
   const titulo = `empregados-${bloco.propostaId}`;
   const semMetaAtiva = bloco.categoria === 'META' && bloco.metas.length === 0;
   return (
@@ -115,7 +123,7 @@ function Bloco({ bloco, permissoes, excluir }: { bloco: BlocoEmpregados; permiss
       <h2 id={titulo}>{`${bloco.numero} – ${bloco.objeto}`}</h2>
       <p>
         {`${ROTULO_TIPO_PROPOSTA[bloco.tipo]} · Versão ${bloco.versaoNumero} `}
-        <span className="selo">{ROTULO_SITUACAO_PROPOSTA[bloco.situacao]}</span>
+        <span className="selo">{ROTULO_SITUACAO_PROPOSTA[bloco.situacao]}</span> <span className="selo">{ROTULO_LOTE[bloco.lote ?? 'EM_ELABORACAO']}</span>
       </p>
       {bloco.grupos.length === 0 ? (
         <p>Nenhum empregado nesta versão.</p>
@@ -132,6 +140,19 @@ function Bloco({ bloco, permissoes, excluir }: { bloco: BlocoEmpregados; permiss
         ) : (
           <a href={`/orc/empregados?nova=${bloco.propostaId}`}>{`Novo empregado na proposta ${bloco.numero}`}</a>
         ))}
+      {permissoes.podeFinalizar &&
+        finalizacao &&
+        bloco.finalizavel === true &&
+        (finalizacao.aprovadores ? (
+          <AcaoConfirmada
+            rotulo={`Finalizar os lançamentos de pessoal da proposta ${bloco.numero}`}
+            pergunta={MENSAGENS_ORC.CONFIRMA_FINALIZAR(bloco.numero, finalizacao.aprovadores.titular, finalizacao.aprovadores.substituto)}
+            acao={finalizacao.acao}
+            campos={{ propostaId: bloco.propostaId, versaoCapa: String(bloco.versaoCapa) }}
+          />
+        ) : (
+          <p role="note">{MENSAGENS_ALCADA.SEM_APROVADOR('WA05')}</p>
+        ))}
     </section>
   );
 }
@@ -144,6 +165,7 @@ export function TelaEmpregados({
   cargos,
   aviso,
   formulario,
+  finalizacao,
 }: {
   blocos: readonly BlocoEmpregados[];
   filtros: FiltrosPessoal;
@@ -153,6 +175,7 @@ export function TelaEmpregados({
   cargos: readonly OpcaoCargoEmpregado[];
   aviso?: string | undefined;
   formulario?: FormularioPessoalAberto | null | undefined;
+  finalizacao?: FinalizacaoPessoal | undefined;
 }) {
   // O formulário só abre sobre um bloco editável que está na lista (a RLS já filtrou) e com a permissão.
   const editaveis = blocos.filter((b) => b.editavel);
@@ -175,7 +198,7 @@ export function TelaEmpregados({
       {blocos.length === 0 ? (
         <p>Nenhuma proposta encontrada nos seus Termos de Parceria.</p>
       ) : (
-        blocos.map((b) => <Bloco key={b.propostaId} bloco={b} permissoes={permissoes} excluir={acoes.excluir} />)
+        blocos.map((b) => <Bloco key={b.propostaId} bloco={b} permissoes={permissoes} excluir={acoes.excluir} finalizacao={finalizacao} />)
       )}
     </>
   );

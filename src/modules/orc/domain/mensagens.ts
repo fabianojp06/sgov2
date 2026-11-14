@@ -350,6 +350,16 @@ export const MENSAGENS_ORC = {
   ENVIO_IMPOSTO_SEM_ALIQUOTA: (nomes: string) =>
     `Operação Rejeitada [TRAVA O ERRO]: Não há alíquota vigente no início da proposta para: ${nomes}. Cadastre a alíquota em Impostos antes de oficializar (RN_TAX_03).`,
   WA01_ALVO_MUDOU: 'A versão desta solicitação não está mais Em Aprovação. Recarregue a Central de Tarefas.',
+  // Lote de pessoal para homologação (US-080; UC6.01; plano do P27).
+  LOTE_PESSOAL_TRAVADO: (situacao: string) => `Operação Rejeitada: O pessoal desta versão está ${situacao} (WA05) e não pode ser alterado.`,
+  LOTE_JA_FINALIZADO: 'Operação Rejeitada: O pessoal desta versão já foi finalizado.',
+  LOTE_SEM_EMPREGADOS: 'Operação Rejeitada: Não há empregados lançados nesta versão para finalizar.',
+  LOTE_CONCORRENTE: 'Operação Rejeitada [TRAVA O ERRO]: O dimensionamento de pessoal deste Termo de Parceria foi finalizado por outro analista simultaneamente. Recarregue a tela.',
+  LOTE_FINALIZADO: (numero: string) => `Pessoal da proposta do TP ${numero} finalizado e enviado para homologação.`,
+  CONFIRMA_FINALIZAR: (numero: string, titular: string, substituto: string) =>
+    `Finalizar os lançamentos de pessoal da proposta do TP ${numero} e enviar para homologação? Aprovador responsável: ${titular}. Substituto: ${substituto}. O pessoal fica só leitura até a decisão.`,
+  WA05_ALVO_MUDOU: 'O lote desta solicitação não está mais Em Aprovação. Recarregue a Central de Tarefas.',
+  CRONOGRAMA_PESSOAL_NAO_HOMOLOGADO: 'O pessoal ainda não foi homologado (WA05): ele entra no cronograma depois da homologação.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
   TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',
 } as const;

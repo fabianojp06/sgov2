@@ -17,6 +17,7 @@ import {
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { contextoAuditoria } from './calculo-linhas';
 import { cacheAnos, custoDoEmpregado } from './custo-empregado';
+import { situacaoDoLote, type SituacaoLote } from './lote-pessoal';
 import { carregarCargos, type CacheCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
@@ -24,7 +25,7 @@ import {
   cabecalho,
   contem,
   executarPessoal,
-  lerVersaoEditavel,
+  lerVersaoDoPessoal,
   metasDaVersao,
   resolverMeta,
   tipoDoFiltro,
@@ -81,6 +82,13 @@ export type BlocoEmpregados = CabecalhoBloco & {
   totais: TotaisCategoria;
   /** Quem vê o custo (D-P20-5). */
   veCusto: boolean;
+  /**
+   * O lote de pessoal da versão (US-080, WA05); fora de Em Elaboração, o pessoal fica só leitura (D-P27-5).
+   * Opcional no tipo: a frente B monta blocos nos testes dela (lição do #482).
+   */
+  lote?: SituacaoLote;
+  /** O [Finalizar Lançamentos] cabe: versão editável, lote em elaboração e algum empregado (D-P27-3). */
+  finalizavel?: boolean;
 };
 
 export type OpcaoCargoEmpregado = { id: string; codigo: string; nome: string };
@@ -204,7 +212,17 @@ export async function listarEmpregados(ctx: ContextoRequisicao, filtros: Filtros
           grupos.push({ ...chave, empregados, totais: doTotal });
         }
         if (filtros.meta?.trim() && grupos.length === 0) continue;
-        blocos.push({ ...cabecalho(p, v, metas.ativas), grupos, totais, veCusto: comCusto });
+        const lote = await situacaoDoLote(tx, v.id);
+        const cab = cabecalho(p, v, metas.ativas);
+        blocos.push({
+          ...cab,
+          editavel: cab.editavel && lote === 'EM_ELABORACAO',
+          grupos,
+          totais,
+          veCusto: comCusto,
+          lote,
+          finalizavel: cab.editavel && lote === 'EM_ELABORACAO' && v.empregados.length > 0,
+        });
       }
       return blocos.sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
     },
@@ -274,7 +292,7 @@ export async function incluirEmpregado(ctx: ContextoRequisicao, bruto: unknown, 
   if (!parse.success) return dadosInvalidos();
   const { propostaId, versaoCapa, metaId, ...campos } = parse.data;
   return executarPessoal(ctx, deps, async (tx) => {
-    const lida = await lerVersaoEditavel(tx, propostaId, versaoCapa, M.EMPREGADO_VERSAO_IMUTAVEL);
+    const lida = await lerVersaoDoPessoal(tx, propostaId, versaoCapa, M.EMPREGADO_VERSAO_IMUTAVEL);
     if (!lida.ok) return lida;
     const v = validarNaVersao(lida.valor, campos);
     if (!v.ok) return v;
@@ -320,7 +338,7 @@ export async function alterarEmpregado(ctx: ContextoRequisicao, bruto: unknown, 
   return executarPessoal(ctx, deps, async (tx) => {
     const e = await lerEmpregado(tx, id);
     if (!e) return inexistente();
-    const lida = await lerVersaoEditavel(tx, e.versaoProposta.propostaId, versaoCapa, M.EMPREGADO_VERSAO_IMUTAVEL, e.versaoPropostaId);
+    const lida = await lerVersaoDoPessoal(tx, e.versaoProposta.propostaId, versaoCapa, M.EMPREGADO_VERSAO_IMUTAVEL, e.versaoPropostaId);
     if (!lida.ok) return lida;
     const v = validarNaVersao(lida.valor, campos);
     if (!v.ok) return v;
@@ -359,7 +377,7 @@ export async function excluirEmpregado(ctx: ContextoRequisicao, bruto: unknown, 
     return await executarPessoal(ctx, deps, async (tx) => {
       const e = await lerEmpregado(tx, id);
       if (!e) return inexistente();
-      const lida = await lerVersaoEditavel(tx, e.versaoProposta.propostaId, versaoCapa, M.EMPREGADO_VERSAO_IMUTAVEL, e.versaoPropostaId);
+      const lida = await lerVersaoDoPessoal(tx, e.versaoProposta.propostaId, versaoCapa, M.EMPREGADO_VERSAO_IMUTAVEL, e.versaoPropostaId);
       if (!lida.ok) return lida;
       if (e.versao !== versaoEmpregado) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
       await travarVersao(tx, lida.valor);

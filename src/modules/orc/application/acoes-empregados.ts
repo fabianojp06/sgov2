@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { definirAcao } from '@/shared/authz';
 import { alterarEmpregado, excluirEmpregado, incluirEmpregado } from './empregados';
 import { entradaBruta } from './entrada-exercicio';
+import { finalizarLotePessoal } from './lote-pessoal';
 import { alterarQtde, excluirQtde, incluirQtde } from './qtde-empregados';
 
 // Ações das telas de pessoal da proposta (US-070; plano do P20, Task 2). Depois do sucesso, voltam à lista com
@@ -47,4 +48,11 @@ export const excluirQtdeAcao = definirAcao({ funcionalidade: 'orc.qtde_empregado
   const r = await excluirQtde(ctx, e);
   if (!r.ok) return r;
   return voltarQtde('excluida', r.valor.documento);
+});
+
+// Finalizar os lançamentos de pessoal e enviar para homologação (US-080, WA05; plano do P27).
+export const finalizarLotePessoalAcao = definirAcao({ funcionalidade: 'orc.empregados', acao: 'executar', entrada: entradaBruta }, async (e, ctx) => {
+  const r = await finalizarLotePessoal(ctx, e);
+  if (!r.ok) return r;
+  return redirect(`/orc/empregados?aviso=finalizado&n=${encodeURIComponent(r.valor.numero)}`);
 });

@@ -14,7 +14,7 @@ import {
   cabecalho,
   contem,
   executarPessoal,
-  lerVersaoEditavel,
+  lerVersaoDoPessoal,
   metasDaVersao,
   resolverMeta,
   tipoDoFiltro,
@@ -169,7 +169,7 @@ export async function incluirQtde(ctx: ContextoRequisicao, bruto: unknown, depsP
   if (!parse.success) return dadosInvalidos();
   const { propostaId, versaoCapa, metaId, ...campos } = parse.data;
   return executarPessoal(ctx, deps, async (tx) => {
-    const lida = await lerVersaoEditavel(tx, propostaId, versaoCapa, M.QTDE_VERSAO_IMUTAVEL);
+    const lida = await lerVersaoDoPessoal(tx, propostaId, versaoCapa, M.QTDE_VERSAO_IMUTAVEL);
     if (!lida.ok) return lida;
     const v = validarQtde(campos, lida.valor.vigencia);
     if (!v.ok) return v;
@@ -208,7 +208,7 @@ export async function alterarQtde(ctx: ContextoRequisicao, bruto: unknown, depsP
   return executarPessoal(ctx, deps, async (tx) => {
     const q = await lerQtde(tx, id);
     if (!q) return inexistente();
-    const lida = await lerVersaoEditavel(tx, q.versaoProposta.propostaId, versaoCapa, M.QTDE_VERSAO_IMUTAVEL, q.versaoPropostaId);
+    const lida = await lerVersaoDoPessoal(tx, q.versaoProposta.propostaId, versaoCapa, M.QTDE_VERSAO_IMUTAVEL, q.versaoPropostaId);
     if (!lida.ok) return lida;
     const v = validarQtde(campos, lida.valor.vigencia);
     if (!v.ok) return v;
@@ -248,7 +248,7 @@ export async function excluirQtde(ctx: ContextoRequisicao, bruto: unknown, depsP
   return executarPessoal(ctx, deps, async (tx) => {
     const q = await lerQtde(tx, id);
     if (!q) return inexistente();
-    const lida = await lerVersaoEditavel(tx, q.versaoProposta.propostaId, versaoCapa, M.QTDE_VERSAO_IMUTAVEL, q.versaoPropostaId);
+    const lida = await lerVersaoDoPessoal(tx, q.versaoProposta.propostaId, versaoCapa, M.QTDE_VERSAO_IMUTAVEL, q.versaoPropostaId);
     if (!lida.ok) return lida;
     if (q.versao !== versaoQtde) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
     await travarVersao(tx, lida.valor);
