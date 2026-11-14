@@ -35,6 +35,7 @@ export type FiltrosOxr = { proposta?: string | undefined; de?: string | undefine
 
 export type TelaOxr = {
   propostaId: string;
+  unidadeId: string;
   numero: string;
   objeto: string;
   versaoOficial: number;
@@ -65,6 +66,14 @@ const resposta = (propostas: readonly PropostaOxr[], tela: TelaOxr | null, erro:
 
 /** UC Orçado x Realizado (OxR V2, fluxo principal e E1). Sem TP: só a lista; com filtro inválido: a lista e o erro. */
 export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: FiltrosOxr, depsParciais: Partial<DepsOrc> = {}): Promise<ResultadoOxr> {
+  return montarOrcadoRealizado(ctx, filtros, depsParciais, true);
+}
+
+/**
+ * A tela, para a exportação (exportar-oxr.ts), que registra só a EXPORTACAO. Fora do index.ts: a porta pública sempre
+ * registra a CONSULTA (RN_EO_006; revisão 12.12).
+ */
+export async function montarOrcadoRealizado(ctx: ContextoRequisicao, filtros: FiltrosOxr, depsParciais: Partial<DepsOrc>, registrarConsulta: boolean): Promise<ResultadoOxr> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE_OXR, 'consultar');
   const propostas = await propostasOficiais(ctx, deps);
@@ -91,10 +100,10 @@ export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fil
       if (de < vigencia[0]! || ate > vigencia[vigencia.length - 1]!) return resposta(propostas, null, MENSAGENS_OXR.PERIODO_FORA);
       const meses = vigencia.filter((c) => c >= de && c <= ate);
       if (meses.length > MESES_MAXIMOS_OXR) return resposta(propostas, null, MENSAGENS_OXR.PERIODO_LONGO);
-      const conta = (filtros.conta ?? '').trim();
+      const conta = (filtros.conta ?? '').trim().slice(0, 40);
       const zeradas = filtros.zeradas ?? false;
 
-      await auditar(tx, {
+      if (registrarConsulta) await auditar(tx, {
         contexto: { ...contextoAuditoria(ctx), unidadeId: p.unidadeId },
         funcionalidade: FUNCIONALIDADE_OXR,
         tipo: 'CONSULTA',
@@ -114,6 +123,7 @@ export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fil
         propostas,
         {
           propostaId: p.id,
+          unidadeId: p.unidadeId,
           numero: p.unidade.codigo,
           objeto: p.objeto,
           versaoOficial: oficial.numero,

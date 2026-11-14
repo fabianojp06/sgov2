@@ -5,6 +5,8 @@ import { criarPrisma } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { incluirBem } from './bens';
 import type { DepsOrc } from './deps';
+import { respostaDeArquivo } from '@/modules/ger';
+import { exportarOrcadoRealizado } from './exportar-oxr';
 import { obterOrcadoRealizado } from './orcado-realizado';
 import { montarArquivoRealizado } from './planilhas-teste';
 import { criarProposta } from './propostas';
@@ -44,6 +46,7 @@ const ctx = (usuarioId: string, unidades: string[], permissoes: string[]): Conte
   unidadeId: null,
 });
 const OXR = ['orc.oxr:consultar'];
+const EXPORTAR = [...OXR, 'orc.oxr:exportar'];
 const gfinCtx = () => ctx(gfin, [tps.oficial.unidadeId, tps.rascunho.unidadeId], [...OXR, 'orc.realizado:consultar', 'orc.realizado:executar']);
 const exigirOk = <T,>(r: { ok: true; valor: T } | { ok: false; erros: unknown }): T => {
   if (!r.ok) throw new Error(JSON.stringify(r.erros));
@@ -160,5 +163,45 @@ describe('obterOrcadoRealizado (US-086)', () => {
     const r = await obterOrcadoRealizado(outro, { proposta: tps.oficial.id }, comDeps());
     expect([r.propostas, r.tela, r.erro]).toEqual([[], null, 'Selecione um Termo de Parceria para consultar.']);
     await expect(obterOrcadoRealizado(ctx(gfin, [tps.oficial.unidadeId], ['orc.realizado:consultar']), {}, comDeps())).rejects.toThrow();
+  });
+
+  it('exportar (parte 2): XLSX com os mesmos valores e a EXPORTACAO no Histórico, sem CONSULTA; PDF até 6 meses; sem a ação, negado', async () => {
+    const c = ctx(gfin, [tps.oficial.unidadeId], EXPORTAR);
+    const [consultas, exportacoes] = await Promise.all([
+      migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } }),
+      migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'EXPORTACAO' } }),
+    ]);
+    const x = exigirOk(await exportarOrcadoRealizado(c, { proposta: tps.oficial.id, de: '2026-01', ate: '2026-03' }, 'xlsx', comDeps()));
+    // O nome passa pela regra do C3 (respostaDeArquivo): o "/" do número vira hífen (revisão 12.12).
+    expect(x.nome).toBe('orcado-realizado-TP-X01-2026-2026-01-a-2026-03.xlsx');
+    expect(() => respostaDeArquivo(x.nome, 'xlsx', x.bytes)).not.toThrow();
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(x.bytes) as unknown as ArrayBuffer);
+    const linhas: string[] = [];
+    wb.worksheets[0]!.eachRow((r) => linhas.push((r.values as unknown[]).slice(1).map((v) => String(v ?? '')).join('|')));
+    expect(linhas.some((l) => l.startsWith('4.1.1.5.005|Material de escritório|0|0|—|2000|1500|75,00%|500|650|130,00%|2500|2150|350|86,00%'))).toBe(true);
+    expect(linhas.some((l) => l.includes('Contas de pessoal: ocultas para o perfil'))).toBe(true);
+    expect(linhas.some((l) => l.includes('Pendências do ERP sem conta no SGO: 1 (R$ 7,00)'))).toBe(true);
+    // A EXPORTACAO leva a unidade do TP, como a CONSULTA.
+    const ultima = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'EXPORTACAO' }, orderBy: { ocorridoEm: 'desc' } });
+    expect(ultima.unidadeId).toBe(tps.oficial.unidadeId);
+    expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } })).toBe(consultas);
+    expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'EXPORTACAO' } })).toBe(exportacoes + 1);
+
+    // Objeto de 300 caracteres: o filtro do cabeçalho é cortado (o C3 aceita até 200; revisão 12.12).
+    await migrator.propostaTp.update({ where: { id: tps.oficial.id }, data: { objeto: 'O'.repeat(300) } });
+    try {
+      exigirOk(await exportarOrcadoRealizado(c, { proposta: tps.oficial.id, de: '2026-01', ate: '2026-03', conta: '4'.repeat(500) }, 'xlsx', comDeps()));
+    } finally {
+      await migrator.propostaTp.update({ where: { id: tps.oficial.id }, data: { objeto: 'Objeto TP-X01/2026' } });
+    }
+    const pdf = exigirOk(await exportarOrcadoRealizado(c, { proposta: tps.oficial.id, de: '2026-01', ate: '2026-03' }, 'pdf', comDeps()));
+    expect(Buffer.from(pdf.bytes).subarray(0, 5).toString()).toBe('%PDF-');
+    const longo = await exportarOrcadoRealizado(c, { proposta: tps.oficial.id, de: '2026-01', ate: '2026-07' }, 'pdf', comDeps());
+    expect(!longo.ok && longo.erros[0]!.mensagem).toMatch(/^Para o PDF, escolha um período de até 6 meses/);
+    const semTp = await exportarOrcadoRealizado(c, { proposta: '' }, 'xlsx', comDeps());
+    expect(!semTp.ok && semTp.erros[0]!.mensagem).toBe('Selecione um Termo de Parceria para consultar.');
+    await expect(exportarOrcadoRealizado(ctx(gfin, [tps.oficial.unidadeId], OXR), { proposta: tps.oficial.id }, 'xlsx', comDeps())).rejects.toThrow();
   });
 });

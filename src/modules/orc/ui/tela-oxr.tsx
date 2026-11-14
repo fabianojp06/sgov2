@@ -10,6 +10,13 @@ import { BotaoImprimirPagina } from './botao-imprimir-pagina';
 // pendências, com link para a lista. A1: a atualização do realizado é a carga do arquivo (US-085).
 
 const VERMELHO = '#cf222e';
+// O mesmo valor do exportar-oxr.ts (o componente não importa a aplicação de servidor).
+const MESES_MAXIMOS_PDF_OXR = 6;
+const linkExportar = (t: NonNullable<ResultadoOxr['tela']>, formato: 'xlsx' | 'pdf') => {
+  const q = new URLSearchParams({ proposta: t.propostaId, de: t.filtros.de, ate: t.filtros.ate, zeradas: t.filtros.zeradas ? 'sim' : 'nao', formato });
+  if (t.filtros.conta) q.set('conta', t.filtros.conta);
+  return `/orc/orcado-realizado/exportar?${q.toString()}`;
+};
 const dataHora = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
 
 // RN0314 por célula (revisão 12.12): só o % acima de 100% fica em vermelho e negrito.
@@ -65,7 +72,8 @@ function Linha({ l }: { l: LinhaOxr }) {
   );
 }
 
-export function TelaOxr({ dados, podeAtualizar, podeVerRealizado }: { dados: ResultadoOxr; podeAtualizar: boolean; podeVerRealizado: boolean }) {
+export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; podeVerRealizado: boolean; podeExportar?: boolean }) {
+  const { dados, podeAtualizar, podeVerRealizado, podeExportar } = props;
   const { propostas, tela, erro } = dados;
   const f = tela?.filtros;
   return (
@@ -124,7 +132,16 @@ export function TelaOxr({ dados, podeAtualizar, podeVerRealizado }: { dados: Res
           )}
           {tela.semPessoal && <p role="note">As contas de pessoal não aparecem para o seu perfil, nem no orçado nem no realizado.</p>}
           {tela.pessoalNaoHomologado && <p role="note">O pessoal da versão oficial ainda não foi homologado e não entra no orçado.</p>}
-          <BotaoImprimirPagina />
+          <p className="sem-impressao">
+            <BotaoImprimirPagina />
+            {podeExportar && (
+              <>
+                {' '}
+                <a href={linkExportar(tela, 'xlsx')}>Exportar XLSX</a> <a href={linkExportar(tela, 'pdf')}>Exportar PDF</a>
+                {tela.meses.length > MESES_MAXIMOS_PDF_OXR && ` (o PDF aceita até ${MESES_MAXIMOS_PDF_OXR} meses)`}
+              </>
+            )}
+          </p>
           <div role="region" aria-labelledby="oxr-caption" tabIndex={0} style={{ overflowX: 'auto' }}>
             <table>
               <caption id="oxr-caption">Orçado x Realizado por conta e mês (R$)</caption>

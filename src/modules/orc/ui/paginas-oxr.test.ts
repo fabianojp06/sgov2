@@ -102,6 +102,14 @@ describe('página do Orçado x Realizado', () => {
     expect(h).not.toContain(`href="/orc/realizado?proposta=${PROPOSTA}"`);
     expect(h).toContain('As contas de pessoal não aparecem para o seu perfil');
     expect(h).not.toContain('Atualizar Realizado');
+    expect(h).not.toContain('Exportar XLSX');
+  });
+
+  it('com exportar: os links de XLSX e PDF levam os filtros da tela', async () => {
+    contexto = ctx(['orc.oxr:consultar', 'orc.oxr:exportar']);
+    const h = await pagina({ proposta: PROPOSTA });
+    expect(h).toContain(`href="/orc/orcado-realizado/exportar?proposta=${PROPOSTA}&amp;de=2018-09&amp;ate=2018-10&amp;zeradas=nao&amp;formato=xlsx"`);
+    expect(h).toContain('formato=pdf"');
   });
 
   it('quem carrega o realizado vê o link Atualizar Realizado (A1)', async () => {
