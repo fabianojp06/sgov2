@@ -65,7 +65,7 @@ describe('seedOrc', () => {
 
   it('viagens da proposta no menu Cadastros › Viagens, no grupo Propostas (US-071, D-P21-10)', async () => {
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.viagens' } });
-    expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Viagens', rota: '/orc/viagens', ordem: 5, exibirNoMenu: true, acoes: ['consultar', 'incluir', 'alterar', 'excluir'] });
+    expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Viagens', rota: '/orc/viagens', ordem: 5, exibirNoMenu: true, acoes: ['consultar', 'incluir', 'alterar', 'excluir', 'executar'] });
   });
 
   it('bens da proposta no menu Cadastros, no grupo Propostas (US-072, D-P22-10)', async () => {
@@ -127,7 +127,8 @@ describe('seedOrc', () => {
     // D-P27-2: só o GRH finaliza o lote de pessoal (WA05).
     expect(await permissoes('ANALISTA_GRH')).toEqual(['orc.empregados:alterar', 'orc.empregados:consultar', 'orc.empregados:excluir', 'orc.empregados:executar', 'orc.empregados:incluir', ...qtdes]);
     // D-P21-10: o Operador de Viagens lança os tetos e as viagens da proposta (§11.3).
-    expect(await permissoes('OPERADOR_VIAGENS')).toEqual(viagens);
+    // D-P28-4: só o Operador de Viagens pede a validação (WA02).
+    expect(await permissoes('OPERADOR_VIAGENS')).toEqual(['orc.viagens:alterar', 'orc.viagens:consultar', 'orc.viagens:excluir', 'orc.viagens:executar', 'orc.viagens:incluir']);
   });
 
   it('casos de IA: só a sugestão de conta é avaliável (fila ia.avaliar, #403)', async () => {

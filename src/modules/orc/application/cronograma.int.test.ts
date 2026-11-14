@@ -141,6 +141,12 @@ async function homologarPessoal(propostaId: string) {
   await migrator.$executeRaw`INSERT INTO orc_lote_pessoal (unidade_id, versao_proposta_id, situacao)
     SELECT p.unidade_id, v.id, 'HOMOLOGADO' FROM orc_proposta p JOIN orc_versao_proposta v ON v.proposta_id = p.id WHERE p.id = ${propostaId}::uuid`;
 }
+/** UC6.02 passo 4: as viagens só entram no cronograma validadas (D-P28-1). */
+async function validarViagens(propostaId: string) {
+  const [l] = await migrator.$queryRaw<{ id: string }[]>`INSERT INTO orc_lote_viagem (unidade_id, versao_proposta_id, situacao, solicitado_por)
+    SELECT p.unidade_id, v.id, 'VALIDADO', ${orcamentista}::uuid FROM orc_proposta p JOIN orc_versao_proposta v ON v.proposta_id = p.id WHERE p.id = ${propostaId}::uuid RETURNING id`;
+  await migrator.$executeRaw`UPDATE orc_viagem SET lote_viagem_id = ${l!.id}::uuid WHERE versao_proposta_id IN (SELECT id FROM orc_versao_proposta WHERE proposta_id = ${propostaId}::uuid)`;
+}
 const salvar = async (propostaId: string, campos: Record<string, string>) =>
   salvarRateio(
     await ctx(),
@@ -172,14 +178,17 @@ describe('obterCronograma (UC04.01)', () => {
     const p = await proposta();
     await lancarDespesas(p.id);
     exigirOk(await salvar(p.id, { [campoCelula(0, '2027-03')]: '700,00' }));
-    // Antes da homologação (Review Focus 2 do P27): sem o pessoal, com o aviso.
+    // Antes da homologação do pessoal e da validação das viagens (Review Focus 2 do P27 e 1 do P28): sem eles, com os avisos.
     const antes = (await obterCronograma(await ctx(), p.id, {}, comDeps()))!;
     expect(antes.pessoalNaoHomologado).toBe(true);
-    expect(antes.total.paraString()).toBe('3700.00');
+    expect(antes.viagensNaoValidadas).toBe(true);
+    expect(antes.total.paraString()).toBe('2700.00');
     expect(antes.porConta.map((x) => x.conta)).toEqual(['4.1.1.5.005', '4.3.1.1.001']);
     await homologarPessoal(p.id);
+    await validarViagens(p.id);
     const c = (await obterCronograma(await ctx(), p.id, {}, comDeps()))!;
     expect(c.pessoalNaoHomologado).toBe(false);
+    expect(c.viagensNaoValidadas).toBe(false);
     const meses = c.linhas.filter((l) => l.tipo === 'MES');
     expect(meses.map((l) => l.descricao)).toEqual(['01', '02', '03', '04', '05', '06', '07'].map((m, i) => `Parcela ${i + 1} – ${m}/2027`));
     // jan: 7.500 + 142,85; fev: 7.500 + 2.000 + 142,85; mar: 7.500 + 700 + 142,85; abr a jun: 142,85; jul: 142,90.
@@ -204,6 +213,7 @@ describe('obterCronograma (UC04.01)', () => {
     const p = await proposta();
     await lancarDespesas(p.id);
     await homologarPessoal(p.id);
+    await validarViagens(p.id);
     const consulta = await ctx(['orc.cronograma:consultar', 'orc.empregados:consultar']);
     const c = (await obterCronograma(consulta, p.id, {}, comDeps()))!;
     expect(c.semPessoal).toBe(true);

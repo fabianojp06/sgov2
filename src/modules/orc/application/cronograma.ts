@@ -13,6 +13,7 @@ import { cacheAnos, custoDoEmpregado } from './custo-empregado';
 import { carregarCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
 import { situacaoDoLote } from './lote-pessoal';
+import { situacaoDaViagem } from './lote-viagem';
 import { uuid } from './pessoal-comum';
 import { totaisDaVersao, vePessoal } from './totalizadores';
 
@@ -20,7 +21,7 @@ import { totaisDaVersao, vePessoal } from './totalizadores';
 // montada na leitura a partir dos lançamentos da versão (REQ_CD_003), e o domínio calcula o acumulado, o %, o
 // repasse do ciclo e os fechamentos anuais. Pessoal mês a mês pelo motor (só para quem o vê, D-P23-5); bens no
 // mês da data; rateio na competência; viagens, sem data, distribuídas por igual na vigência (D-P25-2). O pessoal só
-// entra com o lote homologado (RN_WA05_005, D-P27-4).
+// entra com o lote homologado (RN_WA05_005, D-P27-4), e as viagens, com o lote validado (UC6.02 passo 4, D-P28-1).
 
 const FUNCIONALIDADE = 'orc.cronograma';
 
@@ -48,6 +49,8 @@ export type CronogramaTela = {
   semPessoal: boolean;
   /** D-P27-4: há empregados, mas o lote de pessoal ainda não foi homologado (WA05). */
   pessoalNaoHomologado: boolean;
+  /** D-P28-1: há viagens ainda não validadas no WA02, fora do cronograma. */
+  viagensNaoValidadas: boolean;
   viagensDistribuidas: boolean;
 };
 
@@ -58,6 +61,7 @@ export type SeriesDaVersao = {
   avisos: string[];
   semPessoal: boolean;
   pessoalNaoHomologado: boolean;
+  viagensNaoValidadas: boolean;
   viagensDistribuidas: boolean;
 };
 
@@ -88,13 +92,14 @@ export async function seriesDaVersao(
     porContaAno.set(conta, anos);
   };
   const daMeta = metaId ? { metaId } : {};
-  const [empregados, viagens, bens, celulas] = await Promise.all([
+  const [empregados, todasViagens, bens, celulas] = await Promise.all([
     tx.empregadoProposta.findMany({ where: { versaoPropostaId: versaoId, ...daMeta } }),
-    tx.viagemProposta.findMany({ where: { versaoPropostaId: versaoId, ...daMeta } }),
+    tx.viagemProposta.findMany({ where: { versaoPropostaId: versaoId, ...daMeta }, include: { loteViagem: { select: { situacao: true } } } }),
     tx.bemProposta.findMany({ where: { versaoPropostaId: versaoId, ativo: true, ...daMeta } }),
     metaId ? Promise.resolve([]) : tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } } }),
   ]);
   const avisos = new Set<string>();
+  const viagens = todasViagens.filter((v) => situacaoDaViagem(v.loteViagem) === 'VALIDADO');
   const homologado = empregados.length > 0 && (await situacaoDoLote(tx, versaoId)) === 'HOMOLOGADO';
   if (comPessoal && homologado) {
     const anos = cacheAnos(await carregarCargos(tx, deps));
@@ -132,6 +137,7 @@ export async function seriesDaVersao(
     avisos: [...avisos],
     semPessoal: !comPessoal && homologado,
     pessoalNaoHomologado: empregados.length > 0 && !homologado,
+    viagensNaoValidadas: viagens.length < todasViagens.length,
     viagensDistribuidas: viagens.length > 0,
   };
 }
@@ -204,6 +210,7 @@ export async function obterCronograma(
         avisos: s.avisos,
         semPessoal: s.semPessoal,
         pessoalNaoHomologado: s.pessoalNaoHomologado,
+        viagensNaoValidadas: s.viagensNaoValidadas,
         viagensDistribuidas: s.viagensDistribuidas,
       };
     },

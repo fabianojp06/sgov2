@@ -20,7 +20,15 @@ export {
 } from './application/acoes-empregados';
 export { excluirRateioAcao, replicarRateioAcao, salvarRateioAcao } from './application/acoes-rateio';
 export { alterarBemAcao, excluirBemAcao, incluirBemAcao } from './application/acoes-bens';
-export { alterarTetoAcao, alterarViagemAcao, excluirTetoAcao, excluirViagemAcao, incluirTetoAcao, incluirViagemAcao } from './application/acoes-viagens';
+export {
+  alterarTetoAcao,
+  alterarViagemAcao,
+  excluirTetoAcao,
+  excluirViagemAcao,
+  incluirTetoAcao,
+  incluirViagemAcao,
+  solicitarValidacaoViagensAcao,
+} from './application/acoes-viagens';
 export {
   avancarPropostaAcao,
   criarPropostaAcao,
@@ -31,6 +39,7 @@ export {
 } from './application/acoes-propostas';
 export { disponibilidadeDoEnvio, manipuladorWa01 } from './application/oficializacao';
 export { aprovadoresDoLote, manipuladorWa05, type SituacaoLote } from './application/lote-pessoal';
+export { manipuladorWa02, validadoresDasViagens, type SituacaoViagem } from './application/lote-viagem';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
 export { ultimaRevisao } from './application/revisor';
@@ -94,7 +103,7 @@ export { TelaCronograma } from './ui/tela-cronograma';
 export { TelaRateio, textoAvisoRateio, type AcoesRateio, type PermissoesRateio } from './ui/tela-rateio';
 export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';
-export { TelaViagens, textoAvisoViagem, type AcoesViagens, type FormularioViagemAberto } from './ui/tela-viagens';
+export { TelaViagens, textoAvisoViagem, type AcoesViagens, type FormularioViagemAberto, type ValidacaoViagens } from './ui/tela-viagens';
 export { TelaPropostas, textoAvisoProposta } from './ui/tela-propostas';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';

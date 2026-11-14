@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { definirAcao } from '@/shared/authz';
 import { entradaBruta } from './entrada-exercicio';
+import { solicitarValidacaoViagens } from './lote-viagem';
 import { alterarTeto, alterarViagem, excluirTeto, excluirViagem, incluirTeto, incluirViagem } from './viagens';
 
 // Ações da tela de viagens da proposta (US-071; plano do P21, Task 2). Depois do sucesso, voltam à lista com o
@@ -44,4 +45,11 @@ export const excluirTetoAcao = definirAcao({ funcionalidade: 'orc.viagens', acao
   const r = await excluirTeto(ctx, e);
   if (!r.ok) return r;
   return voltarTeto('teto-excluido', r.valor.conta);
+});
+
+// Pedir a validação das viagens da versão oficializada (US-081, WA02; plano do P28).
+export const solicitarValidacaoViagensAcao = definirAcao({ funcionalidade: 'orc.viagens', acao: 'executar', entrada: entradaBruta }, async (e, ctx) => {
+  const r = await solicitarValidacaoViagens(ctx, e);
+  if (!r.ok) return r;
+  return redirect(`/orc/viagens?aviso=validacao&n=${encodeURIComponent(r.valor.numero)}`);
 });

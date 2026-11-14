@@ -44,6 +44,7 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_rateio_celula: ['DELETE', 'INSERT', 'SELECT'], // regravada inteira, sem UPDATE (P24)
   orc_snapshot_versao: ['INSERT', 'SELECT'], // imutável: sem UPDATE nem DELETE (P26)
   orc_lote_pessoal: ['INSERT', 'SELECT'], // UPDATE só por coluna, sem exclusão (P27)
+  orc_lote_viagem: ['INSERT', 'SELECT'], // UPDATE só por coluna, sem exclusão (P28)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -120,6 +121,8 @@ describe('privilégios do orc', () => {
     expect(await colunas('orc_versao_proposta')).toEqual(['situacao']);
     // Lote de pessoal (P27): só a situação, quem finalizou e a versão.
     expect(await colunas('orc_lote_pessoal')).toEqual(['finalizado_por', 'situacao', 'versao']);
+    // Lote de viagens (P28): só a situação e a versão.
+    expect(await colunas('orc_lote_viagem')).toEqual(['situacao', 'versao']);
     // Meta (P19): o número, a versão da proposta e a unidade não mudam.
     expect(await colunas('orc_meta')).toEqual(['nome', 'observacao', 'status', 'valor', 'versao']);
     // Pessoal (P20): a versão da proposta, a meta, a ordem e a unidade não mudam.
@@ -127,7 +130,7 @@ describe('privilégios do orc', () => {
     expect(await colunas('orc_qtde_empregado')).toEqual(['documento', 'fim', 'inicio', 'versao']);
     // Viagens (P21): no teto, só o valor; na viagem, a meta e as contas de passagem e de diária não mudam (RN_VIA_07).
     expect(await colunas('orc_teto_viagem')).toEqual(['valor', 'versao']);
-    expect(await colunas('orc_viagem')).toEqual(['conta_transporte', 'dias', 'localidade', 'pessoas', 'valor_diaria', 'valor_passagem', 'valor_transporte', 'versao']);
+    expect(await colunas('orc_viagem')).toEqual(['conta_transporte', 'dias', 'localidade', 'lote_viagem_id', 'pessoas', 'valor_diaria', 'valor_passagem', 'valor_transporte', 'versao']);
     // Bens (P22): a versão, a unidade e a origem não mudam.
     expect(await colunas('orc_bem')).toEqual(['ativo', 'conta', 'data', 'descricao', 'inativado_em', 'meta_id', 'quantidade', 'valor_unitario', 'versao']);
     // Rateio (P24): só a sintética, o modo e a alíquota mudam; as células não têm UPDATE.

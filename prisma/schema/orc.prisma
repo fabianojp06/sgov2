@@ -223,6 +223,7 @@ model VersaoProposta {
   rateio      RateioProposta?
   snapshot    SnapshotVersao?
   lotePessoal LotePessoal?
+  lotesViagem LoteViagem[]
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -353,10 +354,14 @@ model ViagemProposta {
   criadoPor        String         @map("criado_por") @db.Uuid
   criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
   versao           Int            @default(0)
+  /// US-081 (D-P28-8): o lote do WA02 em que a viagem foi enviada por último; nulo, Pendente.
+  loteViagemId     String?        @map("lote_viagem_id") @db.Uuid
+  loteViagem       LoteViagem?    @relation(fields: [loteViagemId], references: [id], onDelete: Restrict)
 
   @@index([unidadeId])
   @@index([versaoPropostaId])
   @@index([metaId])
+  @@index([loteViagemId])
   @@map("orc_viagem")
 }
 
@@ -459,4 +464,21 @@ model LotePessoal {
 
   @@index([unidadeId])
   @@map("orc_lote_pessoal")
+}
+
+// Lote de validação das viagens (US-081; plano do P28, D-P28-2 a D-P28-6; UC6.02, WA02). CHECKs e RLS na migration.
+model LoteViagem {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String           @map("unidade_id") @db.Uuid
+  unidade          Unidade          @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String           @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta   @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  situacao         String           @default("EM_VALIDACAO")
+  solicitadoPor    String           @map("solicitado_por") @db.Uuid
+  versao           Int              @default(0)
+  viagens          ViagemProposta[]
+
+  @@index([unidadeId])
+  @@index([versaoPropostaId])
+  @@map("orc_lote_viagem")
 }
