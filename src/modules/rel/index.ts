@@ -54,3 +54,8 @@ export {
 export { alterarTextosAcao, aprovarRelatorioAcao, gerarRascunhoAcao } from './application/acoes-relatorio-executivo';
 export { GerarRascunho, EditarTextos } from './ui/relatorio-executivo';
 export { dataEmBrasilia, mesEmBrasilia } from './domain/relatorio-executivo';
+
+// Roteiro de apresentação para reunião de diretoria (US-105): a liberação, as ações e a tela.
+export { apresentacaoLiberada } from './application/apresentacao';
+export { exportarSlidesAcao, gerarRoteiroAcao } from './application/acoes-apresentacao';
+export { Apresentacao } from './ui/apresentacao';
