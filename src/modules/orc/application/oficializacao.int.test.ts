@@ -197,7 +197,26 @@ describe('avançar e enviar (UC03.10 e UC6.00 passos 1 a 3)', () => {
       ),
     );
     await avancar(p.id);
-    expect(await enviar(p.id)).toEqual(erroGeral(M.ENVIO_PESSOAL_INCOMPLETO(M.EMPREGADO_SEM_PARAMETROS(2028))));
+    const r = await enviar(p.id);
+    expect(r.ok ? [] : r.erros.map((e) => e.mensagem)).toEqual([M.ENVIO_PESSOAL_INCOMPLETO(M.EMPREGADO_SEM_PARAMETROS(2028)), M.ENVIO_PESSOAL_NAO_HOMOLOGADO]);
+  });
+
+  it('com empregados, o pessoal precisa estar homologado (WA05) para enviar (D-P27-8, revisão 12.12)', async () => {
+    const p = await proposta();
+    exigirOk(
+      await incluirEmpregado(
+        await ctx(),
+        { propostaId: p.id, versaoCapa: await versaoCapa(p.id), categoria: 'EMPREGADO', nome: 'Ana', cargoId: C001, inicio: '2027-01', fim: '2027-03', dependentes: '0' },
+        comDeps(),
+      ),
+    );
+    await avancar(p.id);
+    expect(await enviar(p.id)).toEqual(erroGeral(M.ENVIO_PESSOAL_NAO_HOMOLOGADO));
+    await migrator.$executeRaw`INSERT INTO orc_lote_pessoal (unidade_id, versao_proposta_id, situacao)
+      SELECT unidade_id, id, 'EM_APROVACAO' FROM orc_versao_proposta WHERE proposta_id = ${p.id}::uuid`;
+    expect(await enviar(p.id)).toEqual(erroGeral(M.ENVIO_PESSOAL_NAO_HOMOLOGADO));
+    await migrator.$executeRaw`UPDATE orc_lote_pessoal SET situacao = 'HOMOLOGADO' WHERE unidade_id = ${p.unidadeId}::uuid`;
+    exigirOk(await enviar(p.id));
   });
 
   it('rateio com competências em branco (RN_WA01_002) e titular inativo (substituto, RN_ALC_005)', async () => {

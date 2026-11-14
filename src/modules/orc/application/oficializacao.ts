@@ -11,6 +11,7 @@ import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { competenciasDaVigencia } from '../domain/rateio';
 import { contextoAuditoria } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
+import { situacaoDoLote } from './lote-pessoal';
 import { totaisDaVersao } from './totalizadores';
 
 // Oficialização da proposta de TP (US-079; UC03.10 e UC6.00, fluxo WA01; plano do P26, Task 2). O orçamentista
@@ -147,6 +148,10 @@ export async function enviarPropostaWa01(ctx: ContextoRequisicao, bruto: unknown
     if (pessoal.avisos.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_PESSOAL_INCOMPLETO(pessoal.avisos.join(' ')) });
     const { semAliquota } = await impostosParaCongelar(tx, deps, p);
     if (semAliquota.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_IMPOSTO_SEM_ALIQUOTA(semAliquota.join(', ')) });
+    // D-P27-8 [PROVISÓRIO]: com empregados, o lote de pessoal precisa estar homologado (WA05). Sem isso a versão
+    // oficial ficaria com o pessoal fora do cronograma para sempre, porque a finalização exige versão editável.
+    if ((await tx.empregadoProposta.count({ where: { versaoPropostaId: v.id } })) > 0 && (await situacaoDoLote(tx, v.id)) !== 'HOMOLOGADO')
+      erros.push({ campo: '_', mensagem: M.ENVIO_PESSOAL_NAO_HOMOLOGADO });
     if (erros.length > 0 || !aprovador || 'bloqueio' in aprovador) return falha(erros);
 
     await mudarSituacao(tx, id, versao, v.id, 'EM_ELABORACAO', 'EM_APROVACAO');

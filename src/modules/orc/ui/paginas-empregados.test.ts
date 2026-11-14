@@ -21,7 +21,7 @@ const M1 = '00000000-0000-4000-8000-0000000000c1';
 const E1 = '00000000-0000-4000-8000-0000000000d1';
 const E2 = '00000000-0000-4000-8000-0000000000d2';
 const Q1 = '00000000-0000-4000-8000-0000000000e1';
-const caso = vi.hoisted(() => ({ filtros: [] as unknown[], cargos: 0, aprovadores: { titular: 'Gestor (gfin)', substituto: 'Diretoria' } as { titular: string; substituto: string } | null, lote: 'EM_ELABORACAO' as string }));
+const caso = vi.hoisted(() => ({ filtros: [] as unknown[], cargos: 0, aprovadores: { titular: 'Gestor (gfin)', substituto: 'Diretoria' } as { titular: string; substituto: string } | { motivo: string }, lote: 'EM_ELABORACAO' as string }));
 
 const cabecalho = {
   propostaId: P_META,
@@ -210,7 +210,7 @@ describe('finalizar os lançamentos (US-080, WA05)', () => {
     const h = await html();
     expect(h).toContain('Finalizar os lançamentos de pessoal da proposta TP-2027/001');
     expect(h).toContain('Pessoal em elaboração');
-    caso.aprovadores = null;
+    caso.aprovadores = { motivo: 'Operação indisponível: Não há aprovador ativo cadastrado para este fluxo.' };
     expect(await html()).toContain('Não há aprovador ativo cadastrado para este fluxo');
     caso.aprovadores = { titular: 'Gestor (gfin)', substituto: 'Diretoria' };
     contexto = ctx(LANCA('orc.empregados'));

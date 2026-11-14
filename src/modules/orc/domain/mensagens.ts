@@ -359,6 +359,8 @@ export const MENSAGENS_ORC = {
   CONFIRMA_FINALIZAR: (numero: string, titular: string, substituto: string) =>
     `Finalizar os lançamentos de pessoal da proposta do TP ${numero} e enviar para homologação? Aprovador responsável: ${titular}. Substituto: ${substituto}. O pessoal fica só leitura até a decisão.`,
   WA05_ALVO_MUDOU: 'O lote desta solicitação não está mais Em Aprovação. Recarregue a Central de Tarefas.',
+  ENVIO_PESSOAL_NAO_HOMOLOGADO:
+    'Operação Rejeitada [TRAVA O ERRO]: O pessoal desta versão ainda não foi homologado (WA05). O GRH finaliza os lançamentos e o GFIN os homologa antes do envio.',
   CRONOGRAMA_PESSOAL_NAO_HOMOLOGADO: 'O pessoal ainda não foi homologado (WA05): ele entra no cronograma depois da homologação.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
   TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',

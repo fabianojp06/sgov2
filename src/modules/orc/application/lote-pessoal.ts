@@ -28,15 +28,25 @@ export async function situacaoDoLote(tx: TxCliente, versaoId: string): Promise<S
   return (l?.situacao as SituacaoLote | undefined) ?? 'EM_ELABORACAO';
 }
 
-/** RF_APR_REQ_007: o titular e o substituto da alçada WA05, para o modal (só leitura); nulo sem alçada ativa. */
-export async function aprovadoresDoLote(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<{ titular: string; substituto: string } | null> {
+export type AprovadoresDoLote = { titular: string; substituto: string } | { motivo: string };
+
+/**
+ * RF_APR_REQ_007: o titular e o substituto da alçada WA05, para o modal (só leitura). Sem aprovador disponível,
+ * ou com o próprio solicitante roteado (RN_WA02_006), o motivo no lugar do botão, como no envio do WA01.
+ */
+export async function aprovadoresDoLote(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<AprovadoresDoLote> {
   exigir(ctx, FUNCIONALIDADE, 'executar');
   const deps = resolverDeps(depsParciais);
-  const a = await deps.cliente.alcadaAprovacao.findFirst({
-    where: { fluxo: 'WA05', ativa: true },
-    select: { titular: { select: { nome: true, login: true } }, substituto: { select: { nome: true } } },
+  return deps.cliente.$transaction(async (tx) => {
+    const r = await resolverAprovador(tx, 'WA05', { solicitanteId: ctx.usuarioId });
+    if (!r) return { motivo: MENSAGENS_ALCADA.SEM_APROVADOR('WA05') };
+    if ('bloqueio' in r) return { motivo: MENSAGENS_ALCADA.MESMO_USUARIO('WA05') };
+    const a = await tx.alcadaAprovacao.findFirst({
+      where: { fluxo: 'WA05', ativa: true },
+      select: { titular: { select: { nome: true, login: true } }, substituto: { select: { nome: true } } },
+    });
+    return a ? { titular: `${a.titular.nome} (${a.titular.login})`, substituto: a.substituto.nome } : { motivo: MENSAGENS_ALCADA.SEM_APROVADOR('WA05') };
   });
-  return a ? { titular: `${a.titular.nome} (${a.titular.login})`, substituto: a.substituto.nome } : null;
 }
 
 const entrada = z.object({ propostaId: z.string(), versaoCapa: z.coerce.number().int().min(0) }).strict();

@@ -7,10 +7,10 @@ import { criarPrisma } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import type { DepsOrc } from './deps';
-import { alterarEmpregado, incluirEmpregado } from './empregados';
+import { alterarEmpregado, incluirEmpregado, listarEmpregados } from './empregados';
 import { aprovadoresDoLote, finalizarLotePessoal, manipuladorWa05, situacaoDoLote } from './lote-pessoal';
 import { criarProposta, novaVersaoProposta } from './propostas';
-import { incluirQtde } from './qtde-empregados';
+import { incluirQtde, listarQtdes } from './qtde-empregados';
 
 // Lote de pessoal para homologação (US-080; plano do P27, Task 1). Como sgo_app (RLS real). A alçada WA05 tem o GFIN
 // de titular e a DIREX de substituta; o C2 é o falso do cad (premissas de 2027).
@@ -153,6 +153,10 @@ describe('finalizarLotePessoal (UC6.01)', () => {
       erroGeral(M.LOTE_PESSOAL_TRAVADO('em aprovação')),
     );
     expect(await finalizar(p.id)).toEqual(erroGeral(M.LOTE_JA_FINALIZADO));
+    // As telas de pessoal ficam só leitura: empregados e quantitativos (RF_APR_REQ_008, revisão 12.12).
+    const daProposta = <T extends { propostaId: string }>(bs: readonly T[]) => bs.find((b) => b.propostaId === p.id);
+    expect(daProposta(await listarEmpregados(await ctx(), {}, comDeps()))).toMatchObject({ editavel: false, lote: 'EM_APROVACAO' });
+    expect(daProposta(await listarQtdes(await ctx(), {}, comDeps()))).toMatchObject({ editavel: false });
   });
 
   it('sem empregado, sem aprovador e sem a ação executar (Review Focus 5)', async () => {
@@ -162,6 +166,8 @@ describe('finalizarLotePessoal (UC6.01)', () => {
     await migrator.usuario.updateMany({ where: { id: { in: [gfin, direx] } }, data: { ativo: false } });
     const q = await proposta();
     expect(await finalizar(q.id)).toEqual(erroGeral(MENSAGENS_ALCADA.SEM_APROVADOR('WA05')));
+    // O modal mostra o motivo no lugar do botão (revisão 12.12).
+    expect(await aprovadoresDoLote(await ctx(), comDeps())).toEqual({ motivo: MENSAGENS_ALCADA.SEM_APROVADOR('WA05') });
     await migrator.usuario.updateMany({ where: { id: { in: [gfin, direx] } }, data: { ativo: true } });
     await expect(
       finalizar(

@@ -8,6 +8,7 @@ import { competenciaParaTexto, cruza, validarQtde, type CategoriaEmpregado, type
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { contextoAuditoria } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
+import { situacaoDoLote } from './lote-pessoal';
 import type { TotaisCategoria } from './empregados';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 import {
@@ -138,7 +139,10 @@ export async function listarQtdes(ctx: ContextoRequisicao, filtros: FiltrosPesso
           grupos.push({ ...chave, qtdes, totais: doTotal });
         }
         if (filtros.meta?.trim() && grupos.length === 0) continue;
-        blocos.push({ ...cabecalho(p, v, metas.ativas), grupos, totais });
+        // D-P27-5: com o lote de pessoal fora de Em Elaboração, os quantitativos também ficam só leitura (RF_APR_REQ_008).
+        const cab = cabecalho(p, v, metas.ativas);
+        const lote = await situacaoDoLote(tx, v.id);
+        blocos.push({ ...cab, editavel: cab.editavel && lote === 'EM_ELABORACAO', grupos, totais });
       }
       return blocos.sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
     },

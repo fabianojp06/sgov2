@@ -1,4 +1,3 @@
-import { MENSAGENS_ALCADA } from '@/modules/adm';
 import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 import type { BlocoEmpregados, GrupoEmpregados, OpcaoCargoEmpregado, TotaisCategoria } from '../application/empregados';
 import type { FiltrosPessoal } from '../application/pessoal-comum';
@@ -32,8 +31,8 @@ export type PermissoesPessoal = { podeIncluir: boolean; podeAlterar: boolean; po
 
 const ROTULO_LOTE = { EM_ELABORACAO: 'Pessoal em elaboração', EM_APROVACAO: 'Pessoal em aprovação (WA05)', HOMOLOGADO: 'Pessoal homologado' } as const;
 
-/** O [Finalizar Lançamentos] (US-080): a ação e os aprovadores da alçada WA05 (nulo: sem alçada ativa). */
-export type FinalizacaoPessoal = { acao: AcaoFormulario; aprovadores: { titular: string; substituto: string } | null };
+/** O [Finalizar Lançamentos] (US-080): a ação e os aprovadores da alçada WA05, ou o motivo de não caber. */
+export type FinalizacaoPessoal = { acao: AcaoFormulario; aprovadores: { titular: string; substituto: string } | { motivo: string } };
 
 /** O formulário aberto pela URL: incluir numa proposta ou alterar um registro. */
 export type FormularioPessoalAberto = { modo: 'incluir'; propostaId: string } | { modo: 'alterar'; id: string };
@@ -143,7 +142,7 @@ function Bloco({ bloco, permissoes, excluir, finalizacao }: { bloco: BlocoEmpreg
       {permissoes.podeFinalizar &&
         finalizacao &&
         bloco.finalizavel === true &&
-        (finalizacao.aprovadores ? (
+        (!('motivo' in finalizacao.aprovadores) ? (
           <AcaoConfirmada
             rotulo={`Finalizar os lançamentos de pessoal da proposta ${bloco.numero}`}
             pergunta={MENSAGENS_ORC.CONFIRMA_FINALIZAR(bloco.numero, finalizacao.aprovadores.titular, finalizacao.aprovadores.substituto)}
@@ -151,7 +150,7 @@ function Bloco({ bloco, permissoes, excluir, finalizacao }: { bloco: BlocoEmpreg
             campos={{ propostaId: bloco.propostaId, versaoCapa: String(bloco.versaoCapa) }}
           />
         ) : (
-          <p role="note">{MENSAGENS_ALCADA.SEM_APROVADOR('WA05')}</p>
+          <p role="note">{finalizacao.aprovadores.motivo}</p>
         ))}
     </section>
   );
