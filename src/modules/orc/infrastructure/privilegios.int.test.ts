@@ -45,6 +45,11 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_snapshot_versao: ['INSERT', 'SELECT'], // imutável: sem UPDATE nem DELETE (P26)
   orc_lote_pessoal: ['INSERT', 'SELECT'], // UPDATE só por coluna, sem exclusão (P27)
   orc_lote_viagem: ['INSERT', 'SELECT'], // UPDATE só por coluna, sem exclusão (P28)
+  orc_realizado_carga: ['INSERT', 'SELECT'], // rastro da carga: só inserção (P32)
+  orc_realizado: ['DELETE', 'INSERT', 'SELECT'], // mês aberto: apagado e regravado, nunca alterado (P32, RN_OXR_005)
+  orc_realizado_ajuste: ['INSERT', 'SELECT'], // só inserção (P32, RN_OXR_006)
+  orc_realizado_pendencia: ['DELETE', 'INSERT', 'SELECT'], // substituída pela carga seguinte (P32, D-P32-3)
+  orc_competencia_fechada: ['INSERT', 'SELECT'], // sem reabertura (P32, D-P32-4)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {

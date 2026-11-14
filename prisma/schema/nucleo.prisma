@@ -64,29 +64,33 @@ model OutboxMensagem {
 // número do TP, nome = objeto (D-P17-2). A tabela serve também ao seletor de TP (US-031) e ao acesso
 // por TP do usuário (US-038).
 model Unidade {
-  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  codigo             String                  @unique
-  nome               String
-  ativo              Boolean                 @default(true)
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo              String                  @unique
+  nome                String
+  ativo               Boolean                 @default(true)
   // CC próprio do TP (C37; plano do P17, D-P17-7): classificação do C1, sem FK (§12.7). Único entre
   // as unidades ativas (índice único parcial na migration 202611122100_orc_proposta, que o Prisma não
   // declara). Gravado só na criação da proposta; nulo nas unidades que não são TP.
-  cc                 String?
-  usuarios           UsuarioUnidade[]
-  proposta           PropostaTp?
-  versoesProposta    VersaoProposta[]
-  metasProposta      MetaProposta[]
-  empregadosProposta EmpregadoProposta[]
-  qtdesEmpregado     QtdeEmpregadoProposta[]
-  tetosViagem        TetoViagemProposta[]
-  viagensProposta    ViagemProposta[]
-  solicitacoes       SolicitacaoAprovacao[]
-  snapshotsVersao    SnapshotVersao[]
-  lotesPessoal       LotePessoal[]
-  lotesViagem        LoteViagem[]
-  bensProposta       BemProposta[]
-  rateiosProposta    RateioProposta[]
-  celulasRateio      RateioCelulaProposta[]
+  cc                  String?
+  usuarios            UsuarioUnidade[]
+  proposta            PropostaTp?
+  versoesProposta     VersaoProposta[]
+  metasProposta       MetaProposta[]
+  empregadosProposta  EmpregadoProposta[]
+  qtdesEmpregado      QtdeEmpregadoProposta[]
+  tetosViagem         TetoViagemProposta[]
+  viagensProposta     ViagemProposta[]
+  solicitacoes        SolicitacaoAprovacao[]
+  snapshotsVersao     SnapshotVersao[]
+  lotesPessoal        LotePessoal[]
+  lotesViagem         LoteViagem[]
+  bensProposta        BemProposta[]
+  rateiosProposta     RateioProposta[]
+  celulasRateio       RateioCelulaProposta[]
+  cargasRealizado     CargaRealizado[]
+  realizados          RealizadoContaMes[]
+  ajustesRealizado    AjusteRealizado[]
+  pendenciasRealizado PendenciaRealizado[]
 
   @@map("unidade")
 }

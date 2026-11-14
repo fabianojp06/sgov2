@@ -3,13 +3,13 @@ import { ROTULO_SITUACAO_PROPOSTA } from '../domain/proposta';
 import { valorContabil } from './tela-totalizadores';
 
 // Consolidado dos TPs (US-101; spec §6.7; plano do P31). Só leitura, sem atalho para as telas do TP (D-P31-4):
-// o consolidado não dá acesso ao TP. O orçado é o Valor Global oficial (D-P31-2); o realizado é zero até a F5.
+// o consolidado não dá acesso ao TP. O orçado é o Valor Global oficial (D-P31-2); o realizado é o carregado (US-085, D-P32-8).
 
 export function TelaConsolidado({ dados }: { dados: Consolidado }) {
   return (
     <section aria-labelledby="consolidado-titulo">
       <h2 id="consolidado-titulo">Todos os Termos de Parceria</h2>
-      <p role="note">O orçado é o Valor Global da última versão oficializada. O realizado entra com a execução orçamentária.</p>
+      <p role="note">O orçado é o Valor Global da última versão oficializada. O realizado é o carregado por arquivo, com os ajustes de meses fechados.</p>
       {dados.linhas.length === 0 ? (
         <p>Nenhum Termo de Parceria ativo.</p>
       ) : (
