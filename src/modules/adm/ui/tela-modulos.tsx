@@ -32,9 +32,9 @@ export type PropsTelaModulos = {
 function BotaoModulo({ modulo, acao }: { modulo: Modulo; acao: AcaoFormulario }) {
   if (modulo.ativo && !podeDesativarModulo(modulo.codigo)) return null;
   return modulo.ativo ? (
-    <AcaoConfirmada rotulo="Desativar" pergunta={MENSAGENS_MODULOS.CONFIRMAR_DESATIVAR_MODULO} acao={acao} campos={{ codigo: modulo.codigo, ativo: 'false' }} />
+    <AcaoConfirmada rotulo="Desativar" contexto={modulo.nome} pergunta={MENSAGENS_MODULOS.CONFIRMAR_DESATIVAR_MODULO} acao={acao} campos={{ codigo: modulo.codigo, ativo: 'false' }} />
   ) : (
-    <AcaoConfirmada rotulo="Ativar" pergunta={MENSAGENS_MODULOS.CONFIRMAR_ATIVAR_MODULO} acao={acao} campos={{ codigo: modulo.codigo, ativo: 'true' }} />
+    <AcaoConfirmada rotulo="Ativar" contexto={modulo.nome} pergunta={MENSAGENS_MODULOS.CONFIRMAR_ATIVAR_MODULO} acao={acao} campos={{ codigo: modulo.codigo, ativo: 'true' }} />
   );
 }
 
@@ -42,9 +42,9 @@ function BotaoFuncionalidade({ modulo, funcionalidade: f, acao }: { modulo: Modu
   if (f.ativo && !podeDesativarModulo(modulo.codigo)) return null;
   const campos = { codigo: f.codigo, modulo: modulo.codigo };
   return f.ativo ? (
-    <AcaoConfirmada rotulo="Desativar" pergunta={MENSAGENS_MODULOS.CONFIRMAR_DESATIVAR_FUNCIONALIDADE} acao={acao} campos={{ ...campos, ativo: 'false' }} />
+    <AcaoConfirmada rotulo="Desativar" contexto={f.nome} pergunta={MENSAGENS_MODULOS.CONFIRMAR_DESATIVAR_FUNCIONALIDADE} acao={acao} campos={{ ...campos, ativo: 'false' }} />
   ) : (
-    <AcaoConfirmada rotulo="Ativar" pergunta={MENSAGENS_MODULOS.CONFIRMAR_ATIVAR_FUNCIONALIDADE} acao={acao} campos={{ ...campos, ativo: 'true' }} />
+    <AcaoConfirmada rotulo="Ativar" contexto={f.nome} pergunta={MENSAGENS_MODULOS.CONFIRMAR_ATIVAR_FUNCIONALIDADE} acao={acao} campos={{ ...campos, ativo: 'true' }} />
   );
 }
 
