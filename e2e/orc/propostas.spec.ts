@@ -528,8 +528,9 @@ test.describe.serial('proposta de TP', () => {
     await expect(p.getByText('O realizado deste TP ainda não foi carregado.')).toBeVisible();
     await p.getByLabel(/^Arquivo do realizado/).setInputFiles(await montarArquivoRealizado([['4.1.1.7.003', '2027-01', 1500.25], ['9.9.9.9.999', '2027-01', 10]]));
     await p.getByRole('button', { name: 'Carregar realizado' }).click();
-    await expect(p.getByRole('status')).toContainText(`Realizado do TP ${NUMERO_COPIA} carregado: 2 linha(s), total R$ 1.510,25.`);
-    await expect(p.getByRole('status')).toContainText('1 valor(es) sem conta correspondente no SGO (R$ 10,00) ficaram como pendência.');
+    const status = p.getByRole('region', { name: new RegExp(`^${NUMERO_COPIA} – `) }).getByRole('status');
+    await expect(status).toContainText(`Realizado do TP ${NUMERO_COPIA} carregado: 2 linha(s), total R$ 1.510,25.`);
+    await expect(status).toContainText('1 valor(es) sem conta correspondente no SGO (R$ 10,00) ficaram como pendência.');
     await p.reload();
     await expect(p.getByRole('table', { name: 'Realizado por competência' }).getByRole('row', { name: /^01\/2027 / })).toContainText('1.500,25');
     await expect(p.getByText('Existem 1 valores do ERP sem conta correspondente no SGO (R$ 10,00).')).toBeVisible();

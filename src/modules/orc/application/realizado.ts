@@ -36,6 +36,15 @@ const travarCarga = async (tx: TxCliente, unidadeId: string) => {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${TRAVA_GLOBAL + 1}, hashtext(${unidadeId}))`;
 };
 const travarFechamento = (tx: TxCliente) => tx.$executeRaw`SELECT pg_advisory_xact_lock(${TRAVA_GLOBAL})`;
+// A carga de um arquivo grande e o fechamento atrás das cargas em andamento passam dos 5 s padrão (revisão 12.12).
+const PRAZO_MS = 60_000;
+
+/** 'AAAA-MM' do mês corrente em Brasília (revisão 12.12): às 21h30 do dia 30/11 ainda é novembro. */
+export function mesCorrente(agora: Date): string {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(agora);
+  const de = (t: string) => partes.find((p) => p.type === t)!.value;
+  return `${de('year')}-${de('month')}`;
+}
 
 export const MENSAGENS_CARGA = {
   TP_NAO_ENCONTRADO: 'Termo de Parceria não encontrado nos seus Termos de Parceria.',
@@ -93,7 +102,17 @@ export async function carregarRealizado(
     ctx,
     async (tx) => {
       const p = await tx.propostaTp.findFirst({ where: { id: entrada.propostaId, excluidaEm: null }, include: { unidade: { select: { codigo: true } } } });
-      if (!p) return naoEncontrado;
+      if (!p) {
+        // RN_OXR_007: a recusa também fica no Histórico (revisão 12.12), sem dizer se o TP existe.
+        await auditar(tx, {
+          contexto: contextoAuditoria(ctx),
+          funcionalidade: FUNCIONALIDADE,
+          tipo: 'SISTEMA',
+          descricao: `Carga do realizado recusada: TP não encontrado (arquivo ${entrada.arquivo.nome})`,
+          depois: { status: 'RECUSADA', propostaId: entrada.propostaId },
+        });
+        return naoEncontrado;
+      }
       const contexto = { ...contextoAuditoria(ctx), unidadeId: p.unidadeId };
       const recusar = async (r: Resultado<never>) => {
         await auditar(tx, {
@@ -120,12 +139,27 @@ export async function carregarRealizado(
       const fechadasNoArquivo = presentes.filter((c) => fechadas.has(c));
 
       const analiticas: ValorArquivo[] = [];
-      const pendentes: (ValorArquivo & { motivo: 'CONTA_DESCONHECIDA' | 'CONTA_SINTETICA' })[] = [];
+      const doArquivo: (ValorArquivo & { motivo: 'CONTA_DESCONHECIDA' | 'CONTA_SINTETICA' })[] = [];
       for (const v of validado.valor) {
         const tipo = tipos.get(v.conta);
         if (tipo === 'ANALITICA') analiticas.push(v);
-        else pendentes.push({ ...v, motivo: tipo === 'SINTETICA' ? 'CONTA_SINTETICA' : 'CONTA_DESCONHECIDA' });
+        else doArquivo.push({ ...v, motivo: tipo === 'SINTETICA' ? 'CONTA_SINTETICA' : 'CONTA_DESCONHECIDA' });
       }
+      // Pendência de competência fechada não muda (RN_OXR_006, revisão 12.12): entra só a diferença para o que já está
+      // pendente daquela conta do ERP e competência; a recarga igual não gera pendência nova.
+      const pendentesFechadas = await tx.pendenciaRealizado.findMany({
+        where: { unidadeId: p.unidadeId, competencia: { in: presentes.filter((c) => fechadas.has(c)).map(competenciaParaData) } },
+      });
+      const jaPendente = new Map<string, Dinheiro>();
+      for (const x of pendentesFechadas) {
+        const k = chave(x.contaErp, competenciaParaTexto(x.competencia));
+        jaPendente.set(k, (jaPendente.get(k) ?? Dinheiro.zero()).somar(dec(x.valor)));
+      }
+      const pendentes = doArquivo.flatMap((v) => {
+        if (!fechadas.has(v.competencia)) return [v];
+        const diferenca = v.valor.subtrair(jaPendente.get(chave(v.conta, v.competencia)) ?? Dinheiro.zero());
+        return diferenca.ehZero() ? [] : [{ ...v, valor: diferenca }];
+      });
 
       // RN_OXR_006, D-P32-5: diferença da competência fechada contra o que o SGO já tem dela (carga + ajustes com essa
       // origem). Conta que o SGO tem e o arquivo não traz vale zero no arquivo, como na substituição do mês aberto.
@@ -164,8 +198,8 @@ export async function carregarRealizado(
         },
         select: { id: true },
       });
-      // D-P32-3: as pendências das competências do arquivo e o realizado das abertas são substituídos.
-      await tx.pendenciaRealizado.deleteMany({ where: { unidadeId: p.unidadeId, competencia: { in: presentes.map(competenciaParaData) } } });
+      // D-P32-3: as pendências e o realizado das competências abertas do arquivo são substituídos.
+      await tx.pendenciaRealizado.deleteMany({ where: { unidadeId: p.unidadeId, competencia: { in: abertas.map(competenciaParaData) } } });
       await tx.realizadoContaMes.deleteMany({ where: { unidadeId: p.unidadeId, competencia: { in: abertas.map(competenciaParaData) } } });
       await tx.realizadoContaMes.createMany({
         data: analiticas
@@ -220,7 +254,7 @@ export async function carregarRealizado(
         pendencias: { quantidade: pendentes.length, valor: valorPendente },
       });
     },
-    { cliente: deps.cliente },
+    { cliente: deps.cliente, timeoutMs: PRAZO_MS },
   );
 }
 
@@ -230,7 +264,7 @@ export async function fecharCompetencia(ctx: ContextoRequisicao, entrada: { comp
   exigir(ctx, FUNCIONALIDADE, 'aprovar');
   const competencia = /^\d{4}-\d{2}$/.test(entrada.competencia) ? lerCompetencia(entrada.competencia) : null;
   if (!competencia) return falha([{ campo: 'competencia', mensagem: MENSAGENS_CARGA.COMPETENCIA_INVALIDA }]);
-  if (competencia >= competenciaParaTexto(deps.agora())) return falha([{ campo: 'competencia', mensagem: MENSAGENS_CARGA.COMPETENCIA_CORRENTE }]);
+  if (competencia >= mesCorrente(deps.agora())) return falha([{ campo: 'competencia', mensagem: MENSAGENS_CARGA.COMPETENCIA_CORRENTE }]);
   return emUnidade(
     ctx,
     async (tx) => {
@@ -248,7 +282,7 @@ export async function fecharCompetencia(ctx: ContextoRequisicao, entrada: { comp
       });
       return ok({ competencia });
     },
-    { cliente: deps.cliente },
+    { cliente: deps.cliente, timeoutMs: PRAZO_MS },
   );
 }
 

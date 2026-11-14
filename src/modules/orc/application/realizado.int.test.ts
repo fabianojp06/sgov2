@@ -141,6 +141,16 @@ describe('carregarRealizado (US-085)', () => {
     expect(porta?.atualizadoEm).toBeInstanceOf(Date);
   });
 
+  it('pendência de mês fechado não muda: entra só a diferença; a recarga igual não gera nova (RN_OXR_006, revisão 12.12)', async () => {
+    exigirOk(await carregar([['9.9.9.9.998', '2026-10', 50]]));
+    exigirOk(await fecharCompetencia(gfinA(), { competencia: '2026-10' }, comDeps()));
+    const r = exigirOk(await carregar([['9.9.9.9.998', '2026-10', 70]]));
+    expect([r.fechadas, r.pendencias.quantidade, r.pendencias.valor.paraString()]).toEqual([['2026-10'], 1, '20.00']);
+    expect(exigirOk(await carregar([['9.9.9.9.998', '2026-10', 70]])).pendencias.quantidade).toBe(0);
+    const p = await migrator.pendenciaRealizado.findMany({ where: { unidadeId: tps.a.unidadeId, contaErp: '9.9.9.9.998' }, orderBy: { valor: 'asc' } });
+    expect(p.map((x) => x.valor.toString())).toEqual(['20', '50']);
+  });
+
   it('erro em qualquer linha: nada é gravado, e a recusa vai ao Histórico (D-P32-2, RN_OXR_007)', async () => {
     const [cargas, recusas] = await Promise.all([
       migrator.cargaRealizado.count(),
@@ -157,8 +167,12 @@ describe('carregarRealizado (US-085)', () => {
     const deB = ctx(gfin, [tps.b.unidadeId]);
     expect(await obterTelaRealizado(deB, tps.a.id, comDeps())).toBeNull();
     expect(await realizadoPorTp(deB, { tp: 'TP-R01/2026', de: '2026-01', ate: '2026-12' }, comDeps())).toBeNull();
+    const recusas = () => migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.realizado', tipoOperacao: 'SISTEMA' } });
+    const antes = await recusas();
     const r = await carregar([['4.1.1.1.001', '2026-08', 1]], deB);
     expect(!r.ok && r.erros[0]!.mensagem).toBe('Termo de Parceria não encontrado nos seus Termos de Parceria.');
+    expect(await recusas()).toBe(antes + 1);
+    expect(await migrator.realizadoContaMes.count({ where: { unidadeId: tps.a.unidadeId } })).toBeGreaterThan(0);
     expect(await emUnidadeContar(deB)).toBe(0);
   });
 
@@ -182,6 +196,9 @@ describe('fecharCompetencia (D-P32-4)', () => {
     exigirOk(await fecharCompetencia(gfinA(), { competencia: '2026-09' }, comDeps()));
     const r2 = await fecharCompetencia(gfinA(), { competencia: '2026-09' }, comDeps());
     expect(!r2.ok && r2.erros[0]!.mensagem).toBe('Esta competência já está fechada.');
+    // O mês corrente é o de Brasília: 01/12 às 01h UTC ainda é 30/11 às 22h (revisão 12.12).
+    const r4 = await fecharCompetencia(gfinA(), { competencia: '2026-11' }, { ...comDeps(), agora: () => new Date('2026-12-01T01:00:00Z') });
+    expect(!r4.ok && r4.erros[0]!.mensagem).toBe('Só é possível fechar competência anterior ao mês corrente.');
     const r3 = await fecharCompetencia(gfinA(), { competencia: '2026-9' }, comDeps());
     expect(!r3.ok && r3.erros[0]!.mensagem).toBe('Competência inválida. Use AAAA-MM.');
     expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.realizado', registroId: '2026-09' } })).toBe(1);
