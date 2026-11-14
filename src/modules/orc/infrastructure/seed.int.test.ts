@@ -119,7 +119,6 @@ describe('seedOrc', () => {
       'orc.cronograma:consultar',
       ...pessoal,
       'orc.metas:alterar', 'orc.metas:consultar', 'orc.metas:excluir', 'orc.metas:incluir',
-      'orc.oxr:consultar',
       'orc.propostas:consultar', 'orc.propostas:excluir', 'orc.propostas:incluir',
       ...qtdes,
       'orc.rateio:alterar', 'orc.rateio:consultar', 'orc.rateio:excluir', 'orc.rateio:incluir',
