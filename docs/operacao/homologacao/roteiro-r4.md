@@ -2,8 +2,6 @@
 
 Propostas e Termos de Parceria (TP): a proposta e as versões, as metas, o pessoal, as viagens, os bens, o rateio e o ISS, os totalizadores, o cronograma de desembolso e a oficialização pelo WA01 (histórias US-065 a US-079). Como usar este roteiro, registrar defeitos e dar o aceite: `README.md` desta pasta. A R1 (`roteiro-r1.md`) vem antes. Os usuários-chave, os cadastros e as alçadas dela são pré-condição daqui.
 
-> **Situação em 14/11/2026:** o bloco H (envio, aprovação e oficialização, US-078 e US-079) entra na `main` com o #492 da frente A. Até lá, os passos H ficam fora da homologação.
-
 ## Antes de começar (PO)
 
 - **Usuários-chave novos:** um Orçamentista (lança as propostas), um Analista GRH (pessoal), um Operador de Viagens e um usuário da GFIN (aprova o WA01). Mesmas regras da R1: e-mail institucional real, senha só por e-mail.
@@ -72,17 +70,16 @@ As colunas são as mesmas da R1 (`roteiro-r1.md`, "Como ler as tabelas"). **TP d
 | R3 | Qualquer perfil da proposta | Cronograma de Desembolso | Parcelas acumulam 100% do Valor Global na última | US-075 | sim |
 | R4 | Orçamentista | Excluir uma proposta de teste (com confirmação) | O CC do TP volta a ficar livre no formulário de nova proposta | D-P17-10 | sim |
 
-## H. Envio, aprovação e oficialização (WA01; depois do #492)
+## H. Envio, aprovação e oficialização (WA01)
 
 | # | Perfil | Ação | Resultado esperado | Ref. | E2E |
 | --- | --- | --- | --- | --- | --- |
-| H1 | Orçamentista | Avançar a proposta de Rascunho para Em Elaboração; enviar para oficialização | O envio confere tudo de uma vez e lista as falhas juntas (situação, alçada, contas analíticas ativas, impostos com alíquota) | US-079, RN_WA01_001 | — |
-| H2 | GFIN (titular da alçada) | Central de Tarefas: abrir a pendência; rejeitar com justificativa | A proposta volta para Em Elaboração com a justificativa nos trâmites | US-078 | — |
-| H3 | Orçamentista e GFIN | Reenviar; GFIN aprova | A versão fica Oficializada, com o snapshot e as alíquotas dos impostos congeladas; não aceita mais mudança | US-079, RN_TAX_03 | — |
-| H4 | Orçamentista | Com um imposto sem alíquota no mês de início, enviar | Recusa com "Não há alíquota vigente no início da proposta para: …" | RN_TAX_01 | — |
+| H1 | Orçamentista | Avançar a proposta para Em Elaboração (com confirmação); enviar para aprovação | "Proposta do TP … enviada para oficialização"; a lista mostra Em Aprovação. Se faltar algo, o envio lista todas as falhas juntas (situação, alçada, contas analíticas ativas, células do rateio, impostos com alíquota) | US-079, RN_WA01_001, C1 | sim |
+| H2 | GFIN (titular da alçada) | Central de Tarefas: abrir a pendência "TP … · Versão …"; rejeitar com a justificativa da recusa | "Solicitação … rejeitada"; a proposta volta para Em Elaboração | US-078 | sim |
+| H3 | Orçamentista e GFIN | Reenviar; na Central, conferir o Valor Global e aprovar | "Solicitação … aprovada"; a proposta fica Oficializada, o botão de envio some, e as alíquotas dos impostos ficam congeladas no snapshot | US-079, RN_TAX_03 | sim |
+| H4 | Orçamentista | Com um imposto sem alíquota no mês de início, enviar | Recusa com "Não há alíquota vigente no início da proposta para: …" | RN_TAX_01 | não |
+| H5 | O próprio Orçamentista, se for o único aprovador da alçada | Enviar | Recusa: quem envia não aprova a própria proposta | RN_WA02_006 | não |
 
 ## F. Encerramento
 
-Igual à R1 (`roteiro-r1.md`, bloco F). Ressalvas previstas:
-- o bloco H, se o #492 ainda não estiver no hml;
-- o valor monetário dos impostos da proposta (UC3.01, outra história).
+Igual à R1 (`roteiro-r1.md`, bloco F). Ressalva prevista: o valor monetário dos impostos da proposta (UC3.01, outra história). Hoje o ISS do rateio segue "a definir".
