@@ -122,7 +122,7 @@ export async function exportarAquisicoesTp(
     { rotulo: 'Termo de Parceria', valor: `${r.tp.numero} - ${r.tp.objeto}` },
     { rotulo: 'Período', valor: `${mesPorExtenso(t.de)} a ${mesPorExtenso(t.ate)}` },
     ...(t.conta ? [{ rotulo: 'Conta', valor: t.conta }] : []),
-    ...(t.descricao ? [{ rotulo: 'Descrição', valor: t.descricao }] : []),
+    ...(t.descricao ? [{ rotulo: 'Descrição', valor: `${t.descricao} (o realizado da conta não se divide por bem e fica fora)` }] : []),
     { rotulo: 'Previsto', valor: r.versao === null ? 'Sem versão oficializada' : `Bens da versão ${r.versao}` },
   ];
   const identificacao = criarIdentificacao({ titulo: `Demonstrativo de aquisições - ${r.tp.objeto}`, filtros, operador: ctx.usuarioRotulo });

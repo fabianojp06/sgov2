@@ -12,6 +12,7 @@ export const TEXTOS_AQUISICOES = {
   VAZIO: 'Nenhuma aquisição prevista ou realizada no período com esses filtros.',
   FORA: (n: number, v: string) => `${n} bem(ns) do período em conta fora do Imobilizado/Intangível, somando ${v}, ficaram fora do total.`,
   TOTAL_GERAL: 'Total Geral de Aquisições',
+  SEM_REALIZADO: 'Com o filtro de descrição, o realizado das contas não aparece: ele não se divide por bem.',
 } as const;
 
 const dataBrasilia = (d: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
@@ -28,6 +29,7 @@ export function TabelaAquisicoes({ relatorio: r }: { relatorio: NonNullable<Tela
       <p>{r.versao === null ? TEXTOS_AQUISICOES.SEM_VERSAO : TEXTOS_AQUISICOES.VERSAO(r.versao)}</p>
       <p>{r.atualizadoEm ? TEXTOS_DESPESAS.ATUALIZADO(dataBrasilia(r.atualizadoEm)) : TEXTOS_DESPESAS.SEM_ATUALIZACAO}</p>
       {r.foraDasContas.quantidade > 0 && <p role="note">{TEXTOS_AQUISICOES.FORA(r.foraDasContas.quantidade, moeda(r.foraDasContas.valor))}</p>}
+      {r.totalGeral.realizado === null && <p role="note">{TEXTOS_AQUISICOES.SEM_REALIZADO}</p>}
       {r.contas.length === 0 ? (
         <p>{TEXTOS_AQUISICOES.VAZIO}</p>
       ) : (
@@ -64,18 +66,20 @@ export function TabelaAquisicoes({ relatorio: r }: { relatorio: NonNullable<Tela
                     </td>
                   ))}
                   <td style={DIREITA}>{moeda(c.total)}</td>
-                  <td style={DIREITA}>{moeda(c.realizado)}</td>
+                  <td style={DIREITA}>{c.realizado === null ? '—' : moeda(c.realizado)}</td>
                 </tr>
                 {c.itens.map((i, k) => (
                   <tr key={k}>
                     <td />
-                    <td style={{ paddingLeft: '1.25em' }}>{i.descricao}</td>
+                    <th scope="row" style={{ paddingLeft: '1.25em', fontWeight: 'normal', textAlign: 'left' }}>
+                      {i.descricao}
+                    </th>
                     <td>{data(i.data)}</td>
                     <td style={DIREITA}>{i.quantidade}</td>
                     <td style={DIREITA}>{moeda(i.valorUnitario)}</td>
                     {r.colunas.map((_, j) => (
                       <td key={j} style={DIREITA}>
-                        {moeda(j === i.coluna ? i.valorTotal : '0')}
+                        {j === i.coluna ? moeda(i.valorTotal) : ''}
                       </td>
                     ))}
                     <td style={DIREITA}>{moeda(i.valorTotal)}</td>
@@ -95,7 +99,7 @@ export function TabelaAquisicoes({ relatorio: r }: { relatorio: NonNullable<Tela
                   </td>
                 ))}
                 <td style={DIREITA}>{moeda(r.totalGeral.total)}</td>
-                <td style={DIREITA}>{moeda(r.totalGeral.realizado)}</td>
+                <td style={DIREITA}>{r.totalGeral.realizado === null ? '—' : moeda(r.totalGeral.realizado)}</td>
               </tr>
             </tfoot>
           </table>

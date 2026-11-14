@@ -19,15 +19,15 @@ export type ContaAquisicao = {
   /** O previsto (os bens) por coluna e no período. */
   valores: string[];
   total: string;
-  /** O realizado da conta no período. */
-  realizado: string;
+  /** O realizado da conta no período; nulo com o filtro de descrição (o realizado não se divide por bem). */
+  realizado: string | null;
   itens: ItemAquisicao[];
 };
 export type Aquisicoes = {
   colunas: ColunaDespesas[];
   contas: ContaAquisicao[];
-  totalGeral: { valores: string[]; total: string; realizado: string };
-  /** Bens do período em conta que não está abaixo das sintéticas do Imobilizado (não somados). */
+  totalGeral: { valores: string[]; total: string; realizado: string | null };
+  /** Bens do período em conta que não é analítica abaixo das sintéticas do Imobilizado (não somados); respeita os filtros. */
   foraDasContas: { quantidade: number; valor: string };
 };
 
@@ -59,11 +59,13 @@ export function montarAquisicoes(
     const i = ehCompetencia(competencia) ? coluna(competencia) : -1;
     if (i < 0) continue;
     const total = b.valorUnitario.multiplicar(String(b.quantidade));
+    if (t && !semAcento(b.descricao).includes(t)) continue;
     if (!todas.has(b.conta)) {
-      fora = { quantidade: fora.quantidade + 1, valor: fora.valor.somar(total) };
+      // Com o filtro de conta, o aviso só conta os bens que o filtro pegaria (revisão 12.12).
+      if (!opcoes.conta.trim() || b.conta === opcoes.conta.trim() || b.conta.startsWith(`${opcoes.conta.trim()}.`)) fora = { quantidade: fora.quantidade + 1, valor: fora.valor.somar(total) };
       continue;
     }
-    if (!daConta.has(b.conta) || (t && !semAcento(b.descricao).includes(t))) continue;
+    if (!daConta.has(b.conta)) continue;
     const item = { descricao: b.descricao, data: b.data, quantidade: b.quantidade, valorUnitario: b.valorUnitario.paraString(), valorTotal: total.paraString(), coluna: i };
     itensPorConta.set(b.conta, [...(itensPorConta.get(b.conta) ?? []), { item, total }]);
   }
@@ -92,14 +94,14 @@ export function montarAquisicoes(
       inativa,
       valores: valores.map((v) => v.paraString()),
       total: Dinheiro.somarTodos(valores).paraString(),
-      realizado: real.paraString(),
+      realizado: t ? null : real.paraString(),
       itens: itens.map((x) => x.item),
     });
   }
   return {
     colunas,
     contas,
-    totalGeral: { valores: geral.map((v) => v.paraString()), total: Dinheiro.somarTodos(geral).paraString(), realizado: geralRealizado.paraString() },
+    totalGeral: { valores: geral.map((v) => v.paraString()), total: Dinheiro.somarTodos(geral).paraString(), realizado: t ? null : geralRealizado.paraString() },
     foraDasContas: { quantidade: fora.quantidade, valor: fora.valor.paraString() },
   };
 }

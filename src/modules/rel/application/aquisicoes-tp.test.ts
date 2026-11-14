@@ -70,10 +70,13 @@ describe('obterAquisicoesTp', () => {
 
   it('filtros combináveis de conta e descrição (REQ0293 a 0295); com descrição, o realizado da conta não entra', async () => {
     const d = (await obterAquisicoesTp(ctx(), { tp: 'TP-3', descricao: 'monitor' }, porta, deps())).relatorio!;
-    expect(d.contas.map((c) => [c.classificacao, c.total, c.realizado])).toEqual([['1.2.3.1.001', '3001.50', '0.00']]);
+    expect(d.contas.map((c) => [c.classificacao, c.total, c.realizado])).toEqual([['1.2.3.1.001', '3001.50', null]]);
+    // O aviso de "fora" respeita o filtro de descrição (o papel não é monitor).
+    expect(d.foraDasContas.quantidade).toBe(0);
+    expect(renderToStaticMarkup(createElement(TabelaAquisicoes, { relatorio: d }))).toContain(TEXTOS_AQUISICOES.SEM_REALIZADO);
     const c = (await obterAquisicoesTp(ctx(), { tp: 'TP-3', conta: '1.2.3.1.003' }, porta, deps())).relatorio!;
     expect(c.contas.map((x) => x.classificacao)).toEqual(['1.2.3.1.003']);
-    expect(c.foraDasContas.quantidade).toBe(1);
+    expect(c.foraDasContas.quantidade).toBe(0);
     const z = (await obterAquisicoesTp(ctx(), { tp: 'TP-3', zerados: 'sim' }, porta, deps())).relatorio!;
     expect(z.contas.map((x) => x.classificacao)).toEqual(['1.2.3.1.001', '1.2.3.1.002', '1.2.3.1.003']);
   });
