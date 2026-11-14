@@ -1,6 +1,6 @@
 import { auditar, type ContextoAuditoria } from '@/shared/audit';
 import type { TxCliente } from '@/shared/db';
-import { Dinheiro, ErroDominio, Percentual } from '@/shared/kernel';
+import { Dinheiro, ErroDominio, MENSAGEM_CONFLITO, Percentual } from '@/shared/kernel';
 import { COMPONENTES_FIXOS } from '../domain/custo-pessoal';
 import { copiarBeneficiosCargoDoAno } from './beneficios-cargo';
 import { criarTabelaMestreDoAno } from './beneficios-mestre';
@@ -12,7 +12,8 @@ import { ENCARGOS, COMPONENTES_COM_CONTA, type ParametrosExercicio } from '../do
 export const CHAVES_PARAMETRO_SISTEMA = ['instituicao.nome_exibicao', 'instituicao.logotipo'] as const;
 export type ChaveParametroSistema = (typeof CHAVES_PARAMETRO_SISTEMA)[number];
 
-export const MSG_CONCORRENCIA = 'Este registro foi alterado por outro usuário. Recarregue a tela.';
+// A mensagem de conflito do núcleo (US-011), numa fonte só (pendência do #350).
+export const MSG_CONCORRENCIA = MENSAGEM_CONFLITO;
 
 /** Valor do parâmetro do sistema; vazio se não cadastrado (spec §6.7: o nome nunca vem do código). */
 export async function obterParametroSistema(tx: TxCliente, chave: ChaveParametroSistema): Promise<string> {

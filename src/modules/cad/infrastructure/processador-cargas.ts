@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 import { lerAmbiente } from '@/modules/ger/servidor';
 import type { ContextoAuditoria } from '@/shared/audit';
+import { tentarTravarRecurso } from '@/shared/db';
 import { sanearDescricao } from '../application/saneamento';
 import { validarCargosRubi } from '../domain/cargo';
 import { validarCentrosCusto, type LinhaCentroCustoValidada } from '../domain/centros-custo';
@@ -298,9 +299,8 @@ export function iniciarProcessadorCargas(deps: {
           if (!lote) return false;
           loteId = lote.id;
           const trava = TRAVA_POR_GRUPO[lote.grupo];
-          const [trancado] = await tx.$queryRaw<{ obtida: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${trava ?? `sync-${lote.grupo}`})) AS obtida`;
           // Outro processo está mexendo no mesmo grupo: o lote fica PENDENTE para o próximo ciclo.
-          if (!trancado?.obtida) {
+          if (!(await tentarTravarRecurso(tx, trava ?? `sync-${lote.grupo}`))) {
             loteId = null;
             return false;
           }
