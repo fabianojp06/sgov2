@@ -557,7 +557,17 @@
   Proposta: fazer em duas partes quando o C3 sair.
 - [ ] **US-076 (#98):** esperando o PO. O UC04.02 só existe no catálogo, e a spec põe Premissas/Reajustes na F5.
 - [ ] **US-077 (#99):** esperando o PO. Recursos (UC04.03) e Contratações Previstas (UC04.04) são cadastros novos da F5, e o UC04.05 foi removido pelo C15.
-- [ ] **US-085 (#107):** a etiqueta `bloqueada-por-gap` (o formato do realizado, GAP-PGD-006/009) foi respeitada. O modelo do OxR V2 já basta para o domínio quando o gap sair.
+- [x] **US-085 (#107), partes 1 e 2** (pedido da frente B na #138, para destravar as US-096 a 098):
+  - **Na `main`:** plano P32 (#525), parte 1 (#526, migration `202611141500_orc_realizado`) e parte 2 (#527).
+  - **Domínio:** o realizado por arquivo, por TP, segue o OxR V2 (RN_OXR_003 a 008). Mês aberto: a carga substitui. Mês fechado: o mês não muda, e a diferença vira ajuste no mês aberto seguinte. Conta desconhecida ou sintética vira pendência. Tudo vai ao Histórico.
+  - **Para a frente B:** as portas `realizadoPorTp` (com `previsto?` e `tp?`) e `tpsDoRealizado`. O realizado também entra no Consolidado.
+  - **Decisões D-P32-1 a 12 [PROVISÓRIAS], para o PO:**
+    - layout .xlsx Conta/Competência/Valor até o GAP-PGD-006/009;
+    - fechamento global da competência pela GFIN, sem reabertura;
+    - previsto = cronograma da última versão oficializada;
+    - previsto sem o pessoal para quem não lança empregados;
+    - reprocessamento manual das pendências.
+  - **Com o PO:** a etiqueta `bloqueada-por-gap` e o fechamento da #107.
 - [ ] **US-069 (#91, Could):** a IA só aceita texto, e ler o PDF pede uma biblioteca nova (`package.json`, compartilhado).
 - [x] Lição (14/11): o build do Next falha em worktree com `node_modules` em symlink. Build e E2E só no sgo-p15, com `npx prisma generate` antes, porque o cliente gerado fica em `src/generated` de cada worktree.
 - [x] Lição (14/11): o squash do PR anterior deixa o branch seguinte com commits duplicados. Para rebasear, usar `git rebase --onto origin/main <último commit da história anterior>`.
@@ -726,6 +736,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 14/11/2026 (manhã) | A | A pedido da frente B (#138), US-085 em duas partes: plano P32 (#525), realizado por arquivo (#526) e previsto, lista dos TPs e reprocessamento das pendências (#527). Revisão 12.12 independente nos dois PRs; os achados foram corrigidos antes do merge (fuso do fechamento, dupla contagem de pendência em mês fechado, prazo da transação). Decisões D-P32-1 a 12 PROVISÓRIAS |
 | 14/11/2026 (manhã) | B | US-106 (#515), US-103 parte 1 (#519, migration nova), US-105 (#520) e US-104 parte 1 (#522), destravadas pelo consolidado da frente A (#510, #513 e #518, pedidos na #138); roteiros da R4 (#498, #499 e #505); #494, #495 e #497. Revisão independente em cada US, com os achados corrigidos |
 | 13/11 (noite) a 14/11/2026 (madrugada) | B | Frente A acordada e destravada pela #138. #469 (vínculo funcional no C2) e #473 (natureza CAPEX no C1), pedidos da frente A; US-107 inteira (#476, #484 e #488), com duas revisões independentes; #482 (`main` sem typecheck depois de PRs paralelos, com a regra do campo opcional combinada com a frente A). US-099 bloqueada por falta de fonte (#121) |
 | 13/11/2026 (manhã) | B | #456 (US-118, manual por perfil; #140 fechada) e #454 na `main`; US-054 decidida pelo PO (#76). US-119 parte 2: rollback do app ensaiado no hml e restauração do dump ensaiada com o banco de dev, com correções no runbook. O PO autorizou as sessões das duas frentes a não pararem para confirmar ou relatar (seção 2). Depois: #460 (conferência da VPS), #462 (US-108, ajuda do manual por IA, sem embeddings; DoS do `semMarcas` corrigido e avisado à frente A) e #464 (roteiro da carga) |
