@@ -4,12 +4,15 @@ import { Dinheiro } from '@/shared/kernel';
 import { totalizar } from '@/shared/totalizer';
 import { emUnidade } from '@/shared/unidade';
 import { totalDoBem } from '../domain/bem';
+import { MENSAGENS_ORC } from '../domain/mensagens';
+import { RAIZES_CONTAS_PESSOAL } from '../domain/planilha';
 import { ROTULO_TIPO_PROPOSTA, type SituacaoProposta, type TipoProposta } from '../domain/proposta';
 import { montarArvore, separarPorPlano, type NoTotal } from '../domain/totalizador';
 import { custoDaViagem } from '../domain/viagem';
 import { cacheAnos, custoDoEmpregado } from './custo-empregado';
 import { carregarCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
+import { lerRealizado } from './realizado';
 
 // Totalizadores da proposta de TP (US-074; UC03.02; plano do P23, Task 1). Sem tabela: o Totalizador é o
 // cálculo na leitura (REQ_TOT_002) das somas por conta analítica dos lançamentos da versão (RN_TOT_03), e as
@@ -140,9 +143,20 @@ export async function obterTotalizadores(ctx: ContextoRequisicao, propostaId: st
       });
       const v = p?.versoes[0];
       if (!p || !v) return null;
-      const t = await totaisDaVersao(tx, deps, v.id, vePessoal(ctx));
+      const comPessoal = vePessoal(ctx);
+      const t = await totaisDaVersao(tx, deps, v.id, comPessoal);
       const { dentro, fora } = separarPorPlano(t.porConta, (c) => indice.contaAnaliticaAtiva(c));
       const r = totalizar(indice.nosContas, dentro);
+      // D-P33-5: o realizado carregado (US-085), de todas as competências, com a mesma regra do pessoal (D-P23-5). Conta
+      // inativa com realizado (RN_OXR_001) fica fora da árvore ativa e vai a um aviso, sem perder o valor.
+      const realizadoPorConta = new Map<string, Dinheiro>();
+      for (const l of (await lerRealizado(tx, p.unidadeId)).linhas) {
+        if (!comPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => l.conta === raiz || l.conta.startsWith(`${raiz}.`))) continue;
+        realizadoPorConta.set(l.conta, (realizadoPorConta.get(l.conta) ?? Dinheiro.zero()).somar(l.valor));
+      }
+      const realizado = separarPorPlano(realizadoPorConta, (c) => indice.contaAnaliticaAtiva(c));
+      const rr = totalizar(indice.nosContas, realizado.dentro);
+      const avisoRealizadoFora = realizado.fora.length > 0 ? [MENSAGENS_ORC.TOTALIZADOR_REALIZADO_FORA(realizado.fora.map((f) => f.conta))] : [];
       return {
         propostaId: p.id,
         numero: p.unidade.codigo,
@@ -150,10 +164,10 @@ export async function obterTotalizadores(ctx: ContextoRequisicao, propostaId: st
         tipo: p.tipo as TipoProposta,
         versaoNumero: v.numero,
         situacao: v.situacao as SituacaoProposta,
-        arvore: montarArvore(arvoreContas, (c) => r.valor(c)),
+        arvore: montarArvore(arvoreContas, (c) => r.valor(c), (c) => rr.valor(c)),
         foraDoPlano: fora,
         total: t.total,
-        avisos: t.avisos,
+        avisos: [...t.avisos, ...avisoRealizadoFora],
         semPessoal: t.semPessoal,
       };
     },

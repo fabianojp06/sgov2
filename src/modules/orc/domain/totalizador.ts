@@ -38,14 +38,19 @@ export type NoTotal = {
 };
 
 /**
- * REQ_TOT_001 e D-P23-3: a árvore do plano de contas com os valores, só com os ramos que têm algum valor
- * orçado. O realizado é zero até a execução (D-P23-1).
+ * REQ_TOT_001 e D-P23-3: a árvore do plano de contas com os valores, só com os ramos que têm algum valor orçado ou
+ * realizado. Sem `realizadoDe`, o realizado é zero (pré-visualização); nos totalizadores, é o carregado (US-085,
+ * D-P33-5).
  */
-export function montarArvore(contas: readonly NoPlano[], orcadoDe: (classificacao: string) => Dinheiro): NoTotal[] {
+export function montarArvore(
+  contas: readonly NoPlano[],
+  orcadoDe: (classificacao: string) => Dinheiro,
+  realizadoDe: (classificacao: string) => Dinheiro = () => Dinheiro.zero(),
+): NoTotal[] {
   return contas.flatMap((n): NoTotal[] => {
     const orcado = orcadoDe(n.classificacao);
-    if (orcado.ehZero()) return [];
-    const realizado = Dinheiro.zero();
+    const realizado = realizadoDe(n.classificacao);
+    if (orcado.ehZero() && realizado.ehZero()) return [];
     return [
       {
         classificacao: n.classificacao,
@@ -56,7 +61,7 @@ export function montarArvore(contas: readonly NoPlano[], orcadoDe: (classificaca
         realizado,
         saldo: orcado.subtrair(realizado),
         semaforo: semaforo(orcado, realizado),
-        filhos: montarArvore(n.filhos, orcadoDe),
+        filhos: montarArvore(n.filhos, orcadoDe, realizadoDe),
       },
     ];
   });

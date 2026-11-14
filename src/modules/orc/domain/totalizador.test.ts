@@ -54,6 +54,16 @@ describe('montarArvore e separarPorPlano (REQ_TOT_001, D-P23-3)', () => {
     ]);
   });
 
+  it('com o realizado (D-P33-5): o ramo só com realizado aparece; saldo e semáforo usam o realizado', () => {
+    const real = new Map([['4.2.1.1.001', d('50.00')], ['4.2.1.1', d('50.00')], ['4.2.1', d('50.00')], ['4.2', d('50.00')], ['4', d('50.00')], ['4.1.1.1.002', d('190.00')]]);
+    const a = montarArvore(plano, (c) => valores.get(c) ?? Dinheiro.zero(), (c) => real.get(c) ?? Dinheiro.zero());
+    expect(a[0]!.filhos.map((f) => f.classificacao)).toEqual(['4.1', '4.2']);
+    const sem = a[0]!.filhos[1]!.filhos[0]!.filhos[0]!.filhos[0]!;
+    expect([sem.classificacao, sem.orcado.paraString(), sem.saldo.paraString(), sem.semaforo]).toEqual(['4.2.1.1.001', '0.00', '-50.00', 'VERMELHO']);
+    const f = a[0]!.filhos[0]!.filhos[0]!.filhos[0]!.filhos[1]!;
+    expect([f.saldo.paraString(), f.semaforo]).toEqual(['10.00', 'LARANJA']);
+  });
+
   it('a conta fora do plano ativo vai à parte; o zero é ignorado (Review Focus 5)', () => {
     const r = separarPorPlano(
       new Map([
