@@ -253,10 +253,11 @@ test.describe.serial('proposta de TP', () => {
     await page.getByRole('link', { name: `Novo bem, serviço ou equipamento na proposta ${NUMERO_COPIA}` }).click();
     await page.locator('#novo-bem-meta').selectOption({ label: 'M2 – Atendimento' });
     await page.locator('#novo-bem-conta').selectOption('4.1.1.7.003');
-    await page.getByLabel('Descrição').fill('Notebook E2E');
-    await page.getByLabel('Data', { exact: true }).fill('2027-05-10');
-    await page.getByLabel('Quantidade').fill('3');
-    await page.getByLabel('Valor unitário (R$)').fill('1.234,56');
+    // Os ids do formulário: a pesquisa da tela também tem Descrição e datas.
+    await page.locator('#novo-bem-descricao').fill('Notebook E2E');
+    await page.locator('#novo-bem-data').fill('2027-05-10');
+    await page.locator('#novo-bem-quantidade').fill('3');
+    await page.locator('#novo-bem-valorUnitario').fill('1.234,56');
     await page.getByRole('button', { name: 'Incluir item' }).click();
     await expect(page.getByText('Item "Notebook E2E" incluído.')).toBeVisible();
     const grupo = page.getByRole('region', { name: /^Conta 4\.1\.1\.7\.003 / });
