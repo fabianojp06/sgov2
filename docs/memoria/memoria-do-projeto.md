@@ -471,14 +471,40 @@
     - telas `/orc/empregados` e `/orc/qtde-empregados`;
     - funcionalidades `orc.empregados` e `orc.qtde_empregados`: ORCAMENTISTA e ANALISTA_GRH lançam; GFIN, AUDITOR e DIREX consultam.
   - **Ficou para a US-080:** o [Finalizar Lançamentos], que envia ao WA05.
-  - **Para a US-071:** a viagem deve ligar ao empregado por FK RESTRICT (RN0254), e o `excluirEmpregado` já trata o erro 23503.
+  - **Para a US-071:** a viagem deve ligar ao empregado por FK RESTRICT (RN0254), e o `excluirEmpregado` já trata o erro 23503. **Revisto no P21:** o Viagens V3 não tem empregado na viagem, e a RN0254 é da execução (diárias emitidas e adiantamentos). A ligação fica para a prestação de contas.
   - **Para a US-074:** o Valor Global soma o custo do pessoal.
 - [ ] PO, sobre o pessoal:
   - **D-P20-4 [PROVISÓRIA]:** o ano sem parâmetros fica sem custo, com aviso, e o reajuste não acumula entre anos.
   - **D-P20-1 [PROVISÓRIA]:** os dependentes não mudam o custo, e não há hora extra nem periculosidade digitadas.
   - **D-P20-10 [PROVISÓRIA]:** a matriz de permissões.
   - O Vínculo Funcional na grade depende de o C2 expor o setor do cargo.
-- **Próxima da R4:** US-071 (viagens, #93).
+- [x] #471 (US-071, #93 fechada; plano P21 no #470): viagens da proposta.
+  - **Tabelas:** `orc_teto_viagem` (Camada 1, por conta sintética) e `orc_viagem` (Camada 2), as duas ligadas à **versão**, com RLS. O custo não é gravado: sai da RN_VIA_03 na leitura.
+  - **Teto (C6; decisão do PO de 13/11: informado) [PROVISÓRIO até o André]:**
+    - É um teto por conta sintética, sem aninhamento entre elas.
+    - As contas de passagem e de diária precisam estar sob um teto.
+    - O consumido conta passagem e diária, sem o transporte (C19).
+    - A viagem que passa do teto é recusada (E3).
+    - O teto não fica abaixo do consumido e não sai enquanto houver viagem sob ele.
+  - **Alterar (RN_VIA_07):** a meta e as contas de passagem e de diária ficam só leitura. A conta de transporte só é gravada com custo de transporte.
+  - **Copiar:** abre a inclusão já preenchida.
+  - **Painel:** cartões, composição e ranking por localidade, com barras em CSS.
+  - **Cópia nas versões:** os tetos vêm sempre. As viagens vêm na nova versão e, na duplicação, só com a mesma categoria.
+  - **Tela e permissão:** tela `/orc/viagens` e funcionalidade `orc.viagens`: ORCAMENTISTA e OPERADOR_VIAGENS lançam; GFIN, AUDITOR e DIREX consultam.
+- [x] #473 (US-072, #94 fechada; plano P22 no #472): bens, serviços e equipamentos (CAPEX).
+  - **Tabela:** `orc_bem`, ligada à **versão**, com RLS. O valor total = quantidade × unitário é calculado na leitura (RN0157).
+  - **Grade:** por conta analítica em ordem crescente, com o subtotal e o total geral, e a opção de exibir os zerados.
+  - **Exclusão (RN_PLA_11, critério "soft delete quando há snapshot"):** o bem copiado de versão anterior (`origem_id`) é **inativado**; o nascido na versão é apagado. O inativo sai dos totais e da cópia.
+  - **Duplicação:** sem `origem_id`, só com a mesma categoria e só o que cabe na vigência nova.
+  - **Filtro CAPEX (RN0411 e RN0419) [PROVISÓRIO]:** fica como ponto de injeção, `contaCapex` nas `DepsOrc`. O pedido para a frente B expor a natureza da conta está na #138; até lá, entra qualquer analítica ativa.
+  - **Tela e permissão:** tela `/orc/bens` e funcionalidade `orc.bens`: ORCAMENTISTA lança; GFIN, AUDITOR e DIREX consultam.
+- [ ] PO, sobre viagens e bens:
+  - **D-P21-5:** o teto informado por conta sintética (e se o André confirma a C6);
+  - **D-P21-3:** o transporte como pessoas × valor, fora do custo;
+  - **D-P21-10 e D-P22-10:** as matrizes de permissões;
+  - **D-P22-6:** a inativação do bem copiado.
+- [ ] Frente A: pôr a coluna Vínculo Funcional na grade de empregados. O C2 já expõe o `vinculoFuncional` (#469 da frente B).
+- **Próxima da R4:** US-074 (totalizadores, #96). A US-073 (rateio/ISS) depende do GAP-CAD-001 só no cálculo do ISS.
 
 **Frente B (03/11)**
 - [ ] PO:
@@ -599,6 +625,7 @@
 | 13/11/2026 (manhã) | B | #456 (US-118, manual por perfil; #140 fechada) e #454 na `main`; US-054 decidida pelo PO (#76). US-119 parte 2: rollback do app ensaiado no hml e restauração do dump ensaiada com o banco de dev, com correções no runbook. O PO autorizou as sessões das duas frentes a não pararem para confirmar ou relatar (seção 2). Depois: #460 (conferência da VPS), #462 (US-108, ajuda do manual por IA, sem embeddings; DoS do `semMarcas` corrigido e avisado à frente A) e #464 (roteiro da carga) |
 | 13/11/2026 (madrugada) | B | Com autonomia do PO: #447 (US-048 parte 2), #448 (US-052, impostos, `impostosVigentes` e `AnoMes` no C2 a pedido da frente A), #449 (US-047, agrupadores), #450, #451 e #453 (US-022 e US-023 no C3), #454 (teste frágil). Revisão 12.12 independente nas US com migration, com os achados corrigidos (seed de impostos, conta inativa no agrupador). Achado do menu do Administrador acima de 720px em produção levado à frente A, que corrigiu no #452. US-054 em refinamento (#76) |
 | 13/11/2026 (noite) | A | Com a autonomia do PO: plano P20 (#466) e US-070, pessoal da proposta (#467, #92 fechada). O agente revisor voltou a funcionar e achou dois defeitos, corrigidos antes do merge: o cache de benefícios era só por cargo, e a duplicação copiava pessoal incoerente com a capa nova. Um terceiro acerto veio do CI: o índice único foi declarado no schema, para não dar drift |
+| 14/11/2026 (madrugada) | A | Janela autônoma pedida pelo PO até as 13h. Saíram o plano P21 (#470) e a US-071 (#471), com o teto informado por decisão do PO, e o plano P22 (#472) e a US-072 (#473). O revisor de código não achou defeito bloqueante na US-071; o achado menor, a conta de transporte gravada com custo zero, foi corrigido. Pedido para a frente B: a natureza CAPEX da conta no C1 (#138) |
 | 13/11/2026 (tarde) | A | Com a autonomia do PO: plano P19 (#459) e US-067, metas da proposta (#461, #89 fechada). A revisão 12.12 foi feita pela própria sessão, porque o agente revisor parou por erro de autenticação da API; ela corrigiu a trava da capa nas recusas. Também o `semMarcas` linear (#463), achado da frente B na #138 |
 | 13/11/2026 | A | P18 (#443) e US-066 (#445, #88 fechada): duplicar e nova versão da proposta, implementada por agente, com revisão 12.12 independente; o médio (exclusão de V1 Em Elaboração por meio de uma V2) corrigido antes do merge |
 | 12/11/2026 (noite) | A | PO decide o GAP-CC-004 (CC próprio por TP); spec 1.7 (#435); pedido da frente B atendido com a Adm. Central só na raiz 4 (#439); plano P17 (#436) e US-065 (#440, #87 fechada), implementada por agentes (modelo e tela) com revisão 12.12 independente e as correções aplicadas; E2E sobre a seed de TPs da frente B (#438); quadro de atividades da sessão como mod do Claude Code, pedido do PO |
