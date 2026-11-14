@@ -236,6 +236,11 @@ describe('obterTotalizadores (UC03.02)', () => {
     expect([ferias?.realizado.paraString(), ferias?.semaforo]).toEqual(['70.00', 'VERMELHO']);
     const semPessoal = await obterTotalizadores(await ctx(CONSULTA), p.id, comDeps());
     expect(folha(semPessoal, '4.1.1.1.001')).toBeUndefined();
+    // O transporte da viagem cai em 4.1.1.2.001 (encargos, raiz de pessoal): sem ver o pessoal, a conta sai da árvore nos
+    // dois lados, sem linha com orçado de um lado só (revisão 12.12); o total (Valor Global) não muda.
+    expect(folha(semPessoal, '4.1.1.2.001')).toBeUndefined();
+    expect(folha(t, '4.1.1.2.001')).toBeDefined();
+    expect(semPessoal!.total.paraString()).toBe('5600.00');
     expect(folha(semPessoal, '4.1.1.5.005')!.realizado.paraString()).toBe('1900.00');
   });
 });

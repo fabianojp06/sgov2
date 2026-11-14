@@ -145,13 +145,18 @@ export async function obterTotalizadores(ctx: ContextoRequisicao, propostaId: st
       if (!p || !v) return null;
       const comPessoal = vePessoal(ctx);
       const t = await totaisDaVersao(tx, deps, v.id, comPessoal);
-      const { dentro, fora } = separarPorPlano(t.porConta, (c) => indice.contaAnaliticaAtiva(c));
+      // Sem ver o pessoal, as contas de pessoal saem da árvore nos dois lados, como no Orçado x Realizado (D-P33-2): o
+      // orçado delas sem o motor contra o realizado com a folha daria saldo e semáforo falsos (revisão 12.12). O total
+      // (Valor Global) não muda e já tem o aviso do pessoal.
+      const ePessoal = (c: string) => !comPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => c === raiz || c.startsWith(`${raiz}.`));
+      const orcadoVisivel = new Map([...t.porConta].filter(([c]) => !ePessoal(c)));
+      const { dentro, fora } = separarPorPlano(orcadoVisivel, (c) => indice.contaAnaliticaAtiva(c));
       const r = totalizar(indice.nosContas, dentro);
       // D-P33-5: o realizado carregado (US-085), de todas as competências, com a mesma regra do pessoal (D-P23-5). Conta
       // inativa com realizado (RN_OXR_001) fica fora da árvore ativa e vai a um aviso, sem perder o valor.
       const realizadoPorConta = new Map<string, Dinheiro>();
       for (const l of (await lerRealizado(tx, p.unidadeId)).linhas) {
-        if (!comPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => l.conta === raiz || l.conta.startsWith(`${raiz}.`))) continue;
+        if (ePessoal(l.conta)) continue;
         realizadoPorConta.set(l.conta, (realizadoPorConta.get(l.conta) ?? Dinheiro.zero()).somar(l.valor));
       }
       const realizado = separarPorPlano(realizadoPorConta, (c) => indice.contaAnaliticaAtiva(c));
