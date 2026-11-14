@@ -1,13 +1,13 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 import { instalarCasosUsoIA } from '@/shared/ia';
-import { CASO_AJUDA_MANUAL, CASO_COMPARATIVO_TPS, CASO_QUADRO_PESSOAL } from '../application/ia-casos';
+import { CASO_AJUDA_MANUAL, CASO_COMPARATIVO_TPS, CASO_QUADRO_PESSOAL, CASO_RELATORIO_EXECUTIVO } from '../application/ia-casos';
 
 // Funcionalidades do rel (contrato C6), no menu Relatórios. A primeira é a conferência da carga
 // inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem. A segunda,
 // as exportações em segundo plano de cada pessoa (US-024). A terceira, fora do menu, é a permissão da
 // ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107). A quinta, o
-// comparativo entre TPs (US-106), no menu da Administração Central.
+// comparativo entre TPs (US-106), no menu da Administração Central. A sexta, o relatório executivo mensal (US-103).
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -99,6 +99,20 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // Os mesmos perfis do Consolidado (D-P31-1, provisório): DIREX e GFIN. O caso nasce desligado e com teto zero (/int/ia).
     perfisPadrao: { DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'] },
   },
+  {
+    codigo: 'rel.relatorio_executivo',
+    modulo: 'RELATORIOS',
+    grupo: 'Análises com IA',
+    nome: 'Relatório executivo mensal',
+    rota: '/rel/relatorio-executivo',
+    ordem: 5,
+    ajuda:
+      'Rascunho do relatório do mês para diretores e gerentes: indicadores da Administração Central e dos TPs, gráficos do sistema e, com a IA ' +
+      'ligada, resumo, riscos e recomendações. A GFIN revisa, edita e aprova antes de distribuir; o PDF do rascunho sai marcado "não distribuir".',
+    acoes: ['consultar', 'executar', 'alterar', 'aprovar', 'exportar'],
+    // US-103 (IA-14): a GFIN gera, revisa e aprova; a DIREX consulta e baixa os aprovados. O caso nasce desligado e com teto zero (/int/ia).
+    perfisPadrao: { GFIN: ['consultar', 'executar', 'alterar', 'aprovar', 'exportar'], DIREX: ['consultar', 'exportar'] },
+  },
 ];
 
 export const seedRel: Seed = {
@@ -106,6 +120,6 @@ export const seedRel: Seed = {
   async executar(tx) {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_REL);
     // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
-    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS]);
+    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS, CASO_RELATORIO_EXECUTIVO]);
   },
 };
