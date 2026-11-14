@@ -19,16 +19,15 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // livre (D-P17-10). O afterAll apaga o rateio, os bens, as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
-// Usuário: o Orçamentista E2E de e2e/aut/apoio.ts (orc.menu), que outros specs também usam. O vínculo
-// com a unidade fica depois da exclusão lógica (D-P17-10); o afterAll o apaga para não mudar o seletor
-// de unidade dos outros specs. Se a ordem dos specs atrapalhar, crie um Orçamentista próprio em
-// USUARIOS (por exemplo, orc.propostas).
+// Usuário: o Orçamentista próprio deste spec (orc.propostas, em e2e/aut/apoio.ts). Ele entra uma vez por passo,
+// e o limite de login por usuário estourava quando dividia o orc.menu com os outros specs. O vínculo com a
+// unidade fica depois da exclusão lógica (D-P17-10); o afterAll o apaga.
 const NUMERO = 'TP-E2E-001';
 const OBJETO = 'Proposta E2E de apoio à gestão';
 const CC = '9.1';
 const NUMERO_COPIA = 'TP-E2E-002';
 const CC_COPIA = '9.2';
-const usuario = USUARIOS.orcamentista;
+const usuario = USUARIOS.propostas;
 const linhaDa = (page: Page, numero = NUMERO) => page.getByRole('row', { name: new RegExp(`^${numero} `) });
 // Colunas de dados da linha (o número é o cabeçalho da linha): Tipo, Objeto, Categoria, Vigência, CC, Versão.
 const versaoDa = (page: Page, numero = NUMERO) => linhaDa(page, numero).getByRole('cell').nth(5);
