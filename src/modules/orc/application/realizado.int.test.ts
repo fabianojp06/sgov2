@@ -241,7 +241,7 @@ describe('parte 2: previsto, cabeçalho do TP, lista dos TPs e reprocessamento (
 
     const com = await porta('2026-01', '2026-03');
     expect(com?.previsto?.map((l) => [l.conta, l.competencia, l.valor.paraString()])).toEqual([['4.1.1.5.005', '2026-02', '2000.00']]);
-    expect([com?.versaoPrevisto, com?.previstoSemPessoal]).toEqual([1, true]);
+    expect([com?.versaoPrevisto, com?.previstoSemPessoal, com?.pessoalNaoHomologado]).toEqual([1, false, false]); // sem empregados
     expect(com?.tp).toEqual({ numero: 'TP-R01/2026', objeto: 'Objeto TP-R01/2026', inicio: '2026-01', fim: '2026-12', versaoOficial: 1 });
     expect((await porta('2026-03', '2026-04'))?.previsto).toEqual([]);
     // Sem pedir o previsto, a resposta não o calcula.
@@ -263,8 +263,23 @@ describe('parte 2: previsto, cabeçalho do TP, lista dos TPs e reprocessamento (
     const ajuste = await migrator.ajusteRealizado.findFirstOrThrow({ where: { unidadeId: tps.a.unidadeId, conta: '4.1.1.1.005' } });
     expect([ajuste.competenciaOrigem.toISOString().slice(0, 7), ajuste.competenciaLancamento.toISOString().slice(0, 7), ajuste.valor.toString()]).toEqual(['2026-10', '2026-11', '15']);
     expect(await migrator.pendenciaRealizado.count({ where: { unidadeId: tps.a.unidadeId, contaErp: '4.1.1.1.005' } })).toBe(0);
+    const historico = await migrator.historicoOperacao.findFirstOrThrow({ where: { funcionalidade: 'orc.realizado', descricao: { startsWith: 'Pendências do realizado do TP TP-R01/2026' } } });
+    expect(historico.tipoOperacao).toBe('INSERCAO');
     // De novo: nada a resolver.
     expect(exigirOk(await reprocessarPendencias(gfinA(), { propostaId: tps.a.id }, comDeps())).resolvidas).toBe(0);
     await expect(reprocessarPendencias(ctx(gfin, [tps.a.unidadeId], ['orc.realizado:consultar']), { propostaId: tps.a.id }, comDeps())).rejects.toThrow();
+  });
+
+  it('pendência de mês fechado cuja conta passou a existir é absorvida pela carga seguinte e não é lançada de novo no reprocessamento (revisão 12.12)', async () => {
+    const semConta = (nos: readonly NoConta[]): NoConta[] => nos.filter((n) => n.classificacao !== '4.1.1.1.003').map((n) => ({ ...n, filhos: semConta(n.filhos) }));
+    const antes = { ...comDeps(), estrutura: estruturaFinanceiraFalsa({ contas: semConta(comInativa(CONTAS_EXEMPLO)), centrosCusto: [...CENTROS_CUSTO_EXEMPLO, cc('9', false, [cc('9.1', true), cc('9.2', true)])] }) };
+    const arquivo = [['4.1.1.1.003', '2026-09', 25]];
+    expect(exigirOk(await carregarRealizado(gfinA(), { propostaId: tps.a.id, arquivo: await montarArquivoRealizado(arquivo) }, antes)).pendencias.quantidade).toBe(1);
+    // Depois da Integração 1, a mesma carga: a diferença vira ajuste, e a pendência sai.
+    expect(exigirOk(await carregar(arquivo)).ajustes).toBe(1);
+    expect(await migrator.pendenciaRealizado.count({ where: { unidadeId: tps.a.unidadeId, contaErp: '4.1.1.1.003', competencia: new Date('2026-09-01') } })).toBe(0);
+    expect(exigirOk(await reprocessarPendencias(gfinA(), { propostaId: tps.a.id }, comDeps())).resolvidas).toBe(0);
+    const ajustes = await migrator.ajusteRealizado.findMany({ where: { unidadeId: tps.a.unidadeId, conta: '4.1.1.1.003', competenciaOrigem: new Date('2026-09-01') } });
+    expect(ajustes.map((a) => a.valor.toString())).toEqual(['25']);
   });
 });

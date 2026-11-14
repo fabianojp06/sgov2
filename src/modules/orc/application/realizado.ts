@@ -202,6 +202,10 @@ export async function carregarRealizado(
       });
       // D-P32-3: as pendências e o realizado das competências abertas do arquivo são substituídos.
       await tx.pendenciaRealizado.deleteMany({ where: { unidadeId: p.unidadeId, competencia: { in: abertas.map(competenciaParaData) } } });
+      // Nas fechadas, a pendência cuja conta já é analítica foi absorvida pelo ajuste acima (o arquivo manda no mês): sai,
+      // para o reprocessamento não a lançar de novo (revisão 12.12 da parte 2).
+      const absorvidas = pendentesFechadas.filter((x) => tipos.get(x.contaErp) === 'ANALITICA').map((x) => x.id);
+      if (absorvidas.length > 0) await tx.pendenciaRealizado.deleteMany({ where: { id: { in: absorvidas } } });
       await tx.realizadoContaMes.deleteMany({ where: { unidadeId: p.unidadeId, competencia: { in: abertas.map(competenciaParaData) } } });
       await tx.realizadoContaMes.createMany({
         data: analiticas
@@ -335,6 +339,7 @@ export async function reprocessarPendencias(ctx: ContextoRequisicao, entrada: { 
         select: { id: true },
       });
       for (const [k, valor] of abertas) {
+        if (valor.ehZero()) continue;
         const [conta, c] = k.split('|') as [string, string];
         const competencia = competenciaParaData(c);
         const atual = await tx.realizadoContaMes.findUnique({ where: { unidadeId_conta_competencia: { unidadeId: p.unidadeId, conta, competencia } } });
@@ -398,8 +403,10 @@ export type RealizadoDoTp = {
   previsto?: readonly LinhaRealizado[];
   /** O número da versão oficializada do previsto; nulo se não há (D-P32-10). */
   versaoPrevisto?: number | null;
-  /** O previsto saiu sem o pessoal: só quem lança os empregados vê o custo do pessoal (D-P23-5, D-P32-11). */
+  /** Há pessoal homologado fora do previsto: só quem lança os empregados vê o custo do pessoal (D-P23-5, D-P32-11). */
   previstoSemPessoal?: boolean;
+  /** Há empregados na versão oficial, mas o lote de pessoal não foi homologado: o pessoal não entra (RN_WA05_005). */
+  pessoalNaoHomologado?: boolean;
   /** O cabeçalho do TP (pedido da frente B na #138; RN0238, RN0294). */
   tp?: TpDoRealizado;
 };
@@ -479,7 +486,7 @@ export async function realizadoPorTp(
       if (!filtro.previsto) return base;
       const oficial = p.versoes[0];
       const comPessoal = vePessoal(ctx);
-      if (!oficial) return { ...base, previsto: [], versaoPrevisto: null, previstoSemPessoal: !comPessoal };
+      if (!oficial) return { ...base, previsto: [], versaoPrevisto: null, previstoSemPessoal: false, pessoalNaoHomologado: false };
       const competencias = competenciasDaVigencia(p.inicio, p.fim);
       const s = await seriesDaVersao(tx, deps, oficial.id, comPessoal, competencias);
       const previsto = [...s.porContaMes.entries()]
@@ -489,7 +496,7 @@ export async function realizadoPorTp(
         })
         .filter((l) => l.competencia >= filtro.de && l.competencia <= filtro.ate)
         .sort((a, b) => a.competencia.localeCompare(b.competencia) || a.conta.localeCompare(b.conta, 'pt-BR', { numeric: true }));
-      return { ...base, previsto, versaoPrevisto: oficial.numero, previstoSemPessoal: !comPessoal };
+      return { ...base, previsto, versaoPrevisto: oficial.numero, previstoSemPessoal: s.semPessoal, pessoalNaoHomologado: s.pessoalNaoHomologado };
     },
     { cliente: deps.cliente },
   );
