@@ -48,7 +48,9 @@ services:
     working_dir: /app
     command: ["npx", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
     environment:
-      NODE_OPTIONS: "--max-old-space-size=1536"
+      # Heap abaixo do mem_limit (#163): o Node precisa de memória fora do heap, e com o heap igual ao limite o
+      # contêiner morre por OOM antes de o Node coletar o lixo.
+      NODE_OPTIONS: "--max-old-space-size=1280"
       DATABASE_URL: "postgresql://sgo_app:sgo_app@db:5432/sgo_dev"
     ports:
       - "127.0.0.1:${APP_PORT:?defina APP_PORT no .env}:3000"
