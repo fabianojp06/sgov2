@@ -42,13 +42,15 @@ REVOKE ALL ON "orc_snapshot_versao" FROM sgo_sync;
 REVOKE UPDATE, DELETE ON "orc_snapshot_versao" FROM sgo_app;
 
 -- 2) Ciclo de vida da versão (§6.2, UC03.10, UC6.00; D-P26-2, D-P26-4, D-P26-6 e D-P26-7): a aplicação passa a
---    mudar a situação, e só pelas transições do fluxo. O gatilho é a segunda barreira; a primeira é o caso de uso.
+--    mudar a situação, e só pelas transições do fluxo. O gatilho é a segunda barreira para a aplicação; a primeira
+--    é o caso de uso.
 GRANT UPDATE ("situacao") ON "orc_versao_proposta" TO sgo_app;
 
 CREATE FUNCTION orc_versao_proposta_transicao() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 BEGIN
-  IF NEW.situacao = OLD.situacao THEN
+  -- Só a aplicação (sgo_app) é barrada: o dono do banco (migrações, carga, correções de suporte) segue livre.
+  IF NEW.situacao = OLD.situacao OR current_user <> 'sgo_app' THEN
     RETURN NEW;
   END IF;
   IF (OLD.situacao, NEW.situacao) NOT IN (

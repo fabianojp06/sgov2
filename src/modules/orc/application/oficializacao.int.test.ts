@@ -280,8 +280,13 @@ describe('decisão do WA01 na Central de Tarefas (UC6.00 passo 5 e FA-A)', () =>
     expect(await enviar(p.id)).toMatchObject({ ok: false });
   });
 
-  it('o banco recusa transição fora do fluxo, mesmo por fora do caso de uso', async () => {
+  it('o banco recusa à aplicação transição fora do fluxo, mesmo por fora do caso de uso', async () => {
     const p = await proposta();
-    await expect(migrator.versaoProposta.updateMany({ where: { propostaId: p.id }, data: { situacao: 'OFICIALIZADO' } })).rejects.toThrow(/transicao_invalida/);
+    await expect(
+      app.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.unidades', ${`{${p.unidadeId}}`}, true)`;
+        return tx.versaoProposta.updateMany({ where: { propostaId: p.id }, data: { situacao: 'OFICIALIZADO' } });
+      }),
+    ).rejects.toThrow(/transicao_invalida/);
   });
 });
