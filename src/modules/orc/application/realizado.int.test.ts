@@ -7,7 +7,8 @@ import { obterConsolidado } from './consolidado';
 import type { DepsOrc } from './deps';
 import { montarArquivoRealizado } from './planilhas-teste';
 import { criarProposta } from './propostas';
-import { carregarRealizado, fecharCompetencia, obterTelaRealizado, realizadoPorTp } from './realizado';
+import { incluirBem } from './bens';
+import { carregarRealizado, fecharCompetencia, obterTelaRealizado, realizadoPorTp, reprocessarPendencias, tpsDoRealizado } from './realizado';
 
 // Realizado por arquivo (US-085, parte 1; plano do P32, Task 2; OxR V2, AC06 e AC07). Como sgo_app (RLS real), com o
 // arquivo .xlsx de verdade pelo leitor do ger. A competência fechada é global: cada teste usa os seus meses.
@@ -220,5 +221,50 @@ describe('Consolidado com o realizado (D-P32-8)', () => {
     const linhas = new Map(c.linhas.map((l) => [l.numero, l.realizado.paraString()]));
     expect(linhas.get('TP-R01/2026')).toBe(t!.total.paraString());
     expect(linhas.get('TP-R02/2026')).toBe('0.00');
+  });
+});
+
+describe('parte 2: previsto, cabeçalho do TP, lista dos TPs e reprocessamento (pedidos da frente B na #138)', () => {
+  it('o previsto é o cronograma da última versão oficializada, no período; sem ela, vazio; o cabeçalho e a lista trazem a vigência e a versão oficial', async () => {
+    const porta = (de: string, ate: string) => realizadoPorTp(gfinA(), { tp: 'TP-R01/2026', de, ate, previsto: true }, comDeps());
+    const sem = await porta('2026-01', '2026-12');
+    expect([sem?.previsto, sem?.versaoPrevisto]).toEqual([[], null]);
+    expect(await tpsDoRealizado(gfinA(), comDeps())).toEqual([{ numero: 'TP-R01/2026', objeto: 'Objeto TP-R01/2026', inicio: '2026-01', fim: '2026-12', versaoOficial: null }]);
+
+    // Um bem de 2 × 1.000,00 em fev/2026 e a versão 1 oficializada (como a US-079 deixa).
+    const o = ctx(orcamentista, [tps.a.unidadeId], ['orc.propostas:consultar', ...['consultar', 'incluir', 'alterar', 'excluir'].map((a) => `orc.bens:${a}`)]);
+    const capa = (await migrator.propostaTp.findUniqueOrThrow({ where: { id: tps.a.id } })).versao;
+    exigirOk(await incluirBem(o, { propostaId: tps.a.id, versaoCapa: capa, conta: '4.1.1.5.005', descricao: 'Notebook', data: '2026-02-10', quantidade: '2', valorUnitario: '1.000,00' }, comDeps()));
+    const v = await migrator.versaoProposta.findFirstOrThrow({ where: { propostaId: tps.a.id } });
+    await migrator.$executeRaw`UPDATE orc_versao_proposta SET situacao = 'OFICIALIZADO' WHERE id = ${v.id}::uuid`;
+    await migrator.snapshotVersao.create({ data: { unidadeId: v.unidadeId, versaoPropostaId: v.id, valorGlobal: '2000.00', contas: { '4.1.1.5.005': '2000.00' }, geradoPor: orcamentista } });
+
+    const com = await porta('2026-01', '2026-03');
+    expect(com?.previsto?.map((l) => [l.conta, l.competencia, l.valor.paraString()])).toEqual([['4.1.1.5.005', '2026-02', '2000.00']]);
+    expect([com?.versaoPrevisto, com?.previstoSemPessoal]).toEqual([1, true]);
+    expect(com?.tp).toEqual({ numero: 'TP-R01/2026', objeto: 'Objeto TP-R01/2026', inicio: '2026-01', fim: '2026-12', versaoOficial: 1 });
+    expect((await porta('2026-03', '2026-04'))?.previsto).toEqual([]);
+    // Sem pedir o previsto, a resposta não o calcula.
+    expect((await realizadoPorTp(gfinA(), { tp: 'TP-R01/2026', de: '2026-01', ate: '2026-03' }, comDeps()))?.previsto).toBeUndefined();
+    expect((await tpsDoRealizado(ctx(gfin, [tps.b.unidadeId]), comDeps())).map((t) => [t.numero, t.versaoOficial])).toEqual([['TP-R02/2026', null]]);
+  });
+
+  it('reprocessar: a pendência cuja conta passou a existir sai; em mês aberto soma ao realizado, em mês fechado vira ajuste; as outras ficam (D-P32-12)', async () => {
+    // A conta 4.1.1.1.005 ainda não está no plano na hora da carga (antes da Integração 1).
+    const semConta = (nos: readonly NoConta[]): NoConta[] => nos.filter((n) => n.classificacao !== '4.1.1.1.005').map((n) => ({ ...n, filhos: semConta(n.filhos) }));
+    const antes = { ...comDeps(), estrutura: estruturaFinanceiraFalsa({ contas: semConta(comInativa(CONTAS_EXEMPLO)), centrosCusto: [...CENTROS_CUSTO_EXEMPLO, cc('9', false, [cc('9.1', true), cc('9.2', true)])] }) };
+    const r = exigirOk(await carregarRealizado(gfinA(), { propostaId: tps.a.id, arquivo: await montarArquivoRealizado([['4.1.1.1.005', '2026-08', 40], ['4.1.1.1.001', '2026-08', 60], ['4.1.1.1.005', '2026-10', 15]]) }, antes));
+    expect(r.pendencias.quantidade).toBe(2);
+    const restantesAntes = await migrator.pendenciaRealizado.count({ where: { unidadeId: tps.a.unidadeId } });
+
+    const feito = exigirOk(await reprocessarPendencias(gfinA(), { propostaId: tps.a.id }, comDeps()));
+    expect([feito.resolvidas, feito.ajustes, feito.restantes]).toEqual([2, 1, restantesAntes - 2]);
+    expect(await doMes('2026-08')).toEqual([['4.1.1.1.001', '60'], ['4.1.1.1.005', '40']]);
+    const ajuste = await migrator.ajusteRealizado.findFirstOrThrow({ where: { unidadeId: tps.a.unidadeId, conta: '4.1.1.1.005' } });
+    expect([ajuste.competenciaOrigem.toISOString().slice(0, 7), ajuste.competenciaLancamento.toISOString().slice(0, 7), ajuste.valor.toString()]).toEqual(['2026-10', '2026-11', '15']);
+    expect(await migrator.pendenciaRealizado.count({ where: { unidadeId: tps.a.unidadeId, contaErp: '4.1.1.1.005' } })).toBe(0);
+    // De novo: nada a resolver.
+    expect(exigirOk(await reprocessarPendencias(gfinA(), { propostaId: tps.a.id }, comDeps())).resolvidas).toBe(0);
+    await expect(reprocessarPendencias(ctx(gfin, [tps.a.unidadeId], ['orc.realizado:consultar']), { propostaId: tps.a.id }, comDeps())).rejects.toThrow();
   });
 });

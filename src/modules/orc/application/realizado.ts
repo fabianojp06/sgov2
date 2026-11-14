@@ -17,8 +17,10 @@ import {
   type ValorArquivo,
 } from '../domain/realizado';
 import { contextoAuditoria } from './calculo-linhas';
+import { seriesDaVersao } from './cronograma';
 import { resolverDeps, type DepsOrc } from './deps';
 import { uuid } from './pessoal-comum';
+import { vePessoal } from './totalizadores';
 
 // Realizado por arquivo (US-085, parte 1; plano do P32, Tasks 2 e 3; OxR V2, RN_OXR_003 a 008). A carga é por TP, numa
 // transação só (RN_OXR_005): competência aberta presente no arquivo é apagada e regravada; competência fechada não
@@ -286,6 +288,81 @@ export async function fecharCompetencia(ctx: ContextoRequisicao, entrada: { comp
   );
 }
 
+export type ResumoReprocessamento = { numero: string; resolvidas: number; restantes: number; ajustes: number };
+
+/**
+ * Reprocessa as pendências do TP depois da Integração 1 (RN_OXR_004: "até a Integração 1 ser executada"; US-085,
+ * parte 2; D-P32-12) [PROVISÓRIO]: a pendência cuja conta passou a ser analítica no C1 sai da lista; em mês aberto, o
+ * valor soma ao realizado da conta (a linha é apagada e regravada, sem UPDATE); em mês fechado, vira ajuste no primeiro
+ * mês aberto seguinte, com a origem (RN_OXR_006). As demais ficam. Tudo numa transação, com a trava da carga.
+ */
+export async function reprocessarPendencias(ctx: ContextoRequisicao, entrada: { propostaId: string }, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<ResumoReprocessamento>> {
+  const deps = resolverDeps(depsParciais);
+  exigir(ctx, FUNCIONALIDADE, 'executar');
+  const naoEncontrado = falha([{ campo: '_', mensagem: MENSAGENS_CARGA.TP_NAO_ENCONTRADO }]);
+  if (!uuid.safeParse(entrada.propostaId).success) return naoEncontrado;
+  const tipos = await tiposDasContas(deps);
+  return emUnidade(
+    ctx,
+    async (tx) => {
+      const p = await tx.propostaTp.findFirst({ where: { id: entrada.propostaId, excluidaEm: null }, include: { unidade: { select: { codigo: true } } } });
+      if (!p) return naoEncontrado;
+      await travarCarga(tx, p.unidadeId);
+      const fechadas = new Set((await tx.competenciaFechada.findMany({ select: { competencia: true } })).map((c) => competenciaParaTexto(c.competencia)));
+      const pendentes = await tx.pendenciaRealizado.findMany({ where: { unidadeId: p.unidadeId } });
+      const resolvidas = pendentes.filter((x) => tipos.get(x.contaErp) === 'ANALITICA');
+      if (resolvidas.length === 0) return ok({ numero: p.unidade.codigo, resolvidas: 0, restantes: pendentes.length, ajustes: 0 });
+
+      const abertas = new Map<string, Dinheiro>();
+      const ajustes = new Map<string, Dinheiro>();
+      const somar = (m: Map<string, Dinheiro>, k: string, v: Dinheiro) => m.set(k, (m.get(k) ?? Dinheiro.zero()).somar(v));
+      for (const x of resolvidas) {
+        const c = competenciaParaTexto(x.competencia);
+        somar(fechadas.has(c) ? ajustes : abertas, chave(x.contaErp, c), dec(x.valor));
+      }
+      const listaAjustes = [...ajustes.entries()].filter(([, v]) => !v.ehZero());
+      const carga = await tx.cargaRealizado.create({
+        data: {
+          unidadeId: p.unidadeId,
+          arquivo: '(reprocessamento de pendências)',
+          linhas: resolvidas.length,
+          total: Dinheiro.somarTodos(resolvidas.map((x) => dec(x.valor))).paraDecimal(),
+          pendencias: pendentes.length - resolvidas.length,
+          ajustes: listaAjustes.length,
+          competencias: [...new Set(resolvidas.map((x) => competenciaParaTexto(x.competencia)))].sort(),
+          carregadoPor: ctx.usuarioId,
+        },
+        select: { id: true },
+      });
+      for (const [k, valor] of abertas) {
+        const [conta, c] = k.split('|') as [string, string];
+        const competencia = competenciaParaData(c);
+        const atual = await tx.realizadoContaMes.findUnique({ where: { unidadeId_conta_competencia: { unidadeId: p.unidadeId, conta, competencia } } });
+        if (atual) await tx.realizadoContaMes.delete({ where: { id: atual.id } });
+        const total = atual ? dec(atual.valor).somar(valor) : valor;
+        await tx.realizadoContaMes.create({ data: { unidadeId: p.unidadeId, conta, competencia, valor: total.paraDecimal(), cargaId: carga.id } });
+      }
+      await tx.ajusteRealizado.createMany({
+        data: listaAjustes.map(([k, valor]) => {
+          const [conta, origem] = k.split('|') as [string, string];
+          return { unidadeId: p.unidadeId, conta, competenciaOrigem: competenciaParaData(origem), competenciaLancamento: competenciaParaData(competenciaDeLancamento(origem, fechadas)), valor: valor.paraDecimal(), cargaId: carga.id };
+        }),
+      });
+      await tx.pendenciaRealizado.deleteMany({ where: { id: { in: resolvidas.map((x) => x.id) } } });
+      await auditar(tx, {
+        contexto: { ...contextoAuditoria(ctx), unidadeId: p.unidadeId },
+        funcionalidade: FUNCIONALIDADE,
+        tipo: 'INSERCAO',
+        registroId: carga.id,
+        descricao: `Pendências do realizado do TP ${p.unidade.codigo} reprocessadas`,
+        depois: { status: 'CONCLUIDA', resolvidas: resolvidas.length, restantes: pendentes.length - resolvidas.length, ajustes: listaAjustes.length },
+      });
+      return ok({ numero: p.unidade.codigo, resolvidas: resolvidas.length, restantes: pendentes.length - resolvidas.length, ajustes: listaAjustes.length });
+    },
+    { cliente: deps.cliente, timeoutMs: PRAZO_MS },
+  );
+}
+
 /** O realizado de cada unidade (carga + ajustes de todas as competências), para o Consolidado (D-P32-8). */
 export async function realizadoPorUnidade(tx: TxCliente, unidadeIds: readonly string[]): Promise<Map<string, Dinheiro>> {
   const [cargas, ajustes] = await Promise.all([
@@ -314,7 +391,42 @@ export type RealizadoDoTp = {
   pendencias: { quantidade: number; valor: Dinheiro };
   /** A última carga do TP (REQ_OXR_005); nulo se nunca houve. */
   atualizadoEm: Date | null;
+  /**
+   * Só com `previsto: true` no filtro (US-085, parte 2; D-P32-10): o cronograma de desembolso da última versão
+   * oficializada (UC04.01), por conta analítica e competência do período. Vazio se não há versão oficializada.
+   */
+  previsto?: readonly LinhaRealizado[];
+  /** O número da versão oficializada do previsto; nulo se não há (D-P32-10). */
+  versaoPrevisto?: number | null;
+  /** O previsto saiu sem o pessoal: só quem lança os empregados vê o custo do pessoal (D-P23-5, D-P32-11). */
+  previstoSemPessoal?: boolean;
+  /** O cabeçalho do TP (pedido da frente B na #138; RN0238, RN0294). */
+  tp?: TpDoRealizado;
 };
+
+/** A capa do TP e a última versão oficializada, sem recalcular nada (pedido da frente B na #138). */
+export type TpDoRealizado = { numero: string; objeto: string; inicio: string; fim: string; versaoOficial: number | null };
+
+const capaDoTp = (p: { objeto: string; inicio: Date; fim: Date; unidade: { codigo: string }; versoes: readonly { numero: number }[] }): TpDoRealizado => ({
+  numero: p.unidade.codigo,
+  objeto: p.objeto,
+  inicio: competenciaParaTexto(p.inicio),
+  fim: competenciaParaTexto(p.fim),
+  versaoOficial: p.versoes[0]?.numero ?? null,
+});
+const VERSAO_OFICIAL = { where: { snapshot: { isNot: null } }, orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true } } as const;
+
+/** Os TPs que o usuário vê (RLS), para o filtro dos relatórios de execução (RN0234; RN0385 filtra pelo versaoOficial). */
+export async function tpsDoRealizado(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly TpDoRealizado[]> {
+  const deps = resolverDeps(depsParciais);
+  exigir(ctx, FUNCIONALIDADE, 'consultar');
+  const ps = await emUnidade(
+    ctx,
+    (tx) => tx.propostaTp.findMany({ where: { excluidaEm: null }, select: { objeto: true, inicio: true, fim: true, unidade: { select: { codigo: true } }, versoes: VERSAO_OFICIAL } }),
+    { cliente: deps.cliente },
+  );
+  return ps.map(capaDoTp).sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
+}
 
 async function lerRealizado(tx: TxCliente, unidadeId: string, de?: string, ate?: string): Promise<RealizadoDoTp & { pendentes: readonly LinhaRealizado[] }> {
   const periodo = de && ate ? { gte: competenciaParaData(de), lte: competenciaParaData(ate) } : undefined;
@@ -348,7 +460,7 @@ async function lerRealizado(tx: TxCliente, unidadeId: string, de?: string, ate?:
  */
 export async function realizadoPorTp(
   ctx: ContextoRequisicao,
-  filtro: { tp: string; de: string; ate: string },
+  filtro: { tp: string; de: string; ate: string; previsto?: boolean },
   depsParciais: Partial<DepsOrc> = {},
 ): Promise<RealizadoDoTp | null> {
   const deps = resolverDeps(depsParciais);
@@ -357,10 +469,27 @@ export async function realizadoPorTp(
   return emUnidade(
     ctx,
     async (tx) => {
-      const p = await tx.propostaTp.findFirst({ where: { excluidaEm: null, unidade: { codigo: filtro.tp } }, select: { unidadeId: true } });
+      const p = await tx.propostaTp.findFirst({
+        where: { excluidaEm: null, unidade: { codigo: filtro.tp } },
+        select: { unidadeId: true, objeto: true, inicio: true, fim: true, unidade: { select: { codigo: true } }, versoes: VERSAO_OFICIAL },
+      });
       if (!p) return null;
       const r = await lerRealizado(tx, p.unidadeId, filtro.de, filtro.ate);
-      return { linhas: r.linhas, ajustes: r.ajustes, pendencias: r.pendencias, atualizadoEm: r.atualizadoEm };
+      const base = { linhas: r.linhas, ajustes: r.ajustes, pendencias: r.pendencias, atualizadoEm: r.atualizadoEm, tp: capaDoTp(p) };
+      if (!filtro.previsto) return base;
+      const oficial = p.versoes[0];
+      const comPessoal = vePessoal(ctx);
+      if (!oficial) return { ...base, previsto: [], versaoPrevisto: null, previstoSemPessoal: !comPessoal };
+      const competencias = competenciasDaVigencia(p.inicio, p.fim);
+      const s = await seriesDaVersao(tx, deps, oficial.id, comPessoal, competencias);
+      const previsto = [...s.porContaMes.entries()]
+        .map(([k, valor]) => {
+          const [conta, competencia] = k.split('|') as [string, string];
+          return { conta, competencia, valor };
+        })
+        .filter((l) => l.competencia >= filtro.de && l.competencia <= filtro.ate)
+        .sort((a, b) => a.competencia.localeCompare(b.competencia) || a.conta.localeCompare(b.conta, 'pt-BR', { numeric: true }));
+      return { ...base, previsto, versaoPrevisto: oficial.numero, previstoSemPessoal: !comPessoal };
     },
     { cliente: deps.cliente },
   );

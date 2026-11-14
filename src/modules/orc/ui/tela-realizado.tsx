@@ -1,6 +1,6 @@
 import type { PropostaParaRealizado, TelaRealizado as Dados } from '../application/realizado';
 import { valorParaTela } from '../domain/valor-tela';
-import { FormCargaRealizado, FormFecharCompetencia, type AcaoRealizado } from './form-realizado';
+import { FormCargaRealizado, FormFecharCompetencia, FormReprocessarPendencias, type AcaoRealizado } from './form-realizado';
 
 // Realizado do TP (US-085, parte 1; plano do P32, Task 3): o valor por competência (carga + ajustes lançados nela,
 // RN_OXR_008), os ajustes de meses fechados com a origem (RN_OXR_006), as pendências (RN_OXR_004, E3) e as últimas
@@ -33,8 +33,9 @@ export function TelaRealizado(props: {
   propostas: readonly PropostaParaRealizado[];
   carregar: AcaoRealizado | null;
   fechar: AcaoRealizado | null;
+  reprocessar?: AcaoRealizado | null;
 }) {
-  const { dados, propostas, carregar, fechar } = props;
+  const { dados, propostas, carregar, fechar, reprocessar } = props;
   return (
     <>
       {!dados ? (
@@ -117,6 +118,7 @@ export function TelaRealizado(props: {
               </tbody>
             </table>
           )}
+          {dados.pendentes.length > 0 && reprocessar && <FormReprocessarPendencias propostaId={dados.propostaId} reprocessar={reprocessar} />}
           {dados.cargas.length > 0 && (
             <table>
               <caption>Últimas cargas</caption>

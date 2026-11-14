@@ -5,7 +5,7 @@ import { LIMITES_PADRAO } from '@/modules/ger/servidor';
 import { definirAcao } from '@/shared/authz';
 import { falha, ok } from '@/shared/kernel';
 import { valorParaTela } from '../domain/valor-tela';
-import { carregarRealizado, fecharCompetencia, MENSAGENS_CARGA } from './realizado';
+import { carregarRealizado, fecharCompetencia, MENSAGENS_CARGA, reprocessarPendencias } from './realizado';
 
 // Ações do realizado (US-085, parte 1; plano do P32, Task 3). O tamanho é conferido antes de ler o arquivo para a
 // memória; a resposta leva só dados serializáveis.
@@ -37,4 +37,21 @@ const entradaFechamento = z.preprocess(
 export const fecharCompetenciaAcao = definirAcao({ funcionalidade: 'orc.realizado', acao: 'aprovar', entrada: entradaFechamento }, async (e, ctx) => {
   const r = await fecharCompetencia(ctx, e);
   return r.ok ? ok({ mensagem: `Competência ${r.valor.competencia} fechada.` }) : r;
+});
+
+const entradaReprocessar = z.preprocess(
+  (v) => (v instanceof FormData ? { propostaId: v.get('propostaId') } : v),
+  z.object({ propostaId: z.string() }),
+);
+
+export const reprocessarPendenciasAcao = definirAcao({ funcionalidade: 'orc.realizado', acao: 'executar', entrada: entradaReprocessar }, async (e, ctx) => {
+  const r = await reprocessarPendencias(ctx, e);
+  if (!r.ok) return r;
+  const v = r.valor;
+  return ok({
+    mensagem:
+      v.resolvidas === 0
+        ? `Nenhuma pendência do TP ${v.numero} tem conta analítica no plano de contas ainda.`
+        : `${v.resolvidas} pendência(s) do TP ${v.numero} resolvida(s)${v.ajustes > 0 ? `, ${v.ajustes} como ajuste de mês fechado` : ''}; ${v.restantes} continua(m) pendente(s).`,
+  });
 });

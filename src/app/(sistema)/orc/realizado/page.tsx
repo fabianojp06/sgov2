@@ -1,4 +1,4 @@
-import { carregarRealizadoAcao, fecharCompetenciaAcao, naoEncontradoSeNegado, obterTelaRealizado, propostasParaRealizado, TelaRealizado } from '@/modules/orc';
+import { carregarRealizadoAcao, fecharCompetenciaAcao, reprocessarPendenciasAcao, naoEncontradoSeNegado, obterTelaRealizado, propostasParaRealizado, TelaRealizado } from '@/modules/orc';
 import { exigirPagina } from '@/shared/authz';
 
 // Realizado do TP (US-085, parte 1; plano do P32, Task 3): com ?proposta=<id>, o realizado do TP e a carga do arquivo
@@ -20,6 +20,7 @@ export default async function Realizado({ searchParams }: { searchParams: Promis
         propostas={propostas}
         carregar={ctx.permissoes.has('orc.realizado:executar') ? carregarRealizadoAcao : null}
         fechar={ctx.permissoes.has('orc.realizado:aprovar') ? fecharCompetenciaAcao : null}
+        reprocessar={ctx.permissoes.has('orc.realizado:executar') ? reprocessarPendenciasAcao : null}
       />
     </div>
   );
