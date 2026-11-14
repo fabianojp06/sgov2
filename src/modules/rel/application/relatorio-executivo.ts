@@ -54,8 +54,8 @@ const SAIDA = z.object({
   recomendacoes: z.array(z.string().max(MAXIMO_ITEM_RELATORIO)),
 });
 
-type LerAdmCentral = (ctx: ContextoRequisicao, ano: number) => Promise<AdmCentralRelatorio | null>;
-type LerTps = (ctx: ContextoRequisicao) => Promise<{ tps: TpRelatorio[]; omitidos: number } | null>;
+export type LerAdmCentral = (ctx: ContextoRequisicao, ano: number) => Promise<AdmCentralRelatorio | null>;
+export type LerTps = (ctx: ContextoRequisicao) => Promise<{ tps: TpRelatorio[]; omitidos: number } | null>;
 export type DepsRelatorio = {
   cliente: PrismaClient;
   ia: ServicoIA;
@@ -68,7 +68,7 @@ export type DepsRelatorio = {
 // Revisão 12.12 (I2 e I3): só o exercício do ano do mês (o orc cai no mais recente quando ele não existe) e
 // só com a Adm. Central inteira (painel null = escopo do Gestor: os totais seriam parciais, e pessoal ÷
 // empregados de um escopo pequeno daria a média de uma ou duas pessoas).
-const LER_ADM_CENTRAL: LerAdmCentral = async (ctx, ano) => {
+export const LER_ADM_CENTRAL: LerAdmCentral = async (ctx, ano) => {
   if (!ctx.permissoes.has('orc.orcamento:consultar')) return null;
   const v = await obterVisaoExercicio(ctx, ano, null);
   if (!v || v.exercicio.ano !== ano || v.painel === null) return null;
@@ -87,7 +87,7 @@ const LER_ADM_CENTRAL: LerAdmCentral = async (ctx, ano) => {
 };
 
 // Pelo comparativo da US-106: o mesmo caminho do consolidado, o Histórico dele e o cache de 60 s.
-const LER_TPS: LerTps = async (ctx) => {
+export const LER_TPS: LerTps = async (ctx) => {
   if (!ctx.permissoes.has(PERMISSAO_CONSOLIDADO)) return null;
   const c = await obterComparativo(ctx);
   if (!c.ok) return null;

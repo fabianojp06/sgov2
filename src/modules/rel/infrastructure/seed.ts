@@ -1,13 +1,14 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 import { instalarCasosUsoIA } from '@/shared/ia';
-import { CASO_AJUDA_MANUAL, CASO_COMPARATIVO_TPS, CASO_QUADRO_PESSOAL, CASO_RELATORIO_EXECUTIVO } from '../application/ia-casos';
+import { CASO_AJUDA_MANUAL, CASO_APRESENTACAO, CASO_COMPARATIVO_TPS, CASO_QUADRO_PESSOAL, CASO_RELATORIO_EXECUTIVO } from '../application/ia-casos';
 
 // Funcionalidades do rel (contrato C6), no menu Relatórios. A primeira é a conferência da carga
 // inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem. A segunda,
 // as exportações em segundo plano de cada pessoa (US-024). A terceira, fora do menu, é a permissão da
 // ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107). A quinta, o
 // comparativo entre TPs (US-106), no menu da Administração Central. A sexta, o relatório executivo mensal (US-103).
+// A sétima, o roteiro de apresentação para reunião de diretoria (US-105).
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -113,6 +114,20 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // US-103 (IA-14): a GFIN gera, revisa e aprova; a DIREX consulta e baixa os aprovados. O caso nasce desligado e com teto zero (/int/ia).
     perfisPadrao: { GFIN: ['consultar', 'executar', 'alterar', 'aprovar', 'exportar'], DIREX: ['consultar', 'exportar'] },
   },
+  {
+    codigo: 'rel.apresentacao_diretoria',
+    modulo: 'RELATORIOS',
+    grupo: 'Análises com IA',
+    nome: 'Apresentação para reunião de diretoria',
+    rota: '/rel/apresentacao',
+    ordem: 6,
+    ajuda:
+      'Com a IA ligada, monta o roteiro dos slides sobre um tema (títulos, tópicos, notas do apresentador e gráficos do sistema) a partir dos dados ' +
+      'consolidados da Administração Central e dos TPs. Revise e baixe os slides em PDF.',
+    acoes: ['consultar', 'executar', 'exportar'],
+    // US-105 (IA-15): a GFIN prepara as reuniões. O caso nasce desligado e com teto zero (/int/ia).
+    perfisPadrao: { GFIN: ['consultar', 'executar', 'exportar'] },
+  },
 ];
 
 export const seedRel: Seed = {
@@ -120,6 +135,6 @@ export const seedRel: Seed = {
   async executar(tx) {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_REL);
     // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
-    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS, CASO_RELATORIO_EXECUTIVO]);
+    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS, CASO_RELATORIO_EXECUTIVO, CASO_APRESENTACAO]);
   },
 };
