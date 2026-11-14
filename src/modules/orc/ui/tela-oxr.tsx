@@ -12,9 +12,17 @@ import { BotaoImprimirPagina } from './botao-imprimir-pagina';
 const VERMELHO = '#cf222e';
 const dataHora = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
 
+// RN0314 por célula (revisão 12.12): só o % acima de 100% fica em vermelho e negrito.
 function Uso({ c }: { c: CelulaOxr }) {
   if (c.semOrcamento) return <span style={{ color: VERMELHO }}>Sem orçamento</span>;
-  return <>{c.uso ? c.uso.formatar() : '—'}</>;
+  if (!c.uso) return <>—</>;
+  return c.estouro ? (
+    <strong style={{ color: VERMELHO }} data-estouro="sim">
+      {c.uso.formatar()}
+    </strong>
+  ) : (
+    <>{c.uso.formatar()}</>
+  );
 }
 
 function Celulas({ c }: { c: CelulaOxr }) {
@@ -43,12 +51,11 @@ function Periodo({ t }: { t: TotalOxr }) {
 }
 
 function Linha({ l }: { l: LinhaOxr }) {
-  const estouro = l.periodo.estouro || l.meses.some((c) => c.estouro);
   const nome = `${l.conta} ${l.descricao}${l.inativa ? ' (inativa)' : ''}`;
   return (
-    <tr style={estouro ? { color: VERMELHO, fontWeight: 'bold' } : undefined} data-estouro={estouro ? 'sim' : undefined}>
-      <th scope="row" style={{ paddingLeft: `${(l.nivel - 1) * 0.75}rem`, fontWeight: l.analitica && !estouro ? 'normal' : 'bold' }}>
-        {estouro ? <strong>{nome}</strong> : nome}
+    <tr>
+      <th scope="row" style={{ paddingLeft: `${(l.nivel - 1) * 0.75}rem`, fontWeight: l.analitica ? 'normal' : 'bold' }}>
+        {nome}
       </th>
       {l.meses.map((c, i) => (
         <Celulas key={i} c={c} />
@@ -58,7 +65,7 @@ function Linha({ l }: { l: LinhaOxr }) {
   );
 }
 
-export function TelaOxr({ dados, podeAtualizar }: { dados: ResultadoOxr; podeAtualizar: boolean }) {
+export function TelaOxr({ dados, podeAtualizar, podeVerRealizado }: { dados: ResultadoOxr; podeAtualizar: boolean; podeVerRealizado: boolean }) {
   const { propostas, tela, erro } = dados;
   const f = tela?.filtros;
   return (
@@ -106,11 +113,16 @@ export function TelaOxr({ dados, podeAtualizar }: { dados: ResultadoOxr; podeAtu
           </p>
           {tela.pendencias.quantidade > 0 && (
             <p role="note">
-              {`Existem ${tela.pendencias.quantidade} valores do ERP sem conta correspondente no SGO (R$ ${valorParaTela(tela.pendencias.valor)}). `}
-              <a href={`/orc/realizado?proposta=${tela.propostaId}`}>Ver a lista</a>
+              {`Existem ${tela.pendencias.quantidade} valores do ERP sem conta correspondente no SGO (R$ ${valorParaTela(tela.pendencias.valor)}).`}
+              {podeVerRealizado && (
+                <>
+                  {' '}
+                  <a href={`/orc/realizado?proposta=${tela.propostaId}`}>Ver a lista</a>
+                </>
+              )}
             </p>
           )}
-          {tela.semPessoal && <p role="note">O orçado do pessoal não aparece para o seu perfil: as contas de pessoal mostram só o realizado.</p>}
+          {tela.semPessoal && <p role="note">As contas de pessoal não aparecem para o seu perfil, nem no orçado nem no realizado.</p>}
           {tela.pessoalNaoHomologado && <p role="note">O pessoal da versão oficial ainda não foi homologado e não entra no orçado.</p>}
           <BotaoImprimirPagina />
           <div role="region" aria-labelledby="oxr-caption" tabIndex={0} style={{ overflowX: 'auto' }}>
@@ -122,11 +134,11 @@ export function TelaOxr({ dados, podeAtualizar }: { dados: ResultadoOxr; podeAtu
                     Conta
                   </th>
                   {tela.meses.map((m) => (
-                    <th key={m} scope="colgroup" colSpan={3}>
+                    <th key={m} scope="col" colSpan={3}>
                       {mesOxr(m)}
                     </th>
                   ))}
-                  <th scope="colgroup" colSpan={4}>
+                  <th scope="col" colSpan={4}>
                     Total do período
                   </th>
                 </tr>

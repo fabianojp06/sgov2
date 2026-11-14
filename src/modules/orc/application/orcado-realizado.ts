@@ -3,6 +3,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { Dinheiro } from '@/shared/kernel';
 import { emUnidade } from '@/shared/unidade';
 import { competenciaParaTexto } from '../domain/empregado';
+import { RAIZES_CONTAS_PESSOAL } from '../domain/planilha';
 import { competenciasDaVigencia } from '../domain/rateio';
 import { contextoAuditoria } from './calculo-linhas';
 import { seriesDaVersao } from './cronograma';
@@ -43,7 +44,7 @@ export type TelaOxr = {
   grade: GradeOxr;
   pendencias: { quantidade: number; valor: Dinheiro };
   atualizadoEm: Date | null;
-  /** Há pessoal homologado fora do orçado: só quem lança os empregados o vê (D-P23-5). */
+  /** As contas de pessoal ficaram de fora, no orçado e no realizado: só quem lança os empregados as vê (D-P23-5, D-P33-2). */
   semPessoal: boolean;
   pessoalNaoHomologado: boolean;
 };
@@ -84,7 +85,8 @@ export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fil
       const vigencia = competenciasDaVigencia(p.inicio, p.fim);
       // Período padrão: os primeiros meses da vigência, até o limite (D-P33-3).
       const de = filtros.de && COMPETENCIA.test(filtros.de) ? filtros.de : vigencia[0]!;
-      const ate = filtros.ate && COMPETENCIA.test(filtros.ate) ? filtros.ate : vigencia[Math.min(vigencia.length, MESES_MAXIMOS_OXR) - 1]!;
+      // Sem o final: até 24 meses a partir do inicial, dentro da vigência (revisão 12.12).
+      const ate = filtros.ate && COMPETENCIA.test(filtros.ate) ? filtros.ate : (vigencia.filter((c) => c >= de).slice(0, MESES_MAXIMOS_OXR).at(-1) ?? de);
       if (de > ate) return resposta(propostas, null, MENSAGENS_OXR.PERIODO_INVALIDO);
       if (de < vigencia[0]! || ate > vigencia[vigencia.length - 1]!) return resposta(propostas, null, MENSAGENS_OXR.PERIODO_FORA);
       const meses = vigencia.filter((c) => c >= de && c <= ate);
@@ -102,8 +104,12 @@ export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fil
       });
       const comPessoal = vePessoal(ctx);
       const [s, r] = await Promise.all([seriesDaVersao(tx, deps, oficial.id, comPessoal, vigencia), lerRealizado(tx, p.unidadeId, de, ate)]);
-      const realizado = new Map(r.linhas.map((l) => [`${l.conta}|${l.competencia}`, l.valor]));
-      const grade = montarGradeOxr(arvore as readonly NoPlanoOxr[], meses, s.porContaMes, realizado, { zeradas, conta: conta || undefined });
+      // D-P33-2 (revisão 12.12): sem ver o pessoal, as contas de pessoal saem dos dois lados. Comparar o orçado sem o
+      // pessoal com o realizado com ele daria "Sem orçamento" falso e totais, % e saldo errados nas sintéticas.
+      const ePessoal = (c: string) => !comPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => c === raiz || c.startsWith(`${raiz}.`));
+      const semAsDePessoal = <T,>(pares: Iterable<[string, T]>) => new Map([...pares].filter(([k]) => !ePessoal(k.split('|')[0]!)));
+      const realizado = semAsDePessoal(r.linhas.map((l): [string, Dinheiro] => [`${l.conta}|${l.competencia}`, l.valor]));
+      const grade = montarGradeOxr(arvore as readonly NoPlanoOxr[], meses, semAsDePessoal(s.porContaMes), realizado, { zeradas, conta: conta || undefined });
       return resposta(
         propostas,
         {
@@ -117,7 +123,7 @@ export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fil
           grade,
           pendencias: r.pendencias,
           atualizadoEm: r.atualizadoEm,
-          semPessoal: s.semPessoal,
+          semPessoal: !comPessoal,
           pessoalNaoHomologado: s.pessoalNaoHomologado,
         },
         null,

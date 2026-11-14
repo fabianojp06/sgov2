@@ -15,7 +15,7 @@ export default async function OrcadoRealizado({ searchParams }: { searchParams: 
   return (
     <div>
       <h1>Orçado x Realizado</h1>
-      <TelaOxr dados={dados} podeAtualizar={ctx.permissoes.has('orc.realizado:executar')} />
+      <TelaOxr dados={dados} podeAtualizar={ctx.permissoes.has('orc.realizado:executar')} podeVerRealizado={ctx.permissoes.has('orc.realizado:consultar')} />
     </div>
   );
 }

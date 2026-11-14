@@ -123,13 +123,19 @@ describe('obterOrcadoRealizado (US-086)', () => {
       '350.00',
       '86,00%',
     ]);
-    const semOrc = t.grade.linhas.find((l) => l.conta === '4.1.1.1.001')!;
-    expect(semOrc.meses[2]!.semOrcamento).toBe(true);
+    // D-P33-2: o GFIN não lança empregados; as contas de pessoal saem dos dois lados, e o total não fica distorcido.
+    expect([t.semPessoal, t.grade.linhas.some((l) => l.conta.startsWith('4.1.1.1'))]).toEqual([true, false]);
+    expect(t.grade.linhas.find((l) => l.conta === '4')!.periodo.realizado.paraString()).toBe('2150.00');
+    expect(t.grade.total.periodo.saldo.paraString()).toBe('350.00');
+    // Quem lança os empregados vê a conta de pessoal: realizado sem orçado é "Sem orçamento" (RN_OXR_012).
+    const comPessoal = ctx(gfin, [tps.oficial.unidadeId], [...OXR, 'orc.empregados:incluir']);
+    const t2 = (await obterOrcadoRealizado(comPessoal, { proposta: tps.oficial.id, de: '2026-01', ate: '2026-03' }, comDeps())).tela!;
+    expect([t2.semPessoal, t2.grade.linhas.find((l) => l.conta === '4.1.1.1.001')!.meses[2]!.semOrcamento]).toEqual([false, true]);
     // A raiz 4 soma tudo (RN_OXR_009); as contas zeradas não aparecem (RN_OXR_013, padrão Não).
-    expect(t.grade.linhas.find((l) => l.conta === '4')!.periodo.realizado.paraString()).toBe('2230.00');
-    expect(t.grade.linhas.some((l) => l.conta === '4.1.1.1.003')).toBe(false);
-    expect(t.grade.total.periodo.saldo.paraString()).toBe('270.00');
-    expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } })).toBe(antes + 1);
+    expect(t2.grade.linhas.find((l) => l.conta === '4')!.periodo.realizado.paraString()).toBe('2230.00');
+    expect(t2.grade.linhas.some((l) => l.conta === '4.1.1.1.003')).toBe(false);
+    expect(t2.grade.total.periodo.saldo.paraString()).toBe('270.00');
+    expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } })).toBe(antes + 2);
   });
 
   it('filtro de conta, contas zeradas e período padrão (os primeiros 24 meses da vigência)', async () => {
@@ -144,6 +150,9 @@ describe('obterOrcadoRealizado (US-086)', () => {
     expect(await erro('2026-05', '2026-03')).toBe('Período inválido: o inicial não pode passar do final.');
     expect(await erro('2025-12', '2026-03')).toBe('O período precisa estar dentro da vigência do Termo de Parceria.');
     expect(await erro('2026-01', '2028-01')).toBe('Escolha um período de até 24 meses.');
+    // Só o inicial, depois do 24.º mês: o final padrão conta a partir dele (revisão 12.12).
+    const r = await obterOrcadoRealizado(gfinCtx(), { proposta: tps.oficial.id, de: '2028-03' }, comDeps());
+    expect([r.erro, r.tela?.meses]).toEqual([null, ['2028-03', '2028-04', '2028-05', '2028-06']]);
   });
 
   it('RLS: quem não opera o TP não o vê; sem a permissão, negado', async () => {

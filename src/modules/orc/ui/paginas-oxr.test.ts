@@ -91,20 +91,24 @@ describe('página do Orçado x Realizado', () => {
     const h = await pagina({ proposta: PROPOSTA });
     expect(h).toContain('>Set/18</th>');
     expect(h).toContain('>Out/18</th>');
+    // RN0314 por célula: 80,79% sem destaque; 131,91% e o total de 102,98% em vermelho e negrito.
     expect(h).toContain('<td>704.831,00</td><td>569.413,56</td><td>80,79%</td>');
-    expect(h).toContain('<td>540.656,00</td><td>713.183,14</td><td>131,91%</td>');
-    expect(h).toMatch(/<tr style="color:#cf222e;font-weight:bold" data-estouro="sim"><th[^>]*><strong>4\.1\.1\.5\.005 Material<\/strong>/);
+    expect(h).toContain('<td>540.656,00</td><td>713.183,14</td><td><strong style="color:#cf222e" data-estouro="sim">131,91%</strong></td>');
     expect(h).toContain('Sem orçamento');
-    expect(h).toContain('<td>1.245.487,00</td><td>1.282.596,70</td><td>-37.109,70</td><td>102,98%</td>');
+    expect(h).toContain('<td>1.245.487,00</td><td>1.282.596,70</td><td>-37.109,70</td><td><strong style="color:#cf222e" data-estouro="sim">102,98%</strong></td>');
+    expect(h.match(/<tfoot>.*<\/tfoot>/s)?.[0]).toContain('data-estouro="sim"');
     expect(h).toContain('Existem 2 valores do ERP sem conta correspondente no SGO (R$ 15,00).');
-    expect(h).toContain(`href="/orc/realizado?proposta=${PROPOSTA}"`);
-    expect(h).toContain('O orçado do pessoal não aparece para o seu perfil');
+    // Sem orc.realizado:consultar, o aviso fica sem o link (a página dele daria 404).
+    expect(h).not.toContain(`href="/orc/realizado?proposta=${PROPOSTA}"`);
+    expect(h).toContain('As contas de pessoal não aparecem para o seu perfil');
     expect(h).not.toContain('Atualizar Realizado');
   });
 
   it('quem carrega o realizado vê o link Atualizar Realizado (A1)', async () => {
-    contexto = ctx(['orc.oxr:consultar', 'orc.realizado:executar']);
-    expect(await pagina({ proposta: PROPOSTA })).toContain('Atualizar Realizado');
+    contexto = ctx(['orc.oxr:consultar', 'orc.realizado:consultar', 'orc.realizado:executar']);
+    const h = await pagina({ proposta: PROPOSTA });
+    expect(h).toContain('Atualizar Realizado');
+    expect(h).toContain('Ver a lista');
   });
 
   it('sem a permissão: 404', async () => {
