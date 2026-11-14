@@ -81,6 +81,8 @@ model Unidade {
   tetosViagem        TetoViagemProposta[]
   viagensProposta    ViagemProposta[]
   bensProposta       BemProposta[]
+  rateiosProposta    RateioProposta[]
+  celulasRateio      RateioCelulaProposta[]
 
   @@map("unidade")
 }

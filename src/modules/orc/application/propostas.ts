@@ -24,6 +24,7 @@ import { copiarPessoalDaVersao } from './empregados';
 import { copiarMetasDaVersao } from './metas';
 import { copiarViagensDaVersao } from './viagens';
 import { copiarBensDaVersao } from './bens';
+import { copiarRateioDaVersao } from './rateio';
 import { valoresGlobais, vePessoal } from './totalizadores';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 
@@ -267,6 +268,7 @@ export async function copiarLinhasDaVersao(
   await copiarPessoalDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
   await copiarViagensDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
   await copiarBensDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
+  await copiarRateioDaVersao(tx, origem.versaoId, destino.versaoId, criadoPor);
 }
 
 const ultimaVersao = { orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true, situacao: true } } as const;

@@ -37,9 +37,15 @@ export type TotaisDaVersao = {
 /**
  * RN_TOT_03: as somas por conta analítica dos lançamentos da versão, na transação de quem chama (com a RLS).
  * Pessoal pelas linhas do motor ano a ano; viagens com passagem, diária e transporte cada um na sua conta (o
- * transporte é despesa da conta, mesmo fora do custo estimado, C19); bens ativos.
+ * transporte é despesa da conta, mesmo fora do custo estimado, C19); bens ativos; células do rateio (US-073).
  */
-export async function totaisDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: string, comPessoal: boolean): Promise<TotaisDaVersao> {
+export async function totaisDaVersao(
+  tx: TxCliente,
+  deps: DepsOrc,
+  versaoId: string,
+  comPessoal: boolean,
+  opcoes: { semRateio?: boolean } = {},
+): Promise<TotaisDaVersao> {
   const porConta = new Map<string, Dinheiro>();
   const avisos = new Set<string>();
   const [empregados, viagens, bens] = await Promise.all([
@@ -67,6 +73,11 @@ export async function totaisDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: str
     if (v.contaTransporte) somar(porConta, v.contaTransporte, c.transporte);
   }
   for (const b of bens) somar(porConta, b.conta, totalDoBem({ quantidade: b.quantidade, valorUnitario: Dinheiro.de(b.valorUnitario.toString()) }));
+  // O rateio da Adm. Central (US-073, RN_RAT_05) entra nas contas de destino; a base do próprio rateio o deixa de fora.
+  if (!opcoes.semRateio) {
+    const celulas = await tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } }, select: { conta: true, valor: true } });
+    for (const c of celulas) somar(porConta, c.conta, Dinheiro.de(c.valor.toString()));
+  }
   return { porConta, total: Dinheiro.somarTodos([...porConta.values()]), avisos: [...avisos], semPessoal: !comPessoal && empregados.length > 0 };
 }
 
