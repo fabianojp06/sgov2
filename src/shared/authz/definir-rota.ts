@@ -3,7 +3,7 @@ import { ErroDominio } from '@/shared/kernel';
 import {
   autorizar,
   erroGeral,
-  MENSAGEM_INESPERADA,
+  mensagemInesperada,
   MENSAGEM_PERMISSAO,
   registrarErroInesperado,
   registrarNegacao,
@@ -66,8 +66,7 @@ export function definirRota(
         return json(403, MENSAGEM_PERMISSAO);
       }
       if (erro instanceof ErroDominio) return json(422, erro.message);
-      registrarErroInesperado('rota', cfg, ctx, erro);
-      return json(500, MENSAGEM_INESPERADA);
+      return json(500, mensagemInesperada(registrarErroInesperado('rota', cfg, ctx, erro)));
     }
   };
 }

@@ -4,7 +4,7 @@ import { ErroDominio, type Resultado } from '@/shared/kernel';
 import {
   autorizar,
   erroGeral,
-  MENSAGEM_INESPERADA,
+  mensagemInesperada,
   MENSAGEM_PERMISSAO,
   registrarErroInesperado,
   registrarNegacao,
@@ -48,8 +48,7 @@ export function definirAcao<I, O>(
       }
       // A mensagem de um ErroDominio é texto de tela: quem lança escreve para o usuário.
       if (erro instanceof ErroDominio) return { ok: false, erros: erroGeral(erro.message) };
-      registrarErroInesperado('ação', cfg, ctx, erro);
-      return { ok: false, erros: erroGeral(MENSAGEM_INESPERADA) };
+      return { ok: false, erros: erroGeral(mensagemInesperada(registrarErroInesperado('ação', cfg, ctx, erro))) };
     }
   };
 }

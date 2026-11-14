@@ -51,7 +51,7 @@ describe('definirAcaoPublica', () => {
     });
     expect(await acao({ login: 'a', senha: 'SegredoQualquer9' })).toEqual({
       ok: false,
-      erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }],
+      erros: [{ campo: '_', mensagem: expect.stringMatching(/^Erro inesperado\. Tente novamente\. Código: [0-9A-F]{8}\.$/) }],
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain('SegredoQualquer9');
   });

@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
 import { ErroDominio, type Resultado } from '@/shared/kernel';
-import { erroGeral, MENSAGEM_INESPERADA, resumirErro } from './guarda';
+import { erroGeral, mensagemInesperada, novoCodigoErro, resumirErro } from './guarda';
 import { validarEntrada } from './validar-entrada';
 
 // Contexto de uma ação sem sessão: só o IP, que o proxy.ts põe em x-sgo-ip depois de descartar o
@@ -28,8 +28,9 @@ export function definirAcaoPublica<I, O>(
       unstable_rethrow(erro);
       if (erro instanceof ErroDominio) return { ok: false, erros: erroGeral(erro.message) };
       // A entrada (senha) nunca vai para o log: só o nome da ação e o resumo do erro.
-      console.error(`[ERRO_INESPERADO] ação pública ${cfg.nome}`, { erro: resumirErro(erro) });
-      return { ok: false, erros: erroGeral(MENSAGEM_INESPERADA) };
+      const codigo = novoCodigoErro();
+      console.error(`[ERRO_INESPERADO] ação pública ${cfg.nome} codigo=${codigo}`, { codigo, erro: resumirErro(erro) });
+      return { ok: false, erros: erroGeral(mensagemInesperada(codigo)) };
     }
   };
 }

@@ -144,7 +144,7 @@ describe('definirAcao', () => {
     const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, async () => {
       throw new ErroAuditoria('AUDITORIA_INVALIDA', 'Evento de auditoria inválido');
     });
-    expect(await acao({ nome: 'a' })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
+    expect(await acao({ nome: 'a' })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: expect.stringMatching(/^Erro inesperado\. Tente novamente\. Código: [0-9A-F]{8}\.$/) }] });
     expect(log).toHaveBeenCalled();
   });
 
@@ -156,9 +156,24 @@ describe('definirAcao', () => {
     });
     expect(await acao({ nome: 'a' })).toEqual({
       ok: false,
-      erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }],
+      erros: [{ campo: '_', mensagem: expect.stringMatching(/^Erro inesperado\. Tente novamente\. Código: [0-9A-F]{8}\.$/) }],
     });
     expect(log).toHaveBeenCalledWith(expect.stringContaining('usuarios'), expect.anything());
+  });
+
+  it('o código de correlação da tela é o mesmo do log (#177), e cada erro tem o seu', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    contexto = comPermissao('usuarios:incluir');
+    const acao = definirAcao({ funcionalidade: 'usuarios', acao: 'incluir', entrada }, async () => {
+      throw new Error('detalhe interno');
+    });
+    const codigoDa = async () => {
+      const r = await acao({ nome: 'a' });
+      return r.ok ? '' : (/Código: ([0-9A-F]{8})\./.exec(r.erros[0]!.mensagem)?.[1] ?? '');
+    };
+    const primeiro = await codigoDa();
+    expect(log).toHaveBeenLastCalledWith(expect.stringContaining(`codigo=${primeiro}`), expect.objectContaining({ codigo: primeiro }));
+    expect(await codigoDa()).not.toBe(primeiro);
   });
 
   it('exigir dentro de executar (permissão extra) também vira 403', async () => {
@@ -207,7 +222,7 @@ describe('definirRota', () => {
     });
     const r = await rota(new Request('http://x/'));
     expect(r.status).toBe(500);
-    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
+    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: expect.stringMatching(/^Erro inesperado\. Tente novamente\. Código: [0-9A-F]{8}\.$/) }] });
     expect(log).toHaveBeenCalled();
   });
 
@@ -219,7 +234,7 @@ describe('definirRota', () => {
     });
     const r = await rota(new Request('http://x/'));
     expect(r.status).toBe(500);
-    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: 'Erro inesperado. Tente novamente.' }] });
+    expect(await r.json()).toEqual({ erros: [{ campo: '_', mensagem: expect.stringMatching(/^Erro inesperado\. Tente novamente\. Código: [0-9A-F]{8}\.$/) }] });
   });
 });
 
