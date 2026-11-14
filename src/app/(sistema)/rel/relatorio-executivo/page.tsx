@@ -1,10 +1,8 @@
-import { GerarRascunho, gerarRascunhoAcao, geracaoRelatorioLiberada, listarRelatorios } from '@/modules/rel';
+import { dataEmBrasilia, GerarRascunho, gerarRascunhoAcao, geracaoRelatorioLiberada, listarRelatorios, mesEmBrasilia } from '@/modules/rel';
 import { exigirPagina } from '@/shared/authz';
 
 // Relatório executivo mensal (US-103, IA-14): a lista dos meses e, para a GFIN com a IA ligada, o
 // formulário de gerar o rascunho. Quem só consulta vê só os aprovados.
-const mesAtual = () => new Date().toISOString().slice(0, 7);
-const data = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('/');
 
 export default async function RelatorioExecutivo() {
   const ctx = await exigirPagina('rel.relatorio_executivo', 'consultar');
@@ -16,7 +14,7 @@ export default async function RelatorioExecutivo() {
         O relatório do mês para diretores e gerentes: indicadores da Administração Central e dos Termos de Parceria, gráficos do sistema e
         textos redigidos com IA, revisados e aprovados pela Gerência Financeira antes de distribuir.
       </p>
-      {iaLiberada && ctx.permissoes.has('rel.relatorio_executivo:executar') && <GerarRascunho mesAtual={mesAtual()} gerar={gerarRascunhoAcao} />}
+      {iaLiberada && ctx.permissoes.has('rel.relatorio_executivo:executar') && <GerarRascunho mesAtual={mesEmBrasilia(new Date())} gerar={gerarRascunhoAcao} />}
       <h2>Relatórios</h2>
       {relatorios.length === 0 ? (
         <p>Nenhum relatório ainda.</p>
@@ -38,8 +36,8 @@ export default async function RelatorioExecutivo() {
                   <a href={`/rel/relatorio-executivo/${r.id}`}>{`${r.mes.slice(5, 7)}/${r.mes.slice(0, 4)}`}</a>
                 </th>
                 <td>{r.situacao === 'APROVADO' ? 'Aprovado' : 'Rascunho'}</td>
-                <td>{data(r.geradoEm)}</td>
-                <td>{r.aprovadoEm ? `${r.aprovadoRotulo ?? ''} em ${data(r.aprovadoEm)}` : '—'}</td>
+                <td>{dataEmBrasilia(r.geradoEm)}</td>
+                <td>{r.aprovadoEm ? `${r.aprovadoRotulo ?? ''} em ${dataEmBrasilia(r.aprovadoEm)}` : '—'}</td>
               </tr>
             ))}
           </tbody>

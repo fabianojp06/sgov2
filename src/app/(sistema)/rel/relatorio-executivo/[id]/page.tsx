@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { AcaoConfirmada } from '@/modules/ger';
-import { alterarTextosAcao, aprovarRelatorioAcao, EditarTextos, obterRelatorio } from '@/modules/rel';
+import { alterarTextosAcao, aprovarRelatorioAcao, dataEmBrasilia, EditarTextos, obterRelatorio } from '@/modules/rel';
 import { exigirPagina } from '@/shared/authz';
 import { Dinheiro } from '@/shared/kernel';
 
@@ -16,6 +16,7 @@ export default async function DetalheRelatorio({ params, searchParams }: { param
   if (!r) notFound();
   const rascunho = r.situacao === 'RASCUNHO';
   const a = r.dados.admCentral;
+  const podeEditar = rascunho && ctx.permissoes.has('rel.relatorio_executivo:alterar');
   return (
     <div>
       <h1>Relatório executivo de {`${r.mes.slice(5, 7)}/${r.mes.slice(0, 4)}`}</h1>
@@ -28,7 +29,8 @@ export default async function DetalheRelatorio({ params, searchParams }: { param
           <a href={`/rel/relatorio-executivo/${r.id}/pdf`}>Baixar o PDF{rascunho ? ' (rascunho)' : ''}</a>
         </p>
       )}
-      {rascunho && ctx.permissoes.has('rel.relatorio_executivo:aprovar') && (
+      {/* Quem aprova sem editar: o botão fica aqui; com a edição, ele vai no formulário (some com alteração não salva). */}
+      {rascunho && ctx.permissoes.has('rel.relatorio_executivo:aprovar') && !podeEditar && (
         <AcaoConfirmada
           rotulo="Aprovar"
           contexto={`o relatório de ${r.mes}`}
@@ -37,7 +39,8 @@ export default async function DetalheRelatorio({ params, searchParams }: { param
           campos={{ id: r.id, versao: String(r.versao) }}
         />
       )}
-      <h2>Indicadores (congelados na geração)</h2>
+      <h2>Indicadores</h2>
+      <p>Posição de {dataEmBrasilia(r.geradoEm)}, quando o rascunho foi gerado.</p>
       {a ? (
         <dl>
           <dt>Administração Central, exercício {a.ano}</dt>
@@ -85,8 +88,15 @@ export default async function DetalheRelatorio({ params, searchParams }: { param
       ) : (
         <p>Sem indicadores dos Termos de Parceria.</p>
       )}
-      {rascunho && ctx.permissoes.has('rel.relatorio_executivo:alterar') ? (
-        <EditarTextos id={r.id} versao={r.versao} textos={r.textos} salvar={alterarTextosAcao} />
+      {podeEditar ? (
+        <EditarTextos
+          id={r.id}
+          mes={r.mes}
+          versao={r.versao}
+          textos={r.textos}
+          salvar={alterarTextosAcao}
+          aprovar={ctx.permissoes.has('rel.relatorio_executivo:aprovar') ? aprovarRelatorioAcao : undefined}
+        />
       ) : (
         <>
           <h2>Resumo</h2>

@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { conferirTextos, listaGravada, MAXIMO_ITENS_RELATORIO, MAXIMO_RESUMO_RELATORIO, mensagemRelatorio, validarMes, validarTextos } from './relatorio-executivo';
+import {
+  conferirTextos,
+  dataEmBrasilia,
+  listaGravada,
+  MAXIMO_ITENS_RELATORIO,
+  MAXIMO_RESUMO_RELATORIO,
+  mensagemRelatorio,
+  mesAnterior,
+  mesEmBrasilia,
+  validarMes,
+  validarTextos,
+} from './relatorio-executivo';
 
 describe('relatório executivo (US-103): mês e textos', () => {
   it('mês AAAA-MM até o mês atual', () => {
@@ -7,6 +18,16 @@ describe('relatório executivo (US-103): mês e textos', () => {
     expect(validarMes('2027-05', '2027-05').ok).toBe(true);
     expect(validarMes('2027-06', '2027-05')).toMatchObject({ ok: false, erros: [{ campo: 'mes' }] });
     for (const ruim of ['2027-13', '27-01', '', null, 202701]) expect(validarMes(ruim, '2027-05').ok).toBe(false);
+    // Só o mês atual ou o anterior (os indicadores são a posição de agora).
+    expect(validarMes('2027-03', '2027-05', mesAnterior('2027-05'))).toMatchObject({ ok: false, erros: [{ campo: 'mes' }] });
+    expect(validarMes('2027-04', '2027-05', mesAnterior('2027-05')).ok).toBe(true);
+    expect(mesAnterior('2027-01')).toBe('2026-12');
+  });
+
+  it('mês e data em Brasília: 31/12 às 22h (UTC já em janeiro) ainda é dezembro', () => {
+    const virada = new Date('2028-01-01T01:00:00Z');
+    expect(mesEmBrasilia(virada)).toBe('2027-12');
+    expect(dataEmBrasilia(virada)).toBe('31/12/2027');
   });
 
   it('textos editados: resumo obrigatório e com teto; listas uma por linha, sem vazias, com teto de itens e de tamanho', () => {

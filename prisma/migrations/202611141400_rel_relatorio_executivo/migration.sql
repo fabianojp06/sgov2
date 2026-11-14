@@ -48,9 +48,11 @@ END $$;
 CREATE TRIGGER "rel_relatorio_executivo_imutavel" BEFORE UPDATE OR DELETE ON "rel_relatorio_executivo"
   FOR EACH ROW EXECUTE FUNCTION "rel_relatorio_executivo_imutavel"();
 
--- Privilégios: o app gera (insere), regera e edita o rascunho e aprova (só as colunas de conteúdo e de
--- aprovação); não apaga. O sgo_sync não toca.
+-- Privilégios: o app gera (insere só o conteúdo), regera e edita o rascunho e aprova (só as colunas de
+-- conteúdo e de aprovação); não apaga. O sgo_sync não toca.
 REVOKE ALL ON "rel_relatorio_executivo" FROM sgo_app, sgo_sync;
-GRANT SELECT, INSERT ON "rel_relatorio_executivo" TO sgo_app;
+-- O INSERT é por coluna (revisão 12.12): o rascunho nasce RASCUNHO, sem aprovação, pelos defaults.
+GRANT SELECT ON "rel_relatorio_executivo" TO sgo_app;
+GRANT INSERT ("mes", "dados", "resumo", "riscos", "recomendacoes", "gerado_por", "gerado_em") ON "rel_relatorio_executivo" TO sgo_app;
 GRANT UPDATE ("situacao", "dados", "resumo", "riscos", "recomendacoes", "gerado_por", "gerado_em", "aprovado_por", "aprovado_rotulo", "aprovado_em", "versao")
   ON "rel_relatorio_executivo" TO sgo_app;

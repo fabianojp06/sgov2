@@ -53,3 +53,4 @@ export {
 } from './application/relatorio-executivo';
 export { alterarTextosAcao, aprovarRelatorioAcao, gerarRascunhoAcao } from './application/acoes-relatorio-executivo';
 export { GerarRascunho, EditarTextos } from './ui/relatorio-executivo';
+export { dataEmBrasilia, mesEmBrasilia } from './domain/relatorio-executivo';

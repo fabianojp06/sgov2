@@ -9,7 +9,10 @@ import { ErroIA, servicoIA, type ServicoIA } from '@/shared/ia';
 import { falha, MENSAGEM_CONFLITO, ok, type Resultado } from '@/shared/kernel';
 import {
   conferirTextos,
+  dataEmBrasilia,
   listaGravada,
+  mesAnterior,
+  mesEmBrasilia,
   MAXIMO_ITEM_RELATORIO,
   MAXIMO_RESUMO_RELATORIO,
   MAXIMO_TPS_RELATORIO,
@@ -62,10 +65,13 @@ export type DepsRelatorio = {
   lerTps: LerTps;
 };
 
+// Revisão 12.12 (I2 e I3): só o exercício do ano do mês (o orc cai no mais recente quando ele não existe) e
+// só com a Adm. Central inteira (painel null = escopo do Gestor: os totais seriam parciais, e pessoal ÷
+// empregados de um escopo pequeno daria a média de uma ou duas pessoas).
 const LER_ADM_CENTRAL: LerAdmCentral = async (ctx, ano) => {
   if (!ctx.permissoes.has('orc.orcamento:consultar')) return null;
   const v = await obterVisaoExercicio(ctx, ano, null);
-  if (!v) return null;
+  if (!v || v.exercicio.ano !== ano || v.painel === null) return null;
   return {
     ano: v.exercicio.ano,
     situacao: v.exercicio.rotuloSituacao,
@@ -73,10 +79,10 @@ const LER_ADM_CENTRAL: LerAdmCentral = async (ctx, ano) => {
     pessoal: v.indicadores.pessoal.paraString(),
     percentualPessoal: v.indicadores.percentualPessoal?.paraString() ?? null,
     empregadosDezembro: v.indicadores.empregadosDezembro,
-    tetoEfetivo: v.painel?.tetoEfetivo.paraString() ?? null,
-    usoDoTeto: v.painel?.uso?.paraString() ?? null,
-    resultadoAno: v.painel?.resultadoAno.paraString() ?? null,
-    saldo: v.painel?.saldo.paraString() ?? null,
+    tetoEfetivo: v.painel.tetoEfetivo.paraString(),
+    usoDoTeto: v.painel.uso?.paraString() ?? null,
+    resultadoAno: v.painel.resultadoAno.paraString(),
+    saldo: v.painel.saldo.paraString(),
   };
 };
 
@@ -85,7 +91,7 @@ const LER_TPS: LerTps = async (ctx) => {
   if (!ctx.permissoes.has(PERMISSAO_CONSOLIDADO)) return null;
   const c = await obterComparativo(ctx);
   if (!c.ok) return null;
-  const tps = c.valor.tps.map((t) => ({ numero: t.numero, oficial: t.oficial, valorGlobal: t.valorGlobal ?? '0.00', execucao: t.indicadores.execucao }));
+  const tps = c.valor.tps.map((t) => ({ numero: t.numero, oficial: t.oficial, valorGlobal: t.valorGlobal, execucao: t.indicadores.execucao }));
   return { tps: tps.slice(0, MAXIMO_TPS_RELATORIO), omitidos: c.valor.tpsOmitidos + Math.max(0, tps.length - MAXIMO_TPS_RELATORIO) };
 };
 
@@ -101,7 +107,6 @@ const resolver = (d: Partial<DepsRelatorio>): DepsRelatorio => ({
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const erro = (mensagem: string, campo = '_'): Resultado<never> => falha([{ campo, mensagem }]);
 const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError';
-const mesDe = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 const contextoDe = (ctx: ContextoRequisicao) => ({ usuarioId: ctx.usuarioId, usuarioRotulo: ctx.usuarioRotulo, sessaoUid: ctx.sessaoUid, ip: ctx.ip, unidadeId: null });
 const podeVerRascunho = (ctx: ContextoRequisicao) =>
   ctx.permissoes.has(`${FUNCIONALIDADE_RELATORIO}:alterar`) || ctx.permissoes.has(`${FUNCIONALIDADE_RELATORIO}:aprovar`) || ctx.permissoes.has(`${FUNCIONALIDADE_RELATORIO}:executar`);
@@ -151,7 +156,9 @@ export function geracaoRelatorioLiberada(ctx: ContextoRequisicao, deps: Partial<
 export async function gerarRascunho(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsRelatorio> = {}): Promise<Resultado<{ id: string; mes: string }>> {
   if (!ctx.permissoes.has(`${FUNCIONALIDADE_RELATORIO}:executar`)) return erro(new ErroIA('ia.sem_permissao').message);
   const deps = resolver(depsParciais);
-  const mes = validarMes((bruto as { mes?: unknown } | null)?.mes, mesDe(deps.agora()));
+  // Os indicadores são a posição de agora (gravada em gerado_em): só o mês atual ou o anterior (revisão 12.12, I2).
+  const atual = mesEmBrasilia(deps.agora());
+  const mes = validarMes((bruto as { mes?: unknown } | null)?.mes, atual, mesAnterior(atual));
   if (!mes.ok) return mes;
   const existente = await deps.cliente.relatorioExecutivo.findUnique({ where: { mes: mes.valor }, select: { id: true, situacao: true, versao: true } });
   if (existente?.situacao === 'APROVADO') return erro(MENSAGENS_RELATORIO.JA_APROVADO(mes.valor), 'mes');
@@ -175,7 +182,8 @@ export async function gerarRascunho(ctx: ContextoRequisicao, bruto: unknown, dep
   if (textos.resumo.length === 0) return erro(new ErroIA('ia.saida_invalida').message);
 
   return deps.cliente.$transaction(async (tx: TxCliente) => {
-    const conteudo = { dados, resumo: textos.resumo, riscos: textos.riscos, recomendacoes: textos.recomendacoes, geradoPor: ctx.usuarioId, geradoEm: new Date() };
+    const geradoEm = deps.agora();
+    const conteudo = { dados, resumo: textos.resumo, riscos: textos.riscos, recomendacoes: textos.recomendacoes, geradoPor: ctx.usuarioId, geradoEm };
     let id: string;
     if (existente) {
       // Só substitui o rascunho lido; um aprovado no meio do caminho (ou outra geração) dá conflito.
@@ -183,7 +191,13 @@ export async function gerarRascunho(ctx: ContextoRequisicao, bruto: unknown, dep
       if (r.count === 0) return erro(MENSAGEM_CONFLITO);
       id = existente.id;
     } else {
-      id = (await tx.relatorioExecutivo.create({ data: { mes: mes.valor, ...conteudo }, select: { id: true } })).id;
+      // SQL explícito: o sgo_app só insere as colunas de conteúdo (o Prisma mandaria os defaults). Duas
+      // gerações do mesmo mês novo ao mesmo tempo: a segunda não insere e vira conflito.
+      const [criado] = await tx.$queryRaw<{ id: string }[]>`INSERT INTO "rel_relatorio_executivo" ("mes", "dados", "resumo", "riscos", "recomendacoes", "gerado_por", "gerado_em")
+        VALUES (${mes.valor}, ${JSON.stringify(dados)}::jsonb, ${textos.resumo}, ${JSON.stringify(textos.riscos)}::jsonb, ${JSON.stringify(textos.recomendacoes)}::jsonb, ${ctx.usuarioId}::uuid, ${geradoEm})
+        ON CONFLICT ("mes") DO NOTHING RETURNING "id"`;
+      if (!criado) return erro(MENSAGEM_CONFLITO);
+      id = criado.id;
     }
     await auditar(tx, {
       contexto: contextoDe(ctx),
@@ -270,8 +284,14 @@ export async function exportarPdfRelatorio(
   const r = await obterRelatorio(ctx, id, { cliente });
   if (!r) return erro(MENSAGENS_RELATORIO.NAO_ENCONTRADO);
   const { gerarPdfRelatorio, nomeArquivoRelatorio, tituloRelatorio } = await import('../infrastructure/pdf-relatorio-executivo');
-  const aprovacao = r.aprovadoEm ? `${r.aprovadoRotulo ?? ''} em ${r.aprovadoEm.toISOString().slice(0, 10).split('-').reverse().join('/')}` : null;
-  const bytes = await gerarPdfRelatorio(r.dados, r.textos, { titulo: tituloRelatorio(r.mes), situacao: r.situacao, aprovacao, emitidoPor: ctx.usuarioRotulo });
+  const aprovacao = r.aprovadoEm ? `${r.aprovadoRotulo ?? ''} em ${dataEmBrasilia(r.aprovadoEm)}` : null;
+  const bytes = await gerarPdfRelatorio(r.dados, r.textos, {
+    titulo: tituloRelatorio(r.mes),
+    situacao: r.situacao,
+    aprovacao,
+    emitidoPor: ctx.usuarioRotulo,
+    posicao: `Indicadores na posição de ${dataEmBrasilia(r.geradoEm)}`,
+  });
   await cliente.$transaction(async (tx: TxCliente) => {
     await auditar(tx, {
       contexto: contextoDe(ctx),

@@ -25,7 +25,7 @@ export type AdmCentralRelatorio = {
   resultadoAno: string | null;
   saldo: string | null;
 };
-export type TpRelatorio = { numero: string; oficial: boolean; valorGlobal: string; execucao: string | null };
+export type TpRelatorio = { numero: string; oficial: boolean; valorGlobal: string | null; execucao: string | null };
 export type DadosRelatorio = {
   mes: string;
   admCentral: AdmCentralRelatorio | null;
@@ -36,10 +36,31 @@ export type TextosRelatorio = { resumo: string; riscos: string[]; recomendacoes:
 
 const MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** O mês pedido ("AAAA-MM"), nunca depois do mês atual. */
-export function validarMes(bruto: unknown, mesAtual: string): Resultado<string> {
+/** O mês ("AAAA-MM") em Brasília: perto da meia-noite do último dia, o UTC já está no mês seguinte. */
+export function mesEmBrasilia(d: Date): string {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(d);
+  const v = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${v('year')}-${v('month')}`;
+}
+
+/** A data ("DD/MM/AAAA") em Brasília. */
+export function dataEmBrasilia(d: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+}
+
+export function mesAnterior(mes: string): string {
+  const [a, m] = [Number(mes.slice(0, 4)), Number(mes.slice(5, 7))];
+  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
+}
+
+/**
+ * O mês pedido ("AAAA-MM"), entre `minimo` e `mesAtual`. Os indicadores são a posição do momento da geração,
+ * então só o mês atual ou o anterior fazem sentido (revisão 12.12 do #519).
+ */
+export function validarMes(bruto: unknown, mesAtual: string, minimo = '0000-01'): Resultado<string> {
   if (typeof bruto !== 'string' || !MES.test(bruto)) return falha([{ campo: 'mes', mensagem: 'Informe o mês no formato AAAA-MM.' }]);
   if (bruto > mesAtual) return falha([{ campo: 'mes', mensagem: 'O relatório é de um mês que já começou: escolha o mês atual ou um anterior.' }]);
+  if (bruto < minimo) return falha([{ campo: 'mes', mensagem: 'Os indicadores são a posição de agora: gere o relatório só do mês atual ou do anterior.' }]);
   return ok(bruto);
 }
 

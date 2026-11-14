@@ -1,12 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
 import type { ErroCampo } from '@/shared/kernel';
 import { MAXIMO_ITENS_RELATORIO, MAXIMO_RESUMO_RELATORIO, type TextosRelatorio } from '../domain/relatorio-executivo';
 
 // Relatório executivo mensal (US-103): o formulário de gerar o rascunho (IA) e o de editar os textos.
-// Componentes cliente: recebem as Server Actions por props. Aprovar usa a AcaoConfirmada do C3, na página.
+// Componentes cliente: recebem as Server Actions por props. Aprovar (AcaoConfirmada do C3) fica no formulário
+// e some enquanto houver alteração não salva (revisão 12.12: aprovaria o texto antigo, que fica imutável).
 
 type Resposta<T> = { ok: true; valor: T } | { ok: false; erros: readonly ErroCampo[] };
 const FALHA = 'Não foi possível concluir. Confira a conexão e tente de novo.';
@@ -25,6 +27,9 @@ export const TEXTOS_RELATORIO = {
   SALVAR: 'Salvar textos',
   SALVO: 'Textos salvos.',
   UM_POR_LINHA: `Um item por linha, até ${MAXIMO_ITENS_RELATORIO}.`,
+  SALVE_ANTES: 'Salve os textos antes de aprovar.',
+  PERGUNTA_APROVAR: 'Deseja realmente aprovar este relatório? Depois de aprovado, ele não pode mais ser alterado.',
+  CARACTERES: (n: number) => `${n} de ${MAXIMO_RESUMO_RELATORIO} caracteres.`,
 } as const;
 
 export function GerarRascunho({ mesAtual, gerar }: { mesAtual: string; gerar: (e: { mes: string }) => Promise<Resposta<{ id: string; mes: string }>> }) {
@@ -90,14 +95,19 @@ export function GerarRascunho({ mesAtual, gerar }: { mesAtual: string; gerar: (e
 
 export function EditarTextos({
   id,
+  mes,
   versao,
   textos,
   salvar,
+  aprovar,
 }: {
   id: string;
+  mes: string;
   versao: number;
   textos: TextosRelatorio;
   salvar: (e: { id: string; versao: number; resumo: string; riscos: string; recomendacoes: string }) => Promise<Resposta<{ versao: number }>>;
+  /** Com a permissão de aprovar; sem ela, o botão não aparece. */
+  aprovar?: AcaoFormulario | undefined;
 }) {
   const router = useRouter();
   const [resumo, setResumo] = useState(textos.resumo);
@@ -106,6 +116,12 @@ export function EditarTextos({
   const [erros, setErros] = useState<readonly ErroCampo[]>([]);
   const [salvo, setSalvo] = useState(false);
   const [pendente, iniciar] = useTransition();
+  const formulario = useRef<HTMLFormElement>(null);
+  const alterado = resumo !== textos.resumo || riscos !== textos.riscos.join('\n') || recomendacoes !== textos.recomendacoes.join('\n');
+  // Com erro de campo, o foco vai ao primeiro campo inválido.
+  useEffect(() => {
+    if (erros.length > 0) formulario.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [erros]);
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
     if (pendente) return;
@@ -125,7 +141,8 @@ export function EditarTextos({
   };
   const campo = (nome: 'resumo' | 'riscos' | 'recomendacoes', rotulo: string, valor: string, mudar: (v: string) => void, dica?: string) => {
     const erro = mensagens(erros, nome);
-    const ids = [dica ? `relatorio-${nome}-dica` : '', erro ? `relatorio-${nome}-erro` : ''].filter(Boolean).join(' ');
+    const contador = nome === 'resumo' ? 'relatorio-resumo-contador' : '';
+    const ids = [dica ? `relatorio-${nome}-dica` : '', contador, erro ? `relatorio-${nome}-erro` : ''].filter(Boolean).join(' ');
     return (
       <p>
         <label htmlFor={`relatorio-${nome}`}>{rotulo}</label>
@@ -139,6 +156,7 @@ export function EditarTextos({
           aria-describedby={ids || undefined}
         />
         {dica && <span id={`relatorio-${nome}-dica`}>{dica}</span>}
+        {contador && <span id={contador}>{TEXTOS_RELATORIO.CARACTERES([...valor].length)}</span>}
         {erro && (
           <span id={`relatorio-${nome}-erro`} role="alert">
             {erro}
@@ -149,7 +167,7 @@ export function EditarTextos({
   };
   const erroGeral = mensagens(erros, '_');
   return (
-    <form onSubmit={enviar} aria-labelledby="editar-relatorio-titulo">
+    <form ref={formulario} onSubmit={enviar} aria-labelledby="editar-relatorio-titulo">
       <h2 id="editar-relatorio-titulo">Revisar os textos</h2>
       {campo('resumo', 'Resumo', resumo, setResumo)}
       {campo('riscos', 'Riscos', riscos, setRiscos, TEXTOS_RELATORIO.UM_POR_LINHA)}
@@ -161,6 +179,12 @@ export function EditarTextos({
         {salvo ? TEXTOS_RELATORIO.SALVO : ''}
       </p>
       {erroGeral && <p role="alert">{erroGeral}</p>}
+      {aprovar &&
+        (alterado ? (
+          <p role="note">{TEXTOS_RELATORIO.SALVE_ANTES}</p>
+        ) : (
+          <AcaoConfirmada rotulo="Aprovar" contexto={`o relatório de ${mes}`} pergunta={TEXTOS_RELATORIO.PERGUNTA_APROVAR} acao={aprovar} campos={{ id, versao: String(versao) }} />
+        ))}
     </form>
   );
 }

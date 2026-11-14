@@ -14,12 +14,13 @@ const TAMANHO = 10;
 const ENTRELINHA = 14;
 const MAX_BARRAS = 15;
 
-export type CabecalhoPdf = { titulo: string; situacao: 'RASCUNHO' | 'APROVADO'; aprovacao: string | null; emitidoPor: string };
+export type CabecalhoPdf = { titulo: string; situacao: 'RASCUNHO' | 'APROVADO'; aprovacao: string | null; emitidoPor: string; posicao: string };
 
 // WinAnsi (cp1252): o Latin-1 imprimível e os sinais tipográficos comuns.
 const WIN_ANSI_EXTRA = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
 export function paraWinAnsi(texto: string): string {
-  return [...texto.replace(/\r?\n/g, ' ')]
+  // Tab, quebra e espaços Unicode viram espaço (o espaço não separável, do WinAnsi, fica).
+  return [...texto.replace(/[\t\r\n\v\f\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/g, ' ')]
     .map((c) => {
       const n = c.codePointAt(0)!;
       return (n >= 0x20 && n <= 0x7e) || (n >= 0xa0 && n <= 0xff) || WIN_ANSI_EXTRA.has(c) ? c : '?';
@@ -27,7 +28,10 @@ export function paraWinAnsi(texto: string): string {
     .join('');
 }
 
-/** Quebra o texto em linhas que cabem na largura (por palavra; palavra maior que a linha é cortada). */
+/**
+ * Quebra o texto em linhas que cabem na largura (por palavra; palavra maior que a linha é cortada). O corte
+ * da palavra longa é por busca binária: medir prefixo a prefixo prendia a CPU (revisão 12.12 do #519).
+ */
 export function quebrarLinhas(texto: string, largura: number, medir: (t: string) => number): string[] {
   const linhas: string[] = [];
   let atual = '';
@@ -40,10 +44,15 @@ export function quebrarLinhas(texto: string, largura: number, medir: (t: string)
     if (atual) linhas.push(atual);
     let resto = palavra;
     while (medir(resto) > largura && resto.length > 1) {
-      let corte = resto.length - 1;
-      while (corte > 1 && medir(resto.slice(0, corte)) > largura) corte--;
-      linhas.push(resto.slice(0, corte));
-      resto = resto.slice(corte);
+      // Maior prefixo que cabe (pelo menos 1 caractere).
+      let [cabe, nao] = [1, resto.length];
+      while (nao - cabe > 1) {
+        const meio = (cabe + nao) >> 1;
+        if (medir(resto.slice(0, meio)) <= largura) cabe = meio;
+        else nao = meio;
+      }
+      linhas.push(resto.slice(0, cabe));
+      resto = resto.slice(cabe);
     }
     atual = resto;
   }
@@ -56,7 +65,7 @@ const pct = (v: string | null) => (v === null ? '—' : `${v.replace('.', ',')}%
 const mesTexto = (mes: string) => `${mes.slice(5, 7)}/${mes.slice(0, 4)}`;
 
 export async function gerarPdfRelatorio(dados: DadosRelatorio, textos: TextosRelatorio, cab: CabecalhoPdf): Promise<Uint8Array> {
-  const { PDFDocument, StandardFonts, rgb, grayscale } = await import('pdf-lib');
+  const { PDFDocument, StandardFonts, rgb, grayscale, degrees } = await import('pdf-lib');
   const doc = await PDFDocument.create();
   doc.setTitle(paraWinAnsi(cab.titulo));
   const fonte = await doc.embedFont(StandardFonts.Helvetica);
@@ -67,7 +76,11 @@ export async function gerarPdfRelatorio(dados: DadosRelatorio, textos: TextosRel
 
   const rodape = (p: PDFPage) => {
     const marca = cab.situacao === 'RASCUNHO' ? 'RASCUNHO - não distribuir' : (cab.aprovacao ?? '');
-    p.drawText(paraWinAnsi(`${marca} · Emitido por ${cab.emitidoPor}`), { x: MARGEM, y: MARGEM / 2, size: 7, font: fonte, color: grayscale(0.35) });
+    p.drawText(paraWinAnsi(`${marca} · ${cab.posicao} · Emitido por ${cab.emitidoPor}`), { x: MARGEM, y: MARGEM / 2, size: 7, font: fonte, color: grayscale(0.35) });
+    // Rascunho: marca d'água grande e diagonal em toda página, além do rodapé.
+    if (cab.situacao === 'RASCUNHO') {
+      p.drawText('RASCUNHO', { x: LARGURA / 2 - 190, y: ALTURA / 2 - 90, size: 80, font: negrito, color: grayscale(0.85), rotate: degrees(35), opacity: 0.5 });
+    }
   };
   const novaPagina = () => {
     rodape(pagina);
@@ -109,7 +122,7 @@ export async function gerarPdfRelatorio(dados: DadosRelatorio, textos: TextosRel
     const larguraBarra = util - larguraRotulo - larguraValor - 8;
     for (const i of itens) {
       garantir(ENTRELINHA + 2);
-      pagina.drawText(paraWinAnsi(i.rotulo).slice(0, 22), { x: MARGEM, y, size: 9, font: fonte });
+      pagina.drawText(quebrarLinhas(i.rotulo, larguraRotulo - 4, (x) => fonte.widthOfTextAtSize(x, 9))[0] ?? '', { x: MARGEM, y, size: 9, font: fonte });
       const fracao = maior.ehZero() ? 0 : Math.max(0, Math.min(1, Number(i.valor.paraString()) / Number(maior.paraString())));
       if (fracao > 0) pagina.drawRectangle({ x: MARGEM + larguraRotulo, y: y - 2, width: larguraBarra * fracao, height: 10, color: rgb(0.25, 0.45, 0.7) });
       pagina.drawText(paraWinAnsi(i.valor.formatar()), { x: MARGEM + larguraRotulo + larguraBarra + 8, y, size: 9, font: fonte });
@@ -120,6 +133,7 @@ export async function gerarPdfRelatorio(dados: DadosRelatorio, textos: TextosRel
   escrever(cab.titulo, negrito, 16);
   y -= 4;
   escrever(cab.situacao === 'RASCUNHO' ? 'RASCUNHO - não distribuir. Textos gerados com IA, em revisão.' : `Aprovado: ${cab.aprovacao ?? ''}. Textos gerados com IA e revisados.`, negrito, 9);
+  escrever(cab.posicao, fonte, 9);
 
   titulo('Resumo');
   escrever(textos.resumo);
@@ -140,9 +154,11 @@ export async function gerarPdfRelatorio(dados: DadosRelatorio, textos: TextosRel
 
   if (dados.tps && dados.tps.length > 0) {
     titulo('Termos de Parceria - Valor Global');
-    const ordenados = [...dados.tps].sort((x, z) => Dinheiro.de(z.valorGlobal).comparar(Dinheiro.de(x.valorGlobal)));
+    // TP sem Valor Global fica fora do gráfico (não vira zero).
+    const comValor = dados.tps.filter((t): t is typeof t & { valorGlobal: string } => t.valorGlobal !== null);
+    const ordenados = [...comValor].sort((x, z) => Dinheiro.de(z.valorGlobal).comparar(Dinheiro.de(x.valorGlobal)));
     barras(ordenados.slice(0, MAX_BARRAS).map((t) => ({ rotulo: `${t.numero}${t.oficial ? '' : ' (não oficial)'}`, valor: Dinheiro.de(t.valorGlobal) })));
-    const fora = dados.tps.length - Math.min(dados.tps.length, MAX_BARRAS) + dados.tpsOmitidos;
+    const fora = dados.tps.length - Math.min(ordenados.length, MAX_BARRAS) + dados.tpsOmitidos;
     if (fora > 0) escrever(`Mais ${fora} TP(s) fora do gráfico.`, fonte, 8);
     escrever(`Execução: ${dados.tps.map((t) => `${t.numero} ${pct(t.execucao)}`).join(' · ')}`, fonte, 9);
   }
