@@ -102,7 +102,13 @@ const retrato = (b: BemValidado, tp: string, versaoProposta: number, meta: strin
 });
 
 type BemGravado = { conta: string; descricao: string; data: Date; quantidade: number; valorUnitario: { toString(): string } };
-const paraValidado = (b: BemGravado): BemValidado => ({ conta: b.conta, descricao: b.descricao, data: b.data, quantidade: b.quantidade, valorUnitario: Dinheiro.de(b.valorUnitario.toString()) });
+const paraValidado = (b: BemGravado): BemValidado => ({
+  conta: b.conta,
+  descricao: b.descricao,
+  data: b.data,
+  quantidade: b.quantidade,
+  valorUnitario: Dinheiro.de(b.valorUnitario.toString()),
+});
 
 const dadosGravados = (b: BemValidado, metaId: string | null) => ({
   metaId,
@@ -115,7 +121,9 @@ const dadosGravados = (b: BemValidado, metaId: string | null) => ({
 
 function analiticas(arvore: readonly NoConta[], indice: IndiceEstruturaFinanceira, capex: ((c: string) => boolean) | undefined): OpcaoEstrutura[] {
   return arvore.flatMap((n) => [
-    ...(n.tipo === 'ANALITICA' && indice.contaAnaliticaAtiva(n.classificacao) && (!capex || capex(n.classificacao)) ? [{ classificacao: n.classificacao, descricao: n.descricao }] : []),
+    ...(n.tipo === 'ANALITICA' && indice.contaAnaliticaAtiva(n.classificacao) && (!capex || capex(n.classificacao))
+      ? [{ classificacao: n.classificacao, descricao: n.descricao }]
+      : []),
     ...analiticas(n.filhos, indice, capex),
   ]);
 }
@@ -352,7 +360,10 @@ export async function copiarBensDaVersao(tx: TxCliente, origemVersaoId: string, 
   if (bens.length === 0) return;
   const capa = { select: { id: true, categoria: true, inicio: true, fim: true } } as const;
   const origem = await tx.versaoProposta.findUniqueOrThrow({ where: { id: origemVersaoId }, select: { proposta: capa } });
-  const destino = await tx.versaoProposta.findUniqueOrThrow({ where: { id: destinoVersaoId }, select: { unidadeId: true, proposta: capa, metas: { select: { id: true, numero: true } } } });
+  const destino = await tx.versaoProposta.findUniqueOrThrow({
+    where: { id: destinoVersaoId },
+    select: { unidadeId: true, proposta: capa, metas: { select: { id: true, numero: true } } },
+  });
   const novaVersao = origem.proposta.id === destino.proposta.id;
   if (!novaVersao && origem.proposta.categoria !== destino.proposta.categoria) return;
   const cabe = (d: Date) => d >= destino.proposta.inicio && d <= destino.proposta.fim;

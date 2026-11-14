@@ -29,14 +29,20 @@ const cc = (classificacao: string, descricao: string, analitico: boolean, filhos
 });
 const conta = (classificacao: string, descricao: string, filhos: NoConta[] = []): NoConta => {
   const nivel = classificacao.split('.').length as NoConta['nivel'];
-  return { classificacao, codigoReduzido: nivel === 5 ? `8${classificacao.replace(/\./g, '')}` : null, descricao, nivel, tipo: nivel === 5 ? 'ANALITICA' : 'SINTETICA', ativa: true, filhos };
+  return {
+    classificacao,
+    codigoReduzido: nivel === 5 ? `8${classificacao.replace(/\./g, '')}` : null,
+    descricao,
+    nivel,
+    tipo: nivel === 5 ? 'ANALITICA' : 'SINTETICA',
+    ativa: true,
+    filhos,
+  };
 };
 const CONTAS: NoConta[] = [
   conta('4', 'DESPESAS', [
     conta('4.1', 'DESPESAS OPERACIONAIS', [conta('4.1.1', 'SERVIÇOS', [conta('4.1.1.5', 'ADMINISTRATIVAS', [conta('4.1.1.5.005', 'Material de escritório')])])]),
-    conta('4.2', 'INVESTIMENTOS', [
-      conta('4.2.1', 'IMOBILIZADO', [conta('4.2.1.1', 'EQUIPAMENTOS', [conta('4.2.1.1.001', 'Computadores'), conta('4.2.1.1.002', 'Mobiliário')])]),
-    ]),
+    conta('4.2', 'INVESTIMENTOS', [conta('4.2.1', 'IMOBILIZADO', [conta('4.2.1.1', 'EQUIPAMENTOS', [conta('4.2.1.1.001', 'Computadores'), conta('4.2.1.1.002', 'Mobiliário')])])]),
   ]),
 ];
 const RAIZ_TPS = cc('9', 'Termos de Parceria', false, [cc('9.1', 'TP de exemplo 1', true), cc('9.2', 'TP de exemplo 2', true)]);
@@ -119,12 +125,15 @@ describe('incluirBem (UC03.35)', () => {
     const c = await proposta({ categoria: 'CONSOLIDADA' });
     expect((await incluirBem(await ctx(), { propostaId: c.id, versaoCapa: await versaoCapa(c.id), ...item() }, comDeps())).ok).toBe(true);
     const p = await proposta({ cc: '9.2' });
-    expect(await incluirBem(await ctx(), { propostaId: p.id, versaoCapa: await versaoCapa(p.id), ...item() }, comDeps())).toEqual(erroCampo('metaId', M.EMPREGADO_META_OBRIGATORIA));
+    expect(await incluirBem(await ctx(), { propostaId: p.id, versaoCapa: await versaoCapa(p.id), ...item() }, comDeps())).toEqual(
+      erroCampo('metaId', M.EMPREGADO_META_OBRIGATORIA),
+    );
   });
 
   it('conta sintética recusada; com o filtro CAPEX injetado, a de custeio também (D-P22-3)', async () => {
     const p = await proposta({ categoria: 'CONSOLIDADA' });
-    const tentar = async (c: string, extra: Partial<DepsOrc> = {}) => incluirBem(await ctx(), { propostaId: p.id, versaoCapa: await versaoCapa(p.id), ...item({ conta: c }) }, comDeps(extra));
+    const tentar = async (c: string, extra: Partial<DepsOrc> = {}) =>
+      incluirBem(await ctx(), { propostaId: p.id, versaoCapa: await versaoCapa(p.id), ...item({ conta: c }) }, comDeps(extra));
     expect(await tentar('4.2.1.1')).toEqual(erroCampo('conta', M.BEM_CONTA_ANALITICA));
     const capex = (c: string) => c.startsWith('4.2.');
     expect(await tentar('4.1.1.5.005', { contaCapex: capex })).toEqual(erroCampo('conta', M.BEM_CONTA_NAO_CAPEX));
@@ -149,7 +158,17 @@ describe('alterarBem e excluirBem (UC03.36, UC03.37)', () => {
     const m1 = await meta(p.id, 'M1');
     const m2 = await meta(p.id, 'M2');
     const b = await incluir(p.id, m1.id);
-    const r = await alterarBem(await ctx(), { id: b.id, versao: 0, versaoCapa: await versaoCapa(p.id), metaId: m2.id, ...item({ conta: '4.2.1.1.002', descricao: 'Cadeiras', quantidade: '10', valorUnitario: '300,00' }) }, comDeps());
+    const r = await alterarBem(
+      await ctx(),
+      {
+        id: b.id,
+        versao: 0,
+        versaoCapa: await versaoCapa(p.id),
+        metaId: m2.id,
+        ...item({ conta: '4.2.1.1.002', descricao: 'Cadeiras', quantidade: '10', valorUnitario: '300,00' }),
+      },
+      comDeps(),
+    );
     expect(r).toEqual({ ok: true, valor: { descricao: 'Cadeiras' } });
     expect(await migrator.bemProposta.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ metaId: m2.id, conta: '4.2.1.1.002', quantidade: 10, versao: 1 });
     const [h] = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'orc.bens', registroId: b.id, tipoOperacao: 'ALTERACAO' } });
@@ -163,10 +182,16 @@ describe('alterarBem e excluirBem (UC03.36, UC03.37)', () => {
     const copiado = await migrator.bemProposta.findFirstOrThrow({ where: { versaoProposta: { propostaId: p.id, numero: 2 } } });
     expect(copiado.origemId).toBe(v1Bem.id);
     const novo = await incluir(p.id, undefined, { descricao: 'Impressora' });
-    expect(await excluirBem(await ctx(), { id: copiado.id, versao: 0, versaoCapa: await versaoCapa(p.id) }, comDeps())).toEqual({ ok: true, valor: { descricao: 'Notebook', inativado: true } });
+    expect(await excluirBem(await ctx(), { id: copiado.id, versao: 0, versaoCapa: await versaoCapa(p.id) }, comDeps())).toEqual({
+      ok: true,
+      valor: { descricao: 'Notebook', inativado: true },
+    });
     expect(await migrator.bemProposta.findUniqueOrThrow({ where: { id: copiado.id } })).toMatchObject({ ativo: false });
     expect((await migrator.bemProposta.findUniqueOrThrow({ where: { id: v1Bem.id } })).ativo).toBe(true);
-    expect(await excluirBem(await ctx(), { id: novo.id, versao: 0, versaoCapa: await versaoCapa(p.id) }, comDeps())).toEqual({ ok: true, valor: { descricao: 'Impressora', inativado: false } });
+    expect(await excluirBem(await ctx(), { id: novo.id, versao: 0, versaoCapa: await versaoCapa(p.id) }, comDeps())).toEqual({
+      ok: true,
+      valor: { descricao: 'Impressora', inativado: false },
+    });
     expect(await migrator.bemProposta.count({ where: { id: novo.id } })).toBe(0);
     // O inativo não se altera nem sai de novo.
     expect(await alterarBem(await ctx(), { id: copiado.id, versao: 1, versaoCapa: await versaoCapa(p.id), ...item() }, comDeps())).toEqual(erroGeral(M.BEM_INATIVO));
@@ -213,7 +238,11 @@ describe('listarBens e cópia (RN0415, RN0417, RN_DUP_003)', () => {
     const p = await proposta({ categoria: 'CONSOLIDADA' });
     await incluir(p.id, undefined, { descricao: 'Dentro', data: '2027-03-01' });
     await incluir(p.id, undefined, { descricao: 'Fora', data: '2027-11-01' });
-    const d = await duplicarProposta(await ctx(), { origemId: p.id, versaoOrigem: await versaoCapa(p.id), numero: `TP-D${++seq}`, cc: '9.2', inicio: '2027-01-01', fim: '2027-06-30' }, comDeps());
+    const d = await duplicarProposta(
+      await ctx(),
+      { origemId: p.id, versaoOrigem: await versaoCapa(p.id), numero: `TP-D${++seq}`, cc: '9.2', inicio: '2027-01-01', fim: '2027-06-30' },
+      comDeps(),
+    );
     if (!d.ok) throw new Error(JSON.stringify(d.erros));
     const copiados = await migrator.bemProposta.findMany({ where: { versaoProposta: { propostaId: d.valor.id } } });
     expect(copiados.map((x) => [x.descricao, x.origemId])).toEqual([['Dentro', null]]);

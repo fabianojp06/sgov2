@@ -4,7 +4,7 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
-// Task 2, Step 3) e as viagens (US-071; plano do P21, Task 2, Step 3).
+// Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3) e os bens (US-072; plano do P22, Task 2, Step 3).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -14,8 +14,8 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
 // a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
 // copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; os tetos de passagens
-// e de diárias, uma viagem e a cópia dela recusada pelo teto; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
-// livre (D-P17-10). O afterAll apaga as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
+// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// livre (D-P17-10). O afterAll apaga os bens, as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
 // Usuário: o Orçamentista E2E de e2e/aut/apoio.ts (orc.menu), que outros specs também usam. O vínculo
@@ -42,6 +42,7 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query('BEGIN');
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
+      await cliente.query(`DELETE FROM orc_bem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_viagem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_teto_viagem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_qtde_empregado WHERE unidade_id IN ${unidade}`);
@@ -242,6 +243,25 @@ test.describe.serial('proposta de TP', () => {
     await page.getByLabel('Quantidade de pessoas').fill('3');
     await page.getByRole('button', { name: 'Incluir viagem' }).click();
     await expect(page.getByText('Operação Rejeitada: O somatório das viagens operacionais excede o teto orçamentário disponível na Conta Sintética selecionada (4.1.1.4).')).toBeVisible();
+  });
+
+  test('3e. um bem na conta de máquinas e equipamentos, com o subtotal e o total geral', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Bens da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/bens\?proposta=/);
+    await page.getByRole('link', { name: `Novo bem, serviço ou equipamento na proposta ${NUMERO_COPIA}` }).click();
+    await page.locator('#novo-bem-meta').selectOption({ label: 'M2 – Atendimento' });
+    await page.locator('#novo-bem-conta').selectOption('4.1.1.7.003');
+    await page.getByLabel('Descrição').fill('Notebook E2E');
+    await page.getByLabel('Data', { exact: true }).fill('2027-05-10');
+    await page.getByLabel('Quantidade').fill('3');
+    await page.getByLabel('Valor unitário (R$)').fill('1.234,56');
+    await page.getByRole('button', { name: 'Incluir item' }).click();
+    await expect(page.getByText('Item "Notebook E2E" incluído.')).toBeVisible();
+    const grupo = page.getByRole('region', { name: /^Conta 4\.1\.1\.7\.003 / });
+    await expect(grupo.getByRole('row', { name: /^10\/05\/2027 / })).toHaveText(/Notebook E2E\s*M2 – Atendimento\s*3\s*1\.234,56\s*3\.703,68/);
+    await expect(grupo).toContainText('Subtotal da conta 4.1.1.7.003');
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {

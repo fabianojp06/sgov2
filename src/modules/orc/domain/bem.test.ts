@@ -36,14 +36,20 @@ describe('validarBem (REQ0290, RN0157, D-P22-5)', () => {
 
   it('data inválida ou fora da vigência (os dois limites valem)', () => {
     expect(campos(validarBem({ ...bom, data: '2027-02-30' }, vigencia))).toEqual(['data']);
-    expect(validarBem({ ...bom, data: '2027-03-14' }, vigencia)).toEqual({ ok: false, erros: [{ campo: 'data', mensagem: M.BEM_DATA_FORA_DA_VIGENCIA('15/03/2027', '10/02/2028') }] });
+    expect(validarBem({ ...bom, data: '2027-03-14' }, vigencia)).toEqual({
+      ok: false,
+      erros: [{ campo: 'data', mensagem: M.BEM_DATA_FORA_DA_VIGENCIA('15/03/2027', '10/02/2028') }],
+    });
     expect(campos(validarBem({ ...bom, data: '2028-02-11' }, vigencia))).toEqual(['data']);
     expect(campos(validarBem({ ...bom, data: '2027-03-15' }, vigencia))).toEqual([]);
     expect(campos(validarBem({ ...bom, data: '2028-02-10' }, vigencia))).toEqual([]);
   });
 
   it('recusa o total que passa do limite de NUMERIC(15,2)', () => {
-    expect(validarBem({ ...bom, quantidade: '999999', valorUnitario: '99.999.999.999,99' }, vigencia)).toEqual({ ok: false, erros: [{ campo: '_', mensagem: M.BEM_CUSTO_FORA_DO_LIMITE }] });
+    expect(validarBem({ ...bom, quantidade: '999999', valorUnitario: '99.999.999.999,99' }, vigencia)).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: M.BEM_CUSTO_FORA_DO_LIMITE }],
+    });
   });
 });
 

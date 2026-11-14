@@ -29,7 +29,13 @@ export const totalDoBem = (b: { quantidade: number; valorUnitario: Dinheiro }): 
  * 200; quantidade inteira de 1 a 999.999; valor ≥ 0 com até duas casas; data dentro da vigência da capa.
  */
 export function validarBem(bruto: Readonly<Record<string, unknown>>, vigencia: { inicio: Date; fim: Date }): Resultado<BemValidado> {
-  const v = { conta: texto(bruto.conta), descricao: texto(bruto.descricao), data: texto(bruto.data), quantidade: texto(bruto.quantidade), valorUnitario: texto(bruto.valorUnitario) };
+  const v = {
+    conta: texto(bruto.conta),
+    descricao: texto(bruto.descricao),
+    data: texto(bruto.data),
+    quantidade: texto(bruto.quantidade),
+    valorUnitario: texto(bruto.valorUnitario),
+  };
   const erros: ErroCampo[] = [];
   const vazios = (['conta', 'descricao', 'data', 'quantidade', 'valorUnitario'] as const).filter((c) => v[c] === '');
   if (vazios.length > 0) erros.push({ campo: '_', mensagem: M.BEM_OBRIGATORIOS }, ...vazios.map((campo) => ({ campo, mensagem: M.PROPOSTA_CAMPO_OBRIGATORIO })));
@@ -40,7 +46,8 @@ export function validarBem(bruto: Readonly<Record<string, unknown>>, vigencia: {
   if (v.valorUnitario !== '' && (!valorUnitario || valorUnitario.ehNegativo())) erros.push({ campo: 'valorUnitario', mensagem: M.VIAGEM_VALOR_INVALIDO });
   const data = v.data === '' ? null : lerDataCivil(v.data);
   if (v.data !== '' && !data) erros.push({ campo: 'data', mensagem: M.PROPOSTA_DATA_INVALIDA });
-  if (data && (data < vigencia.inicio || data > vigencia.fim)) erros.push({ campo: 'data', mensagem: M.BEM_DATA_FORA_DA_VIGENCIA(paraTela(vigencia.inicio), paraTela(vigencia.fim)) });
+  if (data && (data < vigencia.inicio || data > vigencia.fim))
+    erros.push({ campo: 'data', mensagem: M.BEM_DATA_FORA_DA_VIGENCIA(paraTela(vigencia.inicio), paraTela(vigencia.fim)) });
   if (erros.length > 0 || !data || quantidade === null || quantidade < 1 || !valorUnitario) return falha(erros);
   try {
     totalDoBem({ quantidade, valorUnitario });
