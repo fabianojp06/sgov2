@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import type { ErroCampo } from '@/shared/kernel';
 import { DESCRICAO_GRAFICO, MAXIMO_TEMA, type Roteiro } from '../domain/apresentacao';
 
@@ -22,6 +22,7 @@ export const TEXTOS_APRESENTACAO = {
   SELO: 'Gerado com IA – revisar',
   BAIXAR: 'Baixar os slides em PDF',
   BAIXANDO: 'Gerando o PDF…',
+  BAIXADO: 'Slides baixados.',
   FALHA: 'Não foi possível concluir. Confira a conexão e tente de novo.',
 } as const;
 
@@ -31,8 +32,11 @@ const baixar = (nome: string, base64: string) => {
   const a = document.createElement('a');
   a.href = url;
   a.download = nome;
+  // Anexada e com o revoke depois: no Safari e em alguns Firefox, a âncora solta ou o revoke imediato cancelam o download.
+  document.body.append(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 };
 
 /** O roteiro (puro: testável sem DOM). */
@@ -78,6 +82,11 @@ export function Apresentacao({
   const [pendente, iniciar] = useTransition();
   // Ref, e não só o estado: dois cliques seguidos não disparam duas chamadas.
   const ocupado = useRef(false);
+  const tituloRoteiro = useRef<HTMLHeadingElement>(null);
+  // Roteiro pronto: o foco vai ao título dele.
+  useEffect(() => {
+    if (gerado) tituloRoteiro.current?.focus();
+  }, [gerado]);
   const executar = (antes: string, chamada: () => Promise<void>) => {
     if (ocupado.current) return;
     ocupado.current = true;
@@ -111,9 +120,14 @@ export function Apresentacao({
     gerado &&
     executar(TEXTOS_APRESENTACAO.BAIXANDO, async () => {
       const r = await exportar(gerado);
-      setAviso('');
-      if (r.ok) baixar(r.valor.nome, r.valor.base64);
-      else setErros(r.erros);
+      if (r.ok) {
+        baixar(r.valor.nome, r.valor.base64);
+        setAviso(TEXTOS_APRESENTACAO.BAIXADO);
+      } else {
+        setAviso('');
+        // Erro da exportação vai para a mensagem geral (o campo do tema pode já ter outro texto).
+        setErros(r.erros.map((e) => ({ ...e, campo: '_' })));
+      }
     });
   const erroTema = erros.filter((e) => e.campo === 'tema').map((e) => e.mensagem).join(' ');
   const erroGeral = erros.filter((e) => e.campo !== 'tema').map((e) => e.mensagem).join(' ');
@@ -152,7 +166,9 @@ export function Apresentacao({
       {erroGeral && <p role="alert">{erroGeral}</p>}
       {gerado && (
         <section aria-labelledby="apresentacao-roteiro">
-          <h2 id="apresentacao-roteiro">Roteiro: {gerado.tema}</h2>
+          <h2 id="apresentacao-roteiro" ref={tituloRoteiro} tabIndex={-1}>
+            Roteiro: {gerado.tema}
+          </h2>
           {podeExportar && (
             <button type="button" onClick={baixarSlides} aria-disabled={pendente}>
               {TEXTOS_APRESENTACAO.BAIXAR}

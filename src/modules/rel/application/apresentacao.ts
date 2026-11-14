@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { auditar } from '@/shared/audit';
@@ -7,7 +8,7 @@ import { prisma, type TxCliente } from '@/shared/db';
 import { ErroIA, servicoIA, type ServicoIA } from '@/shared/ia';
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import { conferirRoteiro, ESQUEMA_ROTEIRO, MAXIMO_NOTAS, MAXIMO_TITULO, MAXIMO_TOPICO, mensagemApresentacao, validarTema, type Roteiro } from '../domain/apresentacao';
-import { mesEmBrasilia, type DadosRelatorio } from '../domain/relatorio-executivo';
+import { dataEmBrasilia, mesEmBrasilia, type DadosRelatorio } from '../domain/relatorio-executivo';
 import { CASO_APRESENTACAO } from './ia-casos';
 import { LER_ADM_CENTRAL, LER_TPS, type LerAdmCentral, type LerTps } from './relatorio-executivo';
 
@@ -111,13 +112,18 @@ export async function exportarSlides(
   // Gráfico que os dados de agora não permitem vira NENHUM (como na geração).
   const conferido = conferirRoteiro(roteiro.data, dados);
   const { gerarPdfApresentacao } = await import('../infrastructure/pdf-apresentacao');
-  const bytes = await gerarPdfApresentacao(tema.valor, conferido, dados, ctx.usuarioRotulo);
+  const agora = deps.agora();
+  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
+  const bytes = await gerarPdfApresentacao(tema.valor, conferido, dados, ctx.usuarioRotulo, `${dataEmBrasilia(agora)} às ${hora}`);
+  // O roteiro vem do navegador: o Histórico guarda o tema e o hash do que foi exportado (revisão 12.12).
+  const hash = createHash('sha256').update(JSON.stringify(conferido)).digest('hex');
   await deps.cliente.$transaction(async (tx: TxCliente) => {
     await auditar(tx, {
       contexto: contextoDe(ctx),
       funcionalidade: FUNCIONALIDADE_APRESENTACAO,
       tipo: 'EXPORTACAO',
       descricao: `Slides da apresentação exportados em PDF (${conferido.slides.length} slides)`,
+      depois: { tema: tema.valor, slides: conferido.slides.length, roteiroSha256: hash },
     });
   });
   return ok({ nome: `apresentacao-${dados.mes}.pdf`, base64: Buffer.from(bytes).toString('base64') });

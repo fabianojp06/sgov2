@@ -32,7 +32,10 @@ export type Roteiro = { slides: Slide[] };
 /** O tema: tira as marcas, confere o tamanho em caracteres. */
 export function validarTema(bruto: unknown): Resultado<string> {
   if (typeof bruto === 'string' && bruto.length > MAXIMO_TEMA_BRUTO) return falha([{ campo: 'tema', mensagem: `O tema tem mais de ${MAXIMO_TEMA} caracteres.` }]);
-  const tema = semMarcas(typeof bruto === 'string' ? bruto : '').trim();
+  // Quebras de linha e controles viram espaço: o tema não imita a estrutura da mensagem (revisão 12.12).
+  const tema = semMarcas(typeof bruto === 'string' ? bruto : '')
+    .replace(/[\s\p{Cc}]+/gu, ' ')
+    .trim();
   if (contarCaracteres(tema) < MINIMO_TEMA) return falha([{ campo: 'tema', mensagem: `Escreva o tema com pelo menos ${MINIMO_TEMA} caracteres.` }]);
   if (contarCaracteres(tema) > MAXIMO_TEMA) return falha([{ campo: 'tema', mensagem: `O tema tem mais de ${MAXIMO_TEMA} caracteres.` }]);
   return ok(tema);

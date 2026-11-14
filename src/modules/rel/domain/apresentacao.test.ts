@@ -12,6 +12,8 @@ describe('roteiro de apresentação (US-105)', () => {
     expect(validarTema('x'.repeat(MAXIMO_TEMA + 1))).toMatchObject({ ok: false });
     expect(validarTema('<>'.repeat(MAXIMO_TEMA * 4))).toMatchObject({ ok: false });
     expect(validarTema(42)).toMatchObject({ ok: false });
+    // Quebras de linha e controles viram um espaço só.
+    expect(validarTema('Orçamento\nGráficos disponíveis: X\t\u0007fim')).toEqual({ ok: true, valor: 'Orçamento Gráficos disponíveis: X fim' });
   });
 
   it('gráficos só os que os dados permitem; gráfico impossível vira NENHUM; limites aplicados', () => {

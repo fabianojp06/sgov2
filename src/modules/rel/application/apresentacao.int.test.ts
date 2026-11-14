@@ -105,8 +105,13 @@ describe('roteiro de apresentação', () => {
     const r = await exportarSlides(ctx(), { tema: 'Orçamento 2026', roteiro: ROTEIRO }, deps());
     expect(r).toMatchObject({ ok: true, valor: { nome: 'apresentacao-2026-11.pdf' } });
     expect(r.ok && Buffer.from(r.valor.base64, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
-    const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: CASO_APRESENTACAO.funcionalidade }, select: { tipoOperacao: true } });
+    const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: CASO_APRESENTACAO.funcionalidade }, select: { tipoOperacao: true, depois: true } });
     expect(h.map((x) => x.tipoOperacao)).toEqual(['EXPORTACAO']);
+    // O roteiro vem do navegador: o Histórico guarda o tema e o hash do que foi exportado.
+    expect(h[0]!.depois).toMatchObject({ tema: 'Orçamento 2026', slides: 1, roteiroSha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    // Gráfico que os dados de agora não permitem (sem Adm. Central) vira NENHUM, e o PDF sai igual.
+    const semAdm = { ...deps(), lerAdmCentral: async () => null };
+    expect((await exportarSlides(ctx(), { tema: 'Orçamento 2026', roteiro: ROTEIRO }, semAdm)).ok).toBe(true);
     await expect(exportarSlides(ctx(['consultar']), { tema: 'Orçamento 2026', roteiro: ROTEIRO }, deps())).rejects.toThrow();
   });
 });
