@@ -559,6 +559,27 @@ test.describe.serial('proposta de TP', () => {
     await c.close();
   });
 
+  test('3p. o GFIN abre a previsão de fechamento de 2027 da cópia a partir do Orçado x Realizado (US-091)', async ({ browser }) => {
+    const c = await browser.newContext();
+    const p = await c.newPage();
+    await entrarNaTelaPrincipal(p, USUARIOS.gfinPropostas.login);
+    await p.goto('/orc/orcado-realizado');
+    const opcao = p.getByLabel('Termo de Parceria').locator('option', { hasText: `${NUMERO_COPIA} – ` });
+    await p.getByLabel('Termo de Parceria').selectOption((await opcao.getAttribute('value'))!);
+    await p.getByRole('button', { name: 'Consultar' }).click();
+    await p.getByRole('link', { name: 'Previsão de fechamento do ano' }).click();
+    await expect(p).toHaveURL(/\/orc\/orcado-realizado\/previsao\?proposta=/);
+    await p.getByLabel('Ano').selectOption('2027');
+    await p.getByRole('button', { name: 'Consultar' }).click();
+    await expect(p.getByText(/^Realizado carregado até 01\/2027/)).toBeVisible();
+    const tabela = p.getByRole('table', { name: /^Previsão de fechamento por conta/ });
+    await expect(tabela.getByRole('row', { name: /^4\.1\.1\.7\.003 / })).toContainText('1.500,25');
+    await expect(p.getByRole('status')).toContainText(/conta\(s\) com risco de estouro no ano|Nenhuma conta com risco de estouro no ano/);
+    // O caso de IA nasce desligado: sem o botão do destaque.
+    await expect(p.getByRole('button', { name: /^Pedir à IA/ })).toHaveCount(0);
+    await c.close();
+  });
+
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
     await entrarNaTelaPrincipal(page, usuario.login);
     await page.goto('/orc/propostas');
