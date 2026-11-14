@@ -9,6 +9,7 @@ import { CASO_AJUDA_MANUAL, CASO_APRESENTACAO, CASO_COMPARATIVO_TPS, CASO_PERGUN
 // ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107). A quinta, o
 // comparativo entre TPs (US-106), no menu da Administração Central. A sexta, o relatório executivo mensal (US-103).
 // A sétima, o roteiro de apresentação para reunião de diretoria (US-105). A oitava, o Pergunte ao SGO (US-104).
+// A nona, o demonstrativo de despesas do TP (US-096, UC05.02).
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -141,6 +142,20 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     acoes: ['consultar', 'executar'],
     // US-104 (IA-16): a direção e quem consulta o orçamento. Cada um só recebe o que as próprias telas mostram. Caso desligado e com teto zero.
     perfisPadrao: { DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'], GESTOR_DIRETORIA: ['consultar', 'executar'] },
+  },
+  {
+    codigo: 'rel.despesas_tp',
+    modulo: 'RELATORIOS',
+    grupo: 'Prestação de contas',
+    nome: 'Demonstrativo de despesas do TP',
+    rota: '/rel/despesas-tp',
+    ordem: 1,
+    ajuda:
+      'O realizado de cada conta do Termo de Parceria: do início ao ano anterior numa coluna e mês a mês no ano de referência, com as contas ' +
+      'sintéticas somadas e o total geral. Filtre pelo TP (obrigatório) e pelo período; exporte em XLSX, CSV ou PDF. Só TP com versão oficial.',
+    acoes: ['consultar', 'exportar'],
+    // US-096 (UC05.02): a GFIN presta contas; DIREX e Auditor leem. O realizado ainda passa pela permissão e pela RLS do orc (US-085).
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
   },
 ];
 
