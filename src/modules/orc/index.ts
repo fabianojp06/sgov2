@@ -87,6 +87,14 @@ export {
   type ViagemTela,
 } from './application/viagens';
 export { exportarOrcadoRealizado, FORMATOS_OXR, MENSAGEM_PDF_LONGO, type FormatoOxr } from './application/exportar-oxr';
+export {
+  bensDaVersaoOficial,
+  empregadosDaVersaoOficial,
+  type BemDaVersaoOficial,
+  type BensDaVersaoOficial,
+  type EmpregadoDaVersaoOficial,
+  type EmpregadosDaVersaoOficial,
+} from './application/versao-oficial';
 export { obterPrevisaoFechamento, type ResultadoPrevisao, type TelaPrevisao as DadosPrevisao } from './application/previsao-fechamento';
 export { obterOrcadoRealizado, type FiltrosOxr, type ResultadoOxr, type TelaOxr as DadosOxr } from './application/orcado-realizado';
 export {
