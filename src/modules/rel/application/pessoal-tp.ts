@@ -96,6 +96,8 @@ async function obterPessoal(ctx: ContextoRequisicao, bruto: unknown, porta: Port
   const comPeriodo = { ...filtros, de, ate };
   const pessoal = await porta.pessoal(ctx, { tp: tp.numero });
   if (!pessoal || pessoal.versao === null) return { tps, filtros: comPeriodo, relatorio: null, erro: MENSAGENS_PESSOAL.TP_INEXISTENTE };
+  // TP consolidado não tem meta (RN0245): o filtro de meta não vale e não vai para o arquivo nem para o Histórico.
+  if (!pessoal.porMeta) comPeriodo.meta = '';
   const linhas = linhasDePessoal(pessoal.empregados, comPeriodo, pessoal.porMeta);
   return {
     tps,

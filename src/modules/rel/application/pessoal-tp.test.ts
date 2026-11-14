@@ -60,6 +60,7 @@ describe('relatórios de pessoal do TP', () => {
     const r = (await obterSalariosTp(grh(), { tp: 'TP-3' }, porta(false, false, false))).relatorio!;
     expect(r.totalCustos).toBeNull();
     expect(r.linhas[0]!.meta).toBeNull();
+    expect((await obterSalariosTp(grh(), { tp: 'TP-3', meta: 'tarifa' }, porta(false, false))).filtros.meta).toBe('');
     const h = renderToStaticMarkup(createElement(TabelaSalarios, { relatorio: r }));
     expect(h).toContain(TEXTOS_PESSOAL.SEM_CUSTO);
     expect(h).toContain(TEXTOS_PESSOAL.NAO_HOMOLOGADO);
@@ -77,6 +78,8 @@ describe('relatórios de pessoal do TP', () => {
     ]);
     const h = renderToStaticMarkup(createElement(TabelaDistribuicao, { relatorio: r }));
     expect(h).toContain('Gerência do Programa: 2 empregado(s)');
+    // O Seq segue a ordem dos grupos (revisão 12.12).
+    expect(r.grupos.flatMap((g) => g.linhas.map((l) => l.seq))).toEqual([1, 2, 3, 4]);
     expect(h).not.toContain(TEXTOS_PESSOAL.NAO_HOMOLOGADO);
     expect(h).toContain(TEXTOS_PESSOAL.TOTAL(4));
     expect(h).toContain(TEXTOS_PESSOAL.ORIGEM(2));

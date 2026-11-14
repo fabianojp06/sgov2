@@ -55,7 +55,8 @@ export function linhasDePessoal(empregados: readonly EmpregadoDaVersao[], f: Fil
   return empregados
     .filter((e) => e.inicio <= f.ate && e.fim >= f.de)
     .filter((e) => contem(e.cargo, f.cargo) && (!porMeta || contem(rotuloMeta(e), f.meta)) && (!f.categoria || e.categoria === f.categoria))
-    .sort((a, b) => (a.metaNumero ?? '').localeCompare(b.metaNumero ?? '', 'pt-BR', num) || a.ordem - b.ordem)
+    // Sem meta (a Consolidada) por último, como no orc (RN0148).
+    .sort((a, b) => (a.metaNumero ?? '\uffff').localeCompare(b.metaNumero ?? '\uffff', 'pt-BR', num) || a.ordem - b.ordem)
     .map((e, i) => ({
       seq: i + 1,
       nome: e.nome ?? A_CONTRATAR,
@@ -75,11 +76,18 @@ export function totalCustos(linhas: readonly LinhaPessoal[], veCusto: boolean): 
   return linhas.reduce((t, l) => t.somar(Dinheiro.de(l.custo ?? '0')), Dinheiro.zero()).paraString();
 }
 
-/** Agrupa por setor (RN0442; o cadastro da estrutura funcional tem só o nome), em ordem; o "Sem setor" por último. */
+/**
+ * Agrupa por setor (RN0442; o cadastro da estrutura funcional tem só o nome), em ordem; o "Sem setor" por último. O Seq é
+ * renumerado na ordem dos grupos, para seguir 1, 2, 3 na tela (revisão 12.12).
+ */
 export function porSetor(linhas: readonly LinhaPessoal[]): { setor: string; linhas: LinhaPessoal[] }[] {
   const grupos = new Map<string, LinhaPessoal[]>();
   for (const l of linhas) grupos.set(l.setor, [...(grupos.get(l.setor) ?? []), l]);
   return [...grupos.entries()]
     .sort(([a], [b]) => (a === SEM_SETOR ? 1 : b === SEM_SETOR ? -1 : a.localeCompare(b, 'pt-BR')))
-    .map(([setor, ls]) => ({ setor, linhas: ls }));
+    .map(([setor, ls]) => ({ setor, linhas: ls }))
+    .reduce<{ setor: string; linhas: LinhaPessoal[] }[]>((gs, g) => {
+      const antes = gs.reduce((n, x) => n + x.linhas.length, 0);
+      return [...gs, { setor: g.setor, linhas: g.linhas.map((l, i) => ({ ...l, seq: antes + i + 1 })) }];
+    }, []);
 }
