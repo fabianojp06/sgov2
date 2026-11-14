@@ -716,13 +716,17 @@
 - [x] **US-105 (#127), #520:** roteiro de apresentação em `/rel/apresentacao`, com slides em PDF 16:9, sem tabela.
   - O roteiro volta do navegador validado de forma estrita; o Histórico guarda o tema e o hash; o rodapé diz de quem é a responsabilidade.
   - Assinar o roteiro com HMAC exigiria segredo novo (PO).
+- [x] **US-104 parte 1 (#126), #522:** Pergunte ao SGO em `/rel/pergunte`.
+  - A IA só classifica a pergunta num catálogo de consultas somente leitura.
+  - O número vem do `obterVisaoExercicio` e do `obterConsolidado`, com o ctx de quem pergunta, mais a fonte e o link.
+  - **Parte 2:** o catálogo cresce com os relatórios de execução (US-096 em diante, depois do realizado).
 - Todas com revisão independente e os achados corrigidos antes do merge. Os casos de IA nascem desligados e já estão no hml.
 
 ## 8. Diário de sessões
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
-| 14/11/2026 (manhã) | B | US-106 (#515), US-103 parte 1 (#519, migration nova) e US-105 (#520), destravadas pelo consolidado da frente A (#510, #513 e #518, pedidos na #138); roteiros da R4 (#498, #499 e #505); #494, #495 e #497. Revisão independente em cada US, com os achados corrigidos |
+| 14/11/2026 (manhã) | B | US-106 (#515), US-103 parte 1 (#519, migration nova), US-105 (#520) e US-104 parte 1 (#522), destravadas pelo consolidado da frente A (#510, #513 e #518, pedidos na #138); roteiros da R4 (#498, #499 e #505); #494, #495 e #497. Revisão independente em cada US, com os achados corrigidos |
 | 13/11 (noite) a 14/11/2026 (madrugada) | B | Frente A acordada e destravada pela #138. #469 (vínculo funcional no C2) e #473 (natureza CAPEX no C1), pedidos da frente A; US-107 inteira (#476, #484 e #488), com duas revisões independentes; #482 (`main` sem typecheck depois de PRs paralelos, com a regra do campo opcional combinada com a frente A). US-099 bloqueada por falta de fonte (#121) |
 | 13/11/2026 (manhã) | B | #456 (US-118, manual por perfil; #140 fechada) e #454 na `main`; US-054 decidida pelo PO (#76). US-119 parte 2: rollback do app ensaiado no hml e restauração do dump ensaiada com o banco de dev, com correções no runbook. O PO autorizou as sessões das duas frentes a não pararem para confirmar ou relatar (seção 2). Depois: #460 (conferência da VPS), #462 (US-108, ajuda do manual por IA, sem embeddings; DoS do `semMarcas` corrigido e avisado à frente A) e #464 (roteiro da carga) |
 | 13/11/2026 (madrugada) | B | Com autonomia do PO: #447 (US-048 parte 2), #448 (US-052, impostos, `impostosVigentes` e `AnoMes` no C2 a pedido da frente A), #449 (US-047, agrupadores), #450, #451 e #453 (US-022 e US-023 no C3), #454 (teste frágil). Revisão 12.12 independente nas US com migration, com os achados corrigidos (seed de impostos, conta inativa no agrupador). Achado do menu do Administrador acima de 720px em produção levado à frente A, que corrigiu no #452. US-054 em refinamento (#76) |
