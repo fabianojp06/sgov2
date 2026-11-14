@@ -114,6 +114,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoBens; grupo:
           <tr>
             <th scope="row" colSpan={comMeta ? 5 : 4}>{`Subtotal da conta ${grupo.conta}`}</th>
             <td>{valorParaTela(grupo.subtotal)}</td>
+            {(podeAlterar || podeExcluir) && <td />}
           </tr>
         </tfoot>
       </table>
