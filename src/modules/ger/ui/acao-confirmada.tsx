@@ -41,8 +41,13 @@ export async function executarAcao(acao: AcaoFormulario, campos: Readonly<Record
 // Exclusão (US-023; UC0.04): `impacto` lista na caixa o que a operação vai afetar (RF_EXC_002); os
 // erros com o campo CAMPO_IMPEDITIVO (auxiliar impeditivos do ger) aparecem como a lista dos vínculos
 // que impedem a exclusão (RF_EXC_003), separados dos demais erros.
+//
+// `contexto` (#350, achado da frente A): com vários botões iguais na tela ("Desativar" em cada linha),
+// o nome acessível vira "<rótulo> <contexto>" ("Desativar Plano de Contas"). Começa pelo texto
+// visível, para quem usa comando de voz (WCAG 2.5.3).
 export function AcaoConfirmada({
   rotulo,
+  contexto,
   pergunta,
   acao,
   campos,
@@ -51,6 +56,8 @@ export function AcaoConfirmada({
   aberto = false,
 }: {
   rotulo: string;
+  /** O que o botão afeta, para o nome acessível quando há vários botões iguais na tela. */
+  contexto?: string;
   pergunta: string;
   acao: AcaoFormulario;
   campos: Readonly<Record<string, string>>;
@@ -102,7 +109,7 @@ export function AcaoConfirmada({
 
   return (
     <>
-      <button type="button" ref={origem} onClick={abrir} disabled={pendente}>
+      <button type="button" ref={origem} onClick={abrir} disabled={pendente} aria-label={contexto?.trim() ? `${rotulo} ${contexto.trim()}` : undefined}>
         {rotulo}
       </button>
       {confirmando ? (
