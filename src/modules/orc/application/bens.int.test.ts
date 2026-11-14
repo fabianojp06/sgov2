@@ -130,6 +130,20 @@ describe('incluirBem (UC03.35)', () => {
     );
   });
 
+  it('com contas CAPEX no plano (C1, #473), só elas valem; sem nenhuma, valem todas, com o aviso (D-P22-3)', async () => {
+    const capex = (n: NoConta): NoConta => ({ ...n, natureza: n.classificacao.startsWith('4.2.') && n.tipo === 'ANALITICA' ? 'CAPEX' : null, filhos: n.filhos.map(capex) });
+    const comNatureza = estruturaFinanceiraFalsa({ contas: CONTAS.map(capex), centrosCusto: [...CENTROS_CUSTO_EXEMPLO, RAIZ_TPS] });
+    const p = await proposta({ categoria: 'CONSOLIDADA' });
+    const r = await incluirBem(await ctx(), { propostaId: p.id, versaoCapa: await versaoCapa(p.id), ...item({ conta: '4.1.1.5.005' }) }, comDeps({ estrutura: comNatureza }));
+    expect(r).toEqual(erroCampo('conta', M.BEM_CONTA_NAO_CAPEX));
+    const o = await opcoesBem(await ctx(), comDeps({ estrutura: comNatureza }));
+    expect(o).toMatchObject({ semCapex: false });
+    expect(o.contas.map((x) => x.classificacao)).toEqual(['4.2.1.1.001', '4.2.1.1.002']);
+    const semNatureza = await opcoesBem(await ctx(), comDeps());
+    expect(semNatureza.semCapex).toBe(true);
+    expect(semNatureza.contas).toHaveLength(3);
+  });
+
   it('conta sintética recusada; com o filtro CAPEX injetado, a de custeio também (D-P22-3)', async () => {
     const p = await proposta({ categoria: 'CONSOLIDADA' });
     const tentar = async (c: string, extra: Partial<DepsOrc> = {}) =>

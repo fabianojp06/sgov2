@@ -46,7 +46,9 @@ export { listarMetas, type BlocoMetas, type FiltrosMetas, type MetaTela } from '
 export {
   cargosParaEmpregado,
   listarEmpregados,
+  MAXIMO_PROPOSTAS_EMPREGADOS,
   type BlocoEmpregados,
+  type FiltrosEmpregados,
   type EmpregadoTela,
   type GrupoEmpregados,
   type OpcaoCargoEmpregado,

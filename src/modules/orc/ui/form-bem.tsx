@@ -1,6 +1,7 @@
 import { ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
 import type { BemTela, BlocoBens, OpcoesBem } from '../application/bens';
 import { LIMITE_DESCRICAO_BEM, QUANTIDADE_MAXIMA_BEM } from '../domain/bem';
+import { MENSAGENS_ORC } from '../domain/mensagens';
 import { ROTULO_TIPO_PROPOSTA } from '../domain/proposta';
 import { valorParaTela } from '../domain/valor-tela';
 
@@ -60,6 +61,7 @@ export function FormBem({ bloco, bem, opcoes, salvar }: { bloco: BlocoBens; bem?
             ))}
           </select>
           <ErroDoCampo campo="conta" />
+          {opcoes.semCapex && <small role="note">{` ${MENSAGENS_ORC.BEM_SEM_CONTAS_CAPEX}`}</small>}
         </p>
         <p>
           <label htmlFor={id('descricao')}>Descrição</label>

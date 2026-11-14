@@ -76,7 +76,11 @@ export type BlocoBens = CabecalhoBloco & {
   listaInativos: readonly BemTela[];
 };
 
-export type OpcoesBem = { contas: readonly OpcaoEstrutura[] };
+export type OpcoesBem = {
+  contas: readonly OpcaoEstrutura[];
+  /** Nenhuma conta do plano tem a natureza CAPEX ainda: a lista traz todas as analíticas ativas. */
+  semCapex: boolean;
+};
 
 const versao = z.coerce.number().int().min(0);
 const texto = z.string().optional();
@@ -128,18 +132,32 @@ function analiticas(arvore: readonly NoConta[], indice: IndiceEstruturaFinanceir
   ]);
 }
 
-/** As contas do formulário (RN0411, RN0419): analíticas ativas, do grupo CAPEX quando houver o filtro. */
+/**
+ * RN0411 e RN0419 (D-P22-3): o grupo Imobilizado e Intangível é a natureza CAPEX do parâmetro local da conta
+ * (C27), exposta pelo C1 desde o #473 da frente B. Enquanto a GFIN não marcar nenhuma conta como CAPEX, não há
+ * filtro: valem todas as analíticas ativas, com o aviso na tela [PROVISÓRIO]. O `contaCapex` das deps substitui
+ * o do C1 nos testes.
+ */
+function filtroCapex(indice: IndiceEstruturaFinanceira, deps: DepsOrc): ((conta: string) => boolean) | undefined {
+  if (deps.contaCapex) return deps.contaCapex;
+  const algumaCapex = indice.nosContas.some((n) => n.tipo === 'ANALITICA' && indice.contaAnaliticaCapex(n.id));
+  return algumaCapex ? (conta) => indice.contaAnaliticaCapex(conta) : undefined;
+}
+
+/** As contas do formulário (RN0411, RN0419): analíticas ativas do grupo CAPEX, ou todas enquanto não houver. */
 export async function opcoesBem(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<OpcoesBem> {
   exigir(ctx, FUNCIONALIDADE, 'consultar');
   const deps = resolverDeps(depsParciais);
   const [arvore, indice] = await Promise.all([deps.estruturaCompleta.listarArvoreContas(deps.cliente), deps.estruturaCompleta.carregarIndiceEstrutura(deps.cliente)]);
-  return { contas: analiticas(arvore, indice, deps.contaCapex) };
+  const capex = filtroCapex(indice, deps);
+  return { contas: analiticas(arvore, indice, capex), semCapex: capex === undefined };
 }
 
-/** RN0411 e RN0419 (D-P22-3): analítica ativa e, com o filtro injetado, do grupo CAPEX. */
+/** RN0411 e RN0419 (D-P22-3): analítica ativa e, havendo contas CAPEX no plano, do grupo CAPEX. */
 function conferirConta(indice: IndiceEstruturaFinanceira, deps: DepsOrc, conta: string): Resultado<null> {
   if (!indice.contaAnaliticaAtiva(conta)) return falha([{ campo: 'conta', mensagem: M.BEM_CONTA_ANALITICA }]);
-  if (deps.contaCapex && !deps.contaCapex(conta)) return falha([{ campo: 'conta', mensagem: M.BEM_CONTA_NAO_CAPEX }]);
+  const capex = filtroCapex(indice, deps);
+  if (capex && !capex(conta)) return falha([{ campo: 'conta', mensagem: M.BEM_CONTA_NAO_CAPEX }]);
   return ok(null);
 }
 
