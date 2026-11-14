@@ -42,6 +42,7 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_bem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P22); o copiado é inativado (D-P22-6)
   orc_rateio: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P24)
   orc_rateio_celula: ['DELETE', 'INSERT', 'SELECT'], // regravada inteira, sem UPDATE (P24)
+  orc_snapshot_versao: ['INSERT', 'SELECT'], // imutável: sem UPDATE nem DELETE (P26)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -114,7 +115,8 @@ describe('privilégios do orc', () => {
         )
       ).rows.map((x) => x.coluna);
     expect(await colunas('orc_proposta')).toEqual(['excluida_em', 'excluida_por', 'versao']);
-    expect(await colunas('orc_versao_proposta')).toEqual([]);
+    // Oficialização (P26): só a situação muda, e o gatilho confere a transição.
+    expect(await colunas('orc_versao_proposta')).toEqual(['situacao']);
     // Meta (P19): o número, a versão da proposta e a unidade não mudam.
     expect(await colunas('orc_meta')).toEqual(['nome', 'observacao', 'status', 'valor', 'versao']);
     // Pessoal (P20): a versão da proposta, a meta, a ordem e a unidade não mudam.

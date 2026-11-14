@@ -331,6 +331,21 @@ export const MENSAGENS_ORC = {
   RATEIO_BASE_RESTRITA: 'restrita (inclui o custo do pessoal, visível só para quem lança os empregados)',
   // Cronograma de desembolso (US-075; UC04.01; plano do P25).
   CRONOGRAMA_VIAGENS_DISTRIBUIDAS: 'As viagens não têm data: o custo delas foi distribuído por igual nos meses da vigência.',
+  // Oficialização da proposta (US-079; UC03.10 e UC6.00; plano do P26).
+  AVANCO_SO_RASCUNHO: 'Operação Rejeitada: Só a última versão em Rascunho pode avançar para Em Elaboração.',
+  PROPOSTA_AVANCADA: (numero: string) => `Proposta do TP ${numero} em Elaboração.`,
+  ENVIO_STATUS_INVALIDO:
+    'Operação Rejeitada [TRAVA O ERRO]: Somente propostas com status "Em Elaboração" podem ser enviadas para oficialização. Avance o status da proposta antes de enviar.',
+  ENVIO_JA_EM_APROVACAO: 'Operação Rejeitada [TRAVA O ERRO]: Esta proposta já tem uma solicitação Em Aprovação.',
+  ENVIO_CELULAS_EM_BRANCO:
+    'Operação Rejeitada [TRAVA O ERRO]: Não é permitido submeter o projeto para oficialização contendo competências mensais em branco. Declare explicitamente os valores (insira 0,00 caso não haja incidência).',
+  ENVIO_CELULAS_EM_BRANCO_DETALHE: (conta: string, meses: string) => `Rateio/ISS: a conta ${conta} tem competências em branco (${meses}).`,
+  ENVIO_CONTA_INATIVA: (contas: string) =>
+    `Ação Negada [TRAVA O ERRO]: A oficialização foi bloqueada pois a proposta usa contas que não são analíticas ativas do plano de contas (${contas}).`,
+  CONFIRMA_AVANCAR: (numero: string) => `Avançar a proposta do TP ${numero} de Rascunho para Em Elaboração?`,
+  CONFIRMA_ENVIAR: (numero: string) => `Enviar a proposta do TP ${numero} para oficialização? As abas ficam só leitura até a decisão do aprovador.`,
+  PROPOSTA_ENVIADA: (numero: string) => `Proposta do TP ${numero} enviada para oficialização.`,
+  WA01_ALVO_MUDOU: 'A versão desta solicitação não está mais Em Aprovação. Recarregue a Central de Tarefas.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
   TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',
 } as const;

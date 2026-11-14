@@ -36,6 +36,8 @@ export function textoAvisoProposta(aviso: string | undefined, tp: string | undef
   if (aviso === 'excluida') return MENSAGENS_ORC.PROPOSTA_EXCLUIDA(tp);
   if (aviso === 'duplicada') return MENSAGENS_ORC.PROPOSTA_DUPLICADA(tp);
   if (aviso === 'versao') return MENSAGENS_ORC.VERSAO_CRIADA(tp);
+  if (aviso === 'avancada') return MENSAGENS_ORC.PROPOSTA_AVANCADA(tp);
+  if (aviso === 'enviada') return MENSAGENS_ORC.PROPOSTA_ENVIADA(tp);
   return undefined;
 }
 
@@ -43,6 +45,15 @@ const versionavel = (s: SituacaoProposta) => (SITUACOES_VERSIONAVEIS as readonly
 
 /** O formulário de duplicar aberto (?duplicar=): a origem, ou nulo se o usuário não a vê. */
 export type DuplicacaoAberta = { origem: DadosDuplicar | null };
+
+/** RF_APR_REQ_005 (US-079): o badge da situação, em texto e cor. */
+const COR_SITUACAO: Readonly<Record<SituacaoProposta, string>> = {
+  RASCUNHO: '#59636e',
+  EM_ELABORACAO: '#0969da',
+  EM_APROVACAO: '#9a6700',
+  OFICIALIZADO: '#1a7f37',
+  ENCERRADO: '#59636e',
+};
 
 /**
  * podeVerMetas: orc.metas:consultar, para o link das metas na proposta de categoria Meta (US-067).
@@ -62,12 +73,15 @@ export function TelaPropostas({
   acoes,
   aviso,
   duplicacao,
+  envio,
 }: {
   propostas: readonly PropostaTela[];
   /** CCs de TP livres; nulo sem orc.propostas:incluir (a página nem os lê). */
   ccsLivres: readonly CcLivreTp[] | null;
   permissoes: PermissoesProposta;
-  acoes: { criar: AcaoFormulario; excluir: AcaoFormulario; duplicar: AcaoFormulario; novaVersao: AcaoFormulario };
+  acoes: { criar: AcaoFormulario; excluir: AcaoFormulario; duplicar: AcaoFormulario; novaVersao: AcaoFormulario; avancar?: AcaoFormulario; enviar?: AcaoFormulario };
+  /** RF_APR_REQ_001 e 006 (US-079): o envio para oficialização está disponível (há aprovador na alçada WA01)? */
+  envio?: { disponivel: true } | { disponivel: false; motivo: string } | undefined;
   aviso?: string | undefined;
   /** Só com ?duplicar= e orc.propostas:incluir. */
   duplicacao?: DuplicacaoAberta | null;
@@ -117,7 +131,9 @@ export function TelaPropostas({
                   <td>{p.cc ?? ''}</td>
                   <td>{p.versaoAtual}</td>
                   <td>
-                    <span className="selo">{ROTULO_SITUACAO_PROPOSTA[p.situacao]}</span>
+                    <span className="selo" style={{ borderColor: COR_SITUACAO[p.situacao], color: COR_SITUACAO[p.situacao] }}>
+                      {ROTULO_SITUACAO_PROPOSTA[p.situacao]}
+                    </span>
                   </td>
                   <td>
                     {valorParaTela(p.valorGlobal)}
@@ -132,6 +148,27 @@ export function TelaPropostas({
                       {verTotalizadores && <a href={`/orc/totalizadores?proposta=${p.id}`}>{`Totalizadores da proposta ${p.numero}`}</a>}
                       {verRateio && <a href={`/orc/rateio?proposta=${p.id}`}>{`Rateio/ISS da proposta ${p.numero}`}</a>}
                       {verCronograma && <a href={`/orc/cronograma?proposta=${p.id}`}>{`Cronograma de desembolso da proposta ${p.numero}`}</a>}
+                      {permissoes.podeIncluir && acoes.avancar && p.situacao === 'RASCUNHO' && (
+                        <AcaoConfirmada
+                          rotulo={`Avançar a proposta ${p.numero} para Em Elaboração`}
+                          pergunta={MENSAGENS_ORC.CONFIRMA_AVANCAR(p.numero)}
+                          acao={acoes.avancar}
+                          campos={{ id: p.id, versao: String(p.versao) }}
+                        />
+                      )}
+                      {permissoes.podeIncluir &&
+                        acoes.enviar &&
+                        p.situacao === 'EM_ELABORACAO' &&
+                        (envio?.disponivel ? (
+                          <AcaoConfirmada
+                            rotulo={`Enviar a proposta ${p.numero} para aprovação`}
+                            pergunta={MENSAGENS_ORC.CONFIRMA_ENVIAR(p.numero)}
+                            acao={acoes.enviar}
+                            campos={{ id: p.id, versao: String(p.versao) }}
+                          />
+                        ) : (
+                          envio && <small role="note">{` ${envio.motivo}`}</small>
+                        ))}
                       {podeVersionar(p) && (
                         <AcaoConfirmada
                           rotulo={`Nova versão da proposta ${p.numero}`}

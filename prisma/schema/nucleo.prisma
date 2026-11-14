@@ -81,6 +81,7 @@ model Unidade {
   tetosViagem        TetoViagemProposta[]
   viagensProposta    ViagemProposta[]
   solicitacoes       SolicitacaoAprovacao[]
+  snapshotsVersao    SnapshotVersao[]
   bensProposta       BemProposta[]
   rateiosProposta    RateioProposta[]
   celulasRateio      RateioCelulaProposta[]

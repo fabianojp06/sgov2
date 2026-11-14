@@ -1,6 +1,9 @@
 import {
+  avancarPropostaAcao,
   ccsLivresParaTp,
   criarPropostaAcao,
+  disponibilidadeDoEnvio,
+  enviarPropostaAcao,
   dadosParaDuplicar,
   duplicarPropostaAcao,
   excluirPropostaAcao,
@@ -14,7 +17,8 @@ import { exigirPagina } from '@/shared/authz';
 
 // Propostas de TP (US-065): o Orçamentista cria e exclui em Rascunho; GFIN, Auditor e DIREX só consultam.
 // Cada um vê só as propostas dos TPs a que está vinculado (RLS, D-P17-9). O Orçamentista também duplica
-// (?duplicar=<id> abre o formulário) e cria nova versão (US-066; plano do P18, Task 2).
+// (?duplicar=<id> abre o formulário) e cria nova versão (US-066; plano do P18, Task 2). E avança para Em Elaboração
+// e envia para oficialização (WA01), com o botão desabilitado sem aprovador na alçada (US-079; plano do P26).
 type Busca = { aviso?: string | string[]; tp?: string | string[]; duplicar?: string | string[] };
 const um = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined);
 
@@ -34,10 +38,11 @@ export default async function Propostas({ searchParams }: { searchParams: Promis
   const busca = await searchParams;
   const idDuplicar = permissoes.podeIncluir ? um(busca.duplicar) : undefined;
   // Os CCs livres e a origem da duplicação só para quem inclui (os casos de uso exigem incluir).
-  const [propostas, ccsLivres, origem] = await Promise.all([
+  const [propostas, ccsLivres, origem, envio] = await Promise.all([
     listarPropostas(ctx),
     permissoes.podeIncluir ? ccsLivresParaTp(ctx) : Promise.resolve(null),
     idDuplicar === undefined ? Promise.resolve(undefined) : dadosParaDuplicar(ctx, idDuplicar),
+    permissoes.podeIncluir ? disponibilidadeDoEnvio(ctx) : Promise.resolve(undefined),
   ]).catch(naoEncontradoSeNegado(ctx));
   return (
     <div>
@@ -46,7 +51,15 @@ export default async function Propostas({ searchParams }: { searchParams: Promis
         propostas={propostas}
         ccsLivres={ccsLivres}
         permissoes={permissoes}
-        acoes={{ criar: criarPropostaAcao, excluir: excluirPropostaAcao, duplicar: duplicarPropostaAcao, novaVersao: novaVersaoPropostaAcao }}
+        acoes={{
+          criar: criarPropostaAcao,
+          excluir: excluirPropostaAcao,
+          duplicar: duplicarPropostaAcao,
+          novaVersao: novaVersaoPropostaAcao,
+          avancar: avancarPropostaAcao,
+          enviar: enviarPropostaAcao,
+        }}
+        envio={envio}
         aviso={textoAvisoProposta(um(busca.aviso), um(busca.tp))}
         duplicacao={origem === undefined ? null : { origem }}
       />

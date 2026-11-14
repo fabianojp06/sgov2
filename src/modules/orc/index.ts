@@ -20,7 +20,15 @@ export {
 export { excluirRateioAcao, replicarRateioAcao, salvarRateioAcao } from './application/acoes-rateio';
 export { alterarBemAcao, excluirBemAcao, incluirBemAcao } from './application/acoes-bens';
 export { alterarTetoAcao, alterarViagemAcao, excluirTetoAcao, excluirViagemAcao, incluirTetoAcao, incluirViagemAcao } from './application/acoes-viagens';
-export { criarPropostaAcao, duplicarPropostaAcao, excluirPropostaAcao, novaVersaoPropostaAcao } from './application/acoes-propostas';
+export {
+  avancarPropostaAcao,
+  criarPropostaAcao,
+  duplicarPropostaAcao,
+  enviarPropostaAcao,
+  excluirPropostaAcao,
+  novaVersaoPropostaAcao,
+} from './application/acoes-propostas';
+export { disponibilidadeDoEnvio, manipuladorWa01 } from './application/oficializacao';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
 export { ultimaRevisao } from './application/revisor';
