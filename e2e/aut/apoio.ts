@@ -67,6 +67,8 @@ export const USUARIOS = {
   gfinPropostas: { login: 'gfin.propostas', nome: 'E2E Gestor Financeiro Propostas', perfil: 'GFIN' },
   // Analista do GRH que finaliza o pessoal das propostas (e2e/orc/propostas.spec.ts, US-080, WA05).
   grhPropostas: { login: 'grh.propostas', nome: 'E2E Analista GRH Propostas', perfil: 'ANALISTA_GRH' },
+  // Operador de Viagens que pede a validação das viagens das propostas (e2e/orc/propostas.spec.ts, US-081, WA02).
+  viagensPropostas: { login: 'viagens.propostas', nome: 'E2E Operador de Viagens Propostas', perfil: 'OPERADOR_VIAGENS' },
 } as const satisfies Record<string, { login: string; nome: string; perfil: string; ccEscopo?: string }>;
 
 export async function entrar(page: Page, login: string, senha: string): Promise<void> {
