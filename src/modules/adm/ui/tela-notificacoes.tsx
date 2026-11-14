@@ -115,7 +115,7 @@ export function TelaNotificacoes({ linhas, contas, usuarios, podeIncluir, podeEx
                   <td>{pessoa(l.usuario)}</td>
                   {podeExcluir && (
                     <td>
-                      <AcaoConfirmada rotulo="Excluir" pergunta={MENSAGENS_NOTIFICACAO.CONFIRMAR_EXCLUSAO} acao={excluir} campos={{ id: l.id, versao: String(l.versao) }} />
+                      <AcaoConfirmada rotulo="Excluir" contexto={`${l.contaRotulo} de ${pessoa(l.usuario)}`} pergunta={MENSAGENS_NOTIFICACAO.CONFIRMAR_EXCLUSAO} acao={excluir} campos={{ id: l.id, versao: String(l.versao) }} />
                     </td>
                   )}
                 </tr>
