@@ -179,6 +179,20 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { GFIN: ['consultar', 'executar', 'aprovar'], DIREX: ['consultar'], AUDITOR: ['consultar'] },
   },
   {
+    // Orçado x Realizado do TP (US-086, parte 1; OxR V2, seção 5; plano do P33, D-P33-1) [PROVISÓRIO]: só leitura, com
+    // a GFIN (ator do UC) e quem já consulta o TP (DIREX, Auditor). O Orçamentista fica de fora: ele não vê o menu da
+    // Administração Central (E2E do orçamento); o administrador pode conceder.
+    codigo: 'orc.oxr',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'Orçado x Realizado',
+    rota: '/orc/orcado-realizado',
+    ordem: 13,
+    ajuda: 'Compara, mês a mês, o orçado da versão oficializada do Termo de Parceria com o realizado carregado, com o percentual de uso e o saldo do período. Contas acima de 100% ficam em vermelho e negrito.',
+    acoes: ['consultar'],
+    perfisPadrao: { GFIN: ['consultar'], DIREX: ['consultar'], AUDITOR: ['consultar'] },
+  },
+  {
     // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),
     // com o código no orc (D-P17-1). O Orçamentista escreve; GFIN, Auditor e DIREX leem (§11.3). Cada um
     // vê só as propostas dos TPs a que está vinculado (RLS, US-007).

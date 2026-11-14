@@ -435,7 +435,7 @@ export async function tpsDoRealizado(ctx: ContextoRequisicao, depsParciais: Part
   return ps.map(capaDoTp).sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
 }
 
-async function lerRealizado(tx: TxCliente, unidadeId: string, de?: string, ate?: string): Promise<RealizadoDoTp & { pendentes: readonly LinhaRealizado[] }> {
+export async function lerRealizado(tx: TxCliente, unidadeId: string, de?: string, ate?: string): Promise<RealizadoDoTp & { pendentes: readonly LinhaRealizado[] }> {
   const periodo = de && ate ? { gte: competenciaParaData(de), lte: competenciaParaData(ate) } : undefined;
   const [cargas, ajustes, pendentes, ultima] = await Promise.all([
     tx.realizadoContaMes.findMany({ where: { unidadeId, ...(periodo && { competencia: periodo }) } }),

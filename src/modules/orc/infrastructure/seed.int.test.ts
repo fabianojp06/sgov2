@@ -29,11 +29,11 @@ afterAll(async () => {
 });
 
 describe('seedOrc', () => {
-  it('12 funcionalidades no módulo ADM_CENTRAL, com ajuda; as 3 da IA fora do menu, só com executar; o Consolidado dos TPs (US-101) e o Realizado (US-085)', async () => {
+  it('13 funcionalidades no módulo ADM_CENTRAL, com ajuda; as 3 da IA fora do menu, só com executar; o Consolidado dos TPs (US-101), o Realizado (US-085) e o Orçado x Realizado (US-086)', async () => {
     const fs = await cliente.funcionalidade.findMany({ where: { codigo: { startsWith: 'orc.' }, moduloCodigo: 'ADM_CENTRAL' }, orderBy: { ordem: 'asc' } });
     expect(fs.map((f) => f.codigo)).toEqual([
       'orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao',
-      'orc.ia_justificativa', 'orc.ia_sugestao_conta', 'orc.ia_revisor', 'orc.consolidado', 'orc.realizado',
+      'orc.ia_justificativa', 'orc.ia_sugestao_conta', 'orc.ia_revisor', 'orc.consolidado', 'orc.realizado', 'orc.oxr',
     ]);
     expect(fs.filter((f) => !f.exibirNoMenu).map((f) => [f.codigo, f.rota, f.acoes])).toEqual([
       ['orc.ia_justificativa', '/orc/pacotes', ['executar']],
@@ -47,7 +47,7 @@ describe('seedOrc', () => {
   it('proposta de TP no menu Cadastros › Propostas (US-065, D-P17-9)', async () => {
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.propostas' } });
     expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Propostas', rota: '/orc/propostas', exibirNoMenu: true, acoes: ['consultar', 'incluir', 'excluir'] });
-    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(22);
+    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(23);
   });
 
   it('metas da proposta no menu Cadastros › Metas, no grupo Propostas (US-067, D-P19-8)', async () => {
@@ -84,7 +84,7 @@ describe('seedOrc', () => {
       'orc.ia_justificativa:executar', 'orc.ia_recusa:executar', 'orc.ia_revisor:executar', 'orc.ia_sugestao_conta:executar',
       'orc.importacao:consultar', 'orc.importacao:executar',
       'orc.metas:consultar',
-      'orc.orcamento:alterar', 'orc.orcamento:consultar',
+      'orc.orcamento:alterar', 'orc.orcamento:consultar', 'orc.oxr:consultar',
       'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.posicoes:alterar', 'orc.posicoes:consultar', 'orc.posicoes:excluir', 'orc.posicoes:incluir',
       'orc.propostas:consultar',
@@ -95,11 +95,11 @@ describe('seedOrc', () => {
       'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('DIREX')).toEqual([
-      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.consolidado:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.consolidado:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.rateio:consultar', 'orc.realizado:consultar', 'orc.receitas:consultar', 'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
-      'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.rateio:consultar', 'orc.realizado:consultar', 'orc.receitas:consultar', 'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('GESTOR_DIRETORIA')).toEqual([
