@@ -12,7 +12,8 @@ Como os usuários-chave aprovam o que vai para produção (US-117, plano do P7, 
   
   Para evitar isso, a janela de homologação deve ser curta, e os merges, combinados com o PO.
 - **Prod recebe exatamente o commit homologado:** o PO faz a tag `v*` nesse SHA, que pode ser um ancestral da `main` (`deploy.md`), e nunca num commit mais novo.
-- A R1 é a primeira: acesso, cadastros e o orçamento 2027 da Administração Central (trilha, spec §3.3).
+- A R1 é a primeira: acesso, cadastros e o orçamento 2027 da Administração Central (trilha, spec §3.3), em `roteiro-r1.md`.
+- A R4, das propostas e Termos de Parceria, está em `roteiro-r4.md`, com a R1 como pré-condição.
 
 ## Quem homologa
 
