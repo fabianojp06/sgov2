@@ -267,6 +267,23 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       AUDITOR: ['consultar'],
       DIREX: ['consultar'],
     },
+  },  {
+    // Rateio e ISS da proposta (US-073; plano do P24, D-P24-10) [PROVISÓRIO]: no menu Cadastros (UC03.03, Central
+    // de Cálculos). Orçamentista e GFIN lançam (o UC cita os dois); Auditor e DIREX leem.
+    codigo: 'orc.rateio',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Rateio/ISS',
+    rota: '/orc/rateio',
+    ordem: 8,
+    ajuda: 'Distribui a taxa da Administração Central por competência em contas analíticas, com a base no orçado de uma conta sintética da proposta, e guarda a alíquota de ISS do Contrato.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar', 'incluir', 'alterar', 'excluir'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
   },
 ];
 

@@ -40,6 +40,8 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_teto_viagem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P21)
   orc_viagem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P21); a exclusão é física (D-P21-9)
   orc_bem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P22); o copiado é inativado (D-P22-6)
+  orc_rateio: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P24)
+  orc_rateio_celula: ['DELETE', 'INSERT', 'SELECT'], // regravada inteira, sem UPDATE (P24)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -123,6 +125,9 @@ describe('privilégios do orc', () => {
     expect(await colunas('orc_viagem')).toEqual(['conta_transporte', 'dias', 'localidade', 'pessoas', 'valor_diaria', 'valor_passagem', 'valor_transporte', 'versao']);
     // Bens (P22): a versão, a unidade e a origem não mudam.
     expect(await colunas('orc_bem')).toEqual(['ativo', 'conta', 'data', 'descricao', 'inativado_em', 'meta_id', 'quantidade', 'valor_unitario', 'versao']);
+    // Rateio (P24): só a sintética, o modo e a alíquota mudam; as células não têm UPDATE.
+    expect(await colunas('orc_rateio')).toEqual(['aliquota_iss', 'conta_sintetica', 'modo', 'versao']);
+    expect(await colunas('orc_rateio_celula')).toEqual([]);
     expect(await colunas('unidade')).toEqual(['ativo', 'nome']);
   });
 

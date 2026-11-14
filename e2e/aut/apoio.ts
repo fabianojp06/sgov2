@@ -59,6 +59,9 @@ export const USUARIOS = {
   gestor: { login: 'gestor.dep', nome: 'E2E Gestor da DEP', perfil: 'GESTOR_DIRETORIA', ccEscopo: '4.1' },
   // GFIN da frente B para a rolagem do plano de contas (e2e/cad/rolagem-plano.spec.ts, issue #218).
   gfinPlano: { login: 'gfin.plano', nome: 'E2E Gestor Financeiro Plano', perfil: 'GFIN' },
+  // Proposta de TP e abas (e2e/orc/propostas.spec.ts, P17 a P25): o spec entra uma vez por passo, e o limite de
+  // login por usuário (20 em 5 minutos) estourava quando ele dividia o orc.menu com os outros specs.
+  propostas: { login: 'orc.propostas', nome: 'E2E Orçamentista Propostas', perfil: 'ORCAMENTISTA' },
 } as const satisfies Record<string, { login: string; nome: string; perfil: string; ccEscopo?: string }>;
 
 export async function entrar(page: Page, login: string, senha: string): Promise<void> {

@@ -256,6 +256,13 @@ describe('página das propostas de TP', () => {
     expect(await html()).not.toContain('Totalizadores da proposta');
   });
 
+  it('com orc.rateio:consultar, o link para o Rateio/ISS em toda proposta (US-073)', async () => {
+    contexto = ctx(['orc.propostas:consultar', 'orc.rateio:consultar']);
+    expect(await html()).toContain('>Rateio/ISS da proposta TP-2027/001</a>');
+    contexto = ctx(['orc.propostas:consultar']);
+    expect(await html()).not.toContain('Rateio/ISS da proposta');
+  });
+
   it('sem orc.propostas:consultar: 404 com a negação auditada', async () => {
     contexto = ctx(['orc.posicoes:consultar']);
     expect(await digest(Propostas({ searchParams: Promise.resolve({}) }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');

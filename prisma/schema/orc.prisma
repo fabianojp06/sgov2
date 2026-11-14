@@ -220,6 +220,7 @@ model VersaoProposta {
   tetosViagem TetoViagemProposta[]
   viagens     ViagemProposta[]
   bens        BemProposta[]
+  rateio      RateioProposta?
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -384,4 +385,41 @@ model BemProposta {
   @@index([versaoPropostaId])
   @@index([metaId])
   @@map("orc_bem")
+}
+
+// Grade de Rateio/ISS da proposta (US-073; plano do P24, D-P24-1 a D-P24-7): uma por versão, com a conta
+// sintética mandante (a base), o modo e a alíquota de ISS (só no Contrato). CHECKs na migration. RLS.
+model RateioProposta {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String                 @map("unidade_id") @db.Uuid
+  unidade          Unidade                @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String                 @unique @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta         @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  contaSintetica   String                 @map("conta_sintetica")
+  modo             String
+  aliquotaIss      Decimal?               @map("aliquota_iss") @db.Decimal(9, 4)
+  criadoPor        String                 @map("criado_por") @db.Uuid
+  criadoEm         DateTime               @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int                    @default(0)
+  celulas          RateioCelulaProposta[]
+
+  @@index([unidadeId])
+  @@map("orc_rateio")
+}
+
+// Célula da grade de rateio (US-073, RN_RAT_01): conta analítica de destino × competência. RLS por unidade_id.
+model RateioCelulaProposta {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId   String         @map("unidade_id") @db.Uuid
+  unidade     Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  rateioId    String         @map("rateio_id") @db.Uuid
+  rateio      RateioProposta @relation(fields: [rateioId], references: [id], onDelete: Cascade)
+  conta       String
+  competencia DateTime       @db.Date
+  valor       Decimal        @db.Decimal(15, 2)
+  percentual  Decimal?       @db.Decimal(9, 4)
+
+  @@unique([rateioId, conta, competencia])
+  @@index([unidadeId])
+  @@map("orc_rateio_celula")
 }
