@@ -2,7 +2,7 @@
 export { avancar, criar } from './application/acoes-exercicios';
 export { aprovarAcao, enviarAcao, pedirRevisaoAcao, rejeitarAcao } from './application/acoes-aprovacao';
 export { importarPlanilhaAcao } from './application/acoes-importacao';
-export { carregarRealizadoAcao, fecharCompetenciaAcao } from './application/acoes-realizado';
+export { carregarRealizadoAcao, fecharCompetenciaAcao, reprocessarPendenciasAcao } from './application/acoes-realizado';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
 export { sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
@@ -92,10 +92,14 @@ export {
   obterTelaRealizado,
   propostasParaRealizado,
   realizadoPorTp,
+  reprocessarPendencias,
+  tpsDoRealizado,
   type AjusteDoRealizado,
   type LinhaRealizado,
   type RealizadoDoTp,
   type ResumoCarga,
+  type ResumoReprocessamento,
+  type TpDoRealizado,
 } from './application/realizado';
 export { obterCronograma, propostasParaCronograma, type CronogramaTela, type FiltrosCronograma, type PropostaParaCronograma } from './application/cronograma';
 export { obterRateio, propostasParaRateio, type LinhaRateio, type PropostaParaRateio, type RateioTela } from './application/rateio';

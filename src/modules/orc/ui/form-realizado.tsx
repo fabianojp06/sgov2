@@ -76,3 +76,18 @@ export function FormFecharCompetencia({ fechar }: { fechar: AcaoRealizado }) {
     </form>
   );
 }
+
+/** Reprocessar as pendências depois da Integração 1 (US-085, parte 2; D-P32-12). */
+export function FormReprocessarPendencias({ propostaId, reprocessar }: { propostaId: string; reprocessar: AcaoRealizado }) {
+  const [estado, enviar, pendente] = useActionState((_a: Resultado<{ mensagem: string }> | null, dados: FormData) => reprocessar(dados), null);
+  return (
+    <form action={enviar} aria-busy={pendente}>
+      <input type="hidden" name="propostaId" value={propostaId} />
+      <button type="submit" disabled={pendente}>
+        {pendente ? 'Reprocessando…' : 'Reprocessar pendências'}
+      </button>
+      <div role="status">{estado?.ok && !pendente && <p>{estado.valor.mensagem}</p>}</div>
+      <div role="alert">{estado && !estado.ok && !pendente && estado.erros.map((e, i) => <p key={i}>{e.mensagem}</p>)}</div>
+    </form>
+  );
+}

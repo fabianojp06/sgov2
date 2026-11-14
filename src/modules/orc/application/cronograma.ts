@@ -56,6 +56,8 @@ export type CronogramaTela = {
 
 export type SeriesDaVersao = {
   porMes: Map<string, Dinheiro>;
+  /** Conta × competência ('conta|AAAA-MM'): o previsto da porta do realizado (US-085, parte 2). */
+  porContaMes: Map<string, Dinheiro>;
   porContaAno: Map<string, Map<string, Dinheiro>>;
   total: Dinheiro;
   avisos: string[];
@@ -82,11 +84,13 @@ export async function seriesDaVersao(
   metaId?: string,
 ): Promise<SeriesDaVersao> {
   const porMes = new Map<string, Dinheiro>();
+  const porContaMes = new Map<string, Dinheiro>();
   const porContaAno = new Map<string, Map<string, Dinheiro>>();
   const naVigencia = new Set(competencias);
   const lancar = (conta: string, comp: string, v: Dinheiro) => {
     if (!naVigencia.has(comp) || v.ehZero()) return;
     somarEm(porMes, comp, v);
+    somarEm(porContaMes, `${conta}|${comp}`, v);
     const anos = porContaAno.get(conta) ?? new Map<string, Dinheiro>();
     somarEm(anos, comp.slice(0, 4), v);
     porContaAno.set(conta, anos);
@@ -132,6 +136,7 @@ export async function seriesDaVersao(
   for (const c of celulas) lancar(c.conta, competenciaParaTexto(c.competencia), Dinheiro.de(c.valor.toString()));
   return {
     porMes,
+    porContaMes,
     porContaAno,
     total: Dinheiro.somarTodos([...porMes.values()]),
     avisos: [...avisos],

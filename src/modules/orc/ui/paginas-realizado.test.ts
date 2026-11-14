@@ -74,6 +74,7 @@ describe('página do Realizado', () => {
     expect(h).toContain('Última atualização do realizado: 14/11/2026, 07:00.');
     expect(h).not.toContain('Carregar realizado');
     expect(h).not.toContain('Fechar competência');
+    expect(h).not.toContain('Reprocessar pendências');
   });
 
   it('com executar e aprovar: o formulário da carga e o do fechamento', async () => {
@@ -82,6 +83,7 @@ describe('página do Realizado', () => {
     expect(h).toContain('Carregar realizado');
     expect(h).toContain('Fechar competência');
     expect(h).toContain('não pode ser desfeito');
+    expect(h).toContain('Reprocessar pendências');
   });
 
   it('TP que o usuário não vê: aviso, sem dado', async () => {
