@@ -51,8 +51,9 @@ export type DuplicacaoAberta = { origem: DadosDuplicar | null };
  * podeVerBens: orc.bens:consultar, para o link dos bens em qualquer proposta (US-072).
  * podeVerTotalizadores: orc.totalizadores:consultar, para o link dos totalizadores (US-074).
  * podeVerRateio: orc.rateio:consultar, para o link da grade de Rateio/ISS (US-073).
+ * podeVerCronograma: orc.cronograma:consultar, para o link do cronograma de desembolso (US-075).
  */
-export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean; podeVerEmpregados?: boolean; podeVerViagens?: boolean; podeVerBens?: boolean; podeVerTotalizadores?: boolean; podeVerRateio?: boolean };
+export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean; podeVerEmpregados?: boolean; podeVerViagens?: boolean; podeVerBens?: boolean; podeVerTotalizadores?: boolean; podeVerRateio?: boolean; podeVerCronograma?: boolean };
 
 export function TelaPropostas({
   propostas,
@@ -79,7 +80,8 @@ export function TelaPropostas({
   const verBens = permissoes.podeVerBens === true;
   const verTotalizadores = permissoes.podeVerTotalizadores === true;
   const verRateio = permissoes.podeVerRateio === true;
-  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas) || ((verEmpregados || verViagens || verBens || verTotalizadores || verRateio) && propostas.length > 0);
+  const verCronograma = permissoes.podeVerCronograma === true;
+  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas) || ((verEmpregados || verViagens || verBens || verTotalizadores || verRateio || verCronograma) && propostas.length > 0);
   const origem = duplicacao?.origem ?? null;
   return (
     <>
@@ -129,6 +131,7 @@ export function TelaPropostas({
                       {verBens && <a href={`/orc/bens?proposta=${encodeURIComponent(p.numero)}`}>{`Bens da proposta ${p.numero}`}</a>}
                       {verTotalizadores && <a href={`/orc/totalizadores?proposta=${p.id}`}>{`Totalizadores da proposta ${p.numero}`}</a>}
                       {verRateio && <a href={`/orc/rateio?proposta=${p.id}`}>{`Rateio/ISS da proposta ${p.numero}`}</a>}
+                      {verCronograma && <a href={`/orc/cronograma?proposta=${p.id}`}>{`Cronograma de desembolso da proposta ${p.numero}`}</a>}
                       {podeVersionar(p) && (
                         <AcaoConfirmada
                           rotulo={`Nova versão da proposta ${p.numero}`}

@@ -5,7 +5,8 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
 // Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3), os bens (US-072; plano do P22, Task 2, Step 3) e os
-// totalizadores (US-074; plano do P23, Task 2, Step 3) e o Rateio/ISS (US-073; plano do P24, Task 2, Step 2).
+// totalizadores (US-074; plano do P23, Task 2, Step 3) o Rateio/ISS (US-073; plano do P24, Task 2, Step 2) e o
+// cronograma de desembolso (US-075; plano do P25, Task 2, Step 2).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -15,7 +16,7 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
 // a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
 // copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; os tetos de passagens
-// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; os totalizadores somam tudo; uma linha de rateio sobre a conta dos bens; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; os totalizadores somam tudo; uma linha de rateio sobre a conta dos bens; o cronograma acumula o Valor Global; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
 // livre (D-P17-10). O afterAll apaga o rateio, os bens, as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
@@ -293,6 +294,16 @@ test.describe.serial('proposta de TP', () => {
     await page.goto('/orc/propostas');
     await page.getByRole('link', { name: `Totalizadores da proposta ${NUMERO_COPIA}` }).click();
     await expect(page.getByRole('list', { name: new RegExp(`^Totais por conta da proposta ${NUMERO_COPIA}`) })).toContainText(/4\.1\.1\.5\.015 – .*Orçado 100,00/);
+  });
+
+  test('3h. o cronograma da cópia acumula 100% do Valor Global na última parcela', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Cronograma de desembolso da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/cronograma\?proposta=/);
+    const tabela = page.getByRole('table', { name: new RegExp(`^Cronograma de desembolso da proposta ${NUMERO_COPIA}`) });
+    await expect(tabela.getByRole('row', { name: /^Parcela 12 – 12\/2027 / })).toContainText('100,00%');
+    await expect(tabela.getByRole('row', { name: /^Total de 2027 / })).toBeVisible();
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {

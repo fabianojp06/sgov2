@@ -1,4 +1,4 @@
-import type { PremissasExercicio } from '@/modules/cad/servidor';
+import type { PremissasExercicio, SerieMensalComponentes } from '@/modules/cad/servidor';
 import type { TxCliente } from '@/shared/db';
 import { Dinheiro } from '@/shared/kernel';
 import { mesesDoAno, type Competencias } from '../domain/empregado';
@@ -24,7 +24,8 @@ export type CustoEmpregado = { mensal: Dinheiro | null; periodo: Dinheiro; aviso
  * D-P20-4: o motor (custoDaPosicao do P15, com o adicional e os benefícios do cargo) para cada ano da
  * competência, com uma pessoa e o salário gravado. Ano sem parâmetros fica sem custo, com aviso; recusa do
  * motor vai em `erros` (a gravação recusa; a lista mostra como aviso). Com `porConta`, soma cada componente do
- * motor na conta dele (os totalizadores, RN_TOT_03).
+ * motor na conta dele (os totalizadores, RN_TOT_03); com `porAno`, recebe a série mensal de cada ano (o cronograma,
+ * US-075).
  */
 export async function custoDoEmpregado(
   tx: TxCliente,
@@ -32,6 +33,7 @@ export async function custoDoEmpregado(
   anos: CacheAnos,
   e: Competencias & { cargoId: string; salarioMensal: Dinheiro },
   porConta?: Map<string, Dinheiro>,
+  porAno?: (ano: number, serie: SerieMensalComponentes) => void,
 ): Promise<CustoEmpregado> {
   const r: CustoEmpregado = { mensal: null, periodo: Dinheiro.zero(), avisos: [], erros: [] };
   for (let ano = e.inicio.getUTCFullYear(); ano <= e.fim.getUTCFullYear(); ano++) {
@@ -53,6 +55,7 @@ export async function custoDoEmpregado(
     }
     r.periodo = r.periodo.somar(serie.valor.total);
     if (porConta) for (const l of serie.valor.linhas) porConta.set(l.conta, (porConta.get(l.conta) ?? Dinheiro.zero()).somar(l.total));
+    porAno?.(ano, serie.valor);
     if (ano === e.inicio.getUTCFullYear()) r.mensal = serie.valor.totalMes[meses.mesInicio - 1]!;
   }
   return r;

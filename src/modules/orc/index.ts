@@ -65,6 +65,7 @@ export {
   type TetoTela,
   type ViagemTela,
 } from './application/viagens';
+export { obterCronograma, propostasParaCronograma, type CronogramaTela, type FiltrosCronograma, type PropostaParaCronograma } from './application/cronograma';
 export { obterRateio, propostasParaRateio, type LinhaRateio, type PropostaParaRateio, type RateioTela } from './application/rateio';
 export { obterTotalizadores, propostasParaTotalizar, type PropostaParaTotalizar, type TotalizadoresTela } from './application/totalizadores';
 export { listarBens, opcoesBem, type BemTela, type BlocoBens, type FiltrosBens, type GrupoBens, type OpcoesBem } from './application/bens';
@@ -79,6 +80,7 @@ export { TelaCorrespondencia } from './ui/tela-correspondencia';
 export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMeta } from './ui/tela-metas';
 export { TelaEmpregados, textoAvisoEmpregado, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
 export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
+export { TelaCronograma } from './ui/tela-cronograma';
 export { TelaRateio, textoAvisoRateio, type AcoesRateio, type PermissoesRateio } from './ui/tela-rateio';
 export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';
