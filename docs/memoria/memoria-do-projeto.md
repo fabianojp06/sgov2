@@ -504,7 +504,76 @@
   - **D-P21-10 e D-P22-10:** as matrizes de permissões;
   - **D-P22-6:** a inativação do bem copiado.
 - [x] #477: coluna Vínculo Funcional na grade de empregados (RN_EMP_008), herdada do cargo pelo `vinculoFuncional` do C2 (#469 da frente B). Só exibição [PROVISÓRIO]: a trava de divergência com o organograma fica de fora.
-- **Próxima da R4:** US-074 (totalizadores, #96). A US-073 (rateio/ISS) depende do GAP-CAD-001 só no cálculo do ISS.
+- [x] #480: filtro CAPEX dos bens pela natureza do C1 (#473 da frente B), com aviso enquanto nenhuma conta é CAPEX [PROVISÓRIO]; `listarEmpregados` com `semCusto` e `maximo` (padrão e teto 200), a pedido da frente B (US-107).
+- [x] #479 (US-074, #96 fechada; plano P23 no #474): totalizadores e Valor Global calculado.
+  - **Totalizadores:** árvore de contas só leitura (Orçado, Realizado zerado até a F5, Saldo, semáforo de 70, 85 e 95%), calculada na leitura pelo `totalizar()`. A conta fora do plano ativo vai a uma linha à parte.
+  - **Valor Global:** a lista de propostas e as metas deixam de mostrar 0,00.
+  - **Sigilo (D-P23-5):** quem não lança empregados não vê o pessoal no total nem no Valor Global, com aviso também nas listas.
+  - **Refatoração:** o custo do empregado ano a ano saiu de `empregados.ts` para `custo-empregado.ts`, para evitar o ciclo metas → totalizadores → empregados.
+- [x] #485 (US-073, #95 fechada; plano P24 no #481): rateio e ISS.
+  - **Grade por versão:** a sintética mandante dá a base (o orçado dela, sem o próprio rateio; os destinos não podem estar sob a mandante), em modo % ou R$, com a trava E1 e o Replicar explícito.
+  - **ISS:** a alíquota é guardada (2% a 5% no Contrato; o TP é imune). O **valor fica a definir** (GAP-CAD-001).
+  - **Sigilo (revisão 12.12):** para quem não vê o pessoal, o E1 sai sem a base, só o modo R$ fica disponível e as células vêm sem o %.
+  - **Mudança da D-P24-5:** a célula vazia não é declarada, e o zero digitado é gravado (CHECK `valor >= 0`), porque o envio exige todas as competências declaradas.
+- [x] #489 (US-075, #97 fechada; plano P25 no #483): cronograma de desembolso.
+  - **Cálculo:** parcelas mensais com acumulado, % sobre o Valor Global, repasse do ciclo de 12 meses e fechamento por ano civil, mais a previsão por conta e ano.
+  - **Viagens sem data:** distribuídas por igual, com a parcela arredondada para baixo e o resto no último mês [PROVISÓRIO].
+  - **Conferência:** a soma dos meses é igual aos Totalizadores.
+- [x] #487 (US-078, #100 fechada; plano P26 no #486): Central de Tarefas, no módulo `apr` (primeiro código dele).
+  - **Solicitação:** `apr_solicitacao`, roteada pela alçada, uma só pendente por alvo, sem DELETE.
+  - **Decisão:** a rejeição exige justificativa (≥ 15 caracteres, sem repetição de caractere ou palavra) [PROVISÓRIO].
+  - **Efeito no alvo:** é um **manipulador injetado pela página** (`src/app/(sistema)/apr/tarefas/manipuladores.ts`), para o `apr` não importar o `orc`.
+  - **Vínculo:** o aprovador roteado é vinculado à unidade do TP no envio, para a RLS [PROVISÓRIO].
+  - **Seed:** a funcionalidade `apr.tarefas` entra pelo `seedOrc`, porque o `prisma/seed.ts` é compartilhado.
+- [x] Lição (14/11): o E2E das propostas passou a usar usuários próprios (`orc.propostas`, `gfin.propostas`). O spec entra uma vez por passo e estourava o limite de login por usuário (20 em 5 minutos), derrubando o teste de cabeçalhos da frente B.
+- [x] Lição (14/11, #482 da frente B): **campo novo em tipo da porta pública entra opcional** quando há consumidor na outra frente. O `vinculoFuncional` obrigatório quebrou o typecheck da `main` pelo stub de teste da frente B.
+- [x] #492 (US-079, #101 fechada; plano P26): avançar e enviar a proposta para oficialização (WA01).
+  - **Banco:** `orc_snapshot_versao`, imutável. Um gatilho de transição da situação da versão vale só para o `sgo_app` (os testes antigos mudam a situação pelo migrator).
+  - **Envio:** a varredura junta situação, alçada, pendente, células do rateio em branco, contas inativas, pessoal incompleto (o snapshot não se corrige depois) e imposto sem alíquota.
+  - **RN_TAX_03 (combinado com a frente B na #448):** o snapshot congela as alíquotas de `impostosVigentes` no mês de início da proposta. **A seed traz o ISS sem alíquota:** sem a GFIN cadastrar a alíquota, nenhuma proposta oficializa. O E2E cadastra uma e a apaga.
+- [x] #500 (US-080, #102 fechada; plano P27): o lote de pessoal para homologação (WA05).
+  - O GRH finaliza (ação `executar` em `orc.empregados`), e empregados e quantitativos ficam só leitura. O GFIN homologa ou rejeita na Central.
+  - **Cronograma:** o pessoal entra só com o lote Homologado.
+  - **D-P27-8 (revisão):** com empregados, o envio do WA01 exige o lote Homologado.
+- [x] #501 (US-081, #103 fechada; plano P28 no #496): a validação das viagens (WA02).
+  - O Operador de Viagens pede, só com a versão Oficializada, e as linhas vão num lote (`orc_lote_viagem`, que guarda as viagens que levou). Um gatilho impede ligar a viagem a lote de outra versão.
+  - **Cronograma:** só as viagens validadas. A correção de viagem rejeitada é pelo Termo Aditivo, porque a Oficializada não ganha nova versão.
+- [x] #503 (US-068, #90; plano P29 no #502): a pré-visualização da proposta (UC03.38, só o "Corpo"; o resto do texto é cópia do demonstrativo de provisões). O rodapé não pode ser `<footer>`, que a regra de impressão esconde.
+- [x] #506 e #508 (US-084, #106 fechada; plano P30, com a Task 2 no #507): o resumo para o aprovador.
+  - **Parte 1:** o resumo do WA01 compara com a versão anterior (o snapshot dela, se houver), com os pontos de atenção (20% por conta, 10% no total) [PROVISÓRIO].
+  - **Parte 2:** a ajuda da IA para redigir a recusa, com o caso `orc.ia_recusa`, **instalado inativo**, para GFIN e DIREX.
+  - O objeto da proposta (texto livre) e o rascunho vão à IA entre as marcas. A rejeição com o texto aceito sem mudança vai ao Histórico com `origem = SUGESTAO_IA`.
+  - O `apr` recebe a ajuda como elemento pronto da página.
+- [x] #510 (US-101, #123; plano P31 no #509): o Consolidado dos TPs (§6.7).
+  - **Caminho novo `emTodasAsUnidades`** em `src/shared/unidade`: a permissão `orc.consolidado` é fixa, a transação é READ ONLY e a RLS vale com todos os TPs ativos. Um teste falha se outro arquivo usar o caminho.
+  - **Acesso auditado:** a CONSULTA vai ao Histórico antes da leitura.
+  - **Orçado:** é o snapshot oficial, e o realizado é zero até a F5.
+- [ ] **US-082 (#104) parada,** com comentário na issue:
+  - o C3 está "Bloqueante para F4" (Adriana);
+  - a vigência fica na capa, e o aditivo de Prazo pede a vigência por versão;
+  - as fases 2 e 3 do wizard são da F5;
+  - a US-102 não existe.
+
+  Proposta: fazer em duas partes quando o C3 sair.
+- [ ] **US-076 (#98):** esperando o PO. O UC04.02 só existe no catálogo, e a spec põe Premissas/Reajustes na F5.
+- [ ] **US-077 (#99):** esperando o PO. Recursos (UC04.03) e Contratações Previstas (UC04.04) são cadastros novos da F5, e o UC04.05 foi removido pelo C15.
+- [ ] **US-085 (#107):** a etiqueta `bloqueada-por-gap` (o formato do realizado, GAP-PGD-006/009) foi respeitada. O modelo do OxR V2 já basta para o domínio quando o gap sair.
+- [ ] **US-069 (#91, Could):** a IA só aceita texto, e ler o PDF pede uma biblioteca nova (`package.json`, compartilhado).
+- [x] Lição (14/11): o build do Next falha em worktree com `node_modules` em symlink. Build e E2E só no sgo-p15, com `npx prisma generate` antes, porque o cliente gerado fica em `src/generated` de cada worktree.
+- [x] Lição (14/11): o squash do PR anterior deixa o branch seguinte com commits duplicados. Para rebasear, usar `git rebase --onto origin/main <último commit da história anterior>`.
+- [ ] PO, sobre as histórias desta madrugada:
+  - **D-P23-2:** as faixas fixas do semáforo;
+  - **D-P24-2 e D-P24-3:** a base do rateio sem circularidade e o modo por grade;
+  - **D-P25-2:** as viagens distribuídas por igual no cronograma;
+  - **D-P26-4 e D-P26-5:** o vínculo do aprovador à unidade e a leitura da "justificativa genérica";
+  - **D-P26-1:** as contas analíticas ativas no lugar do sincronismo com o ERP.
+  - **D-P27-2, D-P27-4, D-P27-5 e D-P27-8:** quem finaliza o pessoal, o efeito da homologação só no cronograma, a imutabilidade e o envio exigindo a homologação;
+  - **D-P28-2 e D-P28-3:** o WA02 só com a versão Oficializada e todas as linhas num lote;
+  - **D-P29-1 e D-P29-3:** quem pré-visualiza e a "fórmula" como origem do valor;
+  - **D-P30-2 a D-P30-4:** a base da comparação, o teto e o rateio, e as faixas de atenção;
+  - **produção:** a GFIN precisa cadastrar a alíquota do ISS antes da primeira oficialização.
+  - **D-P30-6:** a IA na recusa (o caso nasce desligado);
+  - **D-P31-1 e D-P31-2:** quem vê o consolidado e o orçado oficial.
 
 **Frente B (03/11)**
 - [ ] PO:
@@ -644,6 +713,8 @@
 | 13/11/2026 (madrugada) | B | Com autonomia do PO: #447 (US-048 parte 2), #448 (US-052, impostos, `impostosVigentes` e `AnoMes` no C2 a pedido da frente A), #449 (US-047, agrupadores), #450, #451 e #453 (US-022 e US-023 no C3), #454 (teste frágil). Revisão 12.12 independente nas US com migration, com os achados corrigidos (seed de impostos, conta inativa no agrupador). Achado do menu do Administrador acima de 720px em produção levado à frente A, que corrigiu no #452. US-054 em refinamento (#76) |
 | 13/11/2026 (noite) | A | Com a autonomia do PO: plano P20 (#466) e US-070, pessoal da proposta (#467, #92 fechada). O agente revisor voltou a funcionar e achou dois defeitos, corrigidos antes do merge: o cache de benefícios era só por cargo, e a duplicação copiava pessoal incoerente com a capa nova. Um terceiro acerto veio do CI: o índice único foi declarado no schema, para não dar drift |
 | 14/11/2026 (madrugada) | A | Janela autônoma pedida pelo PO até as 13h. Saíram o plano P21 (#470) e a US-071 (#471), com o teto informado por decisão do PO, e o plano P22 (#472) e a US-072 (#475). O revisor de código não achou defeito bloqueante na US-071; o achado menor, a conta de transporte gravada com custo zero, foi corrigido. Pedido para a frente B: a natureza CAPEX da conta no C1 (#138) |
+| 14/11/2026 (madrugada, 2) | A | Saíram o filtro CAPEX (#480), a US-074 (#479), a US-073 (#485), a US-075 (#489) e a US-078 (#487), com os planos P23 a P27. O revisor de código achou e corrigimos antes do merge: a base do rateio vazando para quem não vê o pessoal, um mês negativo no cronograma, o filtro de período em UTC na Central e o Valor Global sem aviso de pessoal. O E2E das propostas passou a ter usuários próprios por causa do limite de login |
+| 14/11/2026 (madrugada, 3) | A | Saíram as US-079 (#492), US-080 (#500) e US-081 (#501): os três fluxos de aprovação das propostas, todos no cronograma. Também a US-068 (#503), a US-084 inteira (#506 e #508, com a IA na recusa) e a US-101 (Consolidado dos TPs, #510), com os planos P28 a P31. A frente B lembrou o congelamento das alíquotas (RN_TAX_03), que entrou antes do merge da US-079. A US-082 ficou parada pelo C3 e pela vigência na capa |
 | 13/11/2026 (tarde) | A | Com a autonomia do PO: plano P19 (#459) e US-067, metas da proposta (#461, #89 fechada). A revisão 12.12 foi feita pela própria sessão, porque o agente revisor parou por erro de autenticação da API; ela corrigiu a trava da capa nas recusas. Também o `semMarcas` linear (#463), achado da frente B na #138 |
 | 13/11/2026 | A | P18 (#443) e US-066 (#445, #88 fechada): duplicar e nova versão da proposta, implementada por agente, com revisão 12.12 independente; o médio (exclusão de V1 Em Elaboração por meio de uma V2) corrigido antes do merge |
 | 12/11/2026 (noite) | A | PO decide o GAP-CC-004 (CC próprio por TP); spec 1.7 (#435); pedido da frente B atendido com a Adm. Central só na raiz 4 (#439); plano P17 (#436) e US-065 (#440, #87 fechada), implementada por agentes (modelo e tela) com revisão 12.12 independente e as correções aplicadas; E2E sobre a seed de TPs da frente B (#438); quadro de atividades da sessão como mod do Claude Code, pedido do PO |
