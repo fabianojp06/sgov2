@@ -7,8 +7,9 @@ import { gerarArquivo } from '@/modules/ger/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
-import { falha, ok, type Dinheiro, type Resultado } from '@/shared/kernel';
-import { ehCompetencia, montarDespesas, type Despesas, type LinhaRealizado } from './despesas-tp-montagem';
+import { realizadoPorTp, tpsDoRealizado, type RealizadoDoTp, type TpDoRealizado } from '@/modules/orc';
+import { falha, ok, type Resultado } from '@/shared/kernel';
+import { ehCompetencia, montarDespesas, type Despesas } from './despesas-tp-montagem';
 
 // Demonstrativo de despesas do TP (US-096 parte 1; UC05.02, 2ª tabela). Só leitura: o realizado vem da porta
 // do orc (US-085), com a permissão e a RLS dela; as contas, do C1. Filtros: o TP (obrigatório, RN0234), o
@@ -18,17 +19,10 @@ import { ehCompetencia, montarDespesas, type Despesas, type LinhaRealizado } fro
 
 export const FUNCIONALIDADE_DESPESAS = 'rel.despesas_tp';
 
-export type TpDoRealizado = { numero: string; objeto: string; inicio: string; fim: string; versaoOficial: number | null };
-export type RealizadoDoTp = {
-  linhas: readonly LinhaRealizado[];
-  ajustes: readonly { conta: string; origem: string; lancamento: string; valor: Dinheiro }[];
-  pendencias: { quantidade: number; valor: Dinheiro };
-  atualizadoEm: Date | null;
-};
-/** A porta do realizado do orc (US-085), injetada: a página passa a real. */
+/** A porta do realizado do orc (US-085, #526): `realizadoPorTp` e a lista dos TPs; injetável nos testes. */
 export type PortaRealizado = {
   tps: (ctx: ContextoRequisicao) => Promise<readonly TpDoRealizado[]>;
-  realizado: (ctx: ContextoRequisicao, filtro: { tp: string; de: string; ate: string }) => Promise<RealizadoDoTp>;
+  realizado: (ctx: ContextoRequisicao, filtro: { tp: string; de: string; ate: string }) => Promise<RealizadoDoTp | null>;
 };
 
 export const MENSAGENS_DESPESAS = {
@@ -81,6 +75,8 @@ export async function obterDespesasTp(
   if (!ehCompetencia(de) || !ehCompetencia(ate) || de > ate) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
   if (de < tp.inicio || ate > tp.fim) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.FORA_DA_VIGENCIA };
   const [realizado, arvore] = await Promise.all([porta.realizado(ctx, { tp: tp.numero, de, ate }), (deps.contas ?? listarArvoreContas)(prisma)]);
+  // Nulo: o TP sumiu do acesso do usuário (RLS) ou o período foi recusado pela porta.
+  if (!realizado) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
   const d = montarDespesas(arvore, realizado.linhas, de, ate, { exibirZerados: filtros.exibirZerados });
   return {
     tps,
@@ -161,3 +157,9 @@ export async function exportarDespesasTp(
     throw e;
   }
 }
+
+/** A porta real (orc, US-085): a lista dos TPs e o realizado, com a permissão e a RLS do orc. */
+export const PORTA_REALIZADO: PortaRealizado = {
+  tps: (ctx) => tpsDoRealizado(ctx),
+  realizado: (ctx, f) => realizadoPorTp(ctx, f),
+};
