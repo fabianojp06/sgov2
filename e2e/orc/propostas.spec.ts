@@ -539,6 +539,26 @@ test.describe.serial('proposta de TP', () => {
     await c.close();
   });
 
+  test('3o. o GFIN consulta o Orçado x Realizado da cópia: o realizado sem orçado no mês aparece como Sem orçamento (US-086)', async ({ browser }) => {
+    const c = await browser.newContext();
+    const p = await c.newPage();
+    await entrarNaTelaPrincipal(p, USUARIOS.gfinPropostas.login);
+    await p.goto('/orc/orcado-realizado');
+    const opcao = p.getByLabel('Termo de Parceria').locator('option', { hasText: `${NUMERO_COPIA} – ` });
+    await p.getByLabel('Termo de Parceria').selectOption((await opcao.getAttribute('value'))!);
+    await p.getByLabel('Período inicial').fill('2027-01');
+    await p.getByLabel('Período final').fill('2027-03');
+    await p.getByRole('button', { name: 'Consultar' }).click();
+    await expect(p).toHaveURL(/\/orc\/orcado-realizado\?proposta=/);
+    const grade = p.getByRole('table', { name: /^Orçado x Realizado por conta e mês/ });
+    await expect(grade.getByRole('columnheader', { name: 'Jan/27' })).toBeVisible();
+    const linha = grade.getByRole('row', { name: /^4\.1\.1\.7\.003 / });
+    await expect(linha).toContainText('1.500,25');
+    await expect(linha).toContainText('Sem orçamento');
+    await expect(p.getByText(/^Existem 1 valores do ERP sem conta correspondente no SGO/)).toBeVisible();
+    await c.close();
+  });
+
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
     await entrarNaTelaPrincipal(page, usuario.login);
     await page.goto('/orc/propostas');

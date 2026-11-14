@@ -86,6 +86,7 @@ export {
   type TetoTela,
   type ViagemTela,
 } from './application/viagens';
+export { obterOrcadoRealizado, type FiltrosOxr, type ResultadoOxr, type TelaOxr as DadosOxr } from './application/orcado-realizado';
 export {
   carregarRealizado,
   fecharCompetencia,
@@ -118,6 +119,7 @@ export { TelaEmpregados, textoAvisoEmpregado, type FinalizacaoPessoal, type Form
 export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
 export { TelaCronograma } from './ui/tela-cronograma';
 export { TelaRealizado } from './ui/tela-realizado';
+export { TelaOxr } from './ui/tela-oxr';
 export { TelaRateio, textoAvisoRateio, type AcoesRateio, type PermissoesRateio } from './ui/tela-rateio';
 export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';
