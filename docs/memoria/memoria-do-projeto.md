@@ -576,10 +576,22 @@
     - sem `vePessoal`, as contas de pessoal saem do orçado e do realizado;
     - até 24 meses por consulta;
     - o PDF aceita até 6 meses.
-  - **Falta (parte 3):**
-    - remanejamento a partir da tela (critério da #108; depende do remanejamento, que não existe);
-    - expandir e recolher as sintéticas;
-    - o indicador do orçamento global da conta.
+  - **Parte 3 (#539):** o indicador do orçamento global da conta (seção 5.1).
+  - **Falta:**
+    - remanejamento a partir da tela (critério da #108; depende da US-083, que tem gap);
+    - expandir e recolher as sintéticas.
+- [x] **Totalizadores da proposta com o realizado (#537):** D-P33-5. Sem `vePessoal`, as contas de pessoal saem da árvore nos dois lados.
+  - **Para o PO:** os encargos (4.1.1.8.x) e os benefícios ficam fora de `RAIZES_CONTAS_PESSOAL`.
+- [ ] **US-091 (#113), na `main` (#540):** previsão de fechamento do ano, com motor determinístico e destaque pela IA-10.
+  - **Decisões D-P34-1 a 3 [PROVISÓRIAS]:**
+    - tendência = realizado ÷ orçado acumulados até o corte;
+    - corte = última carga do ano;
+    - o caso `orc.ia_previsao` nasce desligado.
+  - **Com o PO:** a etiqueta `bloqueada-por-gap` (GAP-IA-001).
+- [ ] **US-090 (#112), na `main` (#541):** explicação do desvio pela IA-09, no Orçado x Realizado.
+  - **"Números das ferramentas":** cada número e cada mês do texto da IA precisam estar entre os tokens que o sistema formatou; senão, a resposta é recusada.
+  - **Decisões D-P35-1 e 2 [PROVISÓRIAS]:** o recorte por CC e pela Adm. Central fica para a US-089.
+  - **Com o PO:** a etiqueta (GAP-IA-001).
 - [ ] **US-069 (#91, Could):** a IA só aceita texto, e ler o PDF pede uma biblioteca nova (`package.json`, compartilhado).
 - [x] Lição (14/11): o build do Next falha em worktree com `node_modules` em symlink. Build e E2E só no sgo-p15, com `npx prisma generate` antes, porque o cliente gerado fica em `src/generated` de cada worktree.
 - [x] Lição (14/11): o squash do PR anterior deixa o branch seguinte com commits duplicados. Para rebasear, usar `git rebase --onto origin/main <último commit da história anterior>`.
@@ -754,6 +766,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 14/11/2026 (manhã, 3) | A | US-086 parte 3 (#539), totalizadores com o realizado (#537), US-091 previsão de fechamento com a IA-10 (#540) e US-090 explicação do desvio com a IA-09 (#541). Revisão 12.12 independente em todos. Os achados foram corrigidos antes do merge: pessoal filtrado de um lado só, corte da previsão andando com ajuste, pessoal não homologado como estouro falso e a checagem de "números das ferramentas" por substring, que aceitava número inventado |
 | 14/11/2026 (manhã, 2) | A | US-086: Orçado x Realizado do TP (#531) e exportação (#533). Revisão 12.12 independente nos dois. Defeitos corrigidos antes do merge: pessoal comparado só de um lado, estouro na linha inteira, link 404 para o Orçamentista e nome de arquivo fora da regra do C3, que dava 500 depois de auditar. O mesmo defeito do nome foi avisado à frente B (despesas-tp). O E2E do orçamento pegou o menu da Adm. Central aparecendo para o Orçamentista. D-P33-1 a 4 PROVISÓRIAS |
 | 14/11/2026 (manhã) | A | A pedido da frente B (#138), US-085 em duas partes: plano P32 (#525), realizado por arquivo (#526) e previsto, lista dos TPs e reprocessamento das pendências (#527). Revisão 12.12 independente nos dois PRs; os achados foram corrigidos antes do merge (fuso do fechamento, dupla contagem de pendência em mês fechado, prazo da transação). Decisões D-P32-1 a 12 PROVISÓRIAS |
 | 14/11/2026 (manhã, 2) | B | US-096 partes 1 e 2 (#529 e #530) e US-104 parte 2 (#532), com a porta do realizado da frente A (#526 e #527). Revisão independente em cada PR, com os achados corrigidos antes do merge: contas inativas fora do total, saldo do período filtrado sem o acumulado anterior, rótulo da coluna agregada e avisos que faltavam no arquivo. Os dois demonstrativos estão no hml |
