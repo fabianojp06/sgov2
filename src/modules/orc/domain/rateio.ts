@@ -57,7 +57,8 @@ export function converterTexto(t: string, de: ModoRateio, para: ModoRateio, base
 export type CelulaRateio = { conta: string; competencia: string; valor: Dinheiro; percentual: Percentual | null };
 export type GradeValidada = { contaSintetica: string; modo: ModoRateio; aliquotaIss: Percentual | null; celulas: readonly CelulaRateio[]; total: Dinheiro };
 
-export type ContextoGrade = { competencias: readonly string[]; base: Dinheiro; tipoProposta: TipoProposta };
+/** `baseVisivel` falso: quem não vê o pessoal não lê a base nem na mensagem do E1 (D-P24-2, revisão 12.12). */
+export type ContextoGrade = { competencias: readonly string[]; base: Dinheiro; tipoProposta: TipoProposta; baseVisivel?: boolean };
 
 /** Os nomes dos campos do formulário: a conta da linha i e a célula (linha i, competência). */
 export const campoConta = (i: number) => `conta_${i}`;
@@ -110,9 +111,10 @@ export function validarGrade(bruto: Readonly<Record<string, unknown>>, c: Contex
         const p = lerPercentual(v);
         if (!p || p.comoFracao().gt(1)) erros.push({ campo: campoCelula(i, competencia), mensagem: M.RATEIO_PERCENTUAL_INVALIDO });
         else {
-          // Um % tão pequeno que o valor arredonda a zero não é gravado (célula zero, RN_RAT_03).
+          // Um % tão pequeno que o valor arredonda a zero é recusado: sumiria sem aviso (revisão 12.12).
           const valor = valorDoPercentual(c.base, p);
           if (!valor.ehZero()) celulas.push({ conta, competencia, percentual: p, valor });
+          else if (!p.comoFracao().isZero()) erros.push({ campo: campoCelula(i, competencia), mensagem: M.RATEIO_PERCENTUAL_PEQUENO });
         }
       } else {
         const d = lerValorDigitado(v);
@@ -123,7 +125,10 @@ export function validarGrade(bruto: Readonly<Record<string, unknown>>, c: Contex
   }
   if (erros.length > 0) return falha(erros);
   const total = Dinheiro.somarTodos(celulas.map((x) => x.valor));
-  if (total.comparar(c.base) > 0) return falha([{ campo: '_', mensagem: M.RATEIO_ESTOURO(total.formatar(), c.base.formatar()) }]);
+  if (total.comparar(c.base) > 0) {
+    const mensagem = c.baseVisivel === false ? M.RATEIO_ESTOURO_RESTRITO(total.formatar()) : M.RATEIO_ESTOURO(total.formatar(), c.base.formatar());
+    return falha([{ campo: '_', mensagem }]);
+  }
   return ok({ contaSintetica, modo: modo as ModoRateio, aliquotaIss, celulas, total });
 }
 

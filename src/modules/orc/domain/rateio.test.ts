@@ -32,12 +32,19 @@ describe('validarGrade (RN_RAT_01 a 07, E1, E2)', () => {
     const ok = validarGrade(grade({ modo: 'PERCENTUAL', [campoCelula(0, '2027-01')]: '1,2345' }), { ...ctxTp, base: Dinheiro.de('100.00') });
     expect(ok.ok && [ok.valor.celulas[0]!.valor.paraString(), ok.valor.celulas[0]!.percentual?.paraString()]).toEqual(['1.23', '1.2345']);
     expect(campos(validarGrade(grade({ modo: 'PERCENTUAL', [campoCelula(0, '2027-01')]: '100,01' }), ctxTp))).toEqual([campoCelula(0, '2027-01')]);
+    // O % que dá menos de um centavo é recusado (revisão 12.12).
+    expect(validarGrade(grade({ modo: 'PERCENTUAL', [campoCelula(0, '2027-01')]: '0,0001' }), { ...ctxTp, base: Dinheiro.de('100.00') })).toEqual({
+      ok: false,
+      erros: [{ campo: campoCelula(0, '2027-01'), mensagem: M.RATEIO_PERCENTUAL_PEQUENO }],
+    });
   });
 
   it('E1: a soma não passa da base, com os dois valores na mensagem', () => {
     const r = validarGrade(grade({ [campoCelula(0, '2027-01')]: '6.000,00', [campoConta(1)]: '4.3.1.1.002', [campoCelula(1, '2027-02')]: '4.000,01' }), ctxTp);
     expect(r).toEqual({ ok: false, erros: [{ campo: '_', mensagem: M.RATEIO_ESTOURO('R$ 10.000,01', 'R$ 10.000,00') }] });
     expect(validarGrade(grade({ [campoCelula(0, '2027-01')]: '10.000,00' }), ctxTp).ok).toBe(true);
+    // Sem ver o pessoal, a mensagem não traz a base (revisão 12.12).
+    expect(validarGrade(grade({ [campoCelula(0, '2027-01')]: '10.000,01' }), { ...ctxTp, baseVisivel: false })).toEqual({ ok: false, erros: [{ campo: '_', mensagem: M.RATEIO_ESTOURO_RESTRITO('R$ 10.000,01') }] });
   });
 
   it('E2: no Contrato, a alíquota vai de 2,00% a 5,00% (inclusivos); no TP, é ignorada', () => {

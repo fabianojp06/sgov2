@@ -179,6 +179,11 @@ describe('salvarRateio e obterRateio (UC03.03)', () => {
     exigirOk(await salvar(p.id, { modo: 'PERCENTUAL', modoAnterior: 'VALOR', [campoCelula(0, '2027-01')]: '2.450,00' }));
     const c = await migrator.rateioCelulaProposta.findFirstOrThrow({ where: { rateio: { versaoProposta: { propostaId: p.id } } } });
     expect([c.valor.toString(), c.percentual?.toString()]).toEqual(['2450', '10']);
+    // O valor que viraria 0% é recusado, não some (revisão 12.12).
+    expect(await salvar(p.id, { modo: 'PERCENTUAL', modoAnterior: 'VALOR', [campoCelula(0, '2027-01')]: '0,01' })).toEqual(erroCampo(campoCelula(0, '2027-01'), M.RATEIO_CONVERSAO_ZERA));
+    const semPessoal = ['orc.propostas:consultar', ...LANCA.map((a) => `orc.rateio:${a}`)];
+    const r = (await obterRateio(await ctx(semPessoal), p.id, comDeps()))!;
+    expect(r.grade!.linhas[0]!.celulas['2027-01']!.percentual).toBeNull();
   });
 
   it('E2: o Contrato exige a alíquota de 2% a 5%; o TP não guarda', async () => {
@@ -197,7 +202,9 @@ describe('salvarRateio e obterRateio (UC03.03)', () => {
     const r = (await obterRateio(await ctx(semPessoal), p.id, comDeps()))!;
     expect(r.base).toBeNull();
     expect(r.baseRestrita).toBe(true);
-    expect(await salvar(p.id, { [campoCelula(0, '2027-01')]: '24.500,01' }, semPessoal)).toEqual(erroGeral(M.RATEIO_ESTOURO('R$ 24.500,01', 'R$ 24.500,00')));
+    // Nem a mensagem do E1 nem o % mostram a base (revisão 12.12).
+    expect(await salvar(p.id, { [campoCelula(0, '2027-01')]: '24.500,01' }, semPessoal)).toEqual(erroGeral(M.RATEIO_ESTOURO_RESTRITO('R$ 24.500,01')));
+    expect(await salvar(p.id, { modo: 'PERCENTUAL', modoAnterior: 'VALOR', [campoCelula(0, '2027-01')]: '1,00' }, semPessoal)).toEqual(erroCampo('modo', M.RATEIO_PERCENTUAL_RESTRITO));
   });
 });
 

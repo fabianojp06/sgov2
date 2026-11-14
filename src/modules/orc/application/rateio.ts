@@ -105,7 +105,9 @@ export async function obterRateio(ctx: ContextoRequisicao, propostaId: string, d
         const porConta = new Map<string, LinhaRateio['celulas']>();
         for (const c of g.celulas) {
           const atual = { ...(porConta.get(c.conta) ?? {}) };
-          atual[competenciaParaTexto(c.competencia)] = { valor: Dinheiro.de(c.valor.toString()), percentual: c.percentual ? Percentual.dePontos(c.percentual.toString()) : null };
+          // Quem não vê o pessoal não recebe o %: com o valor ao lado, ele daria a base (D-P24-2, revisão 12.12).
+          const percentual = c.percentual && vePessoal(ctx) ? Percentual.dePontos(c.percentual.toString()) : null;
+          atual[competenciaParaTexto(c.competencia)] = { valor: Dinheiro.de(c.valor.toString()), percentual };
           porConta.set(c.conta, atual);
         }
         const linhas = [...porConta.entries()]
@@ -138,7 +140,7 @@ export async function obterRateio(ctx: ContextoRequisicao, propostaId: string, d
         competencias,
         grade,
         base,
-        baseRestrita: grade !== null && !vePessoal(ctx),
+        baseRestrita: !vePessoal(ctx),
         opcoes: { sinteticas, analiticas },
       };
     },
@@ -217,13 +219,22 @@ export async function salvarRateio(ctx: ContextoRequisicao, bruto: unknown, deps
       return falha([{ campo: 'contaSintetica', mensagem: M.RATEIO_SINTETICA_INVALIDA }]);
     const base = sintetica === '' ? Dinheiro.zero() : await baseDa(tx, deps, lida.versaoId, sintetica);
     if (sintetica !== '' && base.ehZero()) return falha([{ campo: 'contaSintetica', mensagem: M.RATEIO_SEM_SALDO }]);
+    // D-P24-2 (revisão 12.12): sem ver o pessoal, só o valor nominal; o % (e a conversão) revelaria a base.
+    const baseVisivel = vePessoal(ctx);
+    if (!baseVisivel && (campos.modo === 'PERCENTUAL' || campos.modoAnterior === 'PERCENTUAL')) return falha([{ campo: 'modo', mensagem: M.RATEIO_PERCENTUAL_RESTRITO }]);
     // REQ_RAT_002: o texto das células foi digitado no modo anterior; converte para o novo pela base.
     const de = campos.modoAnterior;
     const para = campos.modo;
     if ((MODOS_RATEIO as readonly unknown[]).includes(de) && (MODOS_RATEIO as readonly unknown[]).includes(para) && de !== para) {
-      for (const [k, v] of Object.entries(campos)) if (k.startsWith('c_') && typeof v === 'string') campos[k] = converterTexto(v, de as ModoRateio, para as ModoRateio, base);
+      for (const [k, v] of Object.entries(campos)) {
+        if (!k.startsWith('c_') || typeof v !== 'string') continue;
+        const convertido = converterTexto(v, de as ModoRateio, para as ModoRateio, base);
+        // O valor que vira 0% sumiria sem aviso (revisão 12.12): recusa.
+        if (para === 'PERCENTUAL' && /^0(,0+)?$/.test(convertido) && v.trim() !== '' && !/^0([.,]0+)?$/.test(v.trim())) return falha([{ campo: k, mensagem: M.RATEIO_CONVERSAO_ZERA }]);
+        campos[k] = convertido;
+      }
     }
-    const g = validarGrade(campos, { competencias, base, tipoProposta: tipo });
+    const g = validarGrade(campos, { competencias, base, tipoProposta: tipo, baseVisivel });
     if (!g.ok) return g;
     const contas = conferirContas(indice, g.valor.contaSintetica, new Set(g.valor.celulas.map((x) => x.conta)));
     if (!contas.ok) return contas;
@@ -304,7 +315,10 @@ export async function replicarRateio(ctx: ContextoRequisicao, bruto: unknown, de
       }));
     const todas = [...outras, ...novas];
     const total = Dinheiro.somarTodos(todas.map((x) => x.valor));
-    if (total.comparar(base) > 0) return falha([{ campo: '_', mensagem: M.RATEIO_ESTOURO(total.formatar(), base.formatar()) }]);
+    if (total.comparar(base) > 0) {
+      const mensagem = vePessoal(ctx) ? M.RATEIO_ESTOURO(total.formatar(), base.formatar()) : M.RATEIO_ESTOURO_RESTRITO(total.formatar());
+      return falha([{ campo: '_', mensagem }]);
+    }
     await travarVersao(tx, lida);
 
     exigirUmaLinha(await tx.rateioProposta.updateMany({ where: { id: g.id, versao: g.versao }, data: { versao: { increment: 1 } } }));

@@ -312,6 +312,11 @@ export const MENSAGENS_ORC = {
   RATEIO_PERCENTUAL_INVALIDO: 'Informe um percentual de 0 a 100, com até 4 casas decimais (ex.: 1,5).',
   RATEIO_ESTOURO: (total: string, base: string) =>
     `Operação Rejeitada: O somatório do rateio/ISS configurado na grade (${total}) excede o teto disponível na Conta Sintética Mandante selecionada (${base}).`,
+  RATEIO_ESTOURO_RESTRITO: (total: string) =>
+    `Operação Rejeitada: O somatório do rateio/ISS configurado na grade (${total}) excede o teto disponível na Conta Sintética Mandante selecionada.`,
+  RATEIO_PERCENTUAL_RESTRITO: 'A distribuição em percentual depende da base, que inclui o custo do pessoal; use o valor nominal (R$).',
+  RATEIO_CONVERSAO_ZERA: 'Este valor fica abaixo de 0,0001% da base e sumiria na conversão para percentual. Mantenha o valor nominal ou aumente o valor.',
+  RATEIO_PERCENTUAL_PEQUENO: 'Este percentual dá menos de um centavo sobre a base. Aumente o percentual ou apague a célula.',
   RATEIO_CONTA_ANALITICA: 'A distribuição do rateio deve ir para uma conta analítica ativa (nível 5).',
   RATEIO_CONTA_SOB_MANDANTE: (conta: string, sintetica: string) => `A conta ${conta} está sob a conta sintética mandante ${sintetica}: o rateio entraria na própria base.`,
   RATEIO_DADOS_INVALIDOS: 'Dados do rateio inválidos. Recarregue a tela.',

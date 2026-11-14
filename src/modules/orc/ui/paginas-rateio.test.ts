@@ -113,6 +113,8 @@ describe('página de Rateio/ISS', () => {
     expect(h).toContain(M.RATEIO_ISS_A_DEFINIR);
     expect(h).toContain(M.RATEIO_BASE_RESTRITA);
     expect(h).not.toContain('Saldo da base');
+    expect(h).toContain('<input type="hidden" name="modoAnterior" value="VALOR"/>');
+    expect(h).not.toContain('<option value="PERCENTUAL"');
   });
 
   it('quem só consulta e a versão imutável: sem formulário nem ações; sem grade: o texto', async () => {

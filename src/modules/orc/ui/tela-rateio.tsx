@@ -80,7 +80,9 @@ function Resumo({ dados }: { dados: RateioTela }) {
 
 function Grade({ dados, acoes }: { dados: RateioTela; acoes: AcoesRateio }) {
   const g = dados.grade;
-  const modo: ModoRateio = g?.modo ?? 'VALOR';
+  // Sem ver o pessoal (base restrita), só o valor nominal: o % revelaria a base (D-P24-2).
+  const restrita = dados.base === null && dados.baseRestrita;
+  const modo: ModoRateio = restrita ? 'VALOR' : (g?.modo ?? 'VALOR');
   const vazia: Pick<LinhaRateio, 'conta' | 'celulas'> = { conta: '', celulas: {} };
   const linhas: Pick<LinhaRateio, 'conta' | 'celulas'>[] = [...(g?.linhas ?? []), vazia, vazia].slice(0, MAXIMO_LINHAS_RATEIO);
   return (
@@ -107,7 +109,7 @@ function Grade({ dados, acoes }: { dados: RateioTela; acoes: AcoesRateio }) {
         <p>
           <label htmlFor="rateio-modo">Tipo de distribuição</label>
           <select id="rateio-modo" name="modo" defaultValue={modo} aria-describedby="erro-modo">
-            {MODOS_RATEIO.map((m) => (
+            {MODOS_RATEIO.filter((m) => !restrita || m === 'VALOR').map((m) => (
               <option key={m} value={m}>
                 {ROTULO_MODO_RATEIO[m]}
               </option>
