@@ -8,6 +8,7 @@ import {
   CENTROS_CUSTO_EXEMPLO,
   CENTROS_CUSTO_TPS_EXEMPLO,
   compararClassificacao,
+  CONTAS_CAPEX_EXEMPLO,
   CONTAS_EXEMPLO,
   estruturaFinanceiraFalsa,
   type NoCentroCusto,
@@ -192,6 +193,9 @@ describe('C1 — tipos e exportações', () => {
       'CENTROS_CUSTO_EXEMPLO',
       // Estrutura sintética de TPs (C37, #138).
       'CENTROS_CUSTO_TPS_EXEMPLO',
+      // Natureza OPEX/CAPEX (US-072, #138).
+      'CONTAS_CAPEX_EXEMPLO',
+      'NATUREZAS_CONTA',
       'estruturaFinanceiraFalsa',
       'compararClassificacao',
     ];
@@ -210,5 +214,28 @@ describe('C1 — estrutura sintética de TPs (C37)', () => {
     expect(indice.centrosCustoAnaliticosSob('4')).not.toContain('9.1');
     expect(await falso.ehCentroCustoAnalitico(tx, '9.2')).toBe(true);
     expect(await falso.ehCentroCustoAnalitico(tx, '9')).toBe(false);
+  });
+});
+
+describe('C1 — natureza OPEX/CAPEX da conta (US-045; pedido da US-072)', () => {
+  it('só a analítica ativa CAPEX passa; OPEX, sem natureza, sintética e inexistente não', async () => {
+    const falso = estruturaFinanceiraFalsa({ contas: [...CONTAS_EXEMPLO, ...CONTAS_CAPEX_EXEMPLO] });
+    const indice = await falso.carregarIndiceEstrutura(tx);
+    expect(indice.contaAnaliticaCapex('1.2.3.1.001')).toBe(true);
+    for (const c of ['1.2.3.1.002', '1.2.3.1.003', '1.2.3.1', '4.1.1.1.001', '9.9.9']) expect(indice.contaAnaliticaCapex(c)).toBe(false);
+    const sob = indice.contasAnaliticasSob('1').filter((c) => indice.contaAnaliticaCapex(c));
+    expect(sob).toEqual(['1.2.3.1.001']);
+    const arvore = await falso.listarArvoreContas(tx);
+    const bens = arvore.find((n) => n.classificacao === '1')!.filhos[0]!.filhos[0]!.filhos[0]!;
+    expect(bens.filhos.map((n) => n.natureza ?? null)).toEqual(['CAPEX', 'OPEX', null]);
+  });
+
+  it('CAPEX inativa não passa', async () => {
+    const inativa: NoConta = { ...CONTAS_CAPEX_EXEMPLO[0]!.filhos[0]!.filhos[0]!.filhos[0]!.filhos[0]!, ativa: false };
+    expect(inativa.natureza).toBe('CAPEX');
+    const raiz = CONTAS_CAPEX_EXEMPLO[0]!;
+    const trocar = (n: NoConta): NoConta => (n.classificacao === inativa.classificacao ? inativa : { ...n, filhos: n.filhos.map(trocar) });
+    const indice = await estruturaFinanceiraFalsa({ contas: [trocar(raiz)] }).carregarIndiceEstrutura(tx);
+    expect(indice.contaAnaliticaCapex('1.2.3.1.001')).toBe(false);
   });
 });

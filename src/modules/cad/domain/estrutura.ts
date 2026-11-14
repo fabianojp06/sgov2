@@ -4,6 +4,8 @@
 // situação; um reduzido que muda de classificação inativa o registro antigo e cria um novo. Por
 // isso os consumidores guardam a classificação, nunca o id do banco nem o reduzido.
 
+import type { NaturezaConta } from './parametro-local-conta';
+
 export type Nivel = 1 | 2 | 3 | 4 | 5;
 export type TipoConta = 'SINTETICA' | 'ANALITICA';
 
@@ -18,6 +20,12 @@ export type NoConta = {
   nivel: Nivel;
   tipo: TipoConta;
   ativa: boolean;
+  /**
+   * Natureza OPEX/CAPEX do parâmetro local da conta analítica (US-045; pedido da frente A na #138, 14/11,
+   * para o seletor de bens da US-072). Null ou ausente: a GFIN ainda não definiu (e sintéticas). Opcional
+   * só para não quebrar quem monta NoConta à mão; o listarArvoreContas real sempre preenche.
+   */
+  natureza?: NaturezaConta | null;
   /** Ordenados pela classificação, por segmentos numéricos. */
   filhos: readonly NoConta[];
 };
@@ -55,6 +63,8 @@ export type NoIndice = { readonly id: string; readonly paiId: string | null; rea
 
 export type IndiceEstruturaFinanceira = {
   contaAnaliticaAtiva(classificacao: string): boolean;
+  /** Analítica ativa com natureza CAPEX (RN0411, RN0419: Imobilizado e Intangível). Sem natureza definida: false. */
+  contaAnaliticaCapex(classificacao: string): boolean;
   centroCustoAnalitico(classificacao: string): boolean;
   /**
    * Analíticas ativas da subárvore, inclusive a raiz se analítica (ex.: '4.1.1.1' para separar as
@@ -137,8 +147,17 @@ function planificar<T extends NoGenerico>(raizes: readonly T[], analitico: (no: 
 export function montarIndice(contas: readonly NoConta[], ccs: readonly NoCentroCusto[]): IndiceEstruturaFinanceira {
   const pc = planificar(prepararArvoreContas(contas), (c) => c.tipo === 'ANALITICA');
   const cc = planificar(prepararArvoreCentrosCusto(ccs), (c) => c.tipo === 'ANALITICO');
+  const capex = new Set<string>();
+  const marcarCapex = (nos: readonly NoConta[]) => {
+    for (const no of nos) {
+      if (no.tipo === 'ANALITICA' && no.ativa && no.natureza === 'CAPEX') capex.add(no.classificacao);
+      marcarCapex(no.filhos);
+    }
+  };
+  marcarCapex(prepararArvoreContas(contas));
   return Object.freeze({
     contaAnaliticaAtiva: (classificacao: string) => pc.analiticas.has(classificacao),
+    contaAnaliticaCapex: (classificacao: string) => capex.has(classificacao),
     centroCustoAnalitico: (classificacao: string) => cc.analiticas.has(classificacao),
     contasAnaliticasSob: (raiz: string) => Object.freeze([...(pc.sob.get(raiz) ?? [])]),
     centrosCustoAnaliticosSob: (raiz: string) => Object.freeze([...(cc.sob.get(raiz) ?? [])]),

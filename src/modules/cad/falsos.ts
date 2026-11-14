@@ -53,6 +53,25 @@ export const CONTAS_EXEMPLO: readonly NoConta[] = congelarArvore([
   ]),
 ]);
 
+/**
+ * Trecho de ativo com natureza (US-045) para o seletor de bens CAPEX (US-072): uma analítica CAPEX, uma
+ * OPEX e uma sem natureza. Separado do CONTAS_EXEMPLO para não mudar os testes que já o usam; junte as
+ * duas (`[...CONTAS_EXEMPLO, ...CONTAS_CAPEX_EXEMPLO]`) quando precisar.
+ */
+export const CONTAS_CAPEX_EXEMPLO: readonly NoConta[] = congelarArvore([
+  conta('1', 'ATIVO', null, [
+    conta('1.2', 'ATIVO NÃO CIRCULANTE', null, [
+      conta('1.2.3', 'IMOBILIZADO E INTANGÍVEL', null, [
+        conta('1.2.3.1', 'BENS', null, [
+          { ...conta('1.2.3.1.001', 'Equipamentos de informática', '5010'), natureza: 'CAPEX' },
+          { ...conta('1.2.3.1.002', 'Manutenção de equipamentos', '5020'), natureza: 'OPEX' },
+          conta('1.2.3.1.003', 'Móveis e utensílios', '5030'),
+        ]),
+      ]),
+    ]),
+  ]),
+]);
+
 const cc = (
   classificacao: string,
   codigoReduzido: string,

@@ -13,6 +13,7 @@ export {
   type TipoCentroCusto,
   type TipoConta,
 } from './domain/estrutura';
+export { NATUREZAS_CONTA, type NaturezaConta } from './domain/parametro-local-conta';
 export {
   carregarIndiceEstrutura,
   ehCentroCustoAnalitico,
@@ -56,6 +57,7 @@ export {
   cargosExemplo,
   CENTROS_CUSTO_EXEMPLO,
   CENTROS_CUSTO_TPS_EXEMPLO,
+  CONTAS_CAPEX_EXEMPLO,
   CONTAS_EXEMPLO,
   custoPessoalFalso,
   estruturaFinanceiraFalsa,

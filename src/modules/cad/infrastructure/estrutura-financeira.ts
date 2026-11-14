@@ -19,7 +19,17 @@ import {
 // A árvore inteira (com as inativas) é pequena (174 contas no plano oficial): lê de uma vez.
 async function lerArvoreContas(tx: TxCliente): Promise<NoConta[]> {
   const linhas = await tx.contaContabil.findMany({
-    select: { id: true, paiId: true, classificacao: true, codigoReduzido: true, descricao: true, nivel: true, tipo: true, ativa: true },
+    select: {
+      id: true,
+      paiId: true,
+      classificacao: true,
+      codigoReduzido: true,
+      descricao: true,
+      nivel: true,
+      tipo: true,
+      ativa: true,
+      parametroLocal: { select: { natureza: true } },
+    },
   });
   const filhos = new Map<string | null, typeof linhas>();
   for (const l of linhas) filhos.set(l.paiId, [...(filhos.get(l.paiId) ?? []), l]);
@@ -33,6 +43,7 @@ async function lerArvoreContas(tx: TxCliente): Promise<NoConta[]> {
         nivel: l.nivel as NoConta['nivel'],
         tipo: l.tipo,
         ativa: l.ativa,
+        natureza: l.tipo === 'ANALITICA' ? (l.parametroLocal?.natureza ?? null) : null,
         filhos: montar(l.id),
       }));
   return montar(null);
