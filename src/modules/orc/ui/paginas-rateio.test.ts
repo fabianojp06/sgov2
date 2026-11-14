@@ -92,7 +92,7 @@ describe('página de Rateio/ISS', () => {
     expect(h).toContain('<dt>Base (orçado da conta mandante)</dt><dd>R$ 24.500,00</dd>');
     expect(h).toContain('<dt>Saldo da base</dt><dd>R$ 22.050,00</dd>');
     expect(h).toContain('<dd>Termo de Parceria: imune.</dd>');
-    expect(h).toContain('<th scope="row">4.3.1.1.001 – Taxa de Administração Central</th><td>2.450,00</td><td>0,00</td><td>2.450,00</td>');
+    expect(h).toContain('<th scope="row">4.3.1.1.001 – Taxa de Administração Central</th><td>2.450,00</td><td>—</td><td>2.450,00</td>');
     expect(h).toContain('Replicar o primeiro mês da conta 4.3.1.1.001');
     expect(h).toContain('Excluir a grade de rateio da proposta TP-2027/001');
     expect(h).toContain('<input type="hidden" name="modoAnterior" value="PERCENTUAL"/>');

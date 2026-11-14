@@ -279,7 +279,7 @@ export async function salvarRateio(ctx: ContextoRequisicao, bruto: unknown, deps
 }
 
 /**
- * RN_RAT_03 e C1 da #95 (D-P24-5): na linha da conta, o primeiro mês preenchido vai aos meses zerados seguintes
+ * RN_RAT_03 e C1 da #95 (D-P24-5): na linha da conta, o primeiro mês declarado vai aos meses vazios seguintes
  * (no modo %, o % e o valor pela base de agora); a soma passa pela trava E1.
  */
 export async function replicarRateio(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsOrc> = {}): Promise<Resultado<{ conta: string }>> {
@@ -304,7 +304,7 @@ export async function replicarRateio(ctx: ContextoRequisicao, bruto: unknown, de
         return x ? { valor: Dinheiro.de(x.valor.toString()), percentual: x.percentual ? Percentual.dePontos(x.percentual.toString()) : null } : null;
       }),
     ).map((x, i) => (x && !daLinha.has(competencias[i]!) && x.percentual ? { ...x, valor: valorDoPercentual(base, x.percentual) } : x));
-    const novas = linha.flatMap((x, i) => (x && !x.valor.ehZero() ? [{ conta, competencia: competencias[i]!, ...x }] : []));
+    const novas = linha.flatMap((x, i) => (x ? [{ conta, competencia: competencias[i]!, ...x }] : []));
     const outras = g.celulas
       .filter((x) => x.conta !== conta)
       .map((x) => ({

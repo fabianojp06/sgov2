@@ -17,11 +17,14 @@ describe('competenciasDaVigencia (REQ_RAT_001)', () => {
 });
 
 describe('validarGrade (RN_RAT_01 a 07, E1, E2)', () => {
-  it('modo valor: vazias e zeros não são gravados; o total é a soma', () => {
+  it('modo valor: a vazia não é declarada; o zero digitado é (C1, RN_WA01_002); o total é a soma', () => {
     const r = validarGrade(grade({ [campoCelula(0, '2027-01')]: '1.000,00', [campoCelula(0, '2027-02')]: '', [campoCelula(0, '2027-03')]: '0' }), ctxTp);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.valor.celulas.map((c) => [c.conta, c.competencia, c.valor.paraString(), c.percentual])).toEqual([['4.3.1.1.001', '2027-01', '1000.00', null]]);
+    expect(r.valor.celulas.map((c) => [c.conta, c.competencia, c.valor.paraString(), c.percentual])).toEqual([
+      ['4.3.1.1.001', '2027-01', '1000.00', null],
+      ['4.3.1.1.001', '2027-03', '0.00', null],
+    ]);
     expect(r.valor.total.paraString()).toBe('1000.00');
     expect(r.valor.aliquotaIss).toBeNull();
   });

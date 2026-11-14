@@ -19,7 +19,8 @@ CREATE TABLE "orc_rateio" (
 );
 
 -- 2) As células da grade (RN_RAT_01, RN_RAT_03): conta analítica de destino × competência, com o valor em R$ e,
---    no modo percentual, o % da base. Célula zero não é gravada.
+--    no modo percentual, o % da base. Célula vazia não é gravada (não declarada); o zero digitado é gravado,
+--    porque o envio exige todas as células declaradas (C1, RN_WA01_002).
 -- CreateTable
 CREATE TABLE "orc_rateio_celula" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -67,8 +68,8 @@ ALTER TABLE "orc_rateio"
 ALTER TABLE "orc_rateio_celula"
   ADD CONSTRAINT "orc_rateio_celula_conta_check" CHECK (char_length(btrim("conta")) >= 1),
   ADD CONSTRAINT "orc_rateio_celula_competencia_check" CHECK (extract(day FROM "competencia") = 1),
-  ADD CONSTRAINT "orc_rateio_celula_valor_check" CHECK ("valor" > 0),
-  ADD CONSTRAINT "orc_rateio_celula_percentual_check" CHECK ("percentual" IS NULL OR ("percentual" > 0 AND "percentual" <= 100));
+  ADD CONSTRAINT "orc_rateio_celula_valor_check" CHECK ("valor" >= 0),
+  ADD CONSTRAINT "orc_rateio_celula_percentual_check" CHECK ("percentual" IS NULL OR ("percentual" >= 0 AND "percentual" <= 100));
 
 -- A grade é da mesma unidade da versão (a função do teto de viagens, P21), e a célula, da mesma unidade da grade.
 CREATE TRIGGER orc_rateio_mesma_unidade BEFORE INSERT OR UPDATE OF "unidade_id", "versao_proposta_id" ON "orc_rateio"

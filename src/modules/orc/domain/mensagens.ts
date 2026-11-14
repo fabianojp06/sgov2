@@ -326,7 +326,7 @@ export const MENSAGENS_ORC = {
   RATEIO_REPLICADO: (conta: string) => `Primeiro mês da conta ${conta} replicado para os meses seguintes.`,
   RATEIO_EXCLUIDO: (numero: string) => `Grade de rateio da proposta ${numero} excluída.`,
   CONFIRMA_EXCLUSAO_RATEIO: 'Deseja realmente excluir a grade de rateio desta versão? Esta ação não poderá ser desfeita.',
-  CONFIRMA_REPLICAR_RATEIO: 'Copiar o valor do primeiro mês preenchido para os meses seguintes que estão zerados?',
+  CONFIRMA_REPLICAR_RATEIO: 'Copiar o valor do primeiro mês preenchido para os meses seguintes que estão vazios?',
   RATEIO_ISS_A_DEFINIR: 'O valor do ISS fica a definir: a fórmula ainda não foi homologada.',
   RATEIO_BASE_RESTRITA: 'restrita (inclui o custo do pessoal, visível só para quem lança os empregados)',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',

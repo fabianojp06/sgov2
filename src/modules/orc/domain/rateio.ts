@@ -77,7 +77,7 @@ function validarIss(t: string, tipo: TipoProposta, erros: ErroCampo[]): Percentu
 
 /**
  * RN_RAT_01, RN_RAT_03, RN_RAT_06, E1 e E2 (D-P24-2 a D-P24-7): sintética e modo obrigatórios; até 20 linhas, sem
- * conta repetida; cada célula ≥ 0 no modo (% até 4 casas, de 0 a 100; R$ com 2 casas); vazia é zero e não é
+ * conta repetida; cada célula ≥ 0 no modo (% até 4 casas, de 0 a 100; R$ com 2 casas); vazia não é declarada nem
  * gravada; a soma de todas as células não passa da base. As contas no plano são conferidas no caso de uso.
  */
 export function validarGrade(bruto: Readonly<Record<string, unknown>>, c: ContextoGrade): Resultado<GradeValidada> {
@@ -113,13 +113,13 @@ export function validarGrade(bruto: Readonly<Record<string, unknown>>, c: Contex
         else {
           // Um % tão pequeno que o valor arredonda a zero é recusado: sumiria sem aviso (revisão 12.12).
           const valor = valorDoPercentual(c.base, p);
-          if (!valor.ehZero()) celulas.push({ conta, competencia, percentual: p, valor });
-          else if (!p.comoFracao().isZero()) erros.push({ campo: campoCelula(i, competencia), mensagem: M.RATEIO_PERCENTUAL_PEQUENO });
+          if (valor.ehZero() && !p.comoFracao().isZero()) erros.push({ campo: campoCelula(i, competencia), mensagem: M.RATEIO_PERCENTUAL_PEQUENO });
+          else celulas.push({ conta, competencia, percentual: p, valor });
         }
       } else {
         const d = lerValorDigitado(v);
         if (!d || d.ehNegativo()) erros.push({ campo: campoCelula(i, competencia), mensagem: M.VIAGEM_VALOR_INVALIDO });
-        else if (!d.ehZero()) celulas.push({ conta, competencia, percentual: null, valor: d });
+        else celulas.push({ conta, competencia, percentual: null, valor: d });
       }
     }
   }
@@ -133,8 +133,8 @@ export function validarGrade(bruto: Readonly<Record<string, unknown>>, c: Contex
 }
 
 /**
- * RN_RAT_03 e C1 da #95 (D-P24-5): o valor da primeira célula diferente de zero vai para as células zeradas
- * seguintes da linha; as anteriores e as já preenchidas ficam como estão.
+ * RN_RAT_03 e C1 da #95 (D-P24-5): o valor da primeira célula declarada (inclusive zero) vai para as células
+ * vazias seguintes da linha; as anteriores e as já declaradas ficam como estão.
  */
 export function replicarLinha<T>(valores: readonly (T | null)[]): (T | null)[] {
   const k = valores.findIndex((v) => v !== null);

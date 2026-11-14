@@ -205,7 +205,7 @@ function Leitura({ dados, permissoes, acoes }: { dados: RateioTela; permissoes: 
             <tr key={l.conta}>
               <th scope="row">{`${l.conta} – ${l.descricao}`}</th>
               {dados.competencias.map((c) => (
-                <td key={c}>{l.celulas[c] ? valorParaTela(l.celulas[c].valor) : '0,00'}</td>
+                <td key={c}>{l.celulas[c] ? valorParaTela(l.celulas[c].valor) : '—'}</td>
               ))}
               <td>{valorParaTela(l.total)}</td>
               {podeReplicar && (
