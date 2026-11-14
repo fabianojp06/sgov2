@@ -103,8 +103,10 @@ Os passos seguem a ordem do fluxo; cada um parte do resultado do anterior.
 | E3 | GFIN | Cadastrar um texto que começa com `=1+1` (por exemplo, na descrição de um cargo) e exportar | A célula mostra o texto `=1+1`, nunca o resultado 2 | #233 | não |
 | E4 | GFIN | Relatórios › Conferência da carga: exportar em PDF | O PDF tem as mesmas linhas da tela, com os números alinhados e legíveis | US-024 | não |
 | E5 | Administrador | Exportar o Histórico (B10) sem filtro, com mais de 5.000 linhas | A exportação passa para segundo plano e aparece em Relatórios › Minhas exportações; o arquivo fica disponível por 7 dias | US-022, US-023 | não |
+| E6 | GFIN | Relatórios › Prestação de contas › Demonstrativo de despesas do TP: escolher um TP com realizado carregado, sem período; depois marcar "Exibir contas zeradas"; exportar em XLSX e PDF | Sem período, a vigência inteira: os anos anteriores numa coluna, os meses do ano atual e o que vier depois numa coluna; as sintéticas somam as analíticas; uma conta inativa com realizado aparece marcada "(inativa)"; o total da tela bate com o do arquivo | US-096 | não |
+| E7 | GFIN | Relatórios › Prestação de contas › Demonstrativo de receitas e despesas do TP: o mesmo TP, primeiro sem período e depois a partir de janeiro do ano atual; exportar em PDF | O cronograma de desembolso no topo; por conta, previsto, realizado e saldo; o saldo do mês soma o anterior; com o período filtrado, o aviso do saldo anterior e o mesmo saldo final; o PDF sai em blocos de 3 períodos por página | US-096 | não |
 
-Telas com exportação: o plano de contas, a conferência da carga e o Histórico. A exportação grande só aparece se a base de hml tiver linhas suficientes.
+Telas com exportação: o plano de contas, a conferência da carga, o Histórico e os demonstrativos do TP (E6 e E7, que precisam do realizado carregado no hml). A exportação grande só aparece se a base de hml tiver linhas suficientes.
 
 ## G. Ajuda e inteligência artificial
 
@@ -120,7 +122,7 @@ Telas com exportação: o plano de contas, a conferência da carga e o Históric
 | G6 | DIREX ou GFIN | Administração Central › Comparativo entre TPs; ligar o caso "Comentários do comparativo" (G2) e pedir os comentários | A tabela mostra os pesos só das versões oficiais, com o motivo quando omitidos, e marca "acima/abaixo da curva" em texto; os comentários trazem o selo | US-106 | não |
 | G7 | GFIN | Relatórios › Relatório executivo mensal: gerar o rascunho do mês, revisar os textos, salvar e aprovar; baixar o PDF antes e depois | O rascunho sai marcado "RASCUNHO - não distribuir" (também no PDF); "Aprovar" só aparece com os textos salvos; depois de aprovado, nada muda e a DIREX passa a ver e baixar | US-103 | não |
 | G8 | GFIN | Relatórios › Apresentação para reunião de diretoria: escrever um tema, montar o roteiro e baixar os slides | Slides em PDF 16:9 com gráficos do sistema e o rodapé "Roteiro com apoio de IA, de responsabilidade de <usuário> - revisar" | US-105 | não |
-| G9 | DIREX, GFIN e Gestor de Diretoria | Relatórios › Pergunte ao SGO: "qual o orçamento da Administração Central?", "quanto orçou o CC 4.3.2?", "qual o Valor Global do TP-3?" e uma pergunta sobre o salário de alguém | Cada número vem com a fonte e o link da tela; o Gestor recebe "(do seu escopo)" e não recebe teto; a pergunta sobre salário recebe "ainda não sei responder" | US-104 | não |
+| G9 | DIREX, GFIN e Gestor de Diretoria | Relatórios › Pergunte ao SGO: "qual o orçamento da Administração Central?", "quanto orçou o CC 4.3.2?", "qual o Valor Global do TP-3?" "quanto o TP-3 gastou em 2027?", "qual o saldo do TP-3?" e uma pergunta sobre o salário de alguém | Cada número vem com a fonte e o link da tela; o realizado e o saldo do TP batem com os totais das telas do E6 e do E7 no mesmo período; o Gestor recebe "(do seu escopo)", não recebe teto nem o realizado dos TPs; a pergunta sobre salário recebe "ainda não sei responder" | US-104 | não |
 
 ## F. Encerramento
 

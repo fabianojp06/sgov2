@@ -729,7 +729,13 @@
 - [x] **US-104 parte 1 (#126), #522:** Pergunte ao SGO em `/rel/pergunte`.
   - A IA só classifica a pergunta num catálogo de consultas somente leitura.
   - O número vem do `obterVisaoExercicio` e do `obterConsolidado`, com o ctx de quem pergunta, mais a fonte e o link.
-  - **Parte 2:** o catálogo cresce com os relatórios de execução (US-096 em diante, depois do realizado).
+  - **Parte 2 (#532):** realizado e saldo de um TP (`REALIZADO_TP` e `SALDO_TP`), pelos casos de uso dos demonstrativos da US-096, os mesmos das telas do link; exige `orc.realizado:consultar` e a consulta do relatório.
+- [x] **US-096 partes 1 e 2 (#118 aberta), #529 e #530:** demonstrativos do TP em Relatórios › Prestação de contas, pela porta do realizado da frente A (`realizadoPorTp` e `tpsDoRealizado`, #526 e #527).
+  - Despesas (UC05.02, `/rel/despesas-tp`) e receitas e despesas (UC05.01, 1ª e 2ª tabelas, `/rel/receitas-despesas-tp`), com os filtros comuns em `filtrosDoTp`.
+  - A árvore do C1 vem com as inativas (o realizado continua nelas); o saldo acumulado parte do início do TP, mesmo com o período filtrado.
+  - **Falta:** a 3ª tabela do UC05.01 e a 1ª do UC05.02 (aplicações financeiras, US-088), o filtro de aditivo (RN0399) e o UC05.11 (despesas analítico).
+- US-097 (#119): o UC05.03 precisa saber qual sintética é a "Viagem"/"Diária" (a fonte só dá o nome) e o UC05.04 precisa dos itens CAPEX com quantidade e valor unitário (frente A). Perguntas ao PO no #119.
+- US-098 (#120): a fonte dos relatórios de pessoal (previsto da versão oficial ou a folha do Rubi) e as colunas do UC05.06 estão em pergunta ao PO no #120. O UC05.09 (férias) depende da integração com a folha.
 - Todas com revisão independente e os achados corrigidos antes do merge. Os casos de IA nascem desligados e já estão no hml.
 
 ## 8. Diário de sessões
@@ -737,6 +743,7 @@
 | Data | Frente | Resumo |
 | --- | --- | --- |
 | 14/11/2026 (manhã) | A | A pedido da frente B (#138), US-085 em duas partes: plano P32 (#525), realizado por arquivo (#526) e previsto, lista dos TPs e reprocessamento das pendências (#527). Revisão 12.12 independente nos dois PRs; os achados foram corrigidos antes do merge (fuso do fechamento, dupla contagem de pendência em mês fechado, prazo da transação). Decisões D-P32-1 a 12 PROVISÓRIAS |
+| 14/11/2026 (manhã, 2) | B | US-096 partes 1 e 2 (#529 e #530) e US-104 parte 2 (#532), com a porta do realizado da frente A (#526 e #527). Revisão independente em cada PR, com os achados corrigidos antes do merge: contas inativas fora do total, saldo do período filtrado sem o acumulado anterior, rótulo da coluna agregada e avisos que faltavam no arquivo. Os dois demonstrativos estão no hml |
 | 14/11/2026 (manhã) | B | US-106 (#515), US-103 parte 1 (#519, migration nova), US-105 (#520) e US-104 parte 1 (#522), destravadas pelo consolidado da frente A (#510, #513 e #518, pedidos na #138); roteiros da R4 (#498, #499 e #505); #494, #495 e #497. Revisão independente em cada US, com os achados corrigidos |
 | 13/11 (noite) a 14/11/2026 (madrugada) | B | Frente A acordada e destravada pela #138. #469 (vínculo funcional no C2) e #473 (natureza CAPEX no C1), pedidos da frente A; US-107 inteira (#476, #484 e #488), com duas revisões independentes; #482 (`main` sem typecheck depois de PRs paralelos, com a regra do campo opcional combinada com a frente A). US-099 bloqueada por falta de fonte (#121) |
 | 13/11/2026 (manhã) | B | #456 (US-118, manual por perfil; #140 fechada) e #454 na `main`; US-054 decidida pelo PO (#76). US-119 parte 2: rollback do app ensaiado no hml e restauração do dump ensaiada com o banco de dev, com correções no runbook. O PO autorizou as sessões das duas frentes a não pararem para confirmar ou relatar (seção 2). Depois: #460 (conferência da VPS), #462 (US-108, ajuda do manual por IA, sem embeddings; DoS do `semMarcas` corrigido e avisado à frente A) e #464 (roteiro da carga) |
