@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { seedAdm } from '@/modules/adm';
-import { listarEmpregados, type BlocoEmpregados, type EmpregadoTela } from '@/modules/orc';
+import { listarEmpregados, listarExercicios, listarPosicoes, type BlocoEmpregados, type EmpregadoTela } from '@/modules/orc';
+import { CENTROS_CUSTO_EXEMPLO } from '@/modules/cad';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { criarProvedorIAFalso, criarServicoIA } from '@/shared/ia';
@@ -9,7 +10,7 @@ import { Dinheiro } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedRel } from '../infrastructure/seed';
 import { CASO_QUADRO_PESSOAL } from './ia-casos';
-import { analiseQuadroLiberada, analisarQuadroPessoal, MENSAGENS_QUADRO, obterQuadroPessoal } from './quadro-pessoal';
+import { analiseQuadroLiberada, analisarQuadroPessoal, MENSAGENS_QUADRO, obterQuadroAdmCentral, obterQuadroPessoal, type LeituraAdmCentral } from './quadro-pessoal';
 
 // Análise do quadro de pessoal (US-107) num Postgres real (Testcontainers, D12): a seed, a governança
 // da IA (US-019) com o provedor falso e o listarEmpregados real do orc (sem propostas). Os blocos com
@@ -25,6 +26,7 @@ const perm = (f: string, a: string) => [f, a].join(':');
 const IA = perm(CASO_QUADRO_PESSOAL.funcionalidade, 'executar');
 const CONSULTA = perm(CASO_QUADRO_PESSOAL.funcionalidade, 'consultar');
 const EMPREGADOS = perm('orc.empregados', 'consultar');
+const POSICOES = perm('orc.posicoes', 'consultar');
 
 const ctx = (permissoes: string[] = [IA, CONSULTA, EMPREGADOS]): ContextoRequisicao => ({
   usuarioId,
@@ -77,8 +79,29 @@ const falso = criarProvedorIAFalso();
 const filtrosVistos: unknown[] = [];
 let blocosFalsos = (): BlocoEmpregados[] => [bloco([empregado(0), empregado(1), empregado(2), empregado(3, { nome: null })])];
 const listarFalso = async (_c: ContextoRequisicao, f: unknown) => (filtrosVistos.push(f), blocosFalsos());
-const deps = (listar: typeof listarEmpregados = listarFalso as unknown as typeof listarEmpregados) => ({
+// Adm. Central falsa (parte 2): 2027 e 2028; o cargo nunca chega ao rel (o PosicaoTela tem, o rel não lê).
+const posicao = (cc: string, quantidade: number, valor: string) => ({
+  cc,
+  quantidade,
+  mesInicio: 1,
+  mesSaida: 12,
+  valorAnual: Dinheiro.de(valor),
+  cargo: 'Cargo Secreto da Posição',
+});
+const admFalsa: LeituraAdmCentral = {
+  listarExercicios: async () => [
+    { id: 'x27', ano: 2027, rotuloSituacao: 'Oficializado' },
+    { id: 'x28', ano: 2028, rotuloSituacao: 'Em elaboração' },
+  ],
+  listarPosicoes: async (_c, id) => ({
+    veSalario: true,
+    posicoes: id === 'x28' ? [posicao('4.3.0', 2, '200000.37'), posicao('4.3.2.11', 1, '91234.56')] : [posicao('4.3.0', 2, '190000.00')],
+  }),
+  centrosCusto: async () => CENTROS_CUSTO_EXEMPLO,
+};
+const deps = (listar: typeof listarEmpregados = listarFalso as unknown as typeof listarEmpregados, admCentral: LeituraAdmCentral = admFalsa) => ({
   listarEmpregados: listar,
+  admCentral,
   ia: criarServicoIA({ cliente: app, obterProvedor: () => falso }),
 });
 const RESPOSTA = { resumo: 'Quadro de 4 postos na TP-001/2027.', destaques: ['Uma vaga a contratar.'], alertas: [] };
@@ -145,9 +168,44 @@ describe('analisarQuadroPessoal', () => {
 
   it('o listarEmpregados real do orc, sem propostas: "nenhuma proposta com empregados", sem chamar a IA', async () => {
     const real = ((c: ContextoRequisicao, f: Parameters<typeof listarEmpregados>[1]) => listarEmpregados(c, f, { cliente: app, cargosDecifrados: async () => [] })) as typeof listarEmpregados;
-    expect(await analisarQuadroPessoal(ctx(), {}, deps(real))).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.SEM_PESSOAL }] });
+    expect(await analisarQuadroPessoal(ctx(), {}, deps(real))).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.SEM_DADOS }] });
     expect(await obterQuadroPessoal(ctx(), {}, { listarEmpregados: real })).toMatchObject({ ok: true, valor: { propostas: [], limiteAtingido: false } });
     expect(falso.chamadas).toHaveLength(0);
+  });
+
+  it('parte 2: com orc.posicoes, a Adm. Central por diretoria vai junto, nos dois exercícios, sem cargo nem custo por pessoa', async () => {
+    const r = await analisarQuadroPessoal(ctx([IA, CONSULTA, EMPREGADOS, POSICOES]), { ano: '2028' }, deps());
+    expect(r).toMatchObject({
+      ok: true,
+      valor: {
+        admCentral: {
+          exercicios: [
+            { ano: 2027, diretorias: [{ diretoria: '4.3', nome: 'Diretoria Administrativa Financeira', postos: 2, custoAnual: null, semCusto: 'POUCOS_POSTOS' }] },
+            { ano: 2028, diretorias: [{ diretoria: '4.3', postos: 3, custoAnual: '291234.93', semCusto: null }] },
+          ],
+        },
+      },
+    });
+    const m = falso.chamadas.at(-1)!.mensagem;
+    expect(m).toContain('Administração Central');
+    for (const proibido of ['Cargo Secreto da Posição', '91234.56', '190000.00']) expect(m).not.toContain(proibido);
+  });
+
+  it('parte 2: só com orc.posicoes (sem os empregados), a análise sai só com a Adm. Central; sem a permissão, a seção some', async () => {
+    const r = await analisarQuadroPessoal(ctx([IA, CONSULTA, POSICOES]), {}, deps());
+    expect(r).toMatchObject({ ok: true, valor: { quadro: null, admCentral: { exercicios: [{ ano: 2027 }, { ano: 2028 }] } } });
+    expect(await obterQuadroAdmCentral(ctx([IA, CONSULTA]), null, { admCentral: admFalsa })).toBeNull();
+    // Exercício pedido que não existe: o mais recente.
+    expect(await obterQuadroAdmCentral(ctx([POSICOES]), 1999, { admCentral: admFalsa })).toMatchObject({ ano: 2028, anos: [2028, 2027] });
+  });
+
+  it('parte 2 com o orc real e o banco sem exercício: a seção some', async () => {
+    const real: LeituraAdmCentral = {
+      listarExercicios: (c) => listarExercicios(c, { cliente: app }),
+      listarPosicoes: (c, id) => listarPosicoes(c, id, { cliente: app }),
+      centrosCusto: async () => CENTROS_CUSTO_EXEMPLO,
+    };
+    expect(await obterQuadroAdmCentral(ctx([POSICOES]), null, { admCentral: real })).toBeNull();
   });
 
   it('sem a permissão do caso, sem consultar os empregados ou com filtro inválido: a mensagem certa, sem ler nem chamar a IA', async () => {

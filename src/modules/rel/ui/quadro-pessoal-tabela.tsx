@@ -1,4 +1,5 @@
 import { Dinheiro } from '@/shared/kernel';
+import type { DiretoriaQuadro, QuadroAdmCentral } from '../domain/quadro-adm-central';
 import type { PropostaQuadro, QuadroPessoal } from '../domain/quadro-pessoal';
 
 // Os agregados do quadro de pessoal (US-107), exatamente o que a IA recebe: a tela mostra para o
@@ -18,6 +19,11 @@ export const TEXTOS_QUADRO = {
   NO_ANO: 'Ativos no ano',
   CARGOS: 'Postos por cargo',
   LIMITE: 'Há mais propostas com pessoal além das analisadas aqui (no máximo 40). Use os filtros para analisar as demais.',
+  ADM_CENTRAL: 'Administração Central: posições orçadas por diretoria',
+  DIRETORIA: 'Diretoria',
+  EM_DEZEMBRO: 'Ativos em dezembro',
+  CUSTO_ANUAL: 'Custo anual',
+  CUSTO_ANUAL_TOTAL: 'Custo anual (soma das diretorias com custo exibido)',
   SEM_CUSTO: {
     SEM_PERMISSAO: 'Não exibido para o seu perfil',
     POUCOS_POSTOS: 'Omitido: menos de 3 postos',
@@ -114,6 +120,44 @@ export function TabelaQuadro({ quadro, prefixo = 'quadro' }: { quadro: QuadroPes
       {quadro.limiteAtingido && <p role="note">{TEXTOS_QUADRO.LIMITE}</p>}
       {quadro.propostas.map((p) => (
         <Proposta key={p.numero} p={p} prefixo={prefixo} />
+      ))}
+    </div>
+  );
+}
+
+const textoCustoDiretoria = (d: DiretoriaQuadro) => (d.semCusto ? TEXTOS_QUADRO.SEM_CUSTO[d.semCusto] : moeda(d.custoAnual));
+
+/** Parte 2 (D-107-2): uma tabela por exercício, o anterior primeiro. */
+export function TabelaAdmCentral({ quadro, prefixo = 'adm' }: { quadro: QuadroAdmCentral; prefixo?: string }) {
+  return (
+    <div>
+      {quadro.exercicios.map((e) => (
+        <table key={e.ano} id={`${prefixo}-${e.ano}`}>
+          <caption>
+            Exercício {e.ano} ({e.situacao}): {e.postos} {TEXTOS_QUADRO.POSTOS.toLowerCase()}, {e.postosDezembro} em dezembro ·{' '}
+            {TEXTOS_QUADRO.CUSTO_ANUAL_TOTAL}: {moeda(e.custoAnualExibido)}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{TEXTOS_QUADRO.DIRETORIA}</th>
+              <th scope="col">{TEXTOS_QUADRO.POSTOS}</th>
+              <th scope="col">{TEXTOS_QUADRO.EM_DEZEMBRO}</th>
+              <th scope="col">{TEXTOS_QUADRO.CUSTO_ANUAL}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {e.diretorias.map((d) => (
+              <tr key={d.diretoria}>
+                <th scope="row">
+                  {d.diretoria} – {d.nome}
+                </th>
+                <td>{d.postos}</td>
+                <td>{d.postosDezembro}</td>
+                <td>{textoCustoDiretoria(d)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ))}
     </div>
   );

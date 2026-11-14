@@ -2,20 +2,22 @@
 
 import { useRef, useState } from 'react';
 import type { ErroCampo } from '@/shared/kernel';
+import type { QuadroAdmCentral } from '../domain/quadro-adm-central';
 import type { AnaliseQuadro, QuadroPessoal } from '../domain/quadro-pessoal';
-import { TabelaQuadro } from './quadro-pessoal-tabela';
+import { TabelaAdmCentral, TabelaQuadro } from './quadro-pessoal-tabela';
 
 // Análise do quadro de pessoal pela IA (US-107): botão, espera, erro e a análise com o selo "Gerado com
 // IA – revisar" (spec §6.8, princípio 3), seguida dos agregados enviados. Componente cliente: recebe a
 // Server Action por props; nada aqui chama a IA.
 
-export type FiltrosAnalise = { tipo: string; proposta: string };
-export type RespostaQuadroTela = { ok: true; valor: { analise: AnaliseQuadro; quadro: QuadroPessoal } } | { ok: false; erros: readonly ErroCampo[] };
+export type FiltrosAnalise = { tipo: string; proposta: string; ano: string };
+type Analisado = { analise: AnaliseQuadro; quadro: QuadroPessoal | null; admCentral: QuadroAdmCentral | null };
+export type RespostaQuadroTela = { ok: true; valor: Analisado } | { ok: false; erros: readonly ErroCampo[] };
 export type EstadoQuadro =
   | { tipo: 'OCIOSO' }
   | { tipo: 'CONSULTANDO' }
   | { tipo: 'ERRO'; mensagem: string }
-  | { tipo: 'PRONTA'; analise: AnaliseQuadro; quadro: QuadroPessoal };
+  | ({ tipo: 'PRONTA' } & Analisado);
 
 export const TEXTOS_ANALISE = {
   TITULO: 'Análise com IA',
@@ -65,7 +67,8 @@ export function ConteudoAnalise({ estado }: { estado: EstadoQuadro }) {
       )}
       <details>
         <summary>{TEXTOS_ANALISE.ENVIADO}</summary>
-        <TabelaQuadro quadro={estado.quadro} prefixo="enviado" />
+        {estado.quadro && <TabelaQuadro quadro={estado.quadro} prefixo="enviado" />}
+        {estado.admCentral && <TabelaAdmCentral quadro={estado.admCentral} prefixo="enviado-adm" />}
       </details>
     </>
   );
