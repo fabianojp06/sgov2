@@ -32,6 +32,7 @@ const dados = (): CronogramaTela => ({
   valorGlobal: Dinheiro.de('300.00'),
   avisos: [],
   semPessoal: true,
+  pessoalNaoHomologado: false,
   viagensDistribuidas: true,
 });
 

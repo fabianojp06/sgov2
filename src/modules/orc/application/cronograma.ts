@@ -12,13 +12,15 @@ import { custoDaViagem } from '../domain/viagem';
 import { cacheAnos, custoDoEmpregado } from './custo-empregado';
 import { carregarCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
+import { situacaoDoLote } from './lote-pessoal';
 import { uuid } from './pessoal-comum';
 import { totaisDaVersao, vePessoal } from './totalizadores';
 
 // Cronograma de desembolso da proposta de TP (US-075; UC04.01; plano do P25, Task 1). Sem tabela: a série mensal é
 // montada na leitura a partir dos lançamentos da versão (REQ_CD_003), e o domínio calcula o acumulado, o %, o
 // repasse do ciclo e os fechamentos anuais. Pessoal mês a mês pelo motor (só para quem o vê, D-P23-5); bens no
-// mês da data; rateio na competência; viagens, sem data, distribuídas por igual na vigência (D-P25-2).
+// mês da data; rateio na competência; viagens, sem data, distribuídas por igual na vigência (D-P25-2). O pessoal só
+// entra com o lote homologado (RN_WA05_005, D-P27-4).
 
 const FUNCIONALIDADE = 'orc.cronograma';
 
@@ -44,6 +46,8 @@ export type CronogramaTela = {
   valorGlobal: Dinheiro;
   avisos: readonly string[];
   semPessoal: boolean;
+  /** D-P27-4: há empregados, mas o lote de pessoal ainda não foi homologado (WA05). */
+  pessoalNaoHomologado: boolean;
   viagensDistribuidas: boolean;
 };
 
@@ -53,6 +57,7 @@ export type SeriesDaVersao = {
   total: Dinheiro;
   avisos: string[];
   semPessoal: boolean;
+  pessoalNaoHomologado: boolean;
   viagensDistribuidas: boolean;
 };
 
@@ -90,7 +95,8 @@ export async function seriesDaVersao(
     metaId ? Promise.resolve([]) : tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } } }),
   ]);
   const avisos = new Set<string>();
-  if (comPessoal && empregados.length > 0) {
+  const homologado = empregados.length > 0 && (await situacaoDoLote(tx, versaoId)) === 'HOMOLOGADO';
+  if (comPessoal && homologado) {
     const anos = cacheAnos(await carregarCargos(tx, deps));
     for (const e of empregados) {
       const c = await custoDoEmpregado(tx, deps, anos, { ...e, salarioMensal: Dinheiro.de(e.salarioMensal.toString()) }, undefined, (ano, serie) => {
@@ -124,7 +130,8 @@ export async function seriesDaVersao(
     porContaAno,
     total: Dinheiro.somarTodos([...porMes.values()]),
     avisos: [...avisos],
-    semPessoal: !comPessoal && empregados.length > 0,
+    semPessoal: !comPessoal && homologado,
+    pessoalNaoHomologado: empregados.length > 0 && !homologado,
     viagensDistribuidas: viagens.length > 0,
   };
 }
@@ -196,6 +203,7 @@ export async function obterCronograma(
         valorGlobal,
         avisos: s.avisos,
         semPessoal: s.semPessoal,
+        pessoalNaoHomologado: s.pessoalNaoHomologado,
         viagensDistribuidas: s.viagensDistribuidas,
       };
     },
