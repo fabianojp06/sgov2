@@ -196,7 +196,7 @@ async function alvoEmAprovacao(tx: TxCliente, s: SolicitacaoDecidivel) {
 const alvoMudou = () => falha([{ campo: '_', mensagem: M.WA01_ALVO_MUDOU }]);
 
 /** O lado da comparação de uma versão (US-084): o snapshot, se oficializada; senão, as somas calculadas agora. */
-async function ladoDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: string, calculado?: TotaisDaVersao): Promise<LadoComparacao> {
+async function ladoDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: string, calculado?: TotaisDaVersao): Promise<LadoComparacao & { avisos: readonly string[] }> {
   const [snapshot, celulas, tetos] = await Promise.all([
     tx.snapshotVersao.findUnique({ where: { versaoPropostaId: versaoId } }),
     tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } }, select: { valor: true } }),
@@ -208,6 +208,7 @@ async function ladoDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: string, calc
     total: snapshot ? Dinheiro.de(snapshot.valorGlobal.toString()) : t!.total,
     rateio: Dinheiro.somarTodos(celulas.map((c) => Dinheiro.de(c.valor.toString()))),
     tetos: Dinheiro.somarTodos(tetos.map((x) => Dinheiro.de(x.valor.toString()))),
+    avisos: t?.avisos ?? [],
   };
 }
 
@@ -218,11 +219,14 @@ async function ladoDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: string, calc
 async function comparacaoComAnterior(tx: TxCliente, deps: DepsOrc, v: { id: string; numero: number; propostaId: string }, atual: TotaisDaVersao) {
   const anterior = await tx.versaoProposta.findFirst({ where: { propostaId: v.propostaId, numero: v.numero - 1 }, select: { id: true, numero: true } });
   if (!anterior) return [{ rotulo: 'Comparação', valor: 'Primeira versão: sem comparação.' }];
-  const c = compararVersoes(await ladoDaVersao(tx, deps, v.id, atual), await ladoDaVersao(tx, deps, anterior.id));
+  const base = await ladoDaVersao(tx, deps, anterior.id);
+  const c = compararVersoes(await ladoDaVersao(tx, deps, v.id, atual), base);
   const linha = (d: DiferencaConta) => `${d.antes.formatar()} → ${d.depois.formatar()} (${comSinal(d.diferenca)})`;
   const nada = c.novas.length + c.retiradas.length + c.alteradas.length === 0 && c.rateio.diferenca.ehZero() && c.tetos.diferenca.ehZero();
   return [
     { rotulo: 'Comparação', valor: `Em relação à Versão ${anterior.numero}${nada ? ': nada mudou.' : '.'}` },
+    // A anterior recalculada com o pessoal incompleto distorce as contas de pessoal (revisão 12.12).
+    ...(base.avisos.length > 0 ? [{ rotulo: 'Base da comparação', valor: `A Versão ${anterior.numero} tem o custo do pessoal incompleto; a comparação pode estar distorcida. ${base.avisos.join(' ')}` }] : []),
     { rotulo: 'Valor Global (variação)', valor: linha(c.total) },
     ...(c.rateio.diferenca.ehZero() ? [] : [{ rotulo: 'Rateio/ISS (variação)', valor: `${c.rateio.antes.formatar()} → ${c.rateio.depois.formatar()} (${comSinal(c.rateio.diferenca)})` }]),
     ...(c.tetos.diferenca.ehZero() ? [] : [{ rotulo: 'Tetos de viagens (variação)', valor: `${c.tetos.antes.formatar()} → ${c.tetos.depois.formatar()} (${comSinal(c.tetos.diferenca)})` }]),
