@@ -33,3 +33,29 @@ model ExportacaoPedido {
   @@index([usuarioId, criadoEm])
   @@map("exportacao_pedido")
 }
+
+enum SituacaoRelatorioExecutivo {
+  RASCUNHO
+  APROVADO
+}
+
+// Relatório executivo mensal (US-103, IA-14): um por mês. O rascunho guarda os indicadores congelados na
+// geração (dados) e os textos da IA, que a GFIN edita; depois de APROVADO, nada muda (o trigger da
+// migration recusa). Regras de forma (mês, aprovação) em CHECK na migration.
+model RelatorioExecutivo {
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mes            String                     @unique
+  situacao       SituacaoRelatorioExecutivo @default(RASCUNHO)
+  dados          Json
+  resumo         String
+  riscos         Json
+  recomendacoes  Json
+  geradoPor      String                     @map("gerado_por") @db.Uuid
+  geradoEm       DateTime                   @default(dbgenerated("clock_timestamp()")) @map("gerado_em") @db.Timestamptz(6)
+  aprovadoPor    String?                    @map("aprovado_por") @db.Uuid
+  aprovadoRotulo String?                    @map("aprovado_rotulo")
+  aprovadoEm     DateTime?                  @map("aprovado_em") @db.Timestamptz(6)
+  versao         Int                        @default(1)
+
+  @@map("rel_relatorio_executivo")
+}

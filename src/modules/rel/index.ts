@@ -40,3 +40,16 @@ export { comentariosComparativoLiberados, MENSAGENS_COMPARATIVO, obterComparativ
 export { comentarComparativoAcao } from './application/acoes-comparativo-tps';
 export { ComentariosComparativoIA } from './ui/comparativo-tps';
 export { TabelaComparativo } from './ui/comparativo-tps-tabela';
+
+// Relatório executivo mensal (US-103, parte 1): a lista, o detalhe, as ações, o PDF e a tela.
+export {
+  exportarPdfRelatorio,
+  geracaoRelatorioLiberada,
+  listarRelatorios,
+  MENSAGENS_RELATORIO,
+  obterRelatorio,
+  type RelatorioTela,
+  type ResumoRelatorio,
+} from './application/relatorio-executivo';
+export { alterarTextosAcao, aprovarRelatorioAcao, gerarRascunhoAcao } from './application/acoes-relatorio-executivo';
+export { GerarRascunho, EditarTextos } from './ui/relatorio-executivo';
