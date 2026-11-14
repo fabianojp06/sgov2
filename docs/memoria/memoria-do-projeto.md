@@ -758,14 +758,22 @@
   - Despesas (UC05.02, `/rel/despesas-tp`) e receitas e despesas (UC05.01, 1ª e 2ª tabelas, `/rel/receitas-despesas-tp`), com os filtros comuns em `filtrosDoTp`.
   - A árvore do C1 vem com as inativas (o realizado continua nelas); o saldo acumulado parte do início do TP, mesmo com o período filtrado.
   - **Falta:** a 3ª tabela do UC05.01 e a 1ª do UC05.02 (aplicações financeiras, US-088), o filtro de aditivo (RN0399) e o UC05.11 (despesas analítico).
-- US-097 (#119): o UC05.03 precisa saber qual sintética é a "Viagem"/"Diária" (a fonte só dá o nome) e o UC05.04 precisa dos itens CAPEX com quantidade e valor unitário (frente A). Perguntas ao PO no #119.
-- US-098 (#120): a fonte dos relatórios de pessoal (previsto da versão oficial ou a folha do Rubi) e as colunas do UC05.06 estão em pergunta ao PO no #120. O UC05.09 (férias) depende da integração com a folha.
+- [x] **US-097 partes 1 e 2 (#119 aberta), #545 e #548.** Decisão do PO no #119: as contas são as que a GFIN marca, e não procuradas pelo nome.
+  - **Contas dos relatórios** (`/cad/plano-contas/contas-relatorio`): a GFIN marca as sintéticas de viagens e diárias e as do Imobilizado/Intangível. A marcação fica no `parametro_sistema` (`relatorio.sinteticas_*`), pela classificação, com concorrência pelo valor anterior.
+  - **Viagens** (UC05.03, `/rel/viagens-tp`): o realizado das analíticas abaixo das sintéticas marcadas, com o filtro de conta ou descrição.
+  - **Aquisições** (UC05.04, `/rel/aquisicoes-tp`): os bens da versão oficializada (`bensDaVersaoOficial`, #544) no mês da data e o realizado de cada conta.
+  - **Falta:** o UC05.07 (Viagens II), que depende do RVS (GAP-INT-013); o filtro de aditivo; e as subcontas abaixo da analítica com o rótulo "(Total)" (RN0408/0409), que precisariam do realizado em detalhe.
+- [x] **US-098 parte 1 (#120 aberta), #547.** Decisão do PO no #120: os dados vêm do previsto da versão oficializada (`empregadosDaVersaoOficial`, #544) até a integração com a folha.
+  - **Relatórios:** salários (UC05.05, `/rel/salarios-tp`, com o custo mensal previsto só para quem vê o pessoal) e distribuição por setor (UC05.06, `/rel/distribuicao-pessoal-tp`).
+  - **Pendência com a frente A (#138):** a porta exige `orc.realizado:consultar`. Por isso, com a seed padrão, nenhum perfil do relatório vê o custo, e o GRH ainda não entra. O pedido é que a porta aceite também `orc.empregados:consultar`.
+  - **Sem fonte (#120):** Lotação, "Adm." e Produto do UC05.06, a sigla do setor e o UC05.10 (Adm. Central custeada). O UC05.09 (férias) depende da folha.
 - Todas com revisão independente e os achados corrigidos antes do merge. Os casos de IA nascem desligados e já estão no hml.
 
 ## 8. Diário de sessões
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 14/11/2026 (tarde) | B | O PO mandou seguir as recomendações das US-097 e US-098 (#119 e #120). A frente B pediu as portas da versão oficializada à frente A (#544). Entraram a US-097 partes 1 e 2 (#545 e #548: contas dos relatórios, viagens e aquisições) e a US-098 parte 1 (#547: salários e distribuição de pessoal). Revisão 12.12 independente nos três; os achados foram corrigidos antes do merge: o prefixo de classificação no filtro, o Seq fora de ordem nos setores, o filtro de meta em TP consolidado e o aviso de bens fora com os filtros. Pendente com a frente A: o GRH na porta dos empregados |
 | 14/11/2026 (manhã, 3) | A | US-086 parte 3 (#539), totalizadores com o realizado (#537), US-091 previsão de fechamento com a IA-10 (#540) e US-090 explicação do desvio com a IA-09 (#541). Revisão 12.12 independente em todos. Os achados foram corrigidos antes do merge: pessoal filtrado de um lado só, corte da previsão andando com ajuste, pessoal não homologado como estouro falso e a checagem de "números das ferramentas" por substring, que aceitava número inventado |
 | 14/11/2026 (tarde) | A | Pedido da frente B na #138, para as US-097 e US-098 (decididas pelo PO na #119 e na #120): as portas `bensDaVersaoOficial` e `empregadosDaVersaoOficial` (#544), só leitura da versão oficializada, com `orc.realizado:consultar` e o custo só para quem vê o pessoal. Revisão 12.12 sem defeitos. O PO fechou #150, #154–#161, #165, #168, #172, #177 e #218, e a #108 recebeu `bloqueada-por-gap`. |
 | 14/11/2026 (manhã, 2) | A | US-086: Orçado x Realizado do TP (#531) e exportação (#533). Revisão 12.12 independente nos dois. Defeitos corrigidos antes do merge: pessoal comparado só de um lado, estouro na linha inteira, link 404 para o Orçamentista e nome de arquivo fora da regra do C3, que dava 500 depois de auditar. O mesmo defeito do nome foi avisado à frente B (despesas-tp). O E2E do orçamento pegou o menu da Adm. Central aparecendo para o Orçamentista. D-P33-1 a 4 PROVISÓRIAS |
