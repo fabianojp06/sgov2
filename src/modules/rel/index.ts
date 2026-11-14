@@ -71,3 +71,6 @@ export { TabelaDespesas } from './ui/despesas-tp';
 // Demonstrativo de receitas e despesas do TP (US-096 parte 2, UC05.01): previsto, realizado e saldo acumulado.
 export { exportarReceitasDespesasTp, obterReceitasDespesasTp, type TelaReceitasDespesas } from './application/receitas-despesas';
 export { TabelaReceitasDespesas } from './ui/receitas-despesas';
+// Demonstrativo analítico de despesas com viagens do TP (US-097 parte 1, UC05.03).
+export { exportarViagensTp, obterViagensTp, type TelaViagens } from './application/viagens-tp';
+export { TabelaViagens } from './ui/viagens-tp';

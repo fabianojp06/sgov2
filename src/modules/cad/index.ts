@@ -53,6 +53,12 @@ export { FormVinculoCargo } from './ui/form-vinculo-cargo';
 export { acaoAlterarParametroLocal } from './application/acoes-parametros-locais';
 export { alterarParametroLocal, obterTelaParametrosLocais, type ParametroLocalTela, type TelaParametrosLocais } from './application/parametros-locais-conta';
 export { FormParametroLocal } from './ui/form-parametro-local';
+// Contas dos relatórios (US-097)
+export { acaoAlterarContasRelatorio } from './application/acoes-contas-relatorio';
+export { alterarContasRelatorio, obterTelaContasRelatorio, type PapelTela, type SinteticaTela, type TelaContasRelatorio } from './application/contas-relatorio';
+export { sinteticasDoRelatorio } from './infrastructure/contas-relatorio';
+export { PAPEIS_CONTA_RELATORIO, type PapelContaRelatorio } from './domain/contas-relatorio';
+export { FormContasRelatorio } from './ui/form-contas-relatorio';
 // Nome de exibição da instituição (#434).
 export { acaoAlterarNomeExibicao } from './application/acoes-instituicao';
 export { obterTelaInstituicao, alterarNomeExibicao, type TelaInstituicao } from './application/instituicao';
