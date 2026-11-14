@@ -10,6 +10,7 @@ CREATE TABLE "orc_lote_viagem" (
     "versao_proposta_id" UUID NOT NULL,
     "situacao" TEXT NOT NULL DEFAULT 'EM_VALIDACAO',
     "solicitado_por" UUID NOT NULL,
+    "viagens" UUID[],
     "versao" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "orc_lote_viagem_pkey" PRIMARY KEY ("id")
@@ -43,6 +44,24 @@ ALTER TABLE "orc_lote_viagem"
 
 CREATE TRIGGER orc_lote_viagem_mesma_unidade BEFORE INSERT OR UPDATE OF "unidade_id", "versao_proposta_id" ON "orc_lote_viagem"
   FOR EACH ROW EXECUTE FUNCTION orc_teto_viagem_mesma_unidade();
+
+-- A viagem só aponta lote da mesma versão e unidade dela (revisão 12.12): sem isso, um UPDATE do lote_viagem_id
+-- para um lote Validado de outro TP faria a viagem entrar no cronograma sem passar pelo WA02 (E3, RN_WA02_007).
+CREATE FUNCTION orc_viagem_lote_mesma_versao() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+BEGIN
+  IF NEW.lote_viagem_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM "orc_lote_viagem" l
+    WHERE l.id = NEW.lote_viagem_id AND l.versao_proposta_id = NEW.versao_proposta_id AND l.unidade_id = NEW.unidade_id
+  ) THEN
+    RAISE EXCEPTION 'orc.viagem_lote_outra_versao' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER orc_viagem_lote_mesma_versao BEFORE INSERT OR UPDATE OF "lote_viagem_id", "versao_proposta_id", "unidade_id" ON "orc_viagem"
+  FOR EACH ROW EXECUTE FUNCTION orc_viagem_lote_mesma_versao();
+REVOKE EXECUTE ON FUNCTION orc_viagem_lote_mesma_versao() FROM PUBLIC;
 
 ALTER TABLE "orc_lote_viagem" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "orc_lote_viagem_unidade" ON "orc_lote_viagem"

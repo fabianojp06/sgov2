@@ -169,8 +169,21 @@ describe('solicitarValidacaoViagens (UC6.02)', () => {
     const s2 = await pendente(p.numero);
     expect(s2.alvoId).not.toBe(s1.alvoId);
     expect(await situacoes(p.id)).toEqual(['EM_VALIDACAO']);
-    // A decisão repetida no lote antigo não mexe em nada (o alvo mudou).
     expect(await migrator.loteViagem.count({ where: { versaoProposta: { propostaId: p.id } } })).toBe(2);
+    // A tarefa rejeitada continua mostrando o que levou (revisão 12.12).
+    const antiga = await obterTarefa(await ctx(gfin, APROVADOR), s1.id, { WA02: manipuladorWa02() }, { cliente: app });
+    expect(antiga?.resumo).toEqual(expect.arrayContaining([{ rotulo: 'Viagens', valor: '1' }, { rotulo: 'Custo das viagens', valor: 'R$ 700,00' }]));
+    // O manipulador no lote antigo, já Rejeitado, recusa (o alvo mudou), e o lote novo segue Em Validação.
+    const recusa = await app.$transaction((tx) => manipuladorWa02().aoAprovar(tx, { ...s1, fluxo: 'WA02' } as never, { usuarioId: gfin } as never));
+    expect(recusa).toEqual(erroGeral(M.WA02_ALVO_MUDOU));
+    expect(await situacoes(p.id)).toEqual(['EM_VALIDACAO']);
+    // O banco recusa ligar a viagem a lote de outra versão (revisão 12.12).
+    await migrator.$executeRaw`UPDATE unidade SET ativo = false WHERE cc IS NOT NULL`;
+    const outra = await proposta();
+    await oficializar(outra.id);
+    await expect(
+      migrator.$executeRaw`UPDATE orc_viagem SET lote_viagem_id = ${s2.alvoId}::uuid WHERE versao_proposta_id IN (SELECT id FROM orc_versao_proposta WHERE proposta_id = ${outra.id}::uuid)`,
+    ).rejects.toThrow(/orc.viagem_lote_outra_versao/);
   });
 
   it('sem aprovador (E2), o operador como único aprovador (E4) e sem a ação executar (Review Focus 4 e 5)', async () => {

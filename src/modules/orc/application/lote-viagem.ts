@@ -76,7 +76,7 @@ export async function solicitarValidacaoViagens(ctx: ContextoRequisicao, bruto: 
           vigencia: { inicio: p.inicio, fim: p.fim },
         });
 
-        const lote = await tx.loteViagem.create({ data: { unidadeId: p.unidadeId, versaoPropostaId: v.id, solicitadoPor: ctx.usuarioId }, select: { id: true } });
+        const lote = await tx.loteViagem.create({ data: { unidadeId: p.unidadeId, versaoPropostaId: v.id, solicitadoPor: ctx.usuarioId, viagemIds: aEnviar }, select: { id: true } });
         const ligadas = await tx.viagemProposta.updateMany({ where: { id: { in: aEnviar }, versaoPropostaId: v.id }, data: { loteViagemId: lote.id } });
         if (ligadas.count !== aEnviar.length || (await pendenteDoAlvo(tx, lote.id))) throw new ConflitoConcorrencia();
         await criarSolicitacao(
@@ -142,7 +142,10 @@ export function manipuladorWa02(): Manipulador {
     aoRejeitar: (tx, s, justificativa, ctx) =>
       mudar(tx, s.alvoId, 'REJEITADO', ctx, (tp, v) => `REJEICAO_VIAGENS: viagens da versão ${v} da proposta do TP ${tp} devolvidas para ajuste`, { justificativa }),
     async resumo(tx, s) {
-      const viagens = await tx.viagemProposta.findMany({ where: { loteViagemId: s.alvoId } });
+      // As viagens que o lote levou, e não as que apontam para ele agora: depois de rejeitar e pedir de novo, a tarefa
+      // antiga continua mostrando o que foi rejeitado (RN_WA02_003). A versão oficial não muda, então o custo também não.
+      const lote = await tx.loteViagem.findFirst({ where: { id: s.alvoId }, select: { viagemIds: true } });
+      const viagens = await tx.viagemProposta.findMany({ where: { id: { in: lote?.viagemIds ?? [] } } });
       const porConta = new Map<string, Dinheiro>();
       const somar = (conta: string | null, v: Dinheiro) => {
         if (conta && !v.ehZero()) porConta.set(conta, (porConta.get(conta) ?? Dinheiro.zero()).somar(v));

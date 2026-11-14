@@ -475,6 +475,8 @@ model LoteViagem {
   versaoProposta   VersaoProposta   @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
   situacao         String           @default("EM_VALIDACAO")
   solicitadoPor    String           @map("solicitado_por") @db.Uuid
+  /// As viagens que o lote levou (revisão 12.12): o resumo da tarefa já decidida não depende do lote atual da linha.
+  viagemIds        String[]         @map("viagens") @db.Uuid
   versao           Int              @default(0)
   viagens          ViagemProposta[]
 
