@@ -82,6 +82,7 @@ model Unidade {
   viagensProposta    ViagemProposta[]
   solicitacoes       SolicitacaoAprovacao[]
   snapshotsVersao    SnapshotVersao[]
+  lotesPessoal       LotePessoal[]
   bensProposta       BemProposta[]
   rateiosProposta    RateioProposta[]
   celulasRateio      RateioCelulaProposta[]

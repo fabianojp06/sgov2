@@ -186,10 +186,11 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     rota: '/orc/empregados',
     ordem: 3,
     ajuda: 'Lança os empregados e as vagas "A CONTRATAR" da última versão das propostas, por meta, cargo e competência, com o custo pelo motor de pessoal.',
-    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    // executar: o [Finalizar Lançamentos] do WA05, só do GRH (US-080; plano do P27, D-P27-2) [PROVISÓRIO].
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir', 'executar'],
     perfisPadrao: {
       ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
-      ANALISTA_GRH: ['consultar', 'incluir', 'alterar', 'excluir'],
+      ANALISTA_GRH: ['consultar', 'incluir', 'alterar', 'excluir', 'executar'],
       GFIN: ['consultar'],
       AUDITOR: ['consultar'],
       DIREX: ['consultar'],
