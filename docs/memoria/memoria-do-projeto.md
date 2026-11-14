@@ -568,6 +568,18 @@
     - previsto sem o pessoal para quem não lança empregados;
     - reprocessamento manual das pendências.
   - **Com o PO:** a etiqueta `bloqueada-por-gap` e o fechamento da #107.
+- [ ] **US-086 (#108), partes 1 e 2:**
+  - **Na `main`:** a tela Orçado x Realizado (#531, OxR V2 seção 5) e a exportação XLSX/PDF (#533).
+  - **Funcionalidade:** `orc.oxr`, com consultar e exportar para GFIN, DIREX e Auditor. O Orçamentista fica fora, porque não vê o menu da Adm. Central.
+  - **Decisões D-P33-1 a 4 [PROVISÓRIAS]:**
+    - o orçado é o cronograma da última versão oficializada;
+    - sem `vePessoal`, as contas de pessoal saem do orçado e do realizado;
+    - até 24 meses por consulta;
+    - o PDF aceita até 6 meses.
+  - **Falta (parte 3):**
+    - remanejamento a partir da tela (critério da #108; depende do remanejamento, que não existe);
+    - expandir e recolher as sintéticas;
+    - o indicador do orçamento global da conta.
 - [ ] **US-069 (#91, Could):** a IA só aceita texto, e ler o PDF pede uma biblioteca nova (`package.json`, compartilhado).
 - [x] Lição (14/11): o build do Next falha em worktree com `node_modules` em symlink. Build e E2E só no sgo-p15, com `npx prisma generate` antes, porque o cliente gerado fica em `src/generated` de cada worktree.
 - [x] Lição (14/11): o squash do PR anterior deixa o branch seguinte com commits duplicados. Para rebasear, usar `git rebase --onto origin/main <último commit da história anterior>`.
@@ -736,6 +748,7 @@
 
 | Data | Frente | Resumo |
 | --- | --- | --- |
+| 14/11/2026 (manhã, 2) | A | US-086: Orçado x Realizado do TP (#531) e exportação (#533). Revisão 12.12 independente nos dois. Defeitos corrigidos antes do merge: pessoal comparado só de um lado, estouro na linha inteira, link 404 para o Orçamentista e nome de arquivo fora da regra do C3, que dava 500 depois de auditar. O mesmo defeito do nome foi avisado à frente B (despesas-tp). O E2E do orçamento pegou o menu da Adm. Central aparecendo para o Orçamentista. D-P33-1 a 4 PROVISÓRIAS |
 | 14/11/2026 (manhã) | A | A pedido da frente B (#138), US-085 em duas partes: plano P32 (#525), realizado por arquivo (#526) e previsto, lista dos TPs e reprocessamento das pendências (#527). Revisão 12.12 independente nos dois PRs; os achados foram corrigidos antes do merge (fuso do fechamento, dupla contagem de pendência em mês fechado, prazo da transação). Decisões D-P32-1 a 12 PROVISÓRIAS |
 | 14/11/2026 (manhã) | B | US-106 (#515), US-103 parte 1 (#519, migration nova), US-105 (#520) e US-104 parte 1 (#522), destravadas pelo consolidado da frente A (#510, #513 e #518, pedidos na #138); roteiros da R4 (#498, #499 e #505); #494, #495 e #497. Revisão independente em cada US, com os achados corrigidos |
 | 13/11 (noite) a 14/11/2026 (madrugada) | B | Frente A acordada e destravada pela #138. #469 (vínculo funcional no C2) e #473 (natureza CAPEX no C1), pedidos da frente A; US-107 inteira (#476, #484 e #488), com duas revisões independentes; #482 (`main` sem typecheck depois de PRs paralelos, com a regra do campo opcional combinada com a frente A). US-099 bloqueada por falta de fonte (#121) |
