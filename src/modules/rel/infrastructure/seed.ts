@@ -1,12 +1,13 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 import { instalarCasosUsoIA } from '@/shared/ia';
-import { CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL } from '../application/ia-casos';
+import { CASO_AJUDA_MANUAL, CASO_COMPARATIVO_TPS, CASO_QUADRO_PESSOAL } from '../application/ia-casos';
 
 // Funcionalidades do rel (contrato C6), no menu Relatórios. A primeira é a conferência da carga
 // inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem. A segunda,
 // as exportações em segundo plano de cada pessoa (US-024). A terceira, fora do menu, é a permissão da
-// ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107).
+// ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107). A quinta, o
+// comparativo entre TPs (US-106), no menu da Administração Central.
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -83,6 +84,21 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // Quem vê o custo continua decidido pelo orc (D-P20-5). O caso nasce desligado e com teto zero (/int/ia).
     perfisPadrao: { ANALISTA_GRH: ['consultar', 'executar'], DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'] },
   },
+  {
+    codigo: 'rel.comparativo_tps',
+    // US-106 (IA-17): "só no menu da Adm. Central", junto do Consolidado dos TPs (orc.consolidado, #510).
+    modulo: 'ADM_CENTRAL',
+    grupo: 'Orçamento da Adm. Central',
+    nome: 'Comparativo entre TPs',
+    rota: '/rel/comparativo-tps',
+    ordem: 12,
+    ajuda:
+      'Os Termos de Parceria lado a lado: peso do pessoal, da Administração Central, das viagens e dos bens no Valor Global, custo médio ' +
+      'por meta e execução, com os pontos fora da curva marcados. Com a IA ligada, comentários sobre esses pontos. Exige consultar o Consolidado dos TPs.',
+    acoes: ['consultar', 'executar'],
+    // Os mesmos perfis do Consolidado (D-P31-1, provisório): DIREX e GFIN. O caso nasce desligado e com teto zero (/int/ia).
+    perfisPadrao: { DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'] },
+  },
 ];
 
 export const seedRel: Seed = {
@@ -90,6 +106,6 @@ export const seedRel: Seed = {
   async executar(tx) {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_REL);
     // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
-    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL]);
+    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS]);
   },
 };

@@ -34,3 +34,9 @@ export {
 export { analisarQuadroPessoalAcao } from './application/acoes-quadro-pessoal';
 export { AnaliseQuadroIA } from './ui/quadro-pessoal';
 export { TabelaAdmCentral, TabelaQuadro } from './ui/quadro-pessoal-tabela';
+
+// Comparativo entre TPs (US-106): o comparativo, a ação dos comentários, a liberação do botão e os componentes.
+export { comentariosComparativoLiberados, MENSAGENS_COMPARATIVO, obterComparativo, PERMISSAO_CONSOLIDADO } from './application/comparativo-tps';
+export { comentarComparativoAcao } from './application/acoes-comparativo-tps';
+export { ComentariosComparativoIA } from './ui/comparativo-tps';
+export { TabelaComparativo } from './ui/comparativo-tps-tabela';
