@@ -4,7 +4,8 @@ import { contarCaracteres, MAXIMO_PERGUNTA, MINIMO_PERGUNTA, semMarcas } from '.
 // Pergunte ao SGO (US-104, IA-16), parte 1: a pergunta em linguagem comum vira UMA consulta de um catálogo
 // fixo de ferramentas somente leitura (a IA só classifica e extrai os parâmetros); o SISTEMA executa a
 // consulta com as permissões e a unidade de quem pergunta e monta a resposta com o número, a fonte e o link.
-// Nenhum número sai da IA. O catálogo cresce com os relatórios (US-096 em diante, depois do realizado).
+// Nenhum número sai da IA. Parte 2: o realizado e o saldo (previsto − realizado) de um TP, pelos demonstrativos
+// da US-096 (UC05.02 e UC05.01).
 
 export const CONSULTAS = [
   'ORCAMENTO_ADM_CENTRAL',
@@ -15,6 +16,8 @@ export const CONSULTAS = [
   'ORCADO_CC',
   'VALOR_GLOBAL_TP',
   'QUANTIDADE_TPS',
+  'REALIZADO_TP',
+  'SALDO_TP',
   'NAO_SEI',
 ] as const;
 export type Consulta = (typeof CONSULTAS)[number];
@@ -29,6 +32,8 @@ export const DESCRICAO_CONSULTA: Readonly<Record<Consulta, string>> = {
   ORCADO_CC: 'orçado de um centro de custo da Administração Central pela classificação, como 4.3.2 (ano e cc)',
   VALOR_GLOBAL_TP: 'Valor Global de um Termo de Parceria pelo número (tp)',
   QUANTIDADE_TPS: 'quantos Termos de Parceria existem no consolidado',
+  REALIZADO_TP: 'despesa realizada (gasto, executado) de um Termo de Parceria pelo número, no ano dito ou em toda a vigência (tp e ano)',
+  SALDO_TP: 'saldo entre o previsto e o realizado de um Termo de Parceria pelo número, no ano dito ou em toda a vigência (tp e ano)',
   NAO_SEI: 'nenhuma das anteriores responde à pergunta',
 };
 
@@ -58,7 +63,8 @@ export function conferirClassificacao(v: { consulta: string; ano: number | null;
   const ano = v.ano !== null && Number.isInteger(v.ano) ? v.ano : null;
   const cc = v.cc !== null && CC.test(v.cc.trim()) ? v.cc.trim() : null;
   const tp = v.tp !== null && v.tp.trim().length > 0 && v.tp.trim().length <= 40 ? v.tp.trim() : null;
-  if ((consulta === 'ORCADO_CC' && cc === null) || (consulta === 'VALOR_GLOBAL_TP' && tp === null)) return { consulta: 'NAO_SEI', ano, cc: null, tp: null };
+  const precisaTp = consulta === 'VALOR_GLOBAL_TP' || consulta === 'REALIZADO_TP' || consulta === 'SALDO_TP';
+  if ((consulta === 'ORCADO_CC' && cc === null) || (precisaTp && tp === null)) return { consulta: 'NAO_SEI', ano, cc: null, tp: null };
   return { consulta, ano, cc, tp };
 }
 
