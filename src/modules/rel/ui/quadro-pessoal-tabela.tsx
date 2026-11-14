@@ -14,13 +14,15 @@ export const TEXTOS_QUADRO = {
   A_CONTRATAR: 'Vagas A CONTRATAR',
   CUSTO: 'Custo no período',
   CUSTO_TOTAL: 'Custo no período (soma das propostas com custo exibido)',
-  EVOLUCAO: 'Postos ativos por ano',
+  EVOLUCAO: 'Postos ativos por ano (no mês de referência e em algum mês do ano)',
+  NO_ANO: 'Ativos no ano',
   CARGOS: 'Postos por cargo',
   OMITIDAS: (n: number) => `${n} proposta(s) além do limite ficaram fora dos agregados. Use os filtros para analisar menos propostas.`,
   SEM_CUSTO: {
     SEM_PERMISSAO: 'Não exibido para o seu perfil',
     POUCOS_POSTOS: 'Omitido: menos de 3 postos',
-    CUSTO_INCOMPLETO: 'Omitido: custo de algum posto não calculado',
+    CUSTO_INCOMPLETO: 'Omitido: custo de algum posto não calculado ou com aviso',
+    CUSTOS_IGUAIS: 'Omitido: todos os postos com o mesmo custo',
   },
 } as const;
 
@@ -40,8 +42,8 @@ export function textoCusto(p: PropostaQuadro): string {
   return p.semCusto ? TEXTOS_QUADRO.SEM_CUSTO[p.semCusto] : moeda(p.custoPeriodo);
 }
 
-function Proposta({ p }: { p: PropostaQuadro }) {
-  const id = `quadro-${encodeURIComponent(p.numero)}`;
+function Proposta({ p, prefixo }: { p: PropostaQuadro; prefixo: string }) {
+  const id = `${prefixo}-${encodeURIComponent(p.numero)}`;
   return (
     <section aria-labelledby={id}>
       <h3 id={id}>
@@ -60,6 +62,7 @@ function Proposta({ p }: { p: PropostaQuadro }) {
             <th scope="col">{TEXTOS_QUADRO.POSTOS}</th>
             <th scope="col">Variação</th>
             <th scope="col">{TEXTOS_QUADRO.A_CONTRATAR}</th>
+            <th scope="col">{TEXTOS_QUADRO.NO_ANO}</th>
           </tr>
         </thead>
         <tbody>
@@ -70,6 +73,7 @@ function Proposta({ p }: { p: PropostaQuadro }) {
               <td>{a.postos}</td>
               <td>{variacao(a.variacao)}</td>
               <td>{a.aContratar}</td>
+              <td>{a.postosNoAno}</td>
             </tr>
           ))}
         </tbody>
@@ -81,7 +85,6 @@ function Proposta({ p }: { p: PropostaQuadro }) {
             <th scope="col">Cargo</th>
             <th scope="col">{TEXTOS_QUADRO.POSTOS}</th>
             <th scope="col">{TEXTOS_QUADRO.A_CONTRATAR}</th>
-            <th scope="col">{TEXTOS_QUADRO.CUSTO}</th>
           </tr>
         </thead>
         <tbody>
@@ -90,7 +93,6 @@ function Proposta({ p }: { p: PropostaQuadro }) {
               <th scope="row">{c.cargo}</th>
               <td>{c.postos}</td>
               <td>{c.aContratar}</td>
-              <td>{moeda(c.custoPeriodo)}</td>
             </tr>
           ))}
         </tbody>
@@ -99,7 +101,8 @@ function Proposta({ p }: { p: PropostaQuadro }) {
   );
 }
 
-export function TabelaQuadro({ quadro }: { quadro: QuadroPessoal }) {
+/** `prefixo` distingue os ids quando a tabela aparece duas vezes na página (a da tela e a enviada à IA). */
+export function TabelaQuadro({ quadro, prefixo = 'quadro' }: { quadro: QuadroPessoal; prefixo?: string }) {
   const t = quadro.total;
   return (
     <div>
@@ -110,7 +113,7 @@ export function TabelaQuadro({ quadro }: { quadro: QuadroPessoal }) {
       </p>
       {quadro.propostasOmitidas > 0 && <p role="note">{TEXTOS_QUADRO.OMITIDAS(quadro.propostasOmitidas)}</p>}
       {quadro.propostas.map((p) => (
-        <Proposta key={p.numero} p={p} />
+        <Proposta key={p.numero} p={p} prefixo={prefixo} />
       ))}
     </div>
   );

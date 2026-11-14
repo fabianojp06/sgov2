@@ -6,15 +6,18 @@ import { exigirPagina } from '@/shared/authz';
 export default async function QuadroPessoal({ searchParams }: { searchParams: Promise<{ tipo?: string; proposta?: string }> }) {
   const ctx = await exigirPagina('rel.ia_quadro_pessoal', 'consultar');
   const { tipo = '', proposta = '' } = await searchParams;
-  const filtros = lerFiltrosQuadro({ tipo, proposta }) ?? {};
-  const [lido, iaLiberada] = await Promise.all([obterQuadroPessoal(ctx, filtros), analiseQuadroLiberada(ctx)]);
-  const comPessoal = lido.ok && lido.valor.propostas.length > 0;
+  const lidos = lerFiltrosQuadro({ tipo, proposta });
+  const filtros = lidos ?? {};
+  // Filtro inválido: não lê nada (a leitura é a parte cara).
+  const [lido, iaLiberada] = await Promise.all([lidos ? obterQuadroPessoal(ctx, lidos) : null, analiseQuadroLiberada(ctx)]);
+  const comPessoal = lido !== null && lido.ok && lido.valor.propostas.length > 0;
   return (
     <div>
       <h1>Análise do quadro de pessoal</h1>
       <p>
         Agregados do pessoal lançado na última versão de cada proposta que você acessa: postos por categoria, vagas &quot;A CONTRATAR&quot;,
-        evolução por ano (no mês de referência) e postos por cargo. O custo só aparece somado em grupos de pelo menos 3 postos.
+        evolução por ano (no mês de referência, dezembro ou o fim da vigência, e em algum mês do ano) e postos por cargo. O custo só aparece
+        como total da proposta, com pelo menos 3 postos calculados e custos diferentes entre si; nunca por cargo nem por pessoa.
       </p>
       <form method="get" action="/rel/quadro-pessoal">
         <p>
@@ -28,8 +31,10 @@ export default async function QuadroPessoal({ searchParams }: { searchParams: Pr
           <input id="quadro-proposta" name="proposta" maxLength={100} defaultValue={filtros.proposta ?? ''} /> <button type="submit">Filtrar</button>
         </p>
       </form>
-      {!lido.ok ? (
-        <p>{lido.erros.map((e) => e.mensagem).join(' ')}</p>
+      {lido === null ? (
+        <p role="alert">{MENSAGENS_QUADRO.FILTROS_INVALIDOS}</p>
+      ) : !lido.ok ? (
+        <p role="alert">{lido.erros.map((e) => e.mensagem).join(' ')}</p>
       ) : !comPessoal ? (
         <p>{MENSAGENS_QUADRO.SEM_PESSOAL}</p>
       ) : (

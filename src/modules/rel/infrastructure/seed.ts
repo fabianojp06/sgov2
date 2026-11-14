@@ -76,10 +76,10 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     rota: '/rel/quadro-pessoal',
     ordem: 4,
     ajuda:
-      'Agregados do pessoal lançado nas propostas (postos por categoria, vagas "A CONTRATAR", evolução por ano e postos por cargo) e, com a IA ' +
+      'Agregados do pessoal lançado nas propostas (postos por categoria, vagas "A CONTRATAR", evolução por ano, postos por cargo e o custo total da proposta, quando permitido) e, com a IA ' +
       'ligada, uma análise redigida a partir só desses agregados, sem nomes nem salários individuais. Exige também consultar os Empregados das propostas.',
     acoes: ['consultar', 'executar'],
-    // US-107 (IA-07): Analista GRH (o ator da história) e a diretoria; a GFIN lê. Todos já consultam orc.empregados.
+    // US-107 (IA-07): Analista GRH (o ator da história), a DIREX e a GFIN. Todos já consultam orc.empregados.
     // Quem vê o custo continua decidido pelo orc (D-P20-5). O caso nasce desligado e com teto zero (/int/ia).
     perfisPadrao: { ANALISTA_GRH: ['consultar', 'executar'], DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'] },
   },

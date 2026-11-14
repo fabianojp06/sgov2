@@ -76,7 +76,7 @@ export async function obterQuadroPessoal(ctx: ContextoRequisicao, filtros: Filtr
     vigencia: b.vigencia,
     veCusto: b.veCusto,
     grupos: b.grupos.map((g) => ({
-      empregados: g.empregados.map((e) => ({ categoria: e.categoria, nome: e.nome, cargo: e.cargo, inicio: e.inicio, fim: e.fim, custoPeriodo: e.custoPeriodo })),
+      empregados: g.empregados.map((e) => ({ categoria: e.categoria, avisos: e.avisos, nome: e.nome, cargo: e.cargo, inicio: e.inicio, fim: e.fim, custoPeriodo: e.custoPeriodo })),
     })),
   }));
   return ok(agregarQuadro(entrada));
@@ -97,6 +97,8 @@ export async function analisarQuadroPessoal(
   const filtros = lerFiltrosQuadro(bruto);
   if (!filtros) return erro(MENSAGENS_QUADRO.FILTROS_INVALIDOS);
   const deps = resolver(depsParciais);
+  // Caso desligado ou teto estourado: recusa antes da leitura, que é a parte cara (revisão 12.12, DoS).
+  if (!(await deps.ia.disponivel(ctx, CASO_QUADRO_PESSOAL))) return erro(new ErroIA('ia.desligada').message);
   const lido = await obterQuadroPessoal(ctx, filtros, deps);
   if (!lido.ok) return lido;
   const quadro = lido.valor;

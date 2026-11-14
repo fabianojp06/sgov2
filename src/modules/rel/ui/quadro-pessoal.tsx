@@ -22,6 +22,7 @@ export const TEXTOS_ANALISE = {
   AVISO: 'A IA recebe só os agregados mostrados nesta página (sem nomes nem salários individuais) e só redige a análise: confira os números nas tabelas.',
   BOTAO: 'Analisar com IA',
   CONSULTANDO: 'Consultando a IA…',
+  PRONTA: 'Análise pronta.',
   SELO: 'Gerado com IA – revisar',
   DESTAQUES: 'Destaques',
   ALERTAS: 'Pontos de atenção',
@@ -33,48 +34,52 @@ export function estadoDaAnalise(r: RespostaQuadroTela): EstadoQuadro {
   return r.ok ? { tipo: 'PRONTA', ...r.valor } : { tipo: 'ERRO', mensagem: r.erros.map((e) => e.mensagem).join(' ') };
 }
 
-/** O conteúdo da região viva, por estado (puro: testável sem DOM). */
+/** A análise pronta (fora da região viva, para o leitor de tela não anunciar as tabelas inteiras). */
 export function ConteudoAnalise({ estado }: { estado: EstadoQuadro }) {
+  if (estado.tipo !== 'PRONTA') return null;
+  return (
+    <>
+      <p>
+        <strong>{TEXTOS_ANALISE.SELO}</strong>
+      </p>
+      <p>{estado.analise.resumo}</p>
+      {estado.analise.destaques.length > 0 && (
+        <>
+          <h3>{TEXTOS_ANALISE.DESTAQUES}</h3>
+          <ul>
+            {estado.analise.destaques.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      {estado.analise.alertas.length > 0 && (
+        <>
+          <h3>{TEXTOS_ANALISE.ALERTAS}</h3>
+          <ul>
+            {estado.analise.alertas.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <details>
+        <summary>{TEXTOS_ANALISE.ENVIADO}</summary>
+        <TabelaQuadro quadro={estado.quadro} prefixo="enviado" />
+      </details>
+    </>
+  );
+}
+
+/** O aviso curto da região viva, por estado (puro: testável sem DOM). */
+export function avisoDaAnalise(estado: EstadoQuadro): string {
   switch (estado.tipo) {
     case 'CONSULTANDO':
-      return <p>{TEXTOS_ANALISE.CONSULTANDO}</p>;
-    case 'ERRO':
-      return <p>{estado.mensagem}</p>;
+      return TEXTOS_ANALISE.CONSULTANDO;
     case 'PRONTA':
-      return (
-        <>
-          <p>
-            <strong>{TEXTOS_ANALISE.SELO}</strong>
-          </p>
-          <p>{estado.analise.resumo}</p>
-          {estado.analise.destaques.length > 0 && (
-            <>
-              <h3>{TEXTOS_ANALISE.DESTAQUES}</h3>
-              <ul>
-                {estado.analise.destaques.map((d, i) => (
-                  <li key={i}>{d}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          {estado.analise.alertas.length > 0 && (
-            <>
-              <h3>{TEXTOS_ANALISE.ALERTAS}</h3>
-              <ul>
-                {estado.analise.alertas.map((a, i) => (
-                  <li key={i}>{a}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          <details>
-            <summary>{TEXTOS_ANALISE.ENVIADO}</summary>
-            <TabelaQuadro quadro={estado.quadro} />
-          </details>
-        </>
-      );
+      return TEXTOS_ANALISE.PRONTA;
     default:
-      return null;
+      return '';
   }
 }
 
@@ -104,9 +109,11 @@ export function AnaliseQuadroIA({ filtros, analisar }: { filtros: FiltrosAnalise
       <button type="button" onClick={enviar} aria-disabled={estado.tipo === 'CONSULTANDO'} aria-describedby="quadro-ia-aviso">
         {TEXTOS_ANALISE.BOTAO}
       </button>
-      <div role="status" aria-live="polite">
-        <ConteudoAnalise estado={estado} />
-      </div>
+      <p role="status" aria-live="polite">
+        {avisoDaAnalise(estado)}
+      </p>
+      {estado.tipo === 'ERRO' && <p role="alert">{estado.mensagem}</p>}
+      <ConteudoAnalise estado={estado} />
     </section>
   );
 }

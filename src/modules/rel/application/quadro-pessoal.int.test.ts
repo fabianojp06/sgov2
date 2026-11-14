@@ -74,7 +74,8 @@ const bloco = (empregados: EmpregadoTela[]): BlocoEmpregados =>
 
 const falso = criarProvedorIAFalso();
 const filtrosVistos: unknown[] = [];
-const listarFalso = async (_c: ContextoRequisicao, f: unknown) => (filtrosVistos.push(f), [bloco([empregado(0), empregado(1), empregado(2), empregado(3, { nome: null })])]);
+let blocosFalsos = (): BlocoEmpregados[] => [bloco([empregado(0), empregado(1), empregado(2), empregado(3, { nome: null })])];
+const listarFalso = async (_c: ContextoRequisicao, f: unknown) => (filtrosVistos.push(f), blocosFalsos());
 const deps = (listar: typeof listarEmpregados = listarFalso as unknown as typeof listarEmpregados) => ({
   listarEmpregados: listar,
   ia: criarServicoIA({ cliente: app, obterProvedor: () => falso }),
@@ -163,14 +164,41 @@ describe('analisarQuadroPessoal', () => {
     expect(await analiseQuadroLiberada(ctx([CONSULTA, EMPREGADOS]), deps())).toBe(false);
     await ligarCaso(false);
     expect(await analiseQuadroLiberada(ctx(), deps())).toBe(false);
+    const n = filtrosVistos.length;
     expect(await analisarQuadroPessoal(ctx(), {}, deps())).toMatchObject({ ok: false });
+    // Desligado: recusa antes da leitura dos empregados (a parte cara).
+    expect(filtrosVistos.length).toBe(n);
     expect(falso.chamadas).toHaveLength(0);
   });
 
-  it('erro do provedor vira a mensagem fixa, sem detalhe', async () => {
+  it('posto com custo zerado ou com aviso do motor (ano sem premissas): o custo da proposta não vai à IA', async () => {
+    const antes = blocosFalsos;
+    blocosFalsos = () => [
+      bloco([
+        empregado(0, { custoPeriodo: Dinheiro.de('60000.00') }),
+        empregado(1, { nome: null, custoPeriodo: Dinheiro.zero(), avisos: ['Sem parâmetros de 2028.'] }),
+        empregado(2, { nome: null, custoPeriodo: Dinheiro.zero() }),
+      ]),
+    ];
+    try {
+      const r = await analisarQuadroPessoal(ctx(), {}, deps());
+      expect(r).toMatchObject({ ok: true, valor: { quadro: { propostas: [{ custoPeriodo: null, semCusto: 'CUSTO_INCOMPLETO' }] } } });
+      expect(falso.chamadas.at(-1)!.mensagem).not.toContain('60000');
+    } finally {
+      blocosFalsos = antes;
+    }
+  });
+
+  it('erro do provedor vira a mensagem fixa, sem detalhe, e o tempo esgotado tem a dele', async () => {
     falso.roteiro.erro = 'ia.indisponivel';
     const r = await analisarQuadroPessoal(ctx(), {}, deps());
-    expect(r.ok).toBe(false);
-    expect(JSON.stringify(r)).not.toMatch(/stack|Error:/);
+    expect(r).toEqual({ ok: false, erros: [{ campo: '_', mensagem: 'A IA está indisponível no momento. Tente de novo mais tarde.' }] });
+    delete falso.roteiro.erro;
+    const esgotado = AbortSignal.timeout(0);
+    await new Promise((res) => setTimeout(res, 5));
+    expect(await analisarQuadroPessoal(ctx(), {}, { ...deps(), sinalIa: () => esgotado })).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.TEMPO_ESGOTADO }],
+    });
   });
 });
