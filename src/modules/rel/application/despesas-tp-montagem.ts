@@ -156,14 +156,16 @@ export function montarDespesas(
 
 const semAcento = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 /**
- * O filtro de conta ou descrição (US-097; REQ0281/0282): fica a conta cuja classificação começa pelo texto ou cuja
+ * O filtro de conta ou descrição (US-097; REQ0281/0282): fica a conta cuja classificação é o texto (ou está abaixo dele) ou cuja
  * descrição o contém (sem acento nem caixa), com tudo abaixo dela, e as sintéticas acima, para a hierarquia. As
  * sintéticas passam a somar só o que ficou. Texto vazio: a árvore inteira.
  */
 export function podarPorTexto(arvore: readonly NoConta[], texto: string): NoConta[] {
   const t = semAcento(texto);
   if (!t) return [...arvore];
-  const casa = (n: NoConta) => n.classificacao.startsWith(texto.trim()) || semAcento(n.descricao).includes(t);
+  const c = texto.trim();
+  // "4.1.1" pega "4.1.1" e "4.1.1.x", não "4.1.10" (revisão 12.12).
+  const casa = (n: NoConta) => n.classificacao === c || n.classificacao.startsWith(`${c}.`) || semAcento(n.descricao).includes(t);
   const podar = (n: NoConta): NoConta | null => {
     if (casa(n)) return n;
     const filhos = n.filhos.map(podar).filter((f): f is NoConta => f !== null);

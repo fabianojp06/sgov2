@@ -79,6 +79,9 @@ describe('subarvores e podarPorTexto', () => {
     expect(p!.filhos.map((f) => f.classificacao)).toEqual(['4.1.2.1']);
     expect(p!.filhos[0]!.filhos).toHaveLength(2);
     expect(podarPorTexto(ARVORE, '  ')).toEqual(ARVORE);
+    // Prefixo de classificação só pelo nível: "4.1.1" não pega "4.1.10".
+    const vizinhas = [no('4.1', 'X', [no('4.1.1', 'A', [no('4.1.1.1', 'B', [no('4.1.1.1.001', 'b')])]), no('4.1.10', 'C', [no('4.1.10.1', 'D', [no('4.1.10.1.001', 'd')])])])];
+    expect(podarPorTexto(vizinhas, '4.1.1')[0]!.filhos.map((f) => f.classificacao)).toEqual(['4.1.1']);
   });
 });
 
@@ -124,6 +127,8 @@ describe('obterViagensTp', () => {
     expect(h).toContain('TP-3 – Apoio à gestão');
     expect(h).toContain('<strong>DESPESA DE TRANSPORTE</strong>');
     expect(h).toContain(MENSAGENS_VIAGENS.TOTAL_GERAL);
+    const vazio = { ...r, linhas: [] };
+    expect(renderToStaticMarkup(createElement(TabelaViagens, { relatorio: vazio, filtrado: true }))).toContain('casa com o filtro');
     const p = planilhaViagens(r, undefined);
     expect(p.linhas).toHaveLength(r.linhas.length + 1);
     expect(p.linhas.at(-1)).toEqual(['', MENSAGENS_VIAGENS.TOTAL_GERAL, ...r.totalGeral.valores, '1580.50']);

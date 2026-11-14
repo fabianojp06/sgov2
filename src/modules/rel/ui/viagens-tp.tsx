@@ -8,11 +8,12 @@ import { TEXTOS_DESPESAS } from './despesas-tp';
 
 const TOTAL_GERAL = 'Total Geral de Viagens e Diárias';
 const VAZIO = 'Nenhuma despesa de viagem realizada no período. Marque "Exibir contas zeradas" para ver todas as contas de viagens.';
+const VAZIO_FILTRO = 'Nenhuma conta de viagens com valor casa com o filtro de conta ou descrição. Mude o filtro ou marque "Exibir contas zeradas".';
 const dataBrasilia = (d: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 const moeda = (v: string) => Dinheiro.de(v).formatar();
 const DIREITA = { textAlign: 'right' } as const;
 
-export function TabelaViagens({ relatorio: r }: { relatorio: NonNullable<TelaViagens['relatorio']> }) {
+export function TabelaViagens({ relatorio: r, filtrado = false }: { relatorio: NonNullable<TelaViagens['relatorio']>; filtrado?: boolean }) {
   return (
     <section aria-labelledby="viagens-titulo">
       <h2 id="viagens-titulo">
@@ -22,7 +23,7 @@ export function TabelaViagens({ relatorio: r }: { relatorio: NonNullable<TelaVia
       {r.pendencias.quantidade > 0 && <p role="note">{TEXTOS_DESPESAS.PENDENCIAS(r.pendencias.quantidade, moeda(r.pendencias.valor))}</p>}
       {r.ajustes > 0 && <p role="note">{TEXTOS_DESPESAS.AJUSTES(r.ajustes)}</p>}
       {r.linhas.length === 0 ? (
-        <p>{VAZIO}</p>
+        <p>{filtrado ? VAZIO_FILTRO : VAZIO}</p>
       ) : (
         <div role="region" aria-label="Demonstrativo de despesas com viagens" tabIndex={0} style={{ overflowX: 'auto' }}>
           <table>

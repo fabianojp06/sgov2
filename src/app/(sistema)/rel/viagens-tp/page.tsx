@@ -54,7 +54,7 @@ export default async function ViagensTp({ searchParams }: { searchParams: Promis
           <a href={`/rel/viagens-tp/exportar?${qs}&formato=pdf`}>PDF</a>
         </p>
       )}
-      {r && <TabelaViagens relatorio={r} />}
+      {r && <TabelaViagens relatorio={r} filtrado={tela.filtros.texto !== ''} />}
     </div>
   );
 }
