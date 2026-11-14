@@ -2,6 +2,8 @@
 
 Acesso, administração, cadastros e o orçamento 2027 da Administração Central (trilha, spec §3.3; plano do P7, Task 1). Como usar este roteiro, registrar defeitos e dar o aceite: `README.md` desta pasta.
 
+**Atualizado em 14/11/2026** com as telas que entraram depois de 04/11: as últimas linhas dos blocos A a E e o bloco G, novo. As ressalvas de 04/11 (manutenção, Histórico e exportações) deixaram de existir. As propostas de TP (R4) terão roteiro próprio quando o envio para aprovação (US-079) estiver na `main`.
+
 ## Antes de começar (PO)
 
 - **Hml depois do ensaio da carga** (plano do P7, Task 5, D-P7-7): o banco de hml terá os arquivos reais da GFIN e da GRH, sem a minuta nem os cargos sintéticos da seed. Os centros de custo foram carregados com o documento de aprovação de ensaio (ou o real, se a DIREX já tiver aprovado).
@@ -30,8 +32,8 @@ Acesso, administração, cadastros e o orçamento 2027 da Administração Centra
 | A5 | Qualquer | Sair → Sim; depois usar o botão Voltar do navegador | Volta ao login; o Voltar não mostra dados do usuário | §11.2 | sim |
 | A6 | Cada perfil | Conferir o menu | Só os itens do perfil; nenhum item leva a uma tela sem permissão | §11.3 | em parte |
 | A7 | Qualquer | Ficar 30 minutos sem usar o sistema e clicar num item | Volta ao login sem mostrar dados (a sessão também acaba em 12 horas, mesmo com uso) | §11.2 | não |
-
-> **Manutenção (lacuna):** a R1 não tem tela para ligar e desligar o modo de manutenção. O E2E testa o bloqueio dos outros perfis com a manutenção ligada direto no banco de teste. Fica como ressalva do aceite, até haver a tela.
+| A8 | Qualquer | Na tela de login, "Esqueci minha senha", primeiro com um login que não existe e depois com o seu | A mesma resposta nos dois casos; só o seu recebe o e-mail com a senha temporária, e a senha antiga continua valendo até a troca | US-029 | sim |
+| A9 | Qualquer | Entrar em outro navegador ou computador com o mesmo usuário | A estação anterior volta ao login com o aviso de que a sessão foi aberta em outro lugar | US-028, RN0519 | sim |
 
 ## B. Administração (Administrador)
 
@@ -40,6 +42,13 @@ Acesso, administração, cadastros e o orçamento 2027 da Administração Centra
 | B1 | Listar usuários, cadastrar um novo, alterar e gerar nova senha | Cada passo com confirmação; o usuário novo recebe a senha por e-mail e precisa trocá-la no primeiro acesso | US-038 | em parte |
 | B2 | Cadastrar com um campo inválido | O erro aparece no campo, sem perder o que foi digitado | US-022 | sim |
 | B3 | Com um perfil sem permissão, abrir o endereço da tela de usuários | "Página não encontrada", sem mostrar que a tela existe | §11.3 | sim |
+| B4 | Perfis de Usuário: cadastrar um perfil pela grade, associar um usuário e tentar excluir o perfil | Nome único e pelo menos uma funcionalidade; a exclusão só é aceita depois de desassociar o usuário | US-037 | sim |
+| B5 | Usuários: retirar de um usuário uma funcionalidade do perfil dele (exceção) e devolver | O usuário perde e recupera o item de menu, sem mudar o perfil dos outros | US-039 | sim |
+| B6 | Módulos e Funcionalidades: desativar o módulo da Adm. Central e reativar | Os usuários da GFIN perdem o menu do módulo. Ao reativar, as funcionalidades não voltam sozinhas: cada uma é reativada na tela | US-035 | sim |
+| B7 | Ativar/Desativar Sistema: desativar com motivo e com espera; depois ativar | Os outros veem o aviso com a contagem e caem com "Sistema está em manutenção"; o Administrador continua só com a Administração e reativa | US-036, US-033 | sim |
+| B8 | Alçadas de Aprovação: cadastrar a alçada de um fluxo, trocar o titular e excluir | Cada passo com confirmação; a grade mostra o titular e o substituto | US-042 | sim |
+| B9 | Notificações de Desempenho: incluir um destinatário, tentar incluir o mesmo de novo e excluir | O repetido é recusado com mensagem | US-041 | sim |
+| B10 | Histórico de Operações (também o Auditor): filtrar pelo próprio login e exportar | Aparece o login de hoje e as operações dos blocos anteriores; a exportação traz o mesmo filtro | US-040 | sim |
 
 ## C. Cadastros
 
@@ -53,8 +62,13 @@ Acesso, administração, cadastros e o orçamento 2027 da Administração Centra
 | C6 | Analista GRH | Benefícios: ativar, desativar e informar um valor manual num cargo | O custo do cargo muda conforme o benefício | US-050 | não |
 | C7 | GFIN | Parâmetros do exercício 2027 (encargos, semáforo) e salário mínimo | Gravam e aparecem no exercício certo | US-053 | não |
 | C8 | Orçamentista ou DIREX | Abrir um cargo | O cargo abre, mas o salário não aparece | §11.3 | não |
+| C9 | Analista GRH | Estrutura funcional: incluir uma diretoria, uma gerência abaixo dela e um setor; ligar um cargo ao setor | A árvore só aceita a hierarquia da regra; o cargo mostra o vínculo com o setor | US-048 | não |
+| C10 | GFIN | Impostos e alíquotas: incluir uma alíquota nova com vigência a partir do mês seguinte; depois tentar uma com competência passada | A anterior continua valendo até a nova começar; a competência passada é recusada ("não pode ser retroativa") | US-052 | não |
+| C11 | GFIN | Plano de contas › Parâmetros locais: definir a natureza (OPEX ou CAPEX) e faixas próprias do semáforo de uma conta analítica | Grava; sem faixas próprias, valem as do exercício. Com alguma conta CAPEX, o seletor de bens das propostas passa a mostrar só as CAPEX | US-045 | não |
+| C12 | GFIN | Plano de contas › Agrupadores: criar um agrupador e associar contas analíticas | Uma conta pode estar em mais de um agrupador, e o plano de contas não muda | US-047 | não |
+| C13 | GFIN | Cadastros › Instituição: alterar o nome de exibição | O novo nome aparece nas telas e no cabeçalho dos e-mails; em branco, o sistema mostra só "SGO" | §6.7 | não |
 
-> **Histórico (lacuna):** cada cadastro grava o Histórico de Operações, mas a R1 não tem a tela de consulta. Fica como ressalva do aceite.
+Cada cadastro grava o Histórico de Operações, conferido no B10.
 
 ## D. Orçamento 2027 da Administração Central
 
@@ -73,6 +87,12 @@ Os passos seguem a ordem do fluxo; cada um parte do resultado do anterior.
 | D9 | GFIN e DIREX | Reenviar; DIREX aprova | Aparece "Oficializado em <data>"; a visão fica só de leitura e a importação deixa de ser oferecida | C36 | sim |
 | D10 | GFIN | Depois do D9, tentar mudar um parâmetro de 2027 | O exercício congelado não aceita a mudança | US-053 | não |
 | D11 | Orçamentista | Tentar abrir o orçamento da Adm. Central | Sem o menu, e "Página não encontrada" pelo endereço direto | §11.3 | sim |
+| D12 | GFIN | Num exercício Em Elaboração (pode ser outro que não o 2027 do D9), Posições de pessoal: incluir uma posição escolhendo o cargo | O salário vem da Fonte Ativa do cargo, com a faixa; a prévia mostra o custo anual antes de gravar | US-056 | sim |
+| D13 | Gestor de Diretoria | Posições de pessoal: incluir uma posição em texto livre, alterar e excluir | Só os CCs da sua diretoria aparecem; com o cargo do cadastro, a Fonte Ativa e a faixa não aparecem para ele | US-056, C25 | sim |
+| D14 | DIREX | Abrir as posições | Vê as posições com salário e valor anual mascarados, sem ações | §11.3 | sim |
+| D15 | GFIN | Ligar uma posição em texto livre ao cargo do cadastro pela tela de correspondência | A posição passa a usar o cargo e o custo dele | P16 | sim |
+| D16 | Gestor de Diretoria | Pacotes base zero: incluir um pacote mensal com prévia, alterar para pontual e excluir | Só os CCs da sua diretoria; a prévia mostra a distribuição antes de gravar | US-057 | sim |
+| D17 | GFIN | Pedir a revisão de consistência antes de enviar | Aparece "Revisão em andamento…" e depois os achados, cada um com o link para a linha. Exige o caso do revisor ligado (bloco G) | US-064 | em parte |
 
 ## E. Exportações
 
@@ -81,8 +101,22 @@ Os passos seguem a ordem do fluxo; cada um parte do resultado do anterior.
 | E1 | GFIN | Exportar uma listagem em XLSX e abrir no Excel | Valores como número, datas como data, títulos em negrito | US-021 | não |
 | E2 | GFIN | Exportar em CSV e abrir no Excel em português | Colunas separadas certo, acentos corretos, vírgula decimal | #233 | não |
 | E3 | GFIN | Cadastrar um texto que começa com `=1+1` (por exemplo, na descrição de um cargo) e exportar | A célula mostra o texto `=1+1`, nunca o resultado 2 | #233 | não |
+| E4 | GFIN | Relatórios › Conferência da carga: exportar em PDF | O PDF tem as mesmas linhas da tela, com os números alinhados e legíveis | US-024 | não |
+| E5 | Administrador | Exportar o Histórico (B10) sem filtro, com mais de 5.000 linhas | A exportação passa para segundo plano e aparece em Relatórios › Minhas exportações; o arquivo fica disponível por 7 dias | US-022, US-023 | não |
 
-> **Situação em 04/11:** a exportação existe no sistema, mas nenhuma tela a oferece ainda. A primeira prevista é o relatório de conferência da carga (plano do P7, Task 2). Se a release homologada não tiver tela com exportação, o bloco E fica para a release seguinte, registrado como ressalva no aceite.
+Telas com exportação: o plano de contas, a conferência da carga e o Histórico. A exportação grande só aparece se a base de hml tiver linhas suficientes.
+
+## G. Ajuda e inteligência artificial
+
+**Antes (PO):** a chave da IA configurada no hml. Sem ela, os passos G3 a G5 ficam como ressalva do aceite.
+
+| # | Perfil | Ação | Resultado esperado | Ref. | E2E |
+| --- | --- | --- | --- | --- | --- |
+| G1 | Cada perfil | Clicar em "Manual" na barra de status | O manual mostra só as telas do perfil, na ordem do menu, com as ações permitidas e o roteiro de treinamento | US-118 | sim |
+| G2 | Administrador | Cadastros › Inteligência artificial: ligar o caso "Ajuda como faço… com base no manual" com um teto mensal | O caso fica ligado com o teto; desligado, o campo de pergunta do G3 some | US-019 | não |
+| G3 | Qualquer | No manual, perguntar "como faço para…" sobre uma tela do perfil e depois sobre uma que o perfil não tem | A resposta cita os trechos do manual com o link da tela e o selo "Gerado com IA – revisar"; para a tela que o perfil não tem, diz que o manual não responde | US-108 | não |
+| G4 | Analista GRH ou GFIN | Ligar o caso "Análise do quadro de pessoal" (G2) e abrir Relatórios › Análise do quadro de pessoal | Os agregados aparecem sem nomes e sem custo por cargo; a análise traz o selo e os agregados enviados | US-107 | não |
+| G5 | Gestor de Diretoria | Num pacote base zero, pedir a sugestão de conta e de justificativa | A sugestão aparece para revisar; nada é gravado até o gestor salvar | US-062, US-063 | não |
 
 ## F. Encerramento
 
@@ -90,7 +124,7 @@ Os passos seguem a ordem do fluxo; cada um parte do resultado do anterior.
 | --- | --- | --- |
 | F1 | Usuários-chave | Marcar os passos na issue da release e abrir os defeitos |
 | F2 | PO | Conferir que não há defeito crítico ou alto aberto |
-| F3 | PO | Registrar o aceite na issue, com as ressalvas (manutenção, Histórico e, se for o caso, exportações) |
+| F3 | PO | Registrar o aceite na issue, com as ressalvas (por exemplo, o bloco G sem a chave da IA) |
 
 ## Glossário
 
