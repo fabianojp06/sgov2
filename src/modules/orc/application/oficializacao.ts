@@ -37,7 +37,8 @@ async function executar<T>(ctx: ContextoRequisicao, deps: DepsOrc, corpo: (tx: T
   } catch (erro) {
     if (erro instanceof ConflitoConcorrencia) return falha([{ campo: '_', mensagem: M.ALTERADO_POR_OUTRO }]);
     // A corrida do envio: o índice único parcial da solicitação (RN_WA01_009, Review Focus 1).
-    if (erro instanceof Error && /\b23505\b|P2002/.test(`${(erro as { code?: string }).code ?? ''} ${erro.message}`)) return falha([{ campo: '_', mensagem: M.ENVIO_JA_EM_APROVACAO }]);
+    if (erro instanceof Error && /\b23505\b|P2002/.test(`${(erro as { code?: string }).code ?? ''} ${erro.message}`))
+      return falha([{ campo: '_', mensagem: M.ENVIO_JA_EM_APROVACAO }]);
     throw erro;
   }
 }
@@ -98,7 +99,11 @@ async function contasForaDoPlano(tx: TxCliente, deps: DepsOrc, versaoId: string)
     tx.bemProposta.findMany({ where: { versaoPropostaId: versaoId, ativo: true }, select: { conta: true } }),
     tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } }, select: { conta: true } }),
   ]);
-  const usadas = new Set([...viagens.flatMap((v) => [v.contaPassagem, v.contaDiaria, ...(v.contaTransporte ? [v.contaTransporte] : [])]), ...bens.map((b) => b.conta), ...celulas.map((c) => c.conta)]);
+  const usadas = new Set([
+    ...viagens.flatMap((v) => [v.contaPassagem, v.contaDiaria, ...(v.contaTransporte ? [v.contaTransporte] : [])]),
+    ...bens.map((b) => b.conta),
+    ...celulas.map((c) => c.conta),
+  ]);
   return [...usadas].filter((c) => !indice.contaAnaliticaAtiva(c)).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
 }
 
@@ -136,6 +141,10 @@ export async function enviarPropostaWa01(ctx: ContextoRequisicao, bruto: unknown
     if (emBranco.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_CELULAS_EM_BRANCO }, ...emBranco.map((mensagem) => ({ campo: '_', mensagem })));
     const fora = await contasForaDoPlano(tx, deps, v.id);
     if (fora.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_CONTA_INATIVA(fora.join(', ')) });
+    // O snapshot oficial é imutável (RN_WA01_004): o custo do pessoal precisa estar completo, sem ano sem
+    // parâmetros nem recusa do motor (revisão 12.12).
+    const pessoal = await totaisDaVersao(tx, deps, v.id, true);
+    if (pessoal.avisos.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_PESSOAL_INCOMPLETO(pessoal.avisos.join(' ')) });
     if (erros.length > 0 || !aprovador || 'bloqueio' in aprovador) return falha(erros);
 
     await mudarSituacao(tx, id, versao, v.id, 'EM_ELABORACAO', 'EM_APROVACAO');
@@ -169,7 +178,10 @@ export async function enviarPropostaWa01(ctx: ContextoRequisicao, bruto: unknown
 
 /** A versão alvo da solicitação, ainda Em Aprovação e a última da proposta; senão, nula. */
 async function alvoEmAprovacao(tx: TxCliente, s: SolicitacaoDecidivel) {
-  const v = await tx.versaoProposta.findFirst({ where: { id: s.alvoId }, include: { proposta: { include: { unidade: { select: { codigo: true } }, versoes: { orderBy: { numero: 'desc' }, take: 1, select: { id: true } } } } } });
+  const v = await tx.versaoProposta.findFirst({
+    where: { id: s.alvoId },
+    include: { proposta: { include: { unidade: { select: { codigo: true } }, versoes: { orderBy: { numero: 'desc' }, take: 1, select: { id: true } } } } },
+  });
   return v && v.situacao === 'EM_APROVACAO' && v.proposta.versoes[0]?.id === v.id ? v : null;
 }
 
@@ -187,6 +199,8 @@ export function manipuladorWa01(depsParciais: Partial<DepsOrc> = {}): Manipulado
       const v = await alvoEmAprovacao(tx, s);
       if (!v) return alvoMudou();
       const t = await totaisDaVersao(tx, deps, v.id, true);
+      // Os parâmetros podem ter mudado entre o envio e a aprovação: o snapshot não grava custo incompleto.
+      if (t.avisos.length > 0) return falha([{ campo: '_', mensagem: M.ENVIO_PESSOAL_INCOMPLETO(t.avisos.join(' ')) }]);
       await tx.snapshotVersao.create({
         data: {
           unidadeId: v.unidadeId,
@@ -229,9 +243,12 @@ export function manipuladorWa01(depsParciais: Partial<DepsOrc> = {}): Manipulado
       const t = await totaisDaVersao(tx, deps, v.id, true);
       return [
         { rotulo: 'Objeto', valor: v.proposta.objeto },
-        { rotulo: 'Vigência', valor: `${v.proposta.inicio.toISOString().slice(0, 10).split('-').reverse().join('/')} a ${v.proposta.fim.toISOString().slice(0, 10).split('-').reverse().join('/')}` },
+        {
+          rotulo: 'Vigência',
+          valor: `${v.proposta.inicio.toISOString().slice(0, 10).split('-').reverse().join('/')} a ${v.proposta.fim.toISOString().slice(0, 10).split('-').reverse().join('/')}`,
+        },
         { rotulo: 'Valor Global', valor: t.total.formatar() },
-        { rotulo: 'Contas com valor', valor: String(t.porConta.size) },
+        ...[...t.porConta].sort(([a], [b]) => a.localeCompare(b, 'pt-BR', { numeric: true })).map(([conta, valor]) => ({ rotulo: `Conta ${conta}`, valor: valor.formatar() })),
         ...(t.avisos.length > 0 ? [{ rotulo: 'Avisos', valor: t.avisos.join(' ') }] : []),
       ];
     },

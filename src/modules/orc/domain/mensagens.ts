@@ -344,6 +344,8 @@ export const MENSAGENS_ORC = {
     `Ação Negada [TRAVA O ERRO]: A oficialização foi bloqueada pois a proposta usa contas que não são analíticas ativas do plano de contas (${contas}).`,
   CONFIRMA_AVANCAR: (numero: string) => `Avançar a proposta do TP ${numero} de Rascunho para Em Elaboração?`,
   CONFIRMA_ENVIAR: (numero: string) => `Enviar a proposta do TP ${numero} para oficialização? As abas ficam só leitura até a decisão do aprovador.`,
+  ENVIO_PESSOAL_INCOMPLETO: (avisos: string) =>
+    `Operação Rejeitada [TRAVA O ERRO]: O custo do pessoal está incompleto e não pode ser oficializado assim (${avisos}). Cadastre os parâmetros do exercício ou corrija os cargos antes de enviar.`,
   PROPOSTA_ENVIADA: (numero: string) => `Proposta do TP ${numero} enviada para oficialização.`,
   WA01_ALVO_MUDOU: 'A versão desta solicitação não está mais Em Aprovação. Recarregue a Central de Tarefas.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
