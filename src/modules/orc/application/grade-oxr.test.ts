@@ -95,6 +95,13 @@ describe('montarGradeOxr', () => {
     // A sintética soma as filhas, e o total traz o global também.
     expect(g.linhas.find((x) => x.conta === '4.1.1.1')!.global?.realizado.paraString()).toBe('13858710.81');
     expect(g.total.global?.orcado.paraString()).toBe('21839414.00');
+    // Duas filhas somam na sintética; conta fora do plano e sintética no mapa ficam fora, sem quebrar o totalizar.
+    const g2 = montarGradeOxr(PLANO, ['2022-06'], new Map(), new Map(), { zeradas: true }, {
+      orcado: new Map([['4.1.1.1.001', d('100')], ['4.1.1.1.003', d('50')], ['9.9.9.9.999', d('7')], ['4.1.1.1', d('999')]]),
+      realizado: new Map(),
+    });
+    expect(g2.linhas.find((x) => x.conta === '4.1.1.1')!.global?.orcado.paraString()).toBe('150.00');
+    expect(g2.total.global?.orcado.paraString()).toBe('150.00');
     // Sem o global, a linha não o traz.
     expect(montarGradeOxr(PLANO, ['2022-06'], new Map(), new Map(), { zeradas: true }).linhas[0]!.global).toBeUndefined();
   });

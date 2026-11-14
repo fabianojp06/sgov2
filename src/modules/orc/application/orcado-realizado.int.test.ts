@@ -145,6 +145,8 @@ describe('obterOrcadoRealizado (US-086)', () => {
     const t = (await obterOrcadoRealizado(gfinCtx(), { proposta: tps.oficial.id, de: '2026-03', ate: '2026-03' }, comDeps())).tela!;
     const l = t.grade.linhas.find((x) => x.conta === '4.1.1.5.005')!;
     expect([l.periodo.realizado.paraString(), l.global?.orcado.paraString(), l.global?.realizado.paraString(), l.global?.uso?.formatar()]).toEqual(['650.00', '2500.00', '2150.00', '86,00%']);
+    // Sem ver o pessoal, os 80,00 de 4.1.1.1.001 também ficam fora do total global.
+    expect(t.grade.total.global?.realizado.paraString()).toBe('2150.00');
   });
 
   it('filtro de conta, contas zeradas e período padrão (os primeiros 24 meses da vigência)', async () => {
