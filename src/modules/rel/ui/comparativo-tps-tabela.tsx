@@ -1,5 +1,5 @@
-import { Dinheiro, Percentual } from '@/shared/kernel';
-import { INDICADORES, type Comparativo, type Indicador, type TpComparado } from '../domain/comparativo-tps';
+import { Dinheiro } from '@/shared/kernel';
+import { INDICADORES, PESOS, type Comparativo, type Indicador, type MotivoPesosOmitidos, type TpComparado } from '../domain/comparativo-tps';
 
 // O comparativo entre TPs (US-106) como a IA recebe: uma linha por TP, os indicadores, as medianas e as
 // marcas de fora da curva (texto, não só cor). Componente puro, usado pela página e pela região da análise.
@@ -19,26 +19,36 @@ export const TEXTOS_COMPARATIVO = {
   ACIMA: 'acima da curva',
   ABAIXO: 'abaixo da curva',
   NAO_OFICIAL: '(versão não oficial)',
-  OMITIDO: 'omitido',
+  SEM_VALOR: 'sem valor',
+  MOTIVO: {
+    NAO_OFICIAL: 'só na versão oficial',
+    POUCOS_POSTOS: 'omitido: menos de 3 postos',
+    CUSTO_INCOMPLETO: 'omitido: custo de pessoal não calculado',
+    CUSTOS_IGUAIS: 'omitido: custos iguais',
+    SEM_DADOS: 'omitido',
+  } satisfies Record<MotivoPesosOmitidos, string>,
   OMITIDOS: (n: number) => `${n} TP(s) além do limite ficaram fora do comparativo.`,
   LEGENDA:
     'Fora da curva: abaixo do 1º quartil menos 1,5 vez a distância entre quartis, ou acima do 3º quartil mais 1,5 vez (com pelo menos 4 TPs). ' +
-    'O pessoal de TP com 1 ou 2 postos fica omitido (privacidade). A execução é zero até haver o realizado.',
+    'Os pesos só aparecem para a versão oficial e, com pessoal, com pelo menos 3 postos de custos diferentes (privacidade). A execução é zero até haver o realizado.',
 } as const;
 
 const mes = (c: string) => `${c.slice(5, 7)}/${c.slice(0, 4)}`;
 
-function textoValor(ind: Indicador, v: string | null): string {
-  if (v === null) return '—';
-  return ind === 'custoMedioMeta' ? Dinheiro.de(v).formatar() : Percentual.dePontos(v).formatar();
+// Percentual em texto, sem o teto do NUMERIC(9,4) (a razão é indicador calculado e pode passar de 99.999%).
+const percentual = (pontos: string) => `${pontos.replace('.', ',')}%`;
+
+function Valor({ ind, v }: { ind: Indicador; v: string | null }) {
+  if (v === null) return <span aria-label={TEXTOS_COMPARATIVO.SEM_VALOR}>—</span>;
+  return <>{ind === 'custoMedioMeta' ? Dinheiro.de(v).formatar() : percentual(v)}</>;
 }
 
 function Celula({ tp, ind }: { tp: TpComparado; ind: Indicador }) {
-  if (ind === 'pesoPessoal' && tp.pessoalOmitido) return <td>{TEXTOS_COMPARATIVO.OMITIDO}</td>;
+  if (tp.pesosOmitidos && PESOS.includes(ind)) return <td>{TEXTOS_COMPARATIVO.MOTIVO[tp.pesosOmitidos]}</td>;
   const marca = tp.foraDaCurva.find((f) => f.indicador === ind);
   return (
     <td>
-      {textoValor(ind, tp.indicadores[ind])}
+      <Valor ind={ind} v={tp.indicadores[ind]} />
       {marca && <strong> ({marca.direcao === 'ACIMA' ? TEXTOS_COMPARATIVO.ACIMA : TEXTOS_COMPARATIVO.ABAIXO})</strong>}
     </td>
   );
@@ -47,6 +57,8 @@ function Celula({ tp, ind }: { tp: TpComparado; ind: Indicador }) {
 export function TabelaComparativo({ comparativo }: { comparativo: Comparativo }) {
   return (
     <div>
+      {/* Rolagem horizontal em tela estreita, alcançável pelo teclado (WCAG 1.4.10). */}
+      <div role="region" aria-label={TEXTOS_COMPARATIVO.CAPTION} tabIndex={0} style={{ overflowX: 'auto' }}>
       <table>
         <caption>{TEXTOS_COMPARATIVO.CAPTION}</caption>
         <thead>
@@ -80,14 +92,16 @@ export function TabelaComparativo({ comparativo }: { comparativo: Comparativo })
         <tfoot>
           <tr>
             <th scope="row">{TEXTOS_COMPARATIVO.MEDIANA}</th>
-            <td />
-            <td />
+            <td colSpan={2} />
             {INDICADORES.map((i) => (
-              <td key={i}>{textoValor(i, comparativo.medianas[i])}</td>
+              <td key={i}>
+                <Valor ind={i} v={comparativo.medianas[i]} />
+              </td>
             ))}
           </tr>
         </tfoot>
       </table>
+      </div>
       {comparativo.tpsOmitidos > 0 && <p role="note">{TEXTOS_COMPARATIVO.OMITIDOS(comparativo.tpsOmitidos)}</p>}
       <p>{TEXTOS_COMPARATIVO.LEGENDA}</p>
     </div>

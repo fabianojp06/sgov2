@@ -33,20 +33,34 @@ const SAIDA = z.object({
 type LerComparativo = (ctx: ContextoRequisicao) => Promise<readonly TpEntrada[]>;
 export type DepsComparativo = { ler: LerComparativo; ia: ServicoIA; sinalIa: () => AbortSignal };
 
-// A porta do orc devolve o mesmo formato do TpEntrada (o rel só copia os campos de que precisa).
+// A porta do orc devolve o mesmo formato do TpEntrada (o rel só copia os campos de que precisa). Os campos
+// de privacidade são opcionais na porta (pedidos na #138): ausentes, o domínio esconde os pesos.
+type ComCamposOpcionais = { pessoalCalculado?: boolean; custosPessoaDistintos?: number; metas: readonly { numero: string; valor: TpEntrada['realizado']; ativa?: boolean }[] };
 const LER_REAL: LerComparativo = async (ctx) =>
-  (await obterComparativoTps(ctx)).map((t) => ({
-    numero: t.numero,
-    tipo: t.tipo,
-    situacao: t.situacao,
-    oficial: t.oficial,
-    vigencia: t.vigencia,
-    valorGlobal: t.valorGlobal,
-    porCategoria: t.porCategoria,
-    metas: t.metas,
-    realizado: t.realizado,
-    postos: t.postos,
-  }));
+  (await obterComparativoTps(ctx)).map((porta) => {
+    const t = porta as typeof porta & ComCamposOpcionais;
+    return {
+      numero: t.numero,
+      tipo: t.tipo,
+      situacao: t.situacao,
+      oficial: t.oficial,
+      vigencia: t.vigencia,
+      valorGlobal: t.valorGlobal,
+      porCategoria: t.porCategoria,
+      metas: t.metas,
+      realizado: t.realizado,
+      postos: t.postos,
+      pessoalCalculado: t.pessoalCalculado,
+      custosPessoaDistintos: t.custosPessoaDistintos,
+    };
+  });
+
+// Revisão 12.12 (I3): cada leitura grava a CONSULTA no Histórico e recalcula todos os TPs. O resultado fica
+// guardado por usuário durante JANELA_CACHE_MS: recarregar a página ou pedir os comentários logo depois não
+// relê nem grava de novo (é a mesma consulta). Processo único do app; some no restart.
+export const JANELA_CACHE_MS = 60_000;
+const cache = new Map<string, { em: number; valor: Comparativo }>();
+export const limparCacheComparativo = () => cache.clear();
 
 const resolver = (d: Partial<DepsComparativo>): DepsComparativo => ({
   ler: d.ler ?? LER_REAL,
@@ -60,7 +74,13 @@ const tempoEsgotado = (sinal: AbortSignal) => sinal.aborted && (sinal.reason as 
 /** O comparativo para a tela (e para a IA). Sem a permissão do consolidado, a mensagem, sem ler nada. */
 export async function obterComparativo(ctx: ContextoRequisicao, deps: Partial<Pick<DepsComparativo, 'ler'>> = {}): Promise<Resultado<Comparativo>> {
   if (!ctx.permissoes.has(PERMISSAO_CONSOLIDADO)) return erro(MENSAGENS_COMPARATIVO.SEM_CONSOLIDADO);
-  return ok(compararTps(await (deps.ler ?? LER_REAL)(ctx)));
+  const agora = Date.now();
+  const guardado = cache.get(ctx.usuarioId);
+  if (guardado && agora - guardado.em < JANELA_CACHE_MS) return ok(guardado.valor);
+  const valor = compararTps(await (deps.ler ?? LER_REAL)(ctx));
+  cache.set(ctx.usuarioId, { em: agora, valor });
+  for (const [u, c] of cache) if (agora - c.em >= JANELA_CACHE_MS) cache.delete(u);
+  return ok(valor);
 }
 
 /** O botão dos comentários aparece? A permissão do caso, a chave geral, o caso ativo e os tetos. */

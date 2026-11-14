@@ -17,6 +17,9 @@ const tp = (numero: string, pessoal: string, extra: Partial<TpEntrada> = {}): Tp
   porCategoria: { pessoal: d(pessoal), viagens: d('0'), bens: d('0'), rateioAdmCentral: d('0'), outros: d('0') },
   metas: [],
   realizado: d('0'),
+  postos: 10,
+  pessoalCalculado: true,
+  custosPessoaDistintos: 5,
   ...extra,
 });
 
@@ -31,7 +34,9 @@ describe('tela do comparativo entre TPs (US-106)', () => {
     const h = renderToStaticMarkup(createElement(TabelaComparativo, { comparativo: c }));
     expect(h).toContain(`95,00%<strong> (${TEXTOS_COMPARATIVO.ACIMA})</strong>`);
     expect(h).toContain(`TP-NOVO ${TEXTOS_COMPARATIVO.NAO_OFICIAL}`);
-    expect(h).toContain(`<td>${TEXTOS_COMPARATIVO.OMITIDO}</td>`);
+    expect(h).toContain(`<td>${TEXTOS_COMPARATIVO.MOTIVO.POUCOS_POSTOS}</td>`);
+    expect(h).toContain(`<td>${TEXTOS_COMPARATIVO.MOTIVO.NAO_OFICIAL}</td>`);
+    expect(h).toContain('role="region"');
     expect(h).toContain(`<th scope="row">${TEXTOS_COMPARATIVO.MEDIANA}</th>`);
     expect(h).not.toContain('60,00%');
   });

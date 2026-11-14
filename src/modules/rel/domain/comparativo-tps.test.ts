@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Dinheiro } from '@/shared/kernel';
-import { compararTps, MAXIMO_TPS, mensagemComparativo, type TpEntrada } from './comparativo-tps';
+import { compararTps, MAXIMO_TPS, mensagemComparativo, motivoPesosOmitidos, type TpEntrada } from './comparativo-tps';
 
 // Comparativo entre TPs (US-106): indicadores, mediana, Tukey e a privacidade do pessoal.
 const d = (v: string) => Dinheiro.de(v);
@@ -14,6 +14,9 @@ const tp = (numero: string, global: string | null, pessoal: string, extra: Parti
   porCategoria: { pessoal: d(pessoal), viagens: d('0'), bens: d('0'), rateioAdmCentral: d('100.00'), outros: d('0') },
   metas: [],
   realizado: d('0'),
+  postos: 10,
+  pessoalCalculado: true,
+  custosPessoaDistintos: 5,
   ...extra,
 });
 
@@ -41,14 +44,48 @@ describe('compararTps', () => {
     expect(poucos.tps.every((t) => t.foraDaCurva.length === 0)).toBe(true);
   });
 
-  it('pessoal de TP com 1 ou 2 postos fica omitido (privacidade, como na US-107)', () => {
-    const c = compararTps([tp('TP-1', '1000.00', '600.00', { postos: 2 }), tp('TP-2', '1000.00', '600.00', { postos: 3 }), tp('TP-3', '1000.00', '0.00', { postos: 0 })]);
-    expect(c.tps.map((t) => [t.pessoalOmitido, t.indicadores.pesoPessoal])).toEqual([
-      [true, null],
-      [false, '60.00'],
-      [false, '0.00'],
+  it('privacidade: os quatro pesos saem juntos ou não saem; o motivo; falha fechada sem os dados da porta', () => {
+    const base = { postos: 10, pessoalCalculado: true, custosPessoaDistintos: 5 };
+    const casos: [Partial<TpEntrada>, string | null][] = [
+      [base, null],
+      [{ ...base, oficial: false }, 'NAO_OFICIAL'],
+      [{ ...base, postos: 2 }, 'POUCOS_POSTOS'],
+      [{ ...base, pessoalCalculado: false }, 'CUSTO_INCOMPLETO'],
+      [{ ...base, custosPessoaDistintos: 1 }, 'CUSTOS_IGUAIS'],
+      [{ ...base, postos: undefined }, 'SEM_DADOS'],
+      [{ ...base, pessoalCalculado: undefined }, 'SEM_DADOS'],
+      [{ ...base, custosPessoaDistintos: undefined }, 'SEM_DADOS'],
+      [{ ...base, postos: 0 }, 'SEM_DADOS'],
+    ];
+    for (const [extra, motivo] of casos) expect(motivoPesosOmitidos(tp('X', '1000.00', '600.00', extra)), JSON.stringify(extra)).toBe(motivo);
+    // Sem pessoal e sem postos: nada a proteger.
+    expect(motivoPesosOmitidos(tp('X', '1000.00', '0.00', { postos: 0 }))).toBeNull();
+    const c = compararTps([tp('TP-1', '1000.00', '600.00', { postos: 2 })]);
+    expect(c.tps[0]!.pesosOmitidos).toBe('POUCOS_POSTOS');
+    expect([c.tps[0]!.indicadores.pesoPessoal, c.tps[0]!.indicadores.pesoAdmCentral, c.tps[0]!.indicadores.pesoViagens, c.tps[0]!.indicadores.pesoBens]).toEqual([null, null, null, null]);
+  });
+
+  it('revisão 12.12 (C1): com o pessoal omitido, ele não se recompõe pelos outros pesos (VG × (100 − Σ))', () => {
+    const vg = '150000.00';
+    const alvo = tp('TP-PEQ', vg, '97345.67', {
+      oficial: false,
+      postos: 1,
+      porCategoria: { pessoal: d('97345.67'), viagens: d('12654.33'), bens: d('10000.00'), rateioAdmCentral: d('30000.00'), outros: d('0') },
+    });
+    const m = mensagemComparativo(compararTps([alvo]));
+    const pesos = compararTps([alvo]).tps[0]!.indicadores;
+    expect([pesos.pesoPessoal, pesos.pesoAdmCentral, pesos.pesoViagens, pesos.pesoBens]).toEqual([null, null, null, null]);
+    for (const proibido of ['97345', '64.89', '20.00', '8.44', '6.67']) expect(m).not.toContain(proibido);
+  });
+
+  it('custo médio por meta só com as metas ativas; mediana com quantidade par', () => {
+    const c = compararTps([
+      tp('TP-1', '1000.00', '100.00', { metas: [{ numero: 'M1', valor: d('300.00') }, { numero: 'M2', valor: d('900.00'), ativa: false }] }),
+      tp('TP-2', '1000.00', '200.00'),
     ]);
-    expect(mensagemComparativo(c)).not.toContain('600');
+    expect(c.tps[0]!.indicadores.custoMedioMeta).toBe('300.00');
+    expect(c.tps[0]!.metas).toBe(1);
+    expect(c.medianas.pesoPessoal).toBe('15.00');
   });
 
   it('no máximo MAXIMO_TPS, com a contagem dos omitidos', () => {

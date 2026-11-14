@@ -9,8 +9,13 @@ import { MINIMO_GRUPO_CUSTO } from './quadro-pessoal';
 //
 // Fora da curva: regra de Tukey (abaixo de Q1 − 1,5·IQR ou acima de Q3 + 1,5·IQR), só com pelo menos
 // MINIMO_PARA_CURVA TPs com o indicador. É escolha técnica (D-106-1), não regra de negócio.
-// Privacidade (como na US-107): o pessoal de um TP com menos de MINIMO_GRUPO_CUSTO postos fica omitido,
-// porque o total daria o custo de uma ou duas pessoas.
+// Privacidade (revisão 12.12 do #515; regras da US-107): os quatro pesos saem juntos ou não saem, porque sem
+// o pessoal ele se recompõe pelos outros (VG × (100 − Σ pesos)). Só saem para a versão OFICIAL (a não oficial
+// é recalculada a cada abertura, e a diferença entre duas daria o custo de quem entrou) e, com pessoal, só
+// com pelo menos MINIMO_GRUPO_CUSTO postos, todos com custo calculado e pelo menos 2 custos por pessoa
+// diferentes (homogeneidade: o salário é o do cargo, RN_EMP_007). Falha fechada: sem esses dados da porta,
+// nenhum peso. A IA-17 (spec 6.8) pede o peso do pessoal por TP para a direção; a D-P20-5 trata do custo
+// de cada empregado na grade do orc (D-106-3).
 
 export const MINIMO_PARA_CURVA = 4;
 export const MAXIMO_TPS = 60;
@@ -26,11 +31,17 @@ export type TpEntrada = {
   vigencia: { inicio: string; fim: string };
   valorGlobal: Dinheiro | null;
   porCategoria: CategoriasTp;
-  metas: readonly { numero: string; valor: Dinheiro }[];
+  /** `ativa: false` fica fora do custo médio por meta; ausente conta como ativa. */
+  metas: readonly { numero: string; valor: Dinheiro; ativa?: boolean | undefined }[];
   realizado: Dinheiro;
-  /** Postos de pessoal na versão; ausente quando a porta não informa (aí o pessoal não é omitido). */
+  /** Postos de pessoal na versão. Os três campos de privacidade, ausentes, escondem os pesos (falha fechada). */
   postos?: number | undefined;
+  pessoalCalculado?: boolean | undefined;
+  custosPessoaDistintos?: number | undefined;
 };
+
+export type MotivoPesosOmitidos = 'NAO_OFICIAL' | 'POUCOS_POSTOS' | 'CUSTO_INCOMPLETO' | 'CUSTOS_IGUAIS' | 'SEM_DADOS';
+export const PESOS: readonly Indicador[] = ['pesoPessoal', 'pesoAdmCentral', 'pesoViagens', 'pesoBens'];
 
 export const INDICADORES = ['pesoPessoal', 'pesoAdmCentral', 'pesoViagens', 'pesoBens', 'custoMedioMeta', 'execucao'] as const;
 export type Indicador = (typeof INDICADORES)[number];
@@ -46,7 +57,8 @@ export type TpComparado = {
   /** Pesos e execução em pontos percentuais ("42.50"); custo médio por meta em reais. Null: sem base ou omitido. */
   indicadores: Record<Indicador, string | null>;
   metas: number;
-  pessoalOmitido: boolean;
+  /** Por que os quatro pesos não aparecem; null quando aparecem. */
+  pesosOmitidos: MotivoPesosOmitidos | null;
   foraDaCurva: ForaDaCurva[];
 };
 export type Comparativo = {
@@ -58,17 +70,31 @@ export type Comparativo = {
 
 const razao = (num: Dinheiro, den: Dinheiro | null) => (den === null ? null : (Percentual.razao(num, den)?.paraString() ?? null));
 
-function indicadoresDo(tp: TpEntrada): { valores: Record<Indicador, string | null>; pessoalOmitido: boolean } {
-  const pessoalOmitido = tp.postos !== undefined && tp.postos > 0 && tp.postos < MINIMO_GRUPO_CUSTO;
-  const somaMetas = tp.metas.reduce((a, m) => a.somar(m.valor), Dinheiro.zero());
+export function motivoPesosOmitidos(tp: TpEntrada): MotivoPesosOmitidos | null {
+  if (!tp.oficial) return 'NAO_OFICIAL';
+  const temPessoal = !tp.porCategoria.pessoal.ehZero();
+  if (tp.postos === undefined) return 'SEM_DADOS';
+  if (tp.postos === 0) return temPessoal ? 'SEM_DADOS' : null;
+  if (tp.postos < MINIMO_GRUPO_CUSTO) return 'POUCOS_POSTOS';
+  if (tp.pessoalCalculado === undefined || tp.custosPessoaDistintos === undefined) return 'SEM_DADOS';
+  if (!tp.pessoalCalculado) return 'CUSTO_INCOMPLETO';
+  if (tp.custosPessoaDistintos < 2) return 'CUSTOS_IGUAIS';
+  return null;
+}
+
+function indicadoresDo(tp: TpEntrada): { valores: Record<Indicador, string | null>; pesosOmitidos: MotivoPesosOmitidos | null } {
+  const pesosOmitidos = motivoPesosOmitidos(tp);
+  const peso = (v: Dinheiro) => (pesosOmitidos ? null : razao(v, tp.valorGlobal));
+  const ativas = tp.metas.filter((m) => m.ativa !== false);
+  const somaMetas = ativas.reduce((a, m) => a.somar(m.valor), Dinheiro.zero());
   return {
-    pessoalOmitido,
+    pesosOmitidos,
     valores: {
-      pesoPessoal: pessoalOmitido ? null : razao(tp.porCategoria.pessoal, tp.valorGlobal),
-      pesoAdmCentral: razao(tp.porCategoria.rateioAdmCentral, tp.valorGlobal),
-      pesoViagens: razao(tp.porCategoria.viagens, tp.valorGlobal),
-      pesoBens: razao(tp.porCategoria.bens, tp.valorGlobal),
-      custoMedioMeta: tp.metas.length > 0 ? somaMetas.dividir(String(tp.metas.length)).paraString() : null,
+      pesoPessoal: peso(tp.porCategoria.pessoal),
+      pesoAdmCentral: peso(tp.porCategoria.rateioAdmCentral),
+      pesoViagens: peso(tp.porCategoria.viagens),
+      pesoBens: peso(tp.porCategoria.bens),
+      custoMedioMeta: ativas.length > 0 ? somaMetas.dividir(String(ativas.length)).paraString() : null,
       execucao: razao(tp.realizado, tp.valorGlobal),
     },
   };
@@ -95,7 +121,7 @@ function limites(valores: readonly Dec[]): { abaixo: Dec; acima: Dec } | null {
   return { abaixo: q1.minus(folga), acima: q3.plus(folga) };
 }
 
-/** O comparativo: TPs com Valor Global ou com lançamento, na ordem recebida, até MAXIMO_TPS. */
+/** O comparativo: os TPs na ordem recebida, até MAXIMO_TPS. */
 export function compararTps(entrada: readonly TpEntrada[]): Comparativo {
   const incluidos = entrada.slice(0, MAXIMO_TPS);
   const calculados = incluidos.map((tp) => ({ tp, ...indicadoresDo(tp) }));
@@ -103,10 +129,11 @@ export function compararTps(entrada: readonly TpEntrada[]): Comparativo {
   const faixas = {} as Record<Indicador, ReturnType<typeof limites>>;
   for (const ind of INDICADORES) {
     const valores = calculados.map((c) => c.valores[ind]).filter((v): v is string => v !== null).map(dec);
+    // Dinheiro.de só pelo arredondamento Half-Even com 2 casas no texto (pontos ou reais).
     medianas[ind] = valores.length > 0 ? Dinheiro.de(mediana([...valores].sort((a, b) => a.comparedTo(b)))).paraString() : null;
     faixas[ind] = limites(valores);
   }
-  const tps = calculados.map(({ tp, valores, pessoalOmitido }): TpComparado => {
+  const tps = calculados.map(({ tp, valores, pesosOmitidos }): TpComparado => {
     const foraDaCurva: ForaDaCurva[] = [];
     for (const ind of INDICADORES) {
       const v = valores[ind];
@@ -123,8 +150,8 @@ export function compararTps(entrada: readonly TpEntrada[]): Comparativo {
       vigencia: { ...tp.vigencia },
       valorGlobal: tp.valorGlobal?.paraString() ?? null,
       indicadores: valores,
-      metas: tp.metas.length,
-      pessoalOmitido,
+      metas: tp.metas.filter((m) => m.ativa !== false).length,
+      pesosOmitidos,
       foraDaCurva,
     };
   });
