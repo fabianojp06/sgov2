@@ -13,6 +13,7 @@ export {
   alterarEmpregadoAcao,
   alterarQtdeAcao,
   excluirEmpregadoAcao,
+  finalizarLotePessoalAcao,
   excluirQtdeAcao,
   incluirEmpregadoAcao,
   incluirQtdeAcao,
@@ -29,6 +30,7 @@ export {
   novaVersaoPropostaAcao,
 } from './application/acoes-propostas';
 export { disponibilidadeDoEnvio, manipuladorWa01 } from './application/oficializacao';
+export { aprovadoresDoLote, manipuladorWa05, type SituacaoLote } from './application/lote-pessoal';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
 export { ultimaRevisao } from './application/revisor';
@@ -86,7 +88,7 @@ export { FormReceita, type ReceitaFormulario } from './ui/form-receita';
 export { TelaPacotes, textoAvisoPacote } from './ui/tela-pacotes';
 export { TelaCorrespondencia } from './ui/tela-correspondencia';
 export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMeta } from './ui/tela-metas';
-export { TelaEmpregados, textoAvisoEmpregado, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
+export { TelaEmpregados, textoAvisoEmpregado, type FinalizacaoPessoal, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
 export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
 export { TelaCronograma } from './ui/tela-cronograma';
 export { TelaRateio, textoAvisoRateio, type AcoesRateio, type PermissoesRateio } from './ui/tela-rateio';

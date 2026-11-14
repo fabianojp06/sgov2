@@ -10,6 +10,8 @@ import type { FiltrosPessoal } from '../application/pessoal-comum';
 import type { BlocoQtdes } from '../application/qtde-empregados';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 
+type SituacaoLoteTeste = 'EM_ELABORACAO' | 'EM_APROVACAO' | 'HOMOLOGADO';
+
 // Páginas do pessoal da proposta (US-070; plano do P20, Task 2, Step 1).
 vi.mock('next/server', () => ({ connection: async () => undefined }));
 const P_META = '00000000-0000-4000-8000-0000000000b1';
@@ -19,7 +21,7 @@ const M1 = '00000000-0000-4000-8000-0000000000c1';
 const E1 = '00000000-0000-4000-8000-0000000000d1';
 const E2 = '00000000-0000-4000-8000-0000000000d2';
 const Q1 = '00000000-0000-4000-8000-0000000000e1';
-const caso = vi.hoisted(() => ({ filtros: [] as unknown[], cargos: 0 }));
+const caso = vi.hoisted(() => ({ filtros: [] as unknown[], cargos: 0, aprovadores: { titular: 'Gestor (gfin)', substituto: 'Diretoria' } as { titular: string; substituto: string } | { motivo: string }, lote: 'EM_ELABORACAO' as string }));
 
 const cabecalho = {
   propostaId: P_META,
@@ -66,6 +68,8 @@ const blocoEmp = (extra: Partial<BlocoEmpregados>, veCusto: boolean): BlocoEmpre
   ],
   totais: totais(1, 1, 0),
   veCusto,
+  lote: caso.lote as SituacaoLoteTeste,
+  finalizavel: caso.lote === 'EM_ELABORACAO',
   ...extra,
 });
 
@@ -84,6 +88,7 @@ vi.mock('@/modules/orc', async (original) => {
         blocoEmp({ propostaId: P_SEM_META, numero: 'TP-2027/003', metas: [], grupos: [] }, custo),
       ];
     },
+    aprovadoresDoLote: async () => caso.aprovadores,
     cargosParaEmpregado: async () => {
       caso.cargos++;
       return [{ id: 'c1', codigo: 'C001', nome: 'Analista de orçamento' }];
@@ -195,6 +200,31 @@ describe('página dos empregados da proposta', () => {
     contexto = ctx(['orc.propostas:consultar']);
     expect(await digest(html())).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
     expect(negacoes).toHaveLength(1);
+  });
+});
+
+describe('finalizar os lançamentos (US-080, WA05)', () => {
+  it('o GRH vê o botão com os aprovadores no modal; sem alçada, o aviso; sem executar, nada', async () => {
+    contexto = ctx([...LANCA('orc.empregados'), 'orc.empregados:executar']);
+    caso.lote = 'EM_ELABORACAO';
+    const h = await html();
+    expect(h).toContain('Finalizar os lançamentos de pessoal da proposta TP-2027/001');
+    expect(h).toContain('Pessoal em elaboração');
+    caso.aprovadores = { motivo: 'Operação indisponível: Não há aprovador ativo cadastrado para este fluxo.' };
+    expect(await html()).toContain('Não há aprovador ativo cadastrado para este fluxo');
+    caso.aprovadores = { titular: 'Gestor (gfin)', substituto: 'Diretoria' };
+    contexto = ctx(LANCA('orc.empregados'));
+    expect(await html()).not.toContain('Finalizar os lançamentos');
+  });
+
+  it('com o lote em aprovação: o selo e nenhuma ação; o aviso depois de finalizar', async () => {
+    contexto = ctx([...LANCA('orc.empregados'), 'orc.empregados:executar']);
+    caso.lote = 'EM_APROVACAO';
+    const h = await html({ aviso: 'finalizado', n: 'TP-2027/001' });
+    expect(h).toContain('Pessoal em aprovação (WA05)');
+    expect(h).not.toContain('Finalizar os lançamentos');
+    expect(h).toContain(M.LOTE_FINALIZADO('TP-2027/001'));
+    caso.lote = 'EM_ELABORACAO';
   });
 });
 

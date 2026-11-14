@@ -222,6 +222,7 @@ model VersaoProposta {
   bens        BemProposta[]
   rateio      RateioProposta?
   snapshot    SnapshotVersao?
+  lotePessoal LotePessoal?
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -442,4 +443,20 @@ model SnapshotVersao {
 
   @@index([unidadeId])
   @@map("orc_snapshot_versao")
+}
+
+// Lote de pessoal da versão (US-080; plano do P27, D-P27-3 a D-P27-6; UC6.01, WA05): sem linha, Em Elaboração.
+// CHECKs e RLS na migration.
+model LotePessoal {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @unique @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  situacao         String         @default("EM_ELABORACAO")
+  finalizadoPor    String?        @map("finalizado_por") @db.Uuid
+  versao           Int            @default(0)
+
+  @@index([unidadeId])
+  @@map("orc_lote_pessoal")
 }

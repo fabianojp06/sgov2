@@ -58,7 +58,7 @@ describe('seedOrc', () => {
   it('pessoal da proposta no menu Cadastros, no grupo Propostas (US-070, D-P20-10)', async () => {
     const fs = await cliente.funcionalidade.findMany({ where: { codigo: { in: ['orc.empregados', 'orc.qtde_empregados'] } }, orderBy: { ordem: 'asc' } });
     expect(fs.map((f) => [f.codigo, f.moduloCodigo, f.grupo, f.nome, f.rota, f.ordem, f.acoes])).toEqual([
-      ['orc.empregados', 'CADASTROS', 'Propostas', 'Empregados', '/orc/empregados', 3, ['consultar', 'incluir', 'alterar', 'excluir']],
+      ['orc.empregados', 'CADASTROS', 'Propostas', 'Empregados', '/orc/empregados', 3, ['consultar', 'incluir', 'alterar', 'excluir', 'executar']],
       ['orc.qtde_empregados', 'CADASTROS', 'Propostas', 'Qtde. Empregados', '/orc/qtde-empregados', 4, ['consultar', 'incluir', 'alterar', 'excluir']],
     ]);
   });
@@ -124,7 +124,8 @@ describe('seedOrc', () => {
       ...viagens,
     ]);
     // D-P20-10: o GRH lança o pessoal da proposta (§11.3), sem a proposta nem as metas.
-    expect(await permissoes('ANALISTA_GRH')).toEqual([...pessoal, ...qtdes]);
+    // D-P27-2: só o GRH finaliza o lote de pessoal (WA05).
+    expect(await permissoes('ANALISTA_GRH')).toEqual(['orc.empregados:alterar', 'orc.empregados:consultar', 'orc.empregados:excluir', 'orc.empregados:executar', 'orc.empregados:incluir', ...qtdes]);
     // D-P21-10: o Operador de Viagens lança os tetos e as viagens da proposta (§11.3).
     expect(await permissoes('OPERADOR_VIAGENS')).toEqual(viagens);
   });

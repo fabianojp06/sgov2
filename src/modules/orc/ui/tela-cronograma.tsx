@@ -51,6 +51,7 @@ export function TelaCronograma({ dados, propostas }: { dados: CronogramaTela | n
         </form>
       )}
       {dados.semPessoal && <p role="note">{MENSAGENS_ORC.TOTALIZADOR_SEM_PESSOAL}</p>}
+      {dados.pessoalNaoHomologado && <p role="note">{MENSAGENS_ORC.CRONOGRAMA_PESSOAL_NAO_HOMOLOGADO}</p>}
       {dados.viagensDistribuidas && <p role="note">{MENSAGENS_ORC.CRONOGRAMA_VIAGENS_DISTRIBUIDAS}</p>}
       {dados.avisos.map((a) => (
         <p key={a} role="note">

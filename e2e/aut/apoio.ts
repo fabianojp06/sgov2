@@ -65,6 +65,8 @@ export const USUARIOS = {
   // Aprovador da oficialização das propostas (e2e/orc/propostas.spec.ts, US-079): titular da alçada WA01 que o
   // spec cria e apaga; próprio, para não dividir o limite de login com o gfin.orc.
   gfinPropostas: { login: 'gfin.propostas', nome: 'E2E Gestor Financeiro Propostas', perfil: 'GFIN' },
+  // Analista do GRH que finaliza o pessoal das propostas (e2e/orc/propostas.spec.ts, US-080, WA05).
+  grhPropostas: { login: 'grh.propostas', nome: 'E2E Analista GRH Propostas', perfil: 'ANALISTA_GRH' },
 } as const satisfies Record<string, { login: string; nome: string; perfil: string; ccEscopo?: string }>;
 
 export async function entrar(page: Page, login: string, senha: string): Promise<void> {

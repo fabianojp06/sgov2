@@ -1,5 +1,7 @@
 import {
   alterarEmpregadoAcao,
+  aprovadoresDoLote,
+  finalizarLotePessoalAcao,
   cargosParaEmpregado,
   excluirEmpregadoAcao,
   incluirEmpregadoAcao,
@@ -24,6 +26,7 @@ export default async function Empregados({ searchParams }: { searchParams: Promi
     podeIncluir: ctx.permissoes.has('orc.empregados:incluir'),
     podeAlterar: ctx.permissoes.has('orc.empregados:alterar'),
     podeExcluir: ctx.permissoes.has('orc.empregados:excluir'),
+    podeFinalizar: ctx.permissoes.has('orc.empregados:executar'),
   };
   const busca = await searchParams;
   const filtros = { tipo: um(busca.tipo), proposta: um(busca.proposta), meta: um(busca.meta) };
@@ -38,6 +41,8 @@ export default async function Empregados({ searchParams }: { searchParams: Promi
   // Com o formulário aberto, a lista vem sem filtro: o bloco da proposta ou do empregado precisa estar nela.
   const blocos = await listarEmpregados(ctx, formulario ? {} : filtros).catch(naoEncontradoSeNegado(ctx));
   const cargos = formulario ? await cargosParaEmpregado(ctx) : [];
+  // US-080: o [Finalizar Lançamentos] e os aprovadores da alçada WA05, só para quem finaliza (o GRH).
+  const finalizacao = permissoes.podeFinalizar ? { acao: finalizarLotePessoalAcao, aprovadores: await aprovadoresDoLote(ctx) } : undefined;
   return (
     <div>
       <h1>Empregados</h1>
@@ -49,6 +54,7 @@ export default async function Empregados({ searchParams }: { searchParams: Promi
         cargos={cargos}
         aviso={textoAvisoEmpregado(um(busca.aviso), um(busca.o), um(busca.n))}
         formulario={formulario}
+        finalizacao={finalizacao}
       />
     </div>
   );

@@ -126,6 +126,24 @@ export async function lerVersaoEditavel(
   });
 }
 
+/**
+ * RF_APR_REQ_008 e RN_WA05_004 (US-080; plano do P27, D-P27-5): a de cima, e o lote de pessoal da versão não pode
+ * estar Em Aprovação nem Homologado. Para empregados e quantitativos.
+ */
+export async function lerVersaoDoPessoal(
+  tx: TxCliente,
+  propostaId: string,
+  versaoCapa: number,
+  imutavel: string,
+  versaoDoRegistro?: string,
+): Promise<Resultado<VersaoLida>> {
+  const lida = await lerVersaoEditavel(tx, propostaId, versaoCapa, imutavel, versaoDoRegistro);
+  if (!lida.ok) return lida;
+  const lote = await tx.lotePessoal.findUnique({ where: { versaoPropostaId: lida.valor.versaoId }, select: { situacao: true } });
+  if (lote && lote.situacao !== 'EM_ELABORACAO') return falha([{ campo: '_', mensagem: M.LOTE_PESSOAL_TRAVADO(lote.situacao === 'HOMOLOGADO' ? 'homologado' : 'em aprovação') }]);
+  return lida;
+}
+
 /** Trava a capa (sobe a versão dela) e confere que a última versão não mudou; senão, conflito. */
 export async function travarVersao(tx: TxCliente, lida: VersaoLida): Promise<void> {
   exigirUmaLinha(
