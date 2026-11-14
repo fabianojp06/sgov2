@@ -6,12 +6,13 @@ import { Dinheiro, Percentual } from '@/shared/kernel';
 // Global, o repasse do ciclo de 12 meses e o fechamento de cada ano. As descrições são geradas aqui (REQ_CD_002).
 
 /**
- * D-P25-2 [PROVISÓRIO]: o valor dividido por igual nos meses, com Half-Even, e o resto dos centavos no último,
- * para a soma bater exato (RN_CD_002).
+ * D-P25-2 [PROVISÓRIO]: o valor dividido por igual nos meses, com a parcela arredondada para baixo e o resto dos
+ * centavos no último mês: a soma bate exato (RN_CD_002) e nenhum mês fica negativo (revisão 12.12; arredondar para
+ * cima deixava o último mês negativo com valores pequenos).
  */
 export function distribuirIgual(valor: Dinheiro, meses: number): Dinheiro[] {
   if (meses <= 0) return [];
-  const parcela = valor.dividir(String(meses));
+  const parcela = Dinheiro.de(new Decimal(valor.paraString()).dividedBy(meses).toDecimalPlaces(2, Decimal.ROUND_DOWN));
   const partes = Array.from({ length: meses }, () => parcela);
   partes[meses - 1] = valor.subtrair(parcela.multiplicar(String(meses - 1)));
   return partes;

@@ -11,16 +11,21 @@ const meses = (inicio: string, n: number) =>
   });
 
 describe('distribuirIgual (D-P25-2, Review Focus 2)', () => {
-  it('7 meses: parcelas iguais e o resto no último; a soma é exata', () => {
+  it('7 meses: parcelas iguais (para baixo) e o resto no último; a soma é exata', () => {
     const p = distribuirIgual(d('100.00'), 7);
-    expect(p.map((x) => x.paraString())).toEqual(['14.29', '14.29', '14.29', '14.29', '14.29', '14.29', '14.26']);
+    expect(p.map((x) => x.paraString())).toEqual(['14.28', '14.28', '14.28', '14.28', '14.28', '14.28', '14.32']);
     expect(Dinheiro.somarTodos(p).paraString()).toBe('100.00');
   });
 
-  it('a soma bate de 1 a 60 meses com valores quebrados', () => {
+  it('a soma bate de 1 a 60 meses com valores quebrados, e nenhum mês fica negativo (revisão 12.12)', () => {
     for (let n = 1; n <= 60; n++) {
-      for (const v of ['0.01', '1.00', '999999.99', '12345.67']) expect(Dinheiro.somarTodos(distribuirIgual(d(v), n)).paraString()).toBe(d(v).paraString());
+      for (const v of ['0.01', '0.10', '0.20', '1.00', '17.69', '999999.99', '12345.67']) {
+        const p = distribuirIgual(d(v), n);
+        expect(Dinheiro.somarTodos(p).paraString()).toBe(d(v).paraString());
+        expect(p.some((x) => x.ehNegativo())).toBe(false);
+      }
     }
+    expect(distribuirIgual(d('0.10'), 12).at(-1)!.paraString()).toBe('0.10');
     expect(distribuirIgual(d('5.00'), 0)).toEqual([]);
   });
 });

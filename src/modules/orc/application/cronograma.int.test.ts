@@ -170,8 +170,8 @@ describe('obterCronograma (UC04.01)', () => {
     const c = (await obterCronograma(await ctx(), p.id, {}, comDeps()))!;
     const meses = c.linhas.filter((l) => l.tipo === 'MES');
     expect(meses.map((l) => l.descricao)).toEqual(['01', '02', '03', '04', '05', '06', '07'].map((m, i) => `Parcela ${i + 1} – ${m}/2027`));
-    // jan: 7.500 + 142,86; fev: 7.500 + 2.000 + 142,86; mar: 7.500 + 700 + 142,86; abr a jun: 142,86; jul: 142,84.
-    expect(meses.map((l) => l.desembolso.paraString())).toEqual(['7642.86', '9642.86', '8342.86', '142.86', '142.86', '142.86', '142.84']);
+    // jan: 7.500 + 142,85; fev: 7.500 + 2.000 + 142,85; mar: 7.500 + 700 + 142,85; abr a jun: 142,85; jul: 142,90.
+    expect(meses.map((l) => l.desembolso.paraString())).toEqual(['7642.85', '9642.85', '8342.85', '142.85', '142.85', '142.85', '142.90']);
     const t = (await obterTotalizadores(await ctx(), p.id, comDeps()))!;
     expect(c.total.paraString()).toBe(t.total.paraString());
     expect(c.valorGlobal.paraString()).toBe('26200.00');
