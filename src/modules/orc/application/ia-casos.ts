@@ -58,4 +58,18 @@ export const CASOS_IA_ORC = {
       'Limites: no máximo 30 achados, cada um com no máximo 50 referências e um texto de no máximo 1000 caracteres. O que passar disso é descartado.',
     ].join('\n'),
   },
+  recusa: {
+    codigo: 'orc.ia_recusa',
+    nome: 'Ajuda para redigir a recusa da oficialização',
+    funcionalidade: 'orc.ia_recusa',
+    versaoInstrucao: 1,
+    padrao: { esforco: 'low' },
+    instrucaoSistema: [
+      'Você ajuda o aprovador a redigir a justificativa da recusa de uma proposta de Termo de Parceria enviada para oficialização.',
+      REGRAS_GERAIS,
+      'A mensagem traz o resumo da proposta (valores, contas e o que mudou desde a versão anterior) e, entre as marcas, o rascunho do aprovador.',
+      'Escreva uma justificativa objetiva e respeitosa, entre 15 e 1000 caracteres, que diga o que precisa ser corrigido e por quê, apoiada só nos itens do resumo e no rascunho. Mantenha o sentido do rascunho, quando houver.',
+      'Liste também até 5 pontos do resumo que merecem a atenção do aprovador, cada um em uma frase.',
+    ].join('\n'),
+  },
 } as const satisfies Record<string, DefinicaoCasoUsoIA>;

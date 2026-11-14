@@ -4,9 +4,10 @@ export { aprovarAcao, enviarAcao, pedirRevisaoAcao, rejeitarAcao } from './appli
 export { importarPlanilhaAcao } from './application/acoes-importacao';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
-export { sugerirContaCcAcao, sugerirJustificativaAcao } from './application/acoes-ia';
+export { sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
+export { AjudaRecusaIA } from './ui/ajuda-recusa-ia';
 export { alterarPosicaoAcao, excluirPosicaoAcao, incluirPosicaoAcao, ligarCargoAcao, previaPosicaoAcao } from './application/acoes-posicoes';
 export { alterarMetaAcao, excluirMetaAcao, incluirMetaAcao } from './application/acoes-metas';
 export {

@@ -113,6 +113,20 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { GESTOR_DIRETORIA: ['executar'], GFIN: ['executar'] },
   },
   {
+    // Ajuda da IA para redigir a recusa do WA01 na Central de Tarefas (US-084; plano do P30, D-P30-6) [PROVISÓRIO]:
+    // fora do menu, só executar, para os aprovadores do WA01. Nasce desligada, como as do P14.
+    codigo: 'orc.ia_recusa',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'IA: ajuda na recusa da oficialização',
+    rota: '/apr/tarefas',
+    ordem: 20,
+    ajuda: 'Pede à IA uma redação para a justificativa da recusa da proposta enviada para oficialização, a partir do resumo da tarefa. A IA só sugere; quem rejeita é o aprovador.',
+    exibirNoMenu: false,
+    acoes: ['executar'],
+    perfisPadrao: { GFIN: ['executar'], DIREX: ['executar'] },
+  },
+  {
     codigo: 'orc.ia_sugestao_conta',
     modulo: 'ADM_CENTRAL',
     grupo: GRUPO,
