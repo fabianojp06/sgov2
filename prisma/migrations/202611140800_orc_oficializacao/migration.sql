@@ -10,6 +10,7 @@ CREATE TABLE "orc_snapshot_versao" (
     "versao_proposta_id" UUID NOT NULL,
     "valor_global" DECIMAL(15,2) NOT NULL,
     "contas" JSONB NOT NULL,
+    "impostos" JSONB NOT NULL DEFAULT '[]',
     "gerado_por" UUID NOT NULL,
     "gerado_em" TIMESTAMPTZ(6) NOT NULL DEFAULT clock_timestamp(),
 

@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MENSAGENS_ALCADA } from '@/modules/adm/servidor';
 import { decidirSolicitacao } from '@/modules/apr';
-import { CENTROS_CUSTO_EXEMPLO, cargosExemplo, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo, type NoCentroCusto } from '@/modules/cad/servidor';
+import { CENTROS_CUSTO_EXEMPLO, cargosExemplo, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo, type ImpostoVigente, type NoCentroCusto } from '@/modules/cad/servidor';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
+import { Percentual } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { campoCelula, campoConta } from '../domain/rateio';
@@ -38,7 +39,15 @@ const RAIZ_TPS = cc('9', 'Termos de Parceria', false, [cc('9.1', 'TP de exemplo 
 const estrutura = estruturaFinanceiraFalsa({ centrosCusto: [...CENTROS_CUSTO_EXEMPLO, RAIZ_TPS] });
 const [C001] = cargosExemplo().map((c) => c.id) as [string];
 const custo = { ...custoPessoalFalso([premissasExemplo(2027)], cargosExemplo()), calcularCustoPosicao: custoPessoalFalso().calcularCustoPosicao };
-const comDeps = (): Partial<DepsOrc> => ({ cliente: app, estrutura, custoPessoal: custo, cargosDecifrados: custo.listarCargosExercicio });
+// Os impostos do C2 que o teste do RN_TAX_03 troca; os demais testes não têm imposto cadastrado.
+let impostos: ImpostoVigente[] = [];
+const comDeps = (): Partial<DepsOrc> => ({
+  cliente: app,
+  estrutura,
+  custoPessoal: custo,
+  cargosDecifrados: custo.listarCargosExercicio,
+  impostosVigentes: async (_tx, _competencia, opcoes = {}) => impostos.filter((i) => !opcoes.tipo || i.incidencia === 'AMBOS' || i.incidencia === opcoes.tipo),
+});
 
 const LANCA = ['consultar', 'incluir', 'alterar', 'excluir'];
 const ORCAMENTISTA = [
@@ -278,6 +287,32 @@ describe('decisão do WA01 na Central de Tarefas (UC6.00 passo 5 e FA-A)', () =>
     expect(historico.map((h) => h.descricao.split(':')[0])).toEqual(expect.arrayContaining(['REJEICAO_WORKFLOW', 'HOMOLOGACAO_OFICIAL']));
     // Oficializada: nada mais muda, nem o envio.
     expect(await enviar(p.id)).toMatchObject({ ok: false });
+  });
+
+  it('a oficialização congela as alíquotas vigentes (RN_TAX_03); imposto sem alíquota bloqueia o envio e a aprovação', async () => {
+    const iss: ImpostoVigente = { id: 'iss', nome: 'ISS', incidencia: 'AMBOS', percentual: Percentual.dePontos('5.0000'), desde: '2026-01' as ImpostoVigente['desde'] };
+    const pis: ImpostoVigente = { id: 'pis', nome: 'PIS', incidencia: 'CONTRATO', percentual: null, desde: null };
+    const novo: ImpostoVigente = { id: 'x', nome: 'Taxa Nova', incidencia: 'TERMO_PARCERIA', percentual: null, desde: null };
+    try {
+      // O PIS não incide em Termo de Parceria (RN_PRO_010): sem alíquota, não bloqueia.
+      impostos = [iss, pis, novo];
+      const p = await proposta();
+      await avancar(p.id);
+      expect(await enviar(p.id)).toEqual(erroGeral(M.ENVIO_IMPOSTO_SEM_ALIQUOTA('Taxa Nova')));
+      impostos = [iss, pis];
+      exigirOk(await enviar(p.id));
+      // A alíquota sumiu entre o envio e a aprovação: a aprovação recusa e a versão segue Em Aprovação.
+      impostos = [iss, pis, novo];
+      const s = await pendente(p.numero);
+      expect(await decidir(s, 'APROVAR')).toMatchObject({ ok: false });
+      expect(await situacao(p.id)).toBe('EM_APROVACAO');
+      impostos = [iss, pis];
+      expect(await decidir(s, 'APROVAR')).toMatchObject({ ok: true });
+      const snap = await migrator.snapshotVersao.findFirstOrThrow({ where: { versaoProposta: { propostaId: p.id } } });
+      expect(snap.impostos).toEqual([{ id: 'iss', nome: 'ISS', percentual: '5.0000', desde: '2026-01' }]);
+    } finally {
+      impostos = [];
+    }
   });
 
   it('o banco recusa à aplicação transição fora do fluxo, mesmo por fora do caso de uso', async () => {

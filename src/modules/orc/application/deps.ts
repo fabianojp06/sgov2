@@ -7,6 +7,7 @@ import {
   carregarIndiceEstrutura,
   congelarPremissasExercicio,
   garantirPremissasExercicio,
+  impostosVigentes,
   listarArvoreCentrosCusto,
   listarArvoreContas,
   listarCargosSemSalarioCifrado,
@@ -63,6 +64,8 @@ export type DepsOrc = {
    * (`contaAnaliticaCapex`, #473 da frente B).
    */
   contaCapex?: (classificacao: string) => boolean;
+  /** As alíquotas vigentes do C2 (US-052), congeladas no snapshot da oficialização (RN_TAX_03; US-079). */
+  impostosVigentes: typeof impostosVigentes;
 };
 
 export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
@@ -85,5 +88,7 @@ export function resolverDeps(deps: Partial<DepsOrc> = {}): DepsOrc {
     obterEscopo: deps.obterEscopo ?? obterEscopoCentroCusto,
     semaforo: deps.semaforo ?? null,
     ...(deps.contaCapex ? { contaCapex: deps.contaCapex } : {}),
+    // Os testes que injetam o custoPessoalFalso do cad levam junto o falso dos impostos.
+    impostosVigentes: deps.impostosVigentes ?? (deps.custoPessoal as { impostosVigentes?: typeof impostosVigentes } | undefined)?.impostosVigentes ?? impostosVigentes,
   };
 }

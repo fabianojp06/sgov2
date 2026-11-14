@@ -347,6 +347,8 @@ export const MENSAGENS_ORC = {
   ENVIO_PESSOAL_INCOMPLETO: (avisos: string) =>
     `Operação Rejeitada [TRAVA O ERRO]: O custo do pessoal está incompleto e não pode ser oficializado assim (${avisos}). Cadastre os parâmetros do exercício ou corrija os cargos antes de enviar.`,
   PROPOSTA_ENVIADA: (numero: string) => `Proposta do TP ${numero} enviada para oficialização.`,
+  ENVIO_IMPOSTO_SEM_ALIQUOTA: (nomes: string) =>
+    `Operação Rejeitada [TRAVA O ERRO]: Não há alíquota vigente no início da proposta para: ${nomes}. Cadastre a alíquota em Impostos antes de oficializar (RN_TAX_03).`,
   WA01_ALVO_MUDOU: 'A versão desta solicitação não está mais Em Aprovação. Recarregue a Central de Tarefas.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
   TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',

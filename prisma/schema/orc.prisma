@@ -435,6 +435,8 @@ model SnapshotVersao {
   versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
   valorGlobal      Decimal        @map("valor_global") @db.Decimal(15, 2)
   contas           Json
+  /// RN_TAX_03: as alíquotas congeladas na oficialização (id, nome, percentual, desde).
+  impostos         Json           @default("[]")
   geradoPor        String         @map("gerado_por") @db.Uuid
   geradoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("gerado_em") @db.Timestamptz(6)
 

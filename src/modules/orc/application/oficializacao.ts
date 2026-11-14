@@ -145,6 +145,8 @@ export async function enviarPropostaWa01(ctx: ContextoRequisicao, bruto: unknown
     // parâmetros nem recusa do motor (revisão 12.12).
     const pessoal = await totaisDaVersao(tx, deps, v.id, true);
     if (pessoal.avisos.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_PESSOAL_INCOMPLETO(pessoal.avisos.join(' ')) });
+    const { semAliquota } = await impostosParaCongelar(tx, deps, p);
+    if (semAliquota.length > 0) erros.push({ campo: '_', mensagem: M.ENVIO_IMPOSTO_SEM_ALIQUOTA(semAliquota.join(', ')) });
     if (erros.length > 0 || !aprovador || 'bloqueio' in aprovador) return falha(erros);
 
     await mudarSituacao(tx, id, versao, v.id, 'EM_ELABORACAO', 'EM_APROVACAO');
@@ -188,6 +190,19 @@ async function alvoEmAprovacao(tx: TxCliente, s: SolicitacaoDecidivel) {
 const alvoMudou = () => falha([{ campo: '_', mensagem: M.WA01_ALVO_MUDOU }]);
 
 /**
+ * RN_TAX_01 e RN_TAX_03 (combinado com a frente B na #448): as alíquotas dos impostos que incidem no tipo da
+ * proposta, vigentes no mês de início dela, para congelar no snapshot. Imposto sem alíquota nessa competência
+ * bloqueia a oficialização, com o nome dele na mensagem.
+ */
+async function impostosParaCongelar(tx: TxCliente, deps: DepsOrc, p: { inicio: Date; tipo: string }) {
+  const lista = await deps.impostosVigentes(tx, p.inicio.toISOString().slice(0, 7), { tipo: p.tipo as 'CONTRATO' | 'TERMO_PARCERIA' });
+  return {
+    congelados: lista.map((i) => ({ id: i.id, nome: i.nome, percentual: i.percentual?.paraString() ?? null, desde: i.desde })),
+    semAliquota: lista.filter((i) => i.percentual === null).map((i) => i.nome),
+  };
+}
+
+/**
  * O manipulador do WA01 para a Central de Tarefas (D-P26-6 e D-P26-7). Aprovar: snapshot com o Valor Global e os
  * totais por conta (com o pessoal: o aprovador homologa o orçamento inteiro [PROVISÓRIO]) e a versão Oficializada.
  * Rejeitar: a versão volta para Em Elaboração. Os dois sobem a capa e vão ao Histórico.
@@ -201,12 +216,16 @@ export function manipuladorWa01(depsParciais: Partial<DepsOrc> = {}): Manipulado
       const t = await totaisDaVersao(tx, deps, v.id, true);
       // Os parâmetros podem ter mudado entre o envio e a aprovação: o snapshot não grava custo incompleto.
       if (t.avisos.length > 0) return falha([{ campo: '_', mensagem: M.ENVIO_PESSOAL_INCOMPLETO(t.avisos.join(' ')) }]);
+      // RN_TAX_03: a alíquota de cada imposto fica congelada no snapshot; a que sumiu desde o envio bloqueia.
+      const impostos = await impostosParaCongelar(tx, deps, v.proposta);
+      if (impostos.semAliquota.length > 0) return falha([{ campo: '_', mensagem: M.ENVIO_IMPOSTO_SEM_ALIQUOTA(impostos.semAliquota.join(', ')) }]);
       await tx.snapshotVersao.create({
         data: {
           unidadeId: v.unidadeId,
           versaoPropostaId: v.id,
           valorGlobal: t.total.paraString(),
           contas: Object.fromEntries([...t.porConta].map(([conta, valor]) => [conta, valor.paraString()])),
+          impostos: impostos.congelados,
           geradoPor: ctx.usuarioId,
         },
       });
