@@ -117,6 +117,9 @@ Telas com exportação: o plano de contas, a conferência da carga e o Históric
 | G3 | Qualquer | No manual, perguntar "como faço para…" sobre uma tela do perfil e depois sobre uma que o perfil não tem | A resposta cita os trechos do manual com o link da tela e o selo "Gerado com IA – revisar"; para a tela que o perfil não tem, diz que o manual não responde | US-108 | não |
 | G4 | Analista GRH ou GFIN | Ligar o caso "Análise do quadro de pessoal" (G2) e abrir Relatórios › Análise do quadro de pessoal | Os agregados aparecem sem nomes e sem custo por cargo; a análise traz o selo e os agregados enviados | US-107 | não |
 | G5 | Gestor de Diretoria | Num pacote base zero, pedir a sugestão de conta e de justificativa | A sugestão aparece para revisar; nada é gravado até o gestor salvar | US-062, US-063 | não |
+| G6 | DIREX ou GFIN | Administração Central › Comparativo entre TPs; ligar o caso "Comentários do comparativo" (G2) e pedir os comentários | A tabela mostra os pesos só das versões oficiais, com o motivo quando omitidos, e marca "acima/abaixo da curva" em texto; os comentários trazem o selo | US-106 | não |
+| G7 | GFIN | Relatórios › Relatório executivo mensal: gerar o rascunho do mês, revisar os textos, salvar e aprovar; baixar o PDF antes e depois | O rascunho sai marcado "RASCUNHO - não distribuir" (também no PDF); "Aprovar" só aparece com os textos salvos; depois de aprovado, nada muda e a DIREX passa a ver e baixar | US-103 | não |
+| G8 | GFIN | Relatórios › Apresentação para reunião de diretoria: escrever um tema, montar o roteiro e baixar os slides | Slides em PDF 16:9 com gráficos do sistema e o rodapé "Roteiro com apoio de IA, de responsabilidade de <usuário> - revisar" | US-105 | não |
 
 ## F. Encerramento
 
