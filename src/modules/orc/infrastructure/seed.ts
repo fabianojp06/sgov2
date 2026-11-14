@@ -284,6 +284,23 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       AUDITOR: ['consultar'],
       DIREX: ['consultar'],
     },
+  },  {
+    // Cronograma de desembolso da proposta (US-075; plano do P25, D-P25-8): no menu Cadastros (UC04.01). Só
+    // consulta, calculado na leitura; o pessoal só entra para quem lança os empregados (D-P23-5).
+    codigo: 'orc.cronograma',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Cronograma de Desembolso',
+    rota: '/orc/cronograma',
+    ordem: 9,
+    ajuda: 'Mostra, mês a mês, o desembolso da última versão da proposta, com o acumulado, o percentual sobre o Valor Global, o repasse de cada 12 meses e a previsão de despesas por conta e ano.',
+    acoes: ['consultar'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
   },
 ];
 

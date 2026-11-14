@@ -51,11 +51,27 @@ export function montarCronograma(competencias: readonly string[], porMes: Readon
     ano = ano.somar(desembolso);
     const ultima = i === competencias.length - 1;
     const fechaCiclo = (i + 1) % 12 === 0 || ultima;
-    linhas.push({ tipo: 'MES', descricao: `Parcela ${i + 1} – ${mesAno(c)}`, competencia: c, desembolso, acumulado, percentualAcumulado: percentual(acumulado), repasseCiclo: fechaCiclo ? ciclo : null });
+    linhas.push({
+      tipo: 'MES',
+      descricao: `Parcela ${i + 1} – ${mesAno(c)}`,
+      competencia: c,
+      desembolso,
+      acumulado,
+      percentualAcumulado: percentual(acumulado),
+      repasseCiclo: fechaCiclo ? ciclo : null,
+    });
     if (fechaCiclo) ciclo = Dinheiro.zero();
     const fechaAno = ultima || competencias[i + 1]!.slice(0, 4) !== c.slice(0, 4);
     if (fechaAno) {
-      linhas.push({ tipo: 'ANO', descricao: `Total de ${c.slice(0, 4)}`, competencia: null, desembolso: ano, acumulado, percentualAcumulado: percentual(acumulado), repasseCiclo: null });
+      linhas.push({
+        tipo: 'ANO',
+        descricao: `Total de ${c.slice(0, 4)}`,
+        competencia: null,
+        desembolso: ano,
+        acumulado,
+        percentualAcumulado: percentual(acumulado),
+        repasseCiclo: null,
+      });
       ano = Dinheiro.zero();
     }
   });

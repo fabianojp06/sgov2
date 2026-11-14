@@ -263,6 +263,13 @@ describe('página das propostas de TP', () => {
     expect(await html()).not.toContain('Rateio/ISS da proposta');
   });
 
+  it('com orc.cronograma:consultar, o link para o cronograma em toda proposta (US-075)', async () => {
+    contexto = ctx(['orc.propostas:consultar', 'orc.cronograma:consultar']);
+    expect(await html()).toContain('>Cronograma de desembolso da proposta TP-2027/001</a>');
+    contexto = ctx(['orc.propostas:consultar']);
+    expect(await html()).not.toContain('Cronograma de desembolso da proposta');
+  });
+
   it('sem orc.propostas:consultar: 404 com a negação auditada', async () => {
     contexto = ctx(['orc.posicoes:consultar']);
     expect(await digest(Propostas({ searchParams: Promise.resolve({}) }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');

@@ -329,6 +329,8 @@ export const MENSAGENS_ORC = {
   CONFIRMA_REPLICAR_RATEIO: 'Copiar o valor do primeiro mês preenchido para os meses seguintes que estão vazios?',
   RATEIO_ISS_A_DEFINIR: 'O valor do ISS fica a definir: a fórmula ainda não foi homologada.',
   RATEIO_BASE_RESTRITA: 'restrita (inclui o custo do pessoal, visível só para quem lança os empregados)',
+  // Cronograma de desembolso (US-075; UC04.01; plano do P25).
+  CRONOGRAMA_VIAGENS_DISTRIBUIDAS: 'As viagens não têm data: o custo delas foi distribuído por igual nos meses da vigência.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
   TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',
 } as const;
