@@ -503,7 +503,7 @@
   - **D-P21-3:** o transporte como pessoas × valor, fora do custo;
   - **D-P21-10 e D-P22-10:** as matrizes de permissões;
   - **D-P22-6:** a inativação do bem copiado.
-- [ ] Frente A: pôr a coluna Vínculo Funcional na grade de empregados. O C2 já expõe o `vinculoFuncional` (#469 da frente B).
+- [x] #477: coluna Vínculo Funcional na grade de empregados (RN_EMP_008), herdada do cargo pelo `vinculoFuncional` do C2 (#469 da frente B). Só exibição [PROVISÓRIO]: a trava de divergência com o organograma fica de fora.
 - **Próxima da R4:** US-074 (totalizadores, #96). A US-073 (rateio/ISS) depende do GAP-CAD-001 só no cálculo do ISS.
 
 **Frente B (03/11)**
