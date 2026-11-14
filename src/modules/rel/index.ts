@@ -59,3 +59,8 @@ export { dataEmBrasilia, mesEmBrasilia } from './domain/relatorio-executivo';
 export { apresentacaoLiberada } from './application/apresentacao';
 export { exportarSlidesAcao, gerarRoteiroAcao } from './application/acoes-apresentacao';
 export { Apresentacao } from './ui/apresentacao';
+
+// Pergunte ao SGO (US-104, parte 1): a liberação, a ação e a tela.
+export { pergunteLiberado } from './application/pergunte-sgo';
+export { perguntarAoSgoAcao } from './application/acoes-pergunte-sgo';
+export { PergunteSgo } from './ui/pergunte-sgo';
