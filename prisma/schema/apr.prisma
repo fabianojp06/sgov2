@@ -1,0 +1,29 @@
+// Solicitação de aprovação (US-078, spec §6.5; Aprovações V2, UC6.00 a UC6.02; plano do P26, D-P26-5): o
+// pedido de um fluxo (WA01, WA02, WA05) sobre um alvo (a versão da proposta, no WA01), roteado pela alçada a um
+// aprovador fixo. Uma só EM_APROVACAO por alvo (índice único parcial na migration, que o Prisma não declara).
+// CHECKs na migration. RLS por unidade_id (a do TP do alvo).
+model SolicitacaoAprovacao {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId      String    @map("unidade_id") @db.Uuid
+  unidade        Unidade   @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  fluxo          String
+  alvoTipo       String    @map("alvo_tipo")
+  alvoId         String    @map("alvo_id") @db.Uuid
+  // O que a Central mostra (o número do TP e a versão, por exemplo), gravado no envio.
+  descricao      String
+  solicitanteId  String    @map("solicitante_id") @db.Uuid
+  solicitante    Usuario   @relation("SolicitacaoSolicitante", fields: [solicitanteId], references: [id], onDelete: Restrict)
+  aprovadorId    String    @map("aprovador_id") @db.Uuid
+  aprovador      Usuario   @relation("SolicitacaoAprovador", fields: [aprovadorId], references: [id], onDelete: Restrict)
+  papelAprovador String    @map("papel_aprovador")
+  situacao       String    @default("EM_APROVACAO")
+  justificativa  String?
+  enviadaEm      DateTime  @default(dbgenerated("clock_timestamp()")) @map("enviada_em") @db.Timestamptz(6)
+  decididaEm     DateTime? @map("decidida_em") @db.Timestamptz(6)
+  versao         Int       @default(0)
+
+  @@index([unidadeId])
+  @@index([aprovadorId])
+  @@index([alvoId])
+  @@map("apr_solicitacao")
+}

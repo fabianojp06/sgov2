@@ -1,4 +1,5 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm';
+import { seedApr } from '@/modules/apr';
 import type { Seed } from '@/shared/db';
 import { instalarCasosUsoIA } from '@/shared/ia';
 import { CASOS_IA_ORC } from '../application/ia-casos';
@@ -293,5 +294,7 @@ export const seedOrc: Seed = {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_ORC);
     // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
     await instalarCasosUsoIA(tx, Object.values(CASOS_IA_ORC));
+    // A Central de Tarefas do apr (US-078) entra junto: o prisma/seed.ts é compartilhado, e o WA01 é do orc.
+    await seedApr.executar(tx);
   },
 };
