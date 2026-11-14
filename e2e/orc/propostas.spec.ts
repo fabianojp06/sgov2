@@ -6,7 +6,7 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
 // Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3), os bens (US-072; plano do P22, Task 2, Step 3) e os
 // totalizadores (US-074; plano do P23, Task 2, Step 3) o Rateio/ISS (US-073; plano do P24, Task 2, Step 2) e o
-// cronograma de desembolso (US-075; plano do P25, Task 2, Step 2).
+// cronograma de desembolso (US-075; plano do P25, Task 2, Step 2), a oficialização (US-079) e o lote de pessoal (US-080, WA05).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -49,6 +49,7 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query(`DELETE FROM apr_solicitacao WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_snapshot_versao WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM aliquota_imposto WHERE competencia = '${COMPETENCIA_ISS}' AND imposto_id = (SELECT id FROM imposto WHERE nome = 'ISS')`);
+      await cliente.query(`DELETE FROM orc_lote_pessoal WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM adm_alcada_aprovacao WHERE titular_id = (SELECT id FROM usuario WHERE login = '${USUARIOS.gfinPropostas.login}')`);
       await cliente.query(`DELETE FROM orc_rateio WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_bem WHERE unidade_id IN ${unidade}`);
@@ -301,6 +302,57 @@ test.describe.serial('proposta de TP', () => {
     await page.goto('/orc/propostas');
     await page.getByRole('link', { name: `Totalizadores da proposta ${NUMERO_COPIA}` }).click();
     await expect(page.getByRole('list', { name: new RegExp(`^Totais por conta da proposta ${NUMERO_COPIA}`) })).toContainText(/4\.1\.1\.5\.015 – .*Orçado 100,00/);
+  });
+
+  test('3g2. o GRH finaliza o pessoal, o GFIN homologa na Central e o pessoal entra no cronograma (WA05)', async ({ page }) => {
+    // A alçada WA05 (o GFIN próprio de titular, a DIREX de substituta) e o vínculo do GRH com o TP; o afterAll apaga os dois.
+    const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
+    await cliente.connect();
+    try {
+      await cliente.query(
+        `INSERT INTO adm_alcada_aprovacao (fluxo, titular_id, substituto_id, criada_em)
+         SELECT 'WA05', t.id, s.id, now() FROM usuario t, usuario s WHERE t.login = $1 AND s.login = $2`,
+        [USUARIOS.gfinPropostas.login, USUARIOS.direx.login],
+      );
+      await cliente.query(
+        `INSERT INTO usuario_unidade (usuario_id, unidade_id) SELECT u.id, d.id FROM usuario u, unidade d WHERE u.login = $1 AND d.codigo = $2`,
+        [USUARIOS.grhPropostas.login, NUMERO_COPIA],
+      );
+    } finally {
+      await cliente.end();
+    }
+
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Cronograma de desembolso da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page.getByText('O pessoal ainda não foi homologado (WA05)', { exact: false })).toBeVisible();
+
+    const contexto = async (login: string) => {
+      const c = await page.context().browser()!.newContext();
+      const p = await c.newPage();
+      await entrarNaTelaPrincipal(p, login);
+      return { c, p };
+    };
+    const grh = await contexto(USUARIOS.grhPropostas.login);
+    await grh.p.goto(`/orc/empregados?proposta=${NUMERO_COPIA}`);
+    await grh.p.getByRole('button', { name: `Finalizar os lançamentos de pessoal da proposta ${NUMERO_COPIA}` }).click();
+    await expect(grh.p.getByRole('alertdialog')).toContainText(USUARIOS.gfinPropostas.login);
+    await grh.p.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(grh.p.getByText(`Pessoal da proposta do TP ${NUMERO_COPIA} finalizado e enviado para homologação.`)).toBeVisible();
+    await expect(grh.p.getByRole('link', { name: `Novo empregado na proposta ${NUMERO_COPIA}` })).toHaveCount(0);
+    await grh.c.close();
+
+    const gfin = await contexto(USUARIOS.gfinPropostas.login);
+    await gfin.p.goto('/apr/tarefas');
+    await gfin.p.getByRole('link', { name: new RegExp(`^Pessoal do TP ${NUMERO_COPIA} · Versão`) }).click();
+    await expect(gfin.p.getByText('Custo do pessoal no período')).toBeVisible();
+    await gfin.p.getByRole('button', { name: new RegExp(`^Aprovar: Pessoal do TP ${NUMERO_COPIA}`) }).click();
+    await gfin.p.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(gfin.p.getByText(new RegExp(`Solicitação "Pessoal do TP ${NUMERO_COPIA} · Versão \\d+" aprovada.`))).toBeVisible();
+    await gfin.c.close();
+
+    await page.reload();
+    await expect(page.getByText('O pessoal ainda não foi homologado (WA05)', { exact: false })).toHaveCount(0);
   });
 
   test('3h. o cronograma da cópia acumula 100% do Valor Global na última parcela', async ({ page }) => {
