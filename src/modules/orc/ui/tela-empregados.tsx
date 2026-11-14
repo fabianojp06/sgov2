@@ -11,7 +11,7 @@ import { FormEmpregado } from './form-empregado';
 // Tela dos empregados da proposta (US-070, UC03.24 a UC03.27; plano do P20, Task 2). Server Component: os
 // filtros num formulário GET; um bloco por proposta com a última versão, os grupos por meta só na categoria
 // Meta (RN0148) e os totais por categoria (RN0147, RN0194). A grade mostra Ordem, Empregado ("A CONTRATAR"
-// sem nome, REQ_EMP_003), Categoria, Cargo e Competência; o Custo total mensal só para quem lança (D-P20-5).
+// sem nome, REQ_EMP_003), Categoria, Cargo, Vínculo Funcional (herdado do cargo, RN_EMP_008) e Competência; o Custo total mensal só para quem lança (D-P20-5).
 // "Novo empregado", "Editar" e "Excluir" só com a permissão e a versão editável (RN0183). O formulário abre
 // pela URL (?nova=<proposta> ou ?editar=<empregado>), acima da lista.
 
@@ -56,6 +56,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoEmpregados; 
             <th scope="col">Empregado</th>
             <th scope="col">Categoria</th>
             <th scope="col">Cargo</th>
+            <th scope="col">Vínculo Funcional</th>
             <th scope="col">Competência</th>
             {bloco.veCusto && <th scope="col">Custo total mensal</th>}
             {comAcoes && <th scope="col">Ações</th>}
@@ -70,6 +71,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoEmpregados; 
                 <td>{nome}</td>
                 <td>{ROTULO_CATEGORIA_EMPREGADO[e.categoria]}</td>
                 <td>{e.cargo}</td>
+                <td>{e.vinculoFuncional ?? '—'}</td>
                 <td>{`${mesAno(e.inicio)} a ${mesAno(e.fim)}`}</td>
                 {bloco.veCusto && (
                   <td>

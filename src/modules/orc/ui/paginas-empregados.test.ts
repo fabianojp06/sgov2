@@ -43,6 +43,7 @@ const empregado = (extra: Partial<EmpregadoTela>): EmpregadoTela => ({
   nome: 'Ana',
   cargoId: 'c1',
   cargo: 'C001 – Analista de orçamento',
+  vinculoFuncional: 'Setor de Orçamento',
   inicio: '2027-03',
   fim: '2027-12',
   dependentes: 1,
@@ -59,7 +60,7 @@ const blocoEmp = (extra: Partial<BlocoEmpregados>, veCusto: boolean): BlocoEmpre
       metaId: M1,
       metaNumero: 'M1',
       metaNome: 'Oficinas',
-      empregados: [empregado({}), empregado({ id: E2, ordem: 2, nome: null, categoria: 'ESTAGIARIO', avisos: ['O exercício 2028 não tem parâmetros.'] })],
+      empregados: [empregado({}), empregado({ id: E2, ordem: 2, nome: null, categoria: 'ESTAGIARIO', vinculoFuncional: null, avisos: ['O exercício 2028 não tem parâmetros.'] })],
       totais: totais(1, 1, 0),
     },
   ],
@@ -141,10 +142,10 @@ describe('página dos empregados da proposta', () => {
     const b = trecho(await html(), P_META);
     expect(b).toContain('<caption id="empregados-' + P_META + '-' + M1 + '-caption">Meta M1 – Oficinas, custos em R$</caption>');
     expect(b).toContain(
-      '<th scope="col">Ordem</th><th scope="col">Empregado</th><th scope="col">Categoria</th><th scope="col">Cargo</th><th scope="col">Competência</th><th scope="col">Custo total mensal</th><th scope="col">Ações</th>',
+      '<th scope="col">Ordem</th><th scope="col">Empregado</th><th scope="col">Categoria</th><th scope="col">Cargo</th><th scope="col">Vínculo Funcional</th><th scope="col">Competência</th><th scope="col">Custo total mensal</th><th scope="col">Ações</th>',
     );
-    expect(b).toContain('<th scope="row">1</th><td>Ana</td><td>Empregado</td><td>C001 – Analista de orçamento</td><td>03/2027 a 12/2027</td><td>7.500,00</td>');
-    expect(b).toContain('<th scope="row">2</th><td>A CONTRATAR</td><td>Estagiário</td>');
+    expect(b).toContain('<th scope="row">1</th><td>Ana</td><td>Empregado</td><td>C001 – Analista de orçamento</td><td>Setor de Orçamento</td><td>03/2027 a 12/2027</td><td>7.500,00</td>');
+    expect(b).toContain('<th scope="row">2</th><td>A CONTRATAR</td><td>Estagiário</td><td>C001 – Analista de orçamento</td><td>—</td>');
     expect(b).toContain('<small role="note"> O exercício 2028 não tem parâmetros.</small>');
     expect(b).toContain('<strong>Total da meta M1:</strong> Empregados 1 · Estagiários 1 · Jovens Aprendizes 0');
     expect(b).toContain(`<a href="/orc/empregados?editar=${E1}">Editar o empregado 1</a>`);

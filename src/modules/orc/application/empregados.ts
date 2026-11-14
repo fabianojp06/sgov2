@@ -58,6 +58,8 @@ export type EmpregadoTela = {
   cargoId: string;
   /** Código e nome do cargo no cadastro. */
   cargo: string;
+  /** RN_EMP_008: o nó analítico da estrutura funcional ligado ao cargo (C2, #469); nulo se o cargo não tem. */
+  vinculoFuncional: string | null;
   /** Competências em "AAAA-MM". */
   inicio: string;
   fim: string;
@@ -220,6 +222,7 @@ export async function listarEmpregados(ctx: ContextoRequisicao, filtros: Filtros
               nome: e.nome,
               cargoId: e.cargoId,
               cargo: rotuloCargo(cache, e.cargoId),
+              vinculoFuncional: cache.porId.get(e.cargoId)?.vinculoFuncional?.nome ?? null,
               inicio: competenciaParaTexto(e.inicio),
               fim: competenciaParaTexto(e.fim),
               dependentes: e.dependentes,

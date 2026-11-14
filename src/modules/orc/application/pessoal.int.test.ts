@@ -228,7 +228,7 @@ describe('listarEmpregados (UC03.24)', () => {
     const [g] = b!.grupos;
     expect(g).toMatchObject({ metaNumero: 'M1', totais: { EMPREGADO: 1, ESTAGIARIO: 1, JOVEM_APRENDIZ: 0 } });
     const [ana, vaga] = g!.empregados;
-    expect(ana).toMatchObject({ ordem: 1, nome: 'Ana', cargo: 'C001 – Analista de orçamento', inicio: '2027-03', fim: '2028-02', avisos: [M.EMPREGADO_SEM_PARAMETROS(2028)] });
+    expect(ana).toMatchObject({ ordem: 1, nome: 'Ana', cargo: 'C001 – Analista de orçamento', vinculoFuncional: 'Setor de Orçamento', inicio: '2027-03', fim: '2028-02', avisos: [M.EMPREGADO_SEM_PARAMETROS(2028)] });
     expect(ana!.custoMensal!.paraString()).toBe('7500.00');
     expect(ana!.custoPeriodo!.paraString()).toBe(Dinheiro.de('7500').multiplicar('10').paraString());
     expect(vaga).toMatchObject({ ordem: 2, nome: null, categoria: 'ESTAGIARIO' });
