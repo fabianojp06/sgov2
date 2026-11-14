@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MENSAGENS_ALCADA } from '@/modules/adm/servidor';
-import { decidirSolicitacao } from '@/modules/apr';
+import { decidirSolicitacao, obterTarefa } from '@/modules/apr';
 import { CENTROS_CUSTO_EXEMPLO, cargosExemplo, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo, type ImpostoVigente, type NoCentroCusto } from '@/modules/cad/servidor';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
@@ -13,7 +13,7 @@ import { incluirEmpregado } from './empregados';
 import type { DepsOrc } from './deps';
 import { incluirMeta } from './metas';
 import { avancarProposta, enviarPropostaWa01, manipuladorWa01 } from './oficializacao';
-import { criarProposta } from './propostas';
+import { criarProposta, novaVersaoProposta } from './propostas';
 import { salvarRateio } from './rateio';
 import { incluirTeto, incluirViagem } from './viagens';
 
@@ -342,5 +342,52 @@ describe('decisão do WA01 na Central de Tarefas (UC6.00 passo 5 e FA-A)', () =>
         return tx.versaoProposta.updateMany({ where: { propostaId: p.id }, data: { situacao: 'OFICIALIZADO' } });
       }),
     ).rejects.toThrow(/transicao_invalida/);
+  });
+});
+describe('o que mudou desde a versão anterior (US-084, IA-13; plano do P30)', () => {
+  const resumo = async (numero: string) =>
+    (await obterTarefa(await ctx(gfin, APROVADOR), (await pendente(numero)).id, { WA01: manipuladorWa01(comDeps()) }, { cliente: app }))!.resumo;
+  const item = (r: readonly { rotulo: string; valor: string }[], rotulo: string) => r.find((x) => x.rotulo === rotulo)?.valor;
+
+  it('a primeira versão vem sem comparação (Review Focus 1)', async () => {
+    const p = await proposta();
+    await avancar(p.id);
+    exigirOk(await enviar(p.id));
+    expect(item(await resumo(p.numero), 'Comparação')).toBe('Primeira versão: sem comparação.');
+  });
+
+  it('a Versão 2 com uma conta nova e uma alterada: as diferenças e os pontos de atenção', async () => {
+    const p = await proposta();
+    exigirOk(await novaVersaoProposta(await ctx(), { id: p.id, versao: await versaoCapa(p.id) }, comDeps()));
+    exigirOk(
+      await incluirBem(
+        await ctx(),
+        { propostaId: p.id, versaoCapa: await versaoCapa(p.id), conta: '4.1.1.5.005', descricao: 'Monitor', data: '2027-02-10', quantidade: '1', valorUnitario: '1.000,00' },
+        comDeps(),
+      ),
+    );
+    await avancar(p.id);
+    exigirOk(await enviar(p.id));
+    const r = await resumo(p.numero);
+    expect(item(r, 'Comparação')).toBe('Em relação à Versão 1.');
+    expect(item(r, 'Valor Global (variação)')).toBe('R$ 2.000,00 → R$ 3.000,00 (+ R$ 1.000,00)');
+    expect(item(r, 'Conta 4.1.1.5.005 (alterada)')).toBe('R$ 2.000,00 → R$ 3.000,00 (+ R$ 1.000,00)');
+    expect(item(r, 'Pontos de atenção')).toBe('O Valor Global variou 50,00% (+ R$ 1.000,00). Conta 4.1.1.5.005 variou 50,00% (+ R$ 1.000,00).');
+  });
+
+  it('a anterior com snapshot: a comparação usa os valores congelados (Review Focus 2)', async () => {
+    const p = await proposta();
+    const v1 = await migrator.versaoProposta.findFirstOrThrow({ where: { propostaId: p.id, numero: 1 } });
+    exigirOk(await novaVersaoProposta(await ctx(), { id: p.id, versao: await versaoCapa(p.id) }, comDeps()));
+    // O snapshot da Versão 1 guarda outro valor (como se os parâmetros tivessem mudado depois): vale o congelado.
+    await migrator.snapshotVersao.create({
+      data: { unidadeId: p.unidadeId, versaoPropostaId: v1.id, valorGlobal: '1500.00', contas: { '4.1.1.5.005': '1000.00', '4.1.1.3.001': '500.00' }, geradoPor: orcamentista },
+    });
+    await avancar(p.id);
+    exigirOk(await enviar(p.id));
+    const r = await resumo(p.numero);
+    expect(item(r, 'Valor Global (variação)')).toBe('R$ 1.500,00 → R$ 2.000,00 (+ R$ 500,00)');
+    expect(item(r, 'Conta 4.1.1.3.001 (retirada)')).toBe('R$ 500,00 → R$ 0,00 (- R$ 500,00)');
+    expect(item(r, 'Conta 4.1.1.5.005 (alterada)')).toBe('R$ 1.000,00 → R$ 2.000,00 (+ R$ 1.000,00)');
   });
 });

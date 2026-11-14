@@ -408,7 +408,9 @@ test.describe.serial('proposta de TP', () => {
 
     await pg2.goto('/apr/tarefas?situacao=EM_APROVACAO');
     await pg2.getByRole('link', { name: new RegExp(`^TP ${NUMERO_COPIA} · Versão`) }).click();
-    await expect(pg2.getByText('Valor Global')).toBeVisible();
+    await expect(pg2.getByText('Valor Global', { exact: true })).toBeVisible();
+    // US-084: o que mudou desde a versão anterior (a cópia já tem uma versão anterior, do passo 3b).
+    await expect(pg2.getByText(/^Em relação à Versão \d+/)).toBeVisible();
     await pg2.getByRole('button', { name: new RegExp(`^Aprovar: TP ${NUMERO_COPIA}`) }).click();
     await pg2.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
     await expect(pg2.getByText(new RegExp(`Solicitação "TP ${NUMERO_COPIA} · Versão \\d+" aprovada.`))).toBeVisible();
