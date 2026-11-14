@@ -21,3 +21,9 @@ export { listarAcoes, type FuncionalidadeManual, type ModuloManual, type PassoTr
 export { perguntarAoManualAcao } from './application/acoes-ajuda-manual';
 export { ajudaManualLiberada } from './application/ajuda-manual';
 export { AjudaManualIA } from './ui/ajuda-manual';
+
+// Análise do quadro de pessoal (US-107): os agregados, a ação da IA, a liberação do botão e os componentes.
+export { analiseQuadroLiberada, lerFiltrosQuadro, MENSAGENS_QUADRO, obterQuadroPessoal, PERMISSAO_EMPREGADOS } from './application/quadro-pessoal';
+export { analisarQuadroPessoalAcao } from './application/acoes-quadro-pessoal';
+export { AnaliseQuadroIA } from './ui/quadro-pessoal';
+export { TabelaQuadro } from './ui/quadro-pessoal-tabela';
