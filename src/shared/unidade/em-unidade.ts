@@ -47,17 +47,16 @@ export function filtroUnidadeAtiva(ctx: ContextoRequisicao, funcionalidade: stri
 }
 
 /**
- * O caminho do Consolidado dos TPs (spec §6.7; US-101, plano do P31): para quem tem a funcionalidade com
+ * O caminho do Consolidado dos TPs (spec §6.7; US-101, plano do P31): para quem tem orc.consolidado com
  * consultar, a RLS passa a valer com todas as unidades ativas de TP (cc não nulo), não só as do usuário. A
  * transação é somente leitura: o caminho amplia o que se vê, nunca o que se grava. A RLS continua no banco.
+ * A permissão é fixa, e não de quem chama (revisão 12.12): a ampliação não pode depender de outra
+ * funcionalidade. Só o consolidado importa este caminho (teste de arquitetura).
  */
-export async function emTodasAsUnidades<T>(
-  ctx: ContextoRequisicao,
-  funcionalidade: string,
-  fn: (tx: TxCliente) => Promise<T>,
-  deps: { cliente?: PrismaClient } = {},
-): Promise<T> {
-  exigir(ctx, funcionalidade, 'consultar');
+export const FUNCIONALIDADE_CONSOLIDADO = 'orc.consolidado';
+
+export async function emTodasAsUnidades<T>(ctx: ContextoRequisicao, fn: (tx: TxCliente) => Promise<T>, deps: { cliente?: PrismaClient } = {}): Promise<T> {
+  exigir(ctx, FUNCIONALIDADE_CONSOLIDADO, 'consultar');
   return (deps.cliente ?? prisma).$transaction(async (tx) => {
     await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
     const todas = await tx.unidade.findMany({ where: { ativo: true, cc: { not: null } }, select: { id: true } });

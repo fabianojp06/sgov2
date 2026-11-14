@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CENTROS_CUSTO_EXEMPLO, cargosExemplo, custoPessoalFalso, estruturaFinanceiraFalsa, premissasExemplo, type NoCentroCusto } from '@/modules/cad/servidor';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma } from '@/shared/db';
-import { emTodasAsUnidades } from '@/shared/unidade';
+import { emTodasAsUnidades, emUnidade } from '@/shared/unidade';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { obterConsolidado } from './consolidado';
 import type { DepsOrc } from './deps';
@@ -89,7 +89,7 @@ describe('obterConsolidado (US-101)', () => {
     expect(c.oficializados).toBe(1);
     expect(await consultas()).toBe(antes + 1);
     // A mesma pessoa, pelo caminho comum, não vê nenhum TP (a RLS continua valendo fora do consolidado).
-    expect(await app.$transaction(async (tx) => tx.propostaTp.count())).toBe(0);
+    expect(await emUnidade(await ctx(direx, CONSOLIDADO), (tx) => tx.propostaTp.count(), { cliente: app })).toBe(0);
   });
 
   it('sem a permissão: erro, sem dado e sem registro (Review Focus 2)', async () => {
@@ -100,7 +100,7 @@ describe('obterConsolidado (US-101)', () => {
 
   it('a transação do caminho é só de leitura: uma escrita é recusada pelo banco (Review Focus 3)', async () => {
     await expect(
-      emTodasAsUnidades(await ctx(direx, CONSOLIDADO), 'orc.consolidado', (tx) => tx.propostaTp.updateMany({ data: { objeto: 'alterado' } }), { cliente: app }),
+      emTodasAsUnidades(await ctx(direx, CONSOLIDADO), (tx) => tx.propostaTp.updateMany({ data: { objeto: 'alterado' } }), { cliente: app }),
     ).rejects.toThrow(/read-only/);
     expect(await migrator.propostaTp.count({ where: { objeto: 'alterado' } })).toBe(0);
   });

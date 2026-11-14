@@ -38,7 +38,6 @@ export async function obterConsolidado(ctx: ContextoRequisicao, depsParciais: Pa
   );
   return emTodasAsUnidades(
     ctx,
-    FUNCIONALIDADE,
     async (tx) => {
       const propostas = await tx.propostaTp.findMany({
         where: { excluidaEm: null, unidade: { ativo: true } },
