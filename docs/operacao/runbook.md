@@ -5,7 +5,8 @@ Como operar o SGO em hml e prod sem depender de uma pessoa (US-119, #141; plano 
 - `deploy.md`: imagem, deploy, seed e comando dos serviços;
 - `ambientes.md`: papéis, variáveis e estado dos ambientes;
 - `backup.md`: backup, PITR e teste de restauração;
-- `vps.md`: VPS, memória e endurecimento.
+- `vps.md`: VPS, memória e endurecimento;
+- `ia.md`: ligar, limitar, acompanhar e desligar as funções de IA (incidente de custo ou de resposta ruim).
 
 **Regras que valem para todo procedimento:**
 - **Antes de mexer em prod**, tire o snapshot da VPS no hPanel (ou pelo MCP da Hostinger). Ele dura 24 h e é único: um novo substitui o anterior.
