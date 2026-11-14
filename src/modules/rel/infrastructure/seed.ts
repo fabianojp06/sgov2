@@ -1,14 +1,14 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 import { instalarCasosUsoIA } from '@/shared/ia';
-import { CASO_AJUDA_MANUAL, CASO_APRESENTACAO, CASO_COMPARATIVO_TPS, CASO_QUADRO_PESSOAL, CASO_RELATORIO_EXECUTIVO } from '../application/ia-casos';
+import { CASO_AJUDA_MANUAL, CASO_APRESENTACAO, CASO_COMPARATIVO_TPS, CASO_PERGUNTE_SGO, CASO_QUADRO_PESSOAL, CASO_RELATORIO_EXECUTIVO } from '../application/ia-casos';
 
 // Funcionalidades do rel (contrato C6), no menu Relatórios. A primeira é a conferência da carga
 // inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem. A segunda,
 // as exportações em segundo plano de cada pessoa (US-024). A terceira, fora do menu, é a permissão da
 // ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107). A quinta, o
 // comparativo entre TPs (US-106), no menu da Administração Central. A sexta, o relatório executivo mensal (US-103).
-// A sétima, o roteiro de apresentação para reunião de diretoria (US-105).
+// A sétima, o roteiro de apresentação para reunião de diretoria (US-105). A oitava, o Pergunte ao SGO (US-104).
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -128,6 +128,20 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // US-105 (IA-15): a GFIN prepara as reuniões. O caso nasce desligado e com teto zero (/int/ia).
     perfisPadrao: { GFIN: ['consultar', 'executar', 'exportar'] },
   },
+  {
+    codigo: 'rel.pergunte_sgo',
+    modulo: 'RELATORIOS',
+    grupo: 'Análises com IA',
+    nome: 'Pergunte ao SGO',
+    rota: '/rel/pergunte',
+    ordem: 7,
+    ajuda:
+      'Pergunte em linguagem comum (por exemplo, "qual o orçamento da Administração Central em 2027?"). A IA só entende a pergunta; o número vem do ' +
+      'sistema, com a fonte e o link da tela, sempre dentro das suas permissões.',
+    acoes: ['consultar', 'executar'],
+    // US-104 (IA-16): a direção e quem consulta o orçamento. Cada um só recebe o que as próprias telas mostram. Caso desligado e com teto zero.
+    perfisPadrao: { DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'], GESTOR_DIRETORIA: ['consultar', 'executar'] },
+  },
 ];
 
 export const seedRel: Seed = {
@@ -135,6 +149,6 @@ export const seedRel: Seed = {
   async executar(tx) {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_REL);
     // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
-    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS, CASO_RELATORIO_EXECUTIVO, CASO_APRESENTACAO]);
+    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL, CASO_COMPARATIVO_TPS, CASO_RELATORIO_EXECUTIVO, CASO_APRESENTACAO, CASO_PERGUNTE_SGO]);
   },
 };
