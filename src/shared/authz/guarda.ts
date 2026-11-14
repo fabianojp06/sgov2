@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ErroCampo } from '@/shared/kernel';
 import { auditarNegacao, obterContexto, obterMotivoAusencia } from './contexto';
 import { exigir } from './exigir';
@@ -6,6 +7,11 @@ import { AUSENCIA_SESSAO, ErroPermissao, MENSAGEM_PERMISSAO, type Acao, type Con
 export { MENSAGEM_PERMISSAO };
 export const MENSAGEM_SESSAO = 'Sessão expirada. Entre novamente.';
 export const MENSAGEM_INESPERADA = 'Erro inesperado. Tente novamente.';
+
+// Código de correlação do erro inesperado (#177): a tela mostra, e o log grava junto. Com ele, o suporte acha o
+// registro do erro sem a pessoa precisar descrever o que fez. Curto, sem dado pessoal.
+export const novoCodigoErro = (): string => randomUUID().slice(0, 8).toUpperCase();
+export const mensagemInesperada = (codigo: string): string => `${MENSAGEM_INESPERADA} Código: ${codigo}.`;
 
 export const erroGeral = (mensagem: string): readonly ErroCampo[] => [{ campo: '_', mensagem }];
 
@@ -20,17 +26,21 @@ export function resumirErro(erro: unknown, profundidade = 0): unknown {
   return { nome: erro.name, mensagem: erro.message, pilha: erro.stack, ...(causa === undefined ? {} : { causa }) };
 }
 
-// Log de erro inesperado com o contexto da requisição e o resumo do erro.
+// Log de erro inesperado com o contexto da requisição, o resumo do erro e o código de correlação, que volta
+// para a tela.
 export function registrarErroInesperado(
   onde: string,
   cfg: { funcionalidade: string; acao: Acao },
   ctx: ContextoRequisicao | null,
   erro: unknown,
-): void {
-  console.error(`[ERRO_INESPERADO] ${onde} ${cfg.funcionalidade} (${cfg.acao})`, {
+): string {
+  const codigo = novoCodigoErro();
+  console.error(`[ERRO_INESPERADO] ${onde} ${cfg.funcionalidade} (${cfg.acao}) codigo=${codigo}`, {
+    codigo,
     contexto: contextoDoLog(ctx),
     erro: resumirErro(erro),
   });
+  return codigo;
 }
 
 // Negações repetidas do mesmo usuário para a mesma funcionalidade e ação são auditadas uma vez
