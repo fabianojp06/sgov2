@@ -87,6 +87,7 @@ describe('portas da versão oficializada (pedido da frente B na #138)', () => {
     expect(await bensDaVersaoOficial(gfinA(), { tp: 'TP-V01/2027' }, comDeps())).toEqual({ versao: null, itens: [] });
     expect(await empregadosDaVersaoOficial(gfinA(), { tp: 'TP-V01/2027' }, comDeps())).toEqual({ versao: null, categoriaTp: 'META', lote: null, empregados: [] });
     expect(await bensDaVersaoOficial(gfinA(), { tp: 'TP-X99/2027' }, comDeps())).toBeNull();
+    expect(await empregadosDaVersaoOficial(gfinA(), { tp: 'TP-X99/2027' }, comDeps())).toBeNull();
     const deB = ctx(gfin, [tps.b.unidadeId], ['orc.realizado:consultar']);
     expect(await bensDaVersaoOficial(deB, { tp: 'TP-V01/2027' }, comDeps())).toBeNull();
     expect(await empregadosDaVersaoOficial(deB, { tp: 'TP-V01/2027' }, comDeps())).toBeNull();

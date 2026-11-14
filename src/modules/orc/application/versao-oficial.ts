@@ -46,7 +46,10 @@ export type EmpregadoDaVersaoOficial = {
   /** Nulos na Consolidada. */
   metaNumero: string | null;
   metaNome: string | null;
-  /** Custo do primeiro mês (REQ_EMP_002); nulo para quem não vê o custo do pessoal (D-P20-5, D-P23-5) ou sem parâmetros. */
+  /**
+   * Custo do primeiro mês (REQ_EMP_002); nulo para quem não vê o custo do pessoal (D-P20-5, D-P23-5), sem parâmetros no ano
+   * ou com recusa do motor (os avisos ficam na tela de empregados).
+   */
   custoMensal: Dinheiro | null;
 };
 
