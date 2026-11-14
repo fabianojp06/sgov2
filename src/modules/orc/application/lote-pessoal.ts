@@ -31,22 +31,26 @@ export async function situacaoDoLote(tx: TxCliente, versaoId: string): Promise<S
 export type AprovadoresDoLote = { titular: string; substituto: string } | { motivo: string };
 
 /**
- * RF_APR_REQ_007: o titular e o substituto da alçada WA05, para o modal (só leitura). Sem aprovador disponível,
- * ou com o próprio solicitante roteado (RN_WA02_006), o motivo no lugar do botão, como no envio do WA01.
+ * RF_APR_REQ_007: o titular e o substituto da alçada do fluxo, para o modal (só leitura). Sem aprovador
+ * disponível, ou com o próprio solicitante roteado (RN_WA02_006), o motivo no lugar do botão, como no WA01.
  */
-export async function aprovadoresDoLote(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<AprovadoresDoLote> {
-  exigir(ctx, FUNCIONALIDADE, 'executar');
-  const deps = resolverDeps(depsParciais);
+export async function aprovadoresDoFluxo(deps: DepsOrc, fluxo: 'WA02' | 'WA05', solicitanteId: string): Promise<AprovadoresDoLote> {
   return deps.cliente.$transaction(async (tx) => {
-    const r = await resolverAprovador(tx, 'WA05', { solicitanteId: ctx.usuarioId });
-    if (!r) return { motivo: MENSAGENS_ALCADA.SEM_APROVADOR('WA05') };
-    if ('bloqueio' in r) return { motivo: MENSAGENS_ALCADA.MESMO_USUARIO('WA05') };
+    const r = await resolverAprovador(tx, fluxo, { solicitanteId });
+    if (!r) return { motivo: MENSAGENS_ALCADA.SEM_APROVADOR(fluxo) };
+    if ('bloqueio' in r) return { motivo: MENSAGENS_ALCADA.MESMO_USUARIO(fluxo) };
     const a = await tx.alcadaAprovacao.findFirst({
-      where: { fluxo: 'WA05', ativa: true },
+      where: { fluxo, ativa: true },
       select: { titular: { select: { nome: true, login: true } }, substituto: { select: { nome: true } } },
     });
-    return a ? { titular: `${a.titular.nome} (${a.titular.login})`, substituto: a.substituto.nome } : { motivo: MENSAGENS_ALCADA.SEM_APROVADOR('WA05') };
+    return a ? { titular: `${a.titular.nome} (${a.titular.login})`, substituto: a.substituto.nome } : { motivo: MENSAGENS_ALCADA.SEM_APROVADOR(fluxo) };
   });
+}
+
+/** Os aprovadores do WA05 para o [Finalizar Lançamentos]. */
+export async function aprovadoresDoLote(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<AprovadoresDoLote> {
+  exigir(ctx, FUNCIONALIDADE, 'executar');
+  return aprovadoresDoFluxo(resolverDeps(depsParciais), 'WA05', ctx.usuarioId);
 }
 
 const entrada = z.object({ propostaId: z.string(), versaoCapa: z.coerce.number().int().min(0) }).strict();

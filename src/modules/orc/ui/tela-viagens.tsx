@@ -18,9 +18,22 @@ import type { PermissoesPessoal } from './tela-empregados';
 // ?editarTeto= (teto). As barras do ranking são proporcionais ao maior custo, sem biblioteca de gráfico.
 
 const LIMITE_CONTA = 64;
+const LIMITE_NUMERO = 40;
+
+// RF_VAL_REQ_003 (US-081, D-P28-8): o selo da linha no WA02, com as cores do UC6.02 (amarelo, verde, vermelho).
+const SELO_VALIDACAO = {
+  PENDENTE: { rotulo: 'Pendente', cor: '#59636e' },
+  EM_VALIDACAO: { rotulo: 'Pendente de Validação', cor: '#9a6700' },
+  VALIDADO: { rotulo: 'Validada', cor: '#1a7f37' },
+  REJEITADO: { rotulo: 'Rejeitada', cor: '#cf222e' },
+} as const;
+
+/** O [Solicitar Validação] (US-081): a ação e os validadores do WA02, ou o motivo de não caber. */
+export type ValidacaoViagens = { acao: AcaoFormulario; validadores: { titular: string; substituto: string } | { motivo: string } };
 
 /** Aviso depois de uma operação, com a localidade (?l=) ou a conta (?c=) vindas da ação. */
-export function textoAvisoViagem(aviso: string | undefined, localidade: string | undefined, conta: string | undefined): string | undefined {
+export function textoAvisoViagem(aviso: string | undefined, localidade: string | undefined, conta: string | undefined, numero?: string): string | undefined {
+  if (aviso === 'validacao' && numero && numero.length <= LIMITE_NUMERO) return MENSAGENS_ORC.VIAGENS_SOLICITADA(numero);
   if (localidade && [...localidade].length <= LIMITE_LOCALIDADE) {
     if (aviso === 'incluida') return MENSAGENS_ORC.VIAGEM_INCLUIDA(localidade);
     if (aviso === 'alterada') return MENSAGENS_ORC.VIAGEM_ALTERADA(localidade);
@@ -201,6 +214,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoViagens; gru
   const podeCopiar = permissoes.podeIncluir && bloco.editavel;
   const podeExcluir = permissoes.podeExcluir && bloco.editavel;
   const comAcoes = podeAlterar || podeCopiar || podeExcluir;
+  const comValidacao = bloco.situacao === 'OFICIALIZADO';
   const legenda = grupo.metaNumero ? `Meta ${grupo.metaNumero} – ${grupo.metaNome}` : `Viagens da proposta ${bloco.numero}`;
   return (
     <div role="region" aria-labelledby={`${titulo}-caption`} tabIndex={0} style={{ overflowX: 'auto' }}>
@@ -215,6 +229,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoViagens; gru
             <th scope="col">Custo unitário de diária</th>
             <th scope="col">Custo unitário de transporte</th>
             <th scope="col">Custo estimado</th>
+            {comValidacao && <th scope="col">Validação (WA02)</th>}
             {comAcoes && <th scope="col">Ações</th>}
           </tr>
         </thead>
@@ -228,6 +243,13 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoViagens; gru
               <td>{valorParaTela(v.valorDiaria)}</td>
               <td>{valorParaTela(v.valorTransporte)}</td>
               <td>{valorParaTela(v.custo.estimado)}</td>
+              {comValidacao && (
+                <td>
+                  <span className="selo" style={{ borderColor: SELO_VALIDACAO[v.validacao ?? 'PENDENTE'].cor, color: SELO_VALIDACAO[v.validacao ?? 'PENDENTE'].cor }}>
+                    {SELO_VALIDACAO[v.validacao ?? 'PENDENTE'].rotulo}
+                  </span>
+                </td>
+              )}
               {comAcoes && (
                 <td>
                   {podeAlterar && <a href={`/orc/viagens?editar=${v.id}`}>{`Editar a viagem para ${v.localidade}`}</a>}{' '}
@@ -254,7 +276,7 @@ function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoViagens; gru
   );
 }
 
-function Bloco({ bloco, permissoes, acoes }: { bloco: BlocoViagens; permissoes: PermissoesPessoal; acoes: AcoesViagens }) {
+function Bloco({ bloco, permissoes, acoes, validacao }: { bloco: BlocoViagens; permissoes: PermissoesPessoal; acoes: AcoesViagens; validacao?: ValidacaoViagens | undefined }) {
   const titulo = `viagens-${bloco.propostaId}`;
   const semMetaAtiva = bloco.categoria === 'META' && bloco.metas.length === 0;
   const podeIncluir = permissoes.podeIncluir && bloco.editavel;
@@ -283,6 +305,18 @@ function Bloco({ bloco, permissoes, acoes }: { bloco: BlocoViagens; permissoes: 
         ) : (
           <a href={`/orc/viagens?nova=${bloco.propostaId}`}>{`Nova viagem na proposta ${bloco.numero}`}</a>
         ))}
+      {validacao &&
+        bloco.validavel === true &&
+        (!('motivo' in validacao.validadores) ? (
+          <AcaoConfirmada
+            rotulo={`Solicitar a validação das viagens da proposta ${bloco.numero}`}
+            pergunta={MENSAGENS_ORC.CONFIRMA_SOLICITAR_VALIDACAO(bloco.numero, validacao.validadores.titular, validacao.validadores.substituto)}
+            acao={validacao.acao}
+            campos={{ propostaId: bloco.propostaId, versaoCapa: String(bloco.versaoCapa) }}
+          />
+        ) : (
+          <p role="note">{validacao.validadores.motivo}</p>
+        ))}
     </section>
   );
 }
@@ -295,6 +329,7 @@ export function TelaViagens({
   opcoes,
   aviso,
   formulario,
+  validacao,
 }: {
   blocos: readonly BlocoViagens[];
   filtros: FiltrosViagens;
@@ -303,6 +338,8 @@ export function TelaViagens({
   opcoes: OpcoesViagem | null;
   aviso?: string | undefined;
   formulario?: FormularioViagemAberto | null | undefined;
+  /** Só para quem pede a validação (orc.viagens:executar, D-P28-4). */
+  validacao?: ValidacaoViagens | undefined;
 }) {
   const editaveis = blocos.filter((b) => b.editavel);
   const viagens = editaveis.flatMap((b) => b.grupos.flatMap((g) => g.viagens.map((v) => ({ bloco: b, viagem: v }))));
@@ -348,7 +385,7 @@ export function TelaViagens({
       {blocos.length === 0 ? (
         <p>Nenhuma proposta encontrada nos seus Termos de Parceria.</p>
       ) : (
-        blocos.map((b) => <Bloco key={b.propostaId} bloco={b} permissoes={permissoes} acoes={acoes} />)
+        blocos.map((b) => <Bloco key={b.propostaId} bloco={b} permissoes={permissoes} acoes={acoes} validacao={validacao} />)
       )}
     </>
   );

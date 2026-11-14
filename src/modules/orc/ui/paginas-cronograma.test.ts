@@ -33,6 +33,7 @@ const dados = (): CronogramaTela => ({
   avisos: [],
   semPessoal: true,
   pessoalNaoHomologado: false,
+  viagensNaoValidadas: false,
   viagensDistribuidas: true,
 });
 

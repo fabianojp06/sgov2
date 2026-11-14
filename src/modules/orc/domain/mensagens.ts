@@ -362,6 +362,16 @@ export const MENSAGENS_ORC = {
   ENVIO_PESSOAL_NAO_HOMOLOGADO:
     'Operação Rejeitada [TRAVA O ERRO]: O pessoal desta versão ainda não foi homologado (WA05). O GRH finaliza os lançamentos e o GFIN os homologa antes do envio.',
   CRONOGRAMA_PESSOAL_NAO_HOMOLOGADO: 'O pessoal ainda não foi homologado (WA05): ele entra no cronograma depois da homologação.',
+  // Validação das viagens (US-081; UC6.02, WA02; plano do P28).
+  VIAGENS_SO_OFICIALIZADA: 'Operação Rejeitada: A validação das viagens (WA02) só pode ser pedida para a versão Oficializada da proposta.',
+  VIAGENS_SEM_PENDENTES: 'Operação Rejeitada: Não há viagens pendentes de validação nesta versão.',
+  VIAGENS_EM_VALIDACAO: 'Operação Rejeitada: As viagens desta versão já estão em validação.',
+  VIAGENS_CONCORRENTE: 'Operação Rejeitada [TRAVA O ERRO]: A validação das viagens desta proposta foi pedida por outro usuário simultaneamente. Recarregue a tela.',
+  VIAGENS_SOLICITADA: (numero: string) => `Validação das viagens da proposta do TP ${numero} solicitada.`,
+  CONFIRMA_SOLICITAR_VALIDACAO: (numero: string, titular: string, substituto: string) =>
+    `Pedir a validação das viagens pendentes da proposta do TP ${numero}? Validador responsável: ${titular}. Substituto: ${substituto}. As viagens enviadas ficam travadas até a decisão.`,
+  WA02_ALVO_MUDOU: 'O lote desta solicitação não está mais Em Validação. Recarregue a Central de Tarefas.',
+  CRONOGRAMA_VIAGENS_NAO_VALIDADAS: 'Há viagens ainda não validadas (WA02): elas entram no cronograma depois da validação.',
   VALOR_GLOBAL_SEM_PESSOAL: '(sem o custo do pessoal, visível só para quem lança os empregados)',
   TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',
 } as const;

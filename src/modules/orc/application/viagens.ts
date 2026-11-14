@@ -20,6 +20,7 @@ import {
 import { contextoAuditoria } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
+import { situacaoDaViagem, type SituacaoViagem } from './lote-viagem';
 import type { OpcaoEstrutura } from './opcoes-estrutura';
 import {
   cabecalho,
@@ -61,6 +62,8 @@ export type ViagemTela = {
   contaTransporte: string | null;
   custo: CustoViagem;
   versao: number;
+  /** US-081 (D-P28-8): a situação da linha no WA02. */
+  validacao?: SituacaoViagem;
 };
 
 export type TetoTela = {
@@ -87,6 +90,8 @@ export type BlocoViagens = CabecalhoBloco & {
   grupos: readonly GrupoViagens[];
   /** O painel das viagens mostradas (REQ_VIA_004 a 006). */
   indicadores: IndicadoresViagens;
+  /** US-081 (D-P28-5): o [Solicitar Validação] cabe (versão Oficializada, nada em validação, alguma a enviar). */
+  validavel?: boolean;
 };
 
 export type OpcoesViagem = {
@@ -341,7 +346,9 @@ export async function listarViagens(ctx: ContextoRequisicao, filtros: FiltrosVia
         const gravadas = await tx.viagemProposta.findMany({
           where: { versaoPropostaId: v.id },
           orderBy: [{ localidade: 'asc' }, { criadoEm: 'asc' }],
+          include: { loteViagem: { select: { situacao: true } } },
         });
+        const situacoes = gravadas.map((g) => situacaoDaViagem(g.loteViagem));
         const { tetos, viagens: todas } = await tetosEViagens(tx, v.id);
         const soma = consumidos(tetos, todas);
         const tetosTela: TetoTela[] = tetos
@@ -381,6 +388,7 @@ export async function listarViagens(ctx: ContextoRequisicao, filtros: FiltrosVia
                 ...dados,
                 custo: custoDaViagem(dados),
                 versao: g.versao,
+                validacao: situacaoDaViagem(g.loteViagem),
               };
             });
           if (viagens.length > 0) grupos.push({ ...chave, viagens });
@@ -391,6 +399,7 @@ export async function listarViagens(ctx: ContextoRequisicao, filtros: FiltrosVia
           tetos: tetosTela,
           grupos,
           indicadores: indicadores(grupos.flatMap((g) => g.viagens)),
+          validavel: v.situacao === 'OFICIALIZADO' && !situacoes.includes('EM_VALIDACAO') && situacoes.some((s) => s === 'PENDENTE' || s === 'REJEITADO'),
         });
       }
       return blocos.sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));

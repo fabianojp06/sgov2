@@ -226,10 +226,11 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     rota: '/orc/viagens',
     ordem: 5,
     ajuda: 'Planeja as viagens da última versão das propostas, com o teto por conta sintética, o custo de passagens e diárias e o painel de indicadores.',
-    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    // executar: o [Solicitar Validação] do WA02, só do Operador de Viagens (US-081; plano do P28, D-P28-4).
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir', 'executar'],
     perfisPadrao: {
       ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
-      OPERADOR_VIAGENS: ['consultar', 'incluir', 'alterar', 'excluir'],
+      OPERADOR_VIAGENS: ['consultar', 'incluir', 'alterar', 'excluir', 'executar'],
       GFIN: ['consultar'],
       AUDITOR: ['consultar'],
       DIREX: ['consultar'],

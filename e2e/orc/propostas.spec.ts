@@ -6,7 +6,7 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
 // Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3), os bens (US-072; plano do P22, Task 2, Step 3) e os
 // totalizadores (US-074; plano do P23, Task 2, Step 3) o Rateio/ISS (US-073; plano do P24, Task 2, Step 2) e o
-// cronograma de desembolso (US-075; plano do P25, Task 2, Step 2), a oficialização (US-079) e o lote de pessoal (US-080, WA05).
+// cronograma de desembolso (US-075; plano do P25, Task 2, Step 2), a oficialização (US-079) e o lote de pessoal (US-080, WA05) e a validação das viagens (US-081, WA02).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -54,6 +54,7 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query(`DELETE FROM orc_rateio WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_bem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_viagem WHERE unidade_id IN ${unidade}`);
+      await cliente.query(`DELETE FROM orc_lote_viagem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_teto_viagem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_qtde_empregado WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_empregado WHERE unidade_id IN ${unidade}`);
@@ -355,16 +356,6 @@ test.describe.serial('proposta de TP', () => {
     await expect(page.getByText('O pessoal ainda não foi homologado (WA05)', { exact: false })).toHaveCount(0);
   });
 
-  test('3h. o cronograma da cópia acumula 100% do Valor Global na última parcela', async ({ page }) => {
-    await entrarNaTelaPrincipal(page, usuario.login);
-    await page.goto('/orc/propostas');
-    await page.getByRole('link', { name: `Cronograma de desembolso da proposta ${NUMERO_COPIA}` }).click();
-    await expect(page).toHaveURL(/\/orc\/cronograma\?proposta=/);
-    const tabela = page.getByRole('table', { name: new RegExp(`^Cronograma de desembolso da proposta ${NUMERO_COPIA}`) });
-    await expect(tabela.getByRole('row', { name: /^Parcela 12 – 12\/2027 / })).toContainText('100,00%');
-    await expect(tabela.getByRole('row', { name: /^Total de 2027 / })).toBeVisible();
-  });
-
   test('3i. avançar, enviar, rejeitar na Central de Tarefas, reenviar e oficializar (WA01)', async ({ page }) => {
     // A alçada WA01 do spec: o GFIN próprio de titular e a DIREX de substituta (o afterAll a apaga).
     const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
@@ -426,6 +417,67 @@ test.describe.serial('proposta de TP', () => {
     await page.goto('/orc/propostas');
     await expect(linhaDa(page, NUMERO_COPIA)).toContainText('Oficializado');
     await expect(page.getByRole('button', { name: `Enviar a proposta ${NUMERO_COPIA} para aprovação` })).toHaveCount(0);
+  });
+
+  test('3j. o Operador de Viagens pede a validação das viagens da versão oficializada; o GFIN valida (WA02)', async ({ page }) => {
+    // A alçada WA02 (o GFIN próprio de titular, a DIREX de substituta) e o vínculo do operador com o TP; o afterAll apaga os dois.
+    const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
+    await cliente.connect();
+    try {
+      await cliente.query(
+        `INSERT INTO adm_alcada_aprovacao (fluxo, titular_id, substituto_id, criada_em)
+         SELECT 'WA02', t.id, s.id, now() FROM usuario t, usuario s WHERE t.login = $1 AND s.login = $2`,
+        [USUARIOS.gfinPropostas.login, USUARIOS.direx.login],
+      );
+      await cliente.query(
+        `INSERT INTO usuario_unidade (usuario_id, unidade_id) SELECT u.id, d.id FROM usuario u, unidade d WHERE u.login = $1 AND d.codigo = $2`,
+        [USUARIOS.viagensPropostas.login, NUMERO_COPIA],
+      );
+    } finally {
+      await cliente.end();
+    }
+
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Cronograma de desembolso da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page.getByText('Há viagens ainda não validadas (WA02)', { exact: false })).toBeVisible();
+
+    const contexto = async (login: string) => {
+      const c = await page.context().browser()!.newContext();
+      const p = await c.newPage();
+      await entrarNaTelaPrincipal(p, login);
+      return { c, p };
+    };
+    const operador = await contexto(USUARIOS.viagensPropostas.login);
+    await operador.p.goto(`/orc/viagens?proposta=${NUMERO_COPIA}`);
+    await operador.p.getByRole('button', { name: `Solicitar a validação das viagens da proposta ${NUMERO_COPIA}` }).click();
+    await expect(operador.p.getByRole('alertdialog')).toContainText(USUARIOS.gfinPropostas.login);
+    await operador.p.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(operador.p.getByText(`Validação das viagens da proposta do TP ${NUMERO_COPIA} solicitada.`)).toBeVisible();
+    await expect(operador.p.getByText('Pendente de Validação').first()).toBeVisible();
+    await operador.c.close();
+
+    const gfin = await contexto(USUARIOS.gfinPropostas.login);
+    await gfin.p.goto('/apr/tarefas');
+    await gfin.p.getByRole('link', { name: new RegExp(`^Viagens do TP ${NUMERO_COPIA} · Versão`) }).click();
+    await expect(gfin.p.getByText('Custo das viagens')).toBeVisible();
+    await gfin.p.getByRole('button', { name: new RegExp(`^Aprovar: Viagens do TP ${NUMERO_COPIA}`) }).click();
+    await gfin.p.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(gfin.p.getByText(new RegExp(`Solicitação "Viagens do TP ${NUMERO_COPIA} · Versão \\d+" aprovada.`))).toBeVisible();
+    await gfin.c.close();
+
+    await page.reload();
+    await expect(page.getByText('Há viagens ainda não validadas (WA02)', { exact: false })).toHaveCount(0);
+  });
+
+  test('3k. com o pessoal homologado e as viagens validadas, o cronograma da cópia acumula 100% do Valor Global', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Cronograma de desembolso da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/cronograma\?proposta=/);
+    const tabela = page.getByRole('table', { name: new RegExp(`^Cronograma de desembolso da proposta ${NUMERO_COPIA}`) });
+    await expect(tabela.getByRole('row', { name: /^Parcela 12 – 12\/2027 / })).toContainText('100,00%');
+    await expect(tabela.getByRole('row', { name: /^Total de 2027 / })).toBeVisible();
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {

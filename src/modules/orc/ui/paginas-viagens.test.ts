@@ -18,7 +18,12 @@ const M1 = '00000000-0000-4000-8000-0000000000c1';
 const V1 = '00000000-0000-4000-8000-0000000000d1';
 const V2 = '00000000-0000-4000-8000-0000000000d2';
 const T1 = '00000000-0000-4000-8000-0000000000e1';
-const caso = vi.hoisted(() => ({ filtros: [] as unknown[], opcoes: 0 }));
+const caso = vi.hoisted(() => ({
+  filtros: [] as unknown[],
+  opcoes: 0,
+  validadores: { titular: 'Gestor (gfin)', substituto: 'Diretoria' } as { titular: string; substituto: string } | { motivo: string },
+}));
+const P_OFICIAL = '00000000-0000-4000-8000-0000000000b4';
 
 const cabecalho = {
   propostaId: P_META,
@@ -98,6 +103,14 @@ vi.mock('@/modules/orc', async (original) => {
           indicadores: indicadores([]),
         }),
         bloco({
+          propostaId: P_OFICIAL,
+          numero: 'TP-2027/004',
+          situacao: 'OFICIALIZADO',
+          editavel: false,
+          validavel: true,
+          grupos: [{ metaId: M1, metaNumero: 'M1', metaNome: 'Oficinas', viagens: [viagem({ validacao: 'REJEITADO' }), viagem({ id: V2, localidade: 'Chile', validacao: 'VALIDADO' })] }],
+        }),
+        bloco({
           propostaId: P_SEM_TETO,
           numero: 'TP-2027/003',
           tetos: [],
@@ -105,6 +118,10 @@ vi.mock('@/modules/orc', async (original) => {
           indicadores: indicadores([]),
         }),
       ];
+    },
+    validadoresDasViagens: async (ctx: ContextoRequisicao) => {
+      exigir(ctx, 'orc.viagens', 'executar');
+      return caso.validadores;
     },
     opcoesViagem: async () => {
       caso.opcoes++;
@@ -247,3 +264,29 @@ describe('página das viagens da proposta', () => {
     expect(negacoes).toHaveLength(1);
   });
 });
+
+describe('validação das viagens (US-081, WA02)', () => {
+  it('o Operador vê o botão com os validadores; sem aprovador, o motivo; sem executar, nada; os selos na versão Oficializada', async () => {
+    contexto = ctx([...LANCA, 'orc.viagens:executar']);
+    const h = trecho(await html(), P_OFICIAL);
+    expect(h).toContain('Solicitar a validação das viagens da proposta TP-2027/004');
+    expect(h).toContain('Validação (WA02)');
+    expect(h).toContain('Rejeitada');
+    expect(h).toContain('Validada');
+    expect(trecho(await html(), P_META)).not.toContain('Validação (WA02)');
+    expect(trecho(await html(), P_META)).not.toContain('Solicitar a validação');
+    caso.validadores = { motivo: 'Operação indisponível: Não há validador homologador ativo cadastrado para este fluxo.' };
+    expect(trecho(await html(), P_OFICIAL)).toContain('Não há validador homologador ativo');
+    caso.validadores = { titular: 'Gestor (gfin)', substituto: 'Diretoria' };
+    contexto = ctx(LANCA);
+    const sem = trecho(await html(), P_OFICIAL);
+    expect(sem).not.toContain('Solicitar a validação');
+    expect(sem).toContain('Validada');
+  });
+
+  it('o aviso depois do pedido', async () => {
+    contexto = ctx([...LANCA, 'orc.viagens:executar']);
+    expect(await html({ aviso: 'validacao', n: 'TP-2027/004' })).toContain(M.VIAGENS_SOLICITADA('TP-2027/004'));
+  });
+});
+

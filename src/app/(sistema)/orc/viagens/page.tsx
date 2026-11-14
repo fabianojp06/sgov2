@@ -8,8 +8,10 @@ import {
   listarViagens,
   naoEncontradoSeNegado,
   opcoesViagem,
+  solicitarValidacaoViagensAcao,
   TelaViagens,
   textoAvisoViagem,
+  validadoresDasViagens,
   type FormularioViagemAberto,
 } from '@/modules/orc';
 import { exigirPagina } from '@/shared/authz';
@@ -18,7 +20,7 @@ import { exigirPagina } from '@/shared/authz';
 // e as viagens da última versão, em Rascunho ou Em Elaboração; GFIN, Auditor e DIREX só consultam. Cada um vê só
 // as propostas dos TPs a que está vinculado (RLS). ?nova=, ?copiar= e ?editar= abrem o formulário da viagem;
 // ?novoTeto= e ?editarTeto=, o do teto (plano do P21, Task 2).
-type Chave = 'aviso' | 'l' | 'c' | 'tipo' | 'proposta' | 'meta' | 'localidade' | 'nova' | 'copiar' | 'editar' | 'novoTeto' | 'editarTeto';
+type Chave = 'aviso' | 'l' | 'c' | 'n' | 'tipo' | 'proposta' | 'meta' | 'localidade' | 'nova' | 'copiar' | 'editar' | 'novoTeto' | 'editarTeto';
 type Busca = Partial<Record<Chave, string | string[]>>;
 const um = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined);
 
@@ -50,6 +52,8 @@ export default async function Viagens({ searchParams }: { searchParams: Promise<
   // Com o formulário aberto, a lista vem sem filtro: o bloco da proposta, da viagem ou do teto precisa estar nela.
   const blocos = await listarViagens(ctx, formulario ? {} : filtros).catch(naoEncontradoSeNegado(ctx));
   const opcoes = formulario ? await opcoesViagem(ctx) : null;
+  // US-081: o [Solicitar Validação] e os validadores do WA02, só para quem pede (o Operador de Viagens).
+  const validacao = ctx.permissoes.has('orc.viagens:executar') ? { acao: solicitarValidacaoViagensAcao, validadores: await validadoresDasViagens(ctx) } : undefined;
   return (
     <div>
       <h1>Viagens</h1>
@@ -66,8 +70,9 @@ export default async function Viagens({ searchParams }: { searchParams: Promise<
           excluirTeto: excluirTetoAcao,
         }}
         opcoes={opcoes}
-        aviso={textoAvisoViagem(um(busca.aviso), um(busca.l), um(busca.c))}
+        aviso={textoAvisoViagem(um(busca.aviso), um(busca.l), um(busca.c), um(busca.n))}
         formulario={formulario}
+        validacao={validacao}
       />
     </div>
   );
