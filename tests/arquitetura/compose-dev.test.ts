@@ -20,8 +20,15 @@ type Servico = {
   pid?: string;
   privileged?: boolean;
   cap_add?: string[];
+  ipc?: string;
+  userns_mode?: string;
+  devices?: unknown[];
+  security_opt?: unknown[];
+  extra_hosts?: unknown;
+  mem_reservation?: string;
+  deploy?: unknown;
 };
-type Recurso = { external?: boolean } | null;
+type Recurso = { external?: boolean; name?: string } | null;
 type Compose = {
   name?: string;
   services: Record<string, Servico>;
@@ -84,6 +91,14 @@ describe('docker-compose.yml de dev (D12)', () => {
     // Bind só do próprio repositório (.) ou de volumes nomeados; caminho absoluto ou ../ alcança o host.
     expect(volumes.filter((v) => /^(\/|~|\.\.)/.test(v) || v.includes('${'))).toEqual([]);
     expect(JSON.stringify(servico.labels ?? {})).not.toMatch(/traefik/i);
+    // #163 (R3): nada que compartilhe recursos do host ou escape do isolamento.
+    expect([servico.ipc, servico.userns_mode, servico.devices, servico.security_opt, servico.extra_hosts]).toEqual([undefined, undefined, undefined, undefined, undefined]);
+  });
+
+  // #163 (R6): o limite de memória é o mem_limit; reserva acima dele ou deploy.resources o contornariam.
+  it.each(servicos)('%s não tem deploy nem reserva de memória acima do limite', (_nome, servico) => {
+    expect(servico.deploy).toBeUndefined();
+    if (servico.mem_reservation) expect(megabytes(servico.mem_reservation)).toBeLessThanOrEqual(megabytes(servico.mem_limit ?? '0m'));
   });
 
   it('não usa volumes nem redes externos', () => {
@@ -91,6 +106,9 @@ describe('docker-compose.yml de dev (D12)', () => {
     expect(recursos.filter((r) => r?.external)).toEqual([]);
     // driver_opts (bind/device) aponta o volume para um caminho do host.
     expect(recursos.filter((r) => r && 'driver_opts' in r)).toEqual([]);
+    // #163 (R2): `name` fixo ligaria o volume ou a rede a um recurso global do host (de outra frente ou de hml e
+    // prod), fora do prefixo do COMPOSE_PROJECT_NAME.
+    expect(recursos.filter((r) => r && 'name' in r)).toEqual([]);
   });
 
   it('nada no compose (nomes, valores, volumes, URLs) cita prod ou hml', () => {
@@ -105,15 +123,17 @@ describe('docker-compose.yml de dev (D12)', () => {
     expect(compose.services.db?.image).toBe('pgvector/pgvector:pg16');
   });
 
-  it('o app limita o heap do Node a 1536 MB', () => {
-    expect(ambiente(compose.services.app!).NODE_OPTIONS).toMatch(/--max-old-space-size=1536(\s|$)/);
+  it('o app limita o heap do Node a 1280 MB, abaixo do mem_limit de 1536 MB (#163)', () => {
+    expect(ambiente(compose.services.app!).NODE_OPTIONS).toMatch(/--max-old-space-size=1280(\s|$)/);
   });
 
-  it.each(['app', 'worker'])('%s tem heap do Node que cabe no mem_limit', (nome) => {
+  // #163: o heap fica até 85% do mem_limit (o Node usa memória fora do heap), e a opção aparece uma vez só (a
+  // última valeria, e o teste leria a primeira).
+  it.each(['app', 'worker'])('%s tem heap do Node que cabe no mem_limit, com folga, e uma opção só', (nome) => {
     const servico = compose.services[nome]!;
-    const [, heap] = /--max-old-space-size=(\d+)(\s|$)/.exec(ambiente(servico).NODE_OPTIONS ?? '') ?? [];
-    expect(heap, 'NODE_OPTIONS sem --max-old-space-size').toBeDefined();
-    expect(Number(heap)).toBeLessThanOrEqual(Math.min(1536, megabytes(servico.mem_limit ?? '0m')));
+    const opcoes = [...(ambiente(servico).NODE_OPTIONS ?? '').matchAll(/--max-old-space-size=(\d+)(\s|$)/g)];
+    expect(opcoes, 'NODE_OPTIONS deve ter um único --max-old-space-size').toHaveLength(1);
+    expect(Number(opcoes[0]![1])).toBeLessThanOrEqual(Math.floor(megabytes(servico.mem_limit ?? '0m') * 0.85));
   });
 
   // P4 (US-025 e cargas): o worker envia pelo Mailpit e faz o merge das cargas como sgo_sync.
