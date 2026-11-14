@@ -29,6 +29,9 @@ const CC = '9.1';
 const NUMERO_COPIA = 'TP-E2E-002';
 const CC_COPIA = '9.2';
 const usuario = USUARIOS.propostas;
+// A seed traz o ISS sem alíquota, e a oficialização exige a alíquota vigente no início da proposta (RN_TAX_03):
+// o passo 3i cadastra uma, em competência própria deste spec, e o afterAll a apaga.
+const COMPETENCIA_ISS = '2026-12-01';
 const linhaDa = (page: Page, numero = NUMERO) => page.getByRole('row', { name: new RegExp(`^${numero} `) });
 // Colunas de dados da linha (o número é o cabeçalho da linha): Tipo, Objeto, Categoria, Vigência, CC, Versão.
 const versaoDa = (page: Page, numero = NUMERO) => linhaDa(page, numero).getByRole('cell').nth(5);
@@ -45,6 +48,7 @@ test.describe.serial('proposta de TP', () => {
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
       await cliente.query(`DELETE FROM apr_solicitacao WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_snapshot_versao WHERE unidade_id IN ${unidade}`);
+      await cliente.query(`DELETE FROM aliquota_imposto WHERE competencia = '${COMPETENCIA_ISS}' AND imposto_id = (SELECT id FROM imposto WHERE nome = 'ISS')`);
       await cliente.query(`DELETE FROM adm_alcada_aprovacao WHERE titular_id = (SELECT id FROM usuario WHERE login = '${USUARIOS.gfinPropostas.login}')`);
       await cliente.query(`DELETE FROM orc_rateio WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_bem WHERE unidade_id IN ${unidade}`);
@@ -318,6 +322,10 @@ test.describe.serial('proposta de TP', () => {
         `INSERT INTO adm_alcada_aprovacao (fluxo, titular_id, substituto_id, criada_em)
          SELECT 'WA01', t.id, s.id, now() FROM usuario t, usuario s WHERE t.login = $1 AND s.login = $2`,
         [USUARIOS.gfinPropostas.login, USUARIOS.direx.login],
+      );
+      await cliente.query(
+        `INSERT INTO aliquota_imposto (imposto_id, competencia, percentual) SELECT id, $1::date, 5 FROM imposto WHERE nome = 'ISS' ON CONFLICT DO NOTHING`,
+        [COMPETENCIA_ISS],
       );
     } finally {
       await cliente.end();
