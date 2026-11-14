@@ -29,11 +29,11 @@ afterAll(async () => {
 });
 
 describe('seedOrc', () => {
-  it('10 funcionalidades no módulo ADM_CENTRAL, com ajuda; as 3 da IA fora do menu, só com executar', async () => {
+  it('11 funcionalidades no módulo ADM_CENTRAL, com ajuda; as 3 da IA fora do menu, só com executar; o Consolidado dos TPs (US-101)', async () => {
     const fs = await cliente.funcionalidade.findMany({ where: { codigo: { startsWith: 'orc.' }, moduloCodigo: 'ADM_CENTRAL' }, orderBy: { ordem: 'asc' } });
     expect(fs.map((f) => f.codigo)).toEqual([
       'orc.orcamento', 'orc.exercicios', 'orc.importacao', 'orc.receitas', 'orc.posicoes', 'orc.pacotes', 'orc.aprovacao',
-      'orc.ia_justificativa', 'orc.ia_sugestao_conta', 'orc.ia_revisor',
+      'orc.ia_justificativa', 'orc.ia_sugestao_conta', 'orc.ia_revisor', 'orc.consolidado',
     ]);
     expect(fs.filter((f) => !f.exibirNoMenu).map((f) => [f.codigo, f.rota, f.acoes])).toEqual([
       ['orc.ia_justificativa', '/orc/pacotes', ['executar']],
@@ -47,7 +47,7 @@ describe('seedOrc', () => {
   it('proposta de TP no menu Cadastros › Propostas (US-065, D-P17-9)', async () => {
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.propostas' } });
     expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Propostas', rota: '/orc/propostas', exibirNoMenu: true, acoes: ['consultar', 'incluir', 'excluir'] });
-    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(20);
+    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(21);
   });
 
   it('metas da proposta no menu Cadastros › Metas, no grupo Propostas (US-067, D-P19-8)', async () => {
@@ -77,6 +77,7 @@ describe('seedOrc', () => {
     expect(await permissoes('GFIN')).toEqual([
       'orc.aprovacao:consultar', 'orc.aprovacao:executar',
       'orc.bens:consultar',
+      'orc.consolidado:consultar',
       'orc.cronograma:consultar',
       'orc.empregados:consultar',
       'orc.exercicios:alterar', 'orc.exercicios:consultar', 'orc.exercicios:incluir',
@@ -93,7 +94,7 @@ describe('seedOrc', () => {
       'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('DIREX')).toEqual([
-      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.consolidado:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.rateio:consultar', 'orc.receitas:consultar', 'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
