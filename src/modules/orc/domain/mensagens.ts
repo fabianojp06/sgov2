@@ -295,4 +295,8 @@ export const MENSAGENS_ORC = {
   BEM_ALTERADO: (descricao: string) => `Item "${descricao}" alterado.`,
   BEM_EXCLUIDO: (descricao: string) => `Item "${descricao}" excluído.`,
   BEM_INATIVADO: (descricao: string) => `Item "${descricao}" inativado nesta versão (veio de uma versão anterior).`,
+  // Totalizadores da proposta (US-074; UC03.02; plano do P23).
+  TOTALIZADOR_SEM_DESPESA: 'Nenhuma despesa localizada para esta versão do projeto.',
+  TOTALIZADOR_SEM_PESSOAL: 'O total não inclui o custo do pessoal, que é visível só para quem lança os empregados.',
+  TOTALIZADOR_FORA_DO_PLANO: 'Contas fora do plano ativo',
 } as const;

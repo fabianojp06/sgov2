@@ -250,6 +250,23 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       AUDITOR: ['consultar'],
       DIREX: ['consultar'],
     },
+  },  {
+    // Totalizadores da proposta (US-074; plano do P23, D-P23-5) [PROVISÓRIO]: no menu Cadastros (UC03.02). Só
+    // consulta (RN_TOT_01). O custo do pessoal só entra para quem lança os empregados (D-P20-5).
+    codigo: 'orc.totalizadores',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Totalizadores',
+    rota: '/orc/totalizadores',
+    ordem: 7,
+    ajuda: 'Mostra, só para consulta, os totais da última versão da proposta por conta do plano, com o orçado, o realizado, o saldo e o semáforo.',
+    acoes: ['consultar'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
   },
 ];
 

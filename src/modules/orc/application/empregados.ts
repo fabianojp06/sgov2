@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { PremissasExercicio } from '@/modules/cad/servidor';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import type { TxCliente } from '@/shared/db';
@@ -10,7 +9,6 @@ import {
   CATEGORIAS_EMPREGADO,
   competenciaDe,
   competenciaParaTexto,
-  mesesDoAno,
   validarEmpregado,
   type CategoriaEmpregado,
   type Competencias,
@@ -18,7 +16,8 @@ import {
 } from '../domain/empregado';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { contextoAuditoria } from './calculo-linhas';
-import { carregarCargos, custoDaPosicao, type CacheCargos } from './custo-posicao';
+import { cacheAnos, custoDoEmpregado } from './custo-empregado';
+import { carregarCargos, type CacheCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
 import { CAMPOS_ORIGEM_BLINDADA, recusarCamposBlindados } from './governanca';
 import {
@@ -125,50 +124,6 @@ const retrato = (
   dependentes: e.dependentes,
 });
 
-/**
- * Premissas e benefícios por ano, lidos uma vez por chamada (premissas nulas: o ano não tem parâmetros). Os
- * benefícios do cargo mudam de ano para ano, e o cache do custo-posicao é por cargo: um por ano, com os
- * mesmos cargos.
- */
-type CacheAnos = { cargos: CacheCargos; porAno: Map<number, { premissas: PremissasExercicio | null; cache: CacheCargos }> };
-const cacheAnos = (cargos: CacheCargos): CacheAnos => ({ cargos, porAno: new Map() });
-
-type CustoEmpregado = { mensal: Dinheiro | null; periodo: Dinheiro; avisos: string[]; erros: string[] };
-
-/**
- * D-P20-4: o motor (custoDaPosicao do P15, com o adicional e os benefícios do cargo) para cada ano da
- * competência, com uma pessoa e o salário gravado. Ano sem parâmetros fica sem custo, com aviso; recusa do
- * motor vai em `erros` (a gravação recusa; a lista mostra como aviso).
- */
-async function custoDoEmpregado(
-  tx: TxCliente,
-  deps: DepsOrc,
-  anos: CacheAnos,
-  e: Competencias & { cargoId: string; salarioMensal: Dinheiro },
-): Promise<CustoEmpregado> {
-  const r: CustoEmpregado = { mensal: null, periodo: Dinheiro.zero(), avisos: [], erros: [] };
-  for (let ano = e.inicio.getUTCFullYear(); ano <= e.fim.getUTCFullYear(); ano++) {
-    let doAno = anos.porAno.get(ano);
-    if (!doAno) {
-      doAno = { premissas: await deps.custoPessoal.obterPremissasExercicio(tx, ano), cache: { porId: anos.cargos.porId, beneficios: new Map() } };
-      anos.porAno.set(ano, doAno);
-    }
-    const p = doAno.premissas;
-    if (!p) {
-      r.avisos.push(M.EMPREGADO_SEM_PARAMETROS(ano));
-      continue;
-    }
-    const meses = mesesDoAno(e, ano)!;
-    const serie = await custoDaPosicao(tx, deps, doAno.cache, p, { quantidade: 1, salarioMensal: e.salarioMensal, cargoId: e.cargoId, ...meses });
-    if (!serie.ok) {
-      r.erros.push(...serie.erros.map((x) => `${ano}: ${x.mensagem}`));
-      continue;
-    }
-    r.periodo = r.periodo.somar(serie.valor.total);
-    if (ano === e.inicio.getUTCFullYear()) r.mensal = serie.valor.totalMes[meses.mesInicio - 1]!;
-  }
-  return r;
-}
 
 /**
  * UC03.24: os empregados da última versão das propostas do usuário (RLS), em blocos por proposta e grupos

@@ -4,7 +4,8 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
-// Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3) e os bens (US-072; plano do P22, Task 2, Step 3).
+// Task 2, Step 3), as viagens (US-071; plano do P21, Task 2, Step 3), os bens (US-072; plano do P22, Task 2, Step 3) e os
+// totalizadores (US-074; plano do P23, Task 2, Step 3).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -14,7 +15,7 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
 // a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
 // copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; os tetos de passagens
-// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// e de diárias, uma viagem e a cópia dela recusada pelo teto; um bem na conta de máquinas e equipamentos; os totalizadores somam tudo; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
 // livre (D-P17-10). O afterAll apaga os bens, as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
@@ -263,6 +264,19 @@ test.describe.serial('proposta de TP', () => {
     const grupo = page.getByRole('region', { name: /^Conta 4\.1\.1\.7\.003 / });
     await expect(grupo.getByRole('row', { name: /^10\/05\/2027 / })).toHaveText(/Notebook E2E\s*M2 – Atendimento\s*3\s*1\.234,56\s*3\.703,68/);
     await expect(grupo).toContainText('Subtotal da conta 4.1.1.7.003');
+  });
+
+  test('3f. os totalizadores da cópia somam a viagem e o bem por conta, só para consulta', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Totalizadores da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/totalizadores\?proposta=/);
+    const arvore = page.getByRole('list', { name: new RegExp(`^Totais por conta da proposta ${NUMERO_COPIA}`) });
+    await expect(arvore).toContainText(/4\.1\.1\.3\.001 – .*Orçado 2\.000,00/);
+    await expect(arvore).toContainText(/4\.1\.1\.4\.007 – .*Orçado 1\.500,00/);
+    await expect(arvore).toContainText(/4\.1\.1\.7\.003 – .*Orçado 3\.703,68/);
+    // RN_TOT_01: a aba não tem botão nem campo.
+    await expect(page.locator('section[aria-labelledby="totalizadores-titulo"] :is(button, input, select, textarea)')).toHaveCount(0);
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
