@@ -1,22 +1,14 @@
-import { AcaoConfirmada, type AcaoFormulario } from "@/modules/ger";
-import type { Dinheiro } from "@/shared/kernel";
-import type {
-  OpcoesViagem,
-  BlocoViagens,
-  FiltrosViagens,
-  GrupoViagens,
-} from "../application/viagens";
-import { MENSAGENS_ORC } from "../domain/mensagens";
-import {
-  ROTULO_SITUACAO_PROPOSTA,
-  ROTULO_TIPO_PROPOSTA,
-} from "../domain/proposta";
-import { valorParaTela } from "../domain/valor-tela";
-import { LIMITE_LOCALIDADE } from "../domain/viagem";
-import { FiltrosPessoalProposta } from "./filtros-pessoal";
-import { FormTetoViagem } from "./form-teto-viagem";
-import { FormViagem } from "./form-viagem";
-import type { PermissoesPessoal } from "./tela-empregados";
+import { AcaoConfirmada, type AcaoFormulario } from '@/modules/ger';
+import type { Dinheiro } from '@/shared/kernel';
+import type { OpcoesViagem, BlocoViagens, FiltrosViagens, GrupoViagens } from '../application/viagens';
+import { MENSAGENS_ORC } from '../domain/mensagens';
+import { ROTULO_SITUACAO_PROPOSTA, ROTULO_TIPO_PROPOSTA } from '../domain/proposta';
+import { valorParaTela } from '../domain/valor-tela';
+import { LIMITE_LOCALIDADE } from '../domain/viagem';
+import { FiltrosPessoalProposta } from './filtros-pessoal';
+import { FormTetoViagem } from './form-teto-viagem';
+import { FormViagem } from './form-viagem';
+import type { PermissoesPessoal } from './tela-empregados';
 
 // Tela das viagens da proposta (US-071; Viagens V3, UC03.29 a UC03.33; plano do P21, Task 2 e D-P21-11). Server
 // Component: os filtros num formulário GET (REQ_VIA_001) e um bloco por proposta com a última versão. Cada
@@ -28,30 +20,26 @@ import type { PermissoesPessoal } from "./tela-empregados";
 const LIMITE_CONTA = 64;
 
 /** Aviso depois de uma operação, com a localidade (?l=) ou a conta (?c=) vindas da ação. */
-export function textoAvisoViagem(
-  aviso: string | undefined,
-  localidade: string | undefined,
-  conta: string | undefined,
-): string | undefined {
+export function textoAvisoViagem(aviso: string | undefined, localidade: string | undefined, conta: string | undefined): string | undefined {
   if (localidade && [...localidade].length <= LIMITE_LOCALIDADE) {
-    if (aviso === "incluida") return MENSAGENS_ORC.VIAGEM_INCLUIDA(localidade);
-    if (aviso === "alterada") return MENSAGENS_ORC.VIAGEM_ALTERADA(localidade);
-    if (aviso === "excluida") return MENSAGENS_ORC.VIAGEM_EXCLUIDA(localidade);
+    if (aviso === 'incluida') return MENSAGENS_ORC.VIAGEM_INCLUIDA(localidade);
+    if (aviso === 'alterada') return MENSAGENS_ORC.VIAGEM_ALTERADA(localidade);
+    if (aviso === 'excluida') return MENSAGENS_ORC.VIAGEM_EXCLUIDA(localidade);
   }
   if (conta && conta.length <= LIMITE_CONTA && /^[\d.]+$/.test(conta)) {
-    if (aviso === "teto-incluido") return MENSAGENS_ORC.TETO_INCLUIDO(conta);
-    if (aviso === "teto-alterado") return MENSAGENS_ORC.TETO_ALTERADO(conta);
-    if (aviso === "teto-excluido") return MENSAGENS_ORC.TETO_EXCLUIDO(conta);
+    if (aviso === 'teto-incluido') return MENSAGENS_ORC.TETO_INCLUIDO(conta);
+    if (aviso === 'teto-alterado') return MENSAGENS_ORC.TETO_ALTERADO(conta);
+    if (aviso === 'teto-excluido') return MENSAGENS_ORC.TETO_EXCLUIDO(conta);
   }
   return undefined;
 }
 
 export type FormularioViagemAberto =
-  | { modo: "incluir"; propostaId: string }
-  | { modo: "copiar"; id: string }
-  | { modo: "alterar"; id: string }
-  | { modo: "incluirTeto"; propostaId: string }
-  | { modo: "alterarTeto"; id: string };
+  | { modo: 'incluir'; propostaId: string }
+  | { modo: 'copiar'; id: string }
+  | { modo: 'alterar'; id: string }
+  | { modo: 'incluirTeto'; propostaId: string }
+  | { modo: 'alterarTeto'; id: string };
 
 export type AcoesViagens = {
   incluir: AcaoFormulario;
@@ -62,12 +50,7 @@ export type AcoesViagens = {
   excluirTeto: AcaoFormulario;
 };
 
-const proporcao = (valor: Dinheiro, maior: Dinheiro) =>
-  maior.ehZero()
-    ? 0
-    : Math.round(
-        (Number(valor.paraString()) / Number(maior.paraString())) * 100,
-      );
+const proporcao = (valor: Dinheiro, maior: Dinheiro) => (maior.ehZero() ? 0 : Math.round((Number(valor.paraString()) / Number(maior.paraString())) * 100));
 
 function Barra({ valor, maior }: { valor: Dinheiro; maior: Dinheiro }) {
   return (
@@ -75,38 +58,23 @@ function Barra({ valor, maior }: { valor: Dinheiro; maior: Dinheiro }) {
       aria-hidden="true"
       className="barra"
       style={{
-        display: "inline-block",
-        height: "0.8em",
+        display: 'inline-block',
+        height: '0.8em',
         width: `${proporcao(valor, maior)}%`,
-        background: "currentColor",
+        background: 'currentColor',
       }}
     />
   );
 }
 
-function Camada1({
-  bloco,
-  permissoes,
-  excluir,
-}: {
-  bloco: BlocoViagens;
-  permissoes: PermissoesPessoal;
-  excluir: AcaoFormulario;
-}) {
+function Camada1({ bloco, permissoes, excluir }: { bloco: BlocoViagens; permissoes: PermissoesPessoal; excluir: AcaoFormulario }) {
   const titulo = `tetos-${bloco.propostaId}`;
   const podeAlterar = permissoes.podeAlterar && bloco.editavel;
   const podeExcluir = permissoes.podeExcluir && bloco.editavel;
   return (
-    <div
-      role="region"
-      aria-labelledby={`${titulo}-caption`}
-      tabIndex={0}
-      style={{ overflowX: "auto" }}
-    >
+    <div role="region" aria-labelledby={`${titulo}-caption`} tabIndex={0} style={{ overflowX: 'auto' }}>
       <table>
-        <caption
-          id={`${titulo}-caption`}
-        >{`Teto por conta sintética da proposta ${bloco.numero}, em R$`}</caption>
+        <caption id={`${titulo}-caption`}>{`Teto por conta sintética da proposta ${bloco.numero}, em R$`}</caption>
         <thead>
           <tr>
             <th scope="col">Conta sintética</th>
@@ -125,11 +93,7 @@ function Camada1({
               <td>{valorParaTela(t.saldo)}</td>
               {(podeAlterar || podeExcluir) && (
                 <td>
-                  {podeAlterar && (
-                    <a
-                      href={`/orc/viagens?editarTeto=${t.id}`}
-                    >{`Editar o teto da conta ${t.contaSintetica}`}</a>
-                  )}
+                  {podeAlterar && <a href={`/orc/viagens?editarTeto=${t.id}`}>{`Editar o teto da conta ${t.contaSintetica}`}</a>}
                   {podeExcluir && (
                     <AcaoConfirmada
                       rotulo={`Excluir o teto da conta ${t.contaSintetica}`}
@@ -156,14 +120,11 @@ function Painel({ bloco }: { bloco: BlocoViagens }) {
   const i = bloco.indicadores;
   const titulo = `painel-${bloco.propostaId}`;
   const composicao: [string, Dinheiro][] = [
-    ["Passagem", i.passagens],
-    ["Diária", i.diarias],
-    ["Transporte", i.transportes],
+    ['Passagem', i.passagens],
+    ['Diária', i.diarias],
+    ['Transporte', i.transportes],
   ];
-  const maiorComposicao = composicao.reduce(
-    (m, [, v]) => (v.comparar(m) > 0 ? v : m),
-    composicao[0]![1],
-  );
+  const maiorComposicao = composicao.reduce((m, [, v]) => (v.comparar(m) > 0 ? v : m), composicao[0]![1]);
   const maiorRanking = i.ranking[0]?.custo;
   return (
     <section aria-labelledby={titulo}>
@@ -174,7 +135,7 @@ function Painel({ bloco }: { bloco: BlocoViagens }) {
         <dt>Custo total estimado</dt>
         <dd>{i.custoTotal.formatar()}</dd>
         <dt>Custo médio por viagem</dt>
-        <dd>{i.custoMedio ? i.custoMedio.formatar() : "—"}</dd>
+        <dd>{i.custoMedio ? i.custoMedio.formatar() : '—'}</dd>
         <dt>Total de pessoas-viagem</dt>
         <dd>{i.pessoas}</dd>
         <dt>Total de passagens</dt>
@@ -188,9 +149,7 @@ function Painel({ bloco }: { bloco: BlocoViagens }) {
       </dl>
       {i.ranking.length > 0 && (
         <table>
-          <caption>
-            Ranking de viagens por localidade – custo estimado, em R$
-          </caption>
+          <caption>Ranking de viagens por localidade – custo estimado, em R$</caption>
           <thead>
             <tr>
               <th scope="col">Localidade</th>
@@ -212,9 +171,7 @@ function Painel({ bloco }: { bloco: BlocoViagens }) {
         </table>
       )}
       <table>
-        <caption>
-          Composição de custo – passagem × diária × transporte, em R$
-        </caption>
+        <caption>Composição de custo – passagem × diária × transporte, em R$</caption>
         <thead>
           <tr>
             <th scope="col">Categoria</th>
@@ -238,32 +195,15 @@ function Painel({ bloco }: { bloco: BlocoViagens }) {
   );
 }
 
-function Grupo({
-  bloco,
-  grupo,
-  permissoes,
-  excluir,
-}: {
-  bloco: BlocoViagens;
-  grupo: GrupoViagens;
-  permissoes: PermissoesPessoal;
-  excluir: AcaoFormulario;
-}) {
-  const titulo = `viagens-${bloco.propostaId}-${grupo.metaId ?? "sem-meta"}`;
+function Grupo({ bloco, grupo, permissoes, excluir }: { bloco: BlocoViagens; grupo: GrupoViagens; permissoes: PermissoesPessoal; excluir: AcaoFormulario }) {
+  const titulo = `viagens-${bloco.propostaId}-${grupo.metaId ?? 'sem-meta'}`;
   const podeAlterar = permissoes.podeAlterar && bloco.editavel;
   const podeCopiar = permissoes.podeIncluir && bloco.editavel;
   const podeExcluir = permissoes.podeExcluir && bloco.editavel;
   const comAcoes = podeAlterar || podeCopiar || podeExcluir;
-  const legenda = grupo.metaNumero
-    ? `Meta ${grupo.metaNumero} – ${grupo.metaNome}`
-    : `Viagens da proposta ${bloco.numero}`;
+  const legenda = grupo.metaNumero ? `Meta ${grupo.metaNumero} – ${grupo.metaNome}` : `Viagens da proposta ${bloco.numero}`;
   return (
-    <div
-      role="region"
-      aria-labelledby={`${titulo}-caption`}
-      tabIndex={0}
-      style={{ overflowX: "auto" }}
-    >
+    <div role="region" aria-labelledby={`${titulo}-caption`} tabIndex={0} style={{ overflowX: 'auto' }}>
       <table>
         <caption id={`${titulo}-caption`}>{`${legenda}, custos em R$`}</caption>
         <thead>
@@ -290,16 +230,8 @@ function Grupo({
               <td>{valorParaTela(v.custo.estimado)}</td>
               {comAcoes && (
                 <td>
-                  {podeAlterar && (
-                    <a
-                      href={`/orc/viagens?editar=${v.id}`}
-                    >{`Editar a viagem para ${v.localidade}`}</a>
-                  )}{" "}
-                  {podeCopiar && (
-                    <a
-                      href={`/orc/viagens?copiar=${v.id}`}
-                    >{`Copiar a viagem para ${v.localidade}`}</a>
-                  )}
+                  {podeAlterar && <a href={`/orc/viagens?editar=${v.id}`}>{`Editar a viagem para ${v.localidade}`}</a>}{' '}
+                  {podeCopiar && <a href={`/orc/viagens?copiar=${v.id}`}>{`Copiar a viagem para ${v.localidade}`}</a>}
                   {podeExcluir && (
                     <AcaoConfirmada
                       rotulo={`Excluir a viagem para ${v.localidade}`}
@@ -322,17 +254,9 @@ function Grupo({
   );
 }
 
-function Bloco({
-  bloco,
-  permissoes,
-  acoes,
-}: {
-  bloco: BlocoViagens;
-  permissoes: PermissoesPessoal;
-  acoes: AcoesViagens;
-}) {
+function Bloco({ bloco, permissoes, acoes }: { bloco: BlocoViagens; permissoes: PermissoesPessoal; acoes: AcoesViagens }) {
   const titulo = `viagens-${bloco.propostaId}`;
-  const semMetaAtiva = bloco.categoria === "META" && bloco.metas.length === 0;
+  const semMetaAtiva = bloco.categoria === 'META' && bloco.metas.length === 0;
   const podeIncluir = permissoes.podeIncluir && bloco.editavel;
   return (
     <section aria-labelledby={titulo}>
@@ -341,48 +265,23 @@ function Bloco({
         {`${ROTULO_TIPO_PROPOSTA[bloco.tipo]} · Versão ${bloco.versaoNumero} `}
         <span className="selo">{ROTULO_SITUACAO_PROPOSTA[bloco.situacao]}</span>
       </p>
-      {bloco.tetos.length === 0 ? (
-        <p>Nenhum teto de viagens nesta versão.</p>
-      ) : (
-        <Camada1
-          bloco={bloco}
-          permissoes={permissoes}
-          excluir={acoes.excluirTeto}
-        />
-      )}
-      {podeIncluir && (
-        <a
-          href={`/orc/viagens?novoTeto=${bloco.propostaId}`}
-        >{`Novo teto de viagens na proposta ${bloco.numero}`}</a>
-      )}
+      {bloco.tetos.length === 0 ? <p>Nenhum teto de viagens nesta versão.</p> : <Camada1 bloco={bloco} permissoes={permissoes} excluir={acoes.excluirTeto} />}
+      {podeIncluir && <a href={`/orc/viagens?novoTeto=${bloco.propostaId}`}>{`Novo teto de viagens na proposta ${bloco.numero}`}</a>}
       <Painel bloco={bloco} />
       {bloco.grupos.length === 0 ? (
         <p>Nenhuma viagem nesta versão.</p>
       ) : (
-        bloco.grupos.map((g) => (
-          <Grupo
-            key={g.metaId ?? "sem-meta"}
-            bloco={bloco}
-            grupo={g}
-            permissoes={permissoes}
-            excluir={acoes.excluir}
-          />
-        ))
+        bloco.grupos.map((g) => <Grupo key={g.metaId ?? 'sem-meta'} bloco={bloco} grupo={g} permissoes={permissoes} excluir={acoes.excluir} />)
       )}
       {podeIncluir &&
         (semMetaAtiva ? (
           <p role="note">
-            Cadastre uma meta ativa na proposta antes de lançar viagens.{" "}
-            <a href="/orc/metas">Ir para as metas</a>
+            Cadastre uma meta ativa na proposta antes de lançar viagens. <a href="/orc/metas">Ir para as metas</a>
           </p>
         ) : bloco.tetos.length === 0 ? (
-          <p role="note">
-            Cadastre o teto de uma conta sintética antes de lançar viagens.
-          </p>
+          <p role="note">Cadastre o teto de uma conta sintética antes de lançar viagens.</p>
         ) : (
-          <a
-            href={`/orc/viagens?nova=${bloco.propostaId}`}
-          >{`Nova viagem na proposta ${bloco.numero}`}</a>
+          <a href={`/orc/viagens?nova=${bloco.propostaId}`}>{`Nova viagem na proposta ${bloco.numero}`}</a>
         ))}
     </section>
   );
@@ -406,80 +305,37 @@ export function TelaViagens({
   formulario?: FormularioViagemAberto | null | undefined;
 }) {
   const editaveis = blocos.filter((b) => b.editavel);
-  const viagens = editaveis.flatMap((b) =>
-    b.grupos.flatMap((g) => g.viagens.map((v) => ({ bloco: b, viagem: v }))),
-  );
+  const viagens = editaveis.flatMap((b) => b.grupos.flatMap((g) => g.viagens.map((v) => ({ bloco: b, viagem: v }))));
   const aberto = (() => {
     if (!formulario || !opcoes) return null;
-    if (formulario.modo === "incluir" && permissoes.podeIncluir) {
-      const b = editaveis.find(
-        (x) =>
-          x.propostaId === formulario.propostaId &&
-          x.tetos.length > 0 &&
-          !(x.categoria === "META" && x.metas.length === 0),
-      );
-      return b ? (
-        <FormViagem
-          bloco={b}
-          modo={{ modo: "incluir" }}
-          contas={opcoes.analiticas}
-          salvar={acoes.incluir}
-        />
-      ) : null;
+    if (formulario.modo === 'incluir' && permissoes.podeIncluir) {
+      const b = editaveis.find((x) => x.propostaId === formulario.propostaId && x.tetos.length > 0 && !(x.categoria === 'META' && x.metas.length === 0));
+      return b ? <FormViagem bloco={b} modo={{ modo: 'incluir' }} contas={opcoes.analiticas} salvar={acoes.incluir} /> : null;
     }
-    if (formulario.modo === "copiar" && permissoes.podeIncluir) {
+    if (formulario.modo === 'copiar' && permissoes.podeIncluir) {
       const x = viagens.find((y) => y.viagem.id === formulario.id);
-      return x ? (
-        <FormViagem
-          bloco={x.bloco}
-          modo={{ modo: "copiar", origem: x.viagem }}
-          contas={opcoes.analiticas}
-          salvar={acoes.incluir}
-        />
-      ) : null;
+      return x ? <FormViagem bloco={x.bloco} modo={{ modo: 'copiar', origem: x.viagem }} contas={opcoes.analiticas} salvar={acoes.incluir} /> : null;
     }
-    if (formulario.modo === "alterar" && permissoes.podeAlterar) {
+    if (formulario.modo === 'alterar' && permissoes.podeAlterar) {
       const x = viagens.find((y) => y.viagem.id === formulario.id);
-      return x ? (
-        <FormViagem
-          bloco={x.bloco}
-          modo={{ modo: "alterar", viagem: x.viagem }}
-          contas={opcoes.analiticas}
-          salvar={acoes.alterar}
-        />
-      ) : null;
+      return x ? <FormViagem bloco={x.bloco} modo={{ modo: 'alterar', viagem: x.viagem }} contas={opcoes.analiticas} salvar={acoes.alterar} /> : null;
     }
-    if (formulario.modo === "incluirTeto" && permissoes.podeIncluir) {
+    if (formulario.modo === 'incluirTeto' && permissoes.podeIncluir) {
       const b = editaveis.find((x) => x.propostaId === formulario.propostaId);
-      return b ? (
-        <FormTetoViagem
-          bloco={b}
-          sinteticas={opcoes.sinteticas}
-          salvar={acoes.incluirTeto}
-        />
-      ) : null;
+      return b ? <FormTetoViagem bloco={b} sinteticas={opcoes.sinteticas} salvar={acoes.incluirTeto} /> : null;
     }
-    if (formulario.modo === "alterarTeto" && permissoes.podeAlterar) {
-      const b = editaveis.find((x) =>
-        x.tetos.some((t) => t.id === formulario.id),
-      );
+    if (formulario.modo === 'alterarTeto' && permissoes.podeAlterar) {
+      const b = editaveis.find((x) => x.tetos.some((t) => t.id === formulario.id));
       const t = b?.tetos.find((y) => y.id === formulario.id);
-      return b && t ? (
-        <FormTetoViagem
-          bloco={b}
-          teto={t}
-          sinteticas={opcoes.sinteticas}
-          salvar={acoes.alterarTeto}
-        />
-      ) : null;
+      return b && t ? <FormTetoViagem bloco={b} teto={t} sinteticas={opcoes.sinteticas} salvar={acoes.alterarTeto} /> : null;
     }
     return null;
   })();
   const naoAbriu =
     formulario && !aberto
-      ? formulario.modo === "incluir" || formulario.modo === "incluirTeto"
+      ? formulario.modo === 'incluir' || formulario.modo === 'incluirTeto'
         ? MENSAGENS_ORC.PROPOSTA_INEXISTENTE
-        : formulario.modo === "alterarTeto"
+        : formulario.modo === 'alterarTeto'
           ? MENSAGENS_ORC.TETO_INEXISTENTE
           : MENSAGENS_ORC.VIAGEM_INEXISTENTE
       : undefined;
@@ -488,23 +344,11 @@ export function TelaViagens({
       {aviso && <p role="status">{aviso}</p>}
       {naoAbriu && <p role="status">{naoAbriu}</p>}
       {aberto}
-      <FiltrosPessoalProposta
-        rota="/orc/viagens"
-        rotulo="Pesquisar viagens"
-        prefixo="viagens"
-        filtros={filtros}
-      />
+      <FiltrosPessoalProposta rota="/orc/viagens" rotulo="Pesquisar viagens" prefixo="viagens" filtros={filtros} />
       {blocos.length === 0 ? (
         <p>Nenhuma proposta encontrada nos seus Termos de Parceria.</p>
       ) : (
-        blocos.map((b) => (
-          <Bloco
-            key={b.propostaId}
-            bloco={b}
-            permissoes={permissoes}
-            acoes={acoes}
-          />
-        ))
+        blocos.map((b) => <Bloco key={b.propostaId} bloco={b} permissoes={permissoes} acoes={acoes} />)
       )}
     </>
   );
