@@ -145,6 +145,7 @@ export function TelaPropostas({
                       {verEmpregados && <a href={`/orc/empregados?proposta=${encodeURIComponent(p.numero)}`}>{`Empregados da proposta ${p.numero}`}</a>}
                       {verViagens && <a href={`/orc/viagens?proposta=${encodeURIComponent(p.numero)}`}>{`Viagens da proposta ${p.numero}`}</a>}
                       {verBens && <a href={`/orc/bens?proposta=${encodeURIComponent(p.numero)}`}>{`Bens da proposta ${p.numero}`}</a>}
+                      <a href={`/orc/previa?proposta=${p.id}`}>{`Pré-visualizar a proposta ${p.numero}`}</a>
                       {verTotalizadores && <a href={`/orc/totalizadores?proposta=${p.id}`}>{`Totalizadores da proposta ${p.numero}`}</a>}
                       {verRateio && <a href={`/orc/rateio?proposta=${p.id}`}>{`Rateio/ISS da proposta ${p.numero}`}</a>}
                       {verCronograma && <a href={`/orc/cronograma?proposta=${p.id}`}>{`Cronograma de desembolso da proposta ${p.numero}`}</a>}
