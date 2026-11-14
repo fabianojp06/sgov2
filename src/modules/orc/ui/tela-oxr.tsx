@@ -2,6 +2,7 @@ import type { CelulaOxr, LinhaOxr, TotalOxr } from '../application/grade-oxr';
 import { mesOxr } from '../application/grade-oxr';
 import { MENSAGENS_OXR, type ResultadoOxr } from '../application/orcado-realizado';
 import { valorParaTela } from '../domain/valor-tela';
+import { AjudaDesvioIA, type AcaoExplicarDesvio } from './ajuda-desvio-ia';
 import { BotaoImprimirPagina } from './botao-imprimir-pagina';
 
 // Orçado x Realizado do TP (US-086, parte 1; OxR V2, seção 5 e 5.1). Só leitura: filtros num formulário GET (passo 2),
@@ -73,8 +74,8 @@ function Linha({ l }: { l: LinhaOxr }) {
   );
 }
 
-export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; podeVerRealizado: boolean; podeExportar?: boolean }) {
-  const { dados, podeAtualizar, podeVerRealizado, podeExportar } = props;
+export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; podeVerRealizado: boolean; podeExportar?: boolean; ia?: AcaoExplicarDesvio | null }) {
+  const { dados, podeAtualizar, podeVerRealizado, podeExportar, ia } = props;
   const { propostas, tela, erro } = dados;
   const f = tela?.filtros;
   const temGlobal = tela?.grade.total.global !== undefined;
@@ -147,6 +148,12 @@ export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; po
               </>
             )}
           </p>
+          {ia && (
+            <AjudaDesvioIA
+              acao={ia}
+              filtros={{ proposta: tela.propostaId, de: tela.filtros.de, ate: tela.filtros.ate, zeradas: tela.filtros.zeradas, ...(tela.filtros.conta ? { conta: tela.filtros.conta } : {}) }}
+            />
+          )}
           <div role="region" aria-labelledby="oxr-caption" tabIndex={0} style={{ overflowX: 'auto' }}>
             <table>
               <caption id="oxr-caption">Orçado x Realizado por conta e mês (R$)</caption>

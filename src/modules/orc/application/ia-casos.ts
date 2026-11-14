@@ -86,4 +86,19 @@ export const CASOS_IA_ORC = {
       'Liste também até 10 destaques, um por conta, com a classificação exata da conta como veio na mensagem e o motivo em uma frase.',
     ].join('\n'),
   },
+  desvio: {
+    codigo: 'orc.ia_desvio',
+    nome: 'Explicação do desvio orçado x realizado',
+    funcionalidade: 'orc.ia_desvio',
+    versaoInstrucao: 1,
+    padrao: { esforco: 'low' },
+    instrucaoSistema: [
+      'Você explica para a gestão por que o realizado de um Termo de Parceria se desviou do orçado no período (IA-09).',
+      REGRAS_GERAIS,
+      'A mensagem traz os números já calculados pelo sistema: o total do período, as contas com maior desvio, as que ficaram abaixo do orçado e compensaram, os meses que mais pesaram, os ajustes de meses fechados e as pendências do ERP.',
+      'Use só esses números, escritos exatamente como vieram; não faça contas nem crie números, percentuais ou datas novas.',
+      'Escreva um texto curto, até 1500 caracteres, que cite os meses que puxaram o desvio, as contas que o explicam e as que compensaram, e os ajustes de meses fechados, quando houver.',
+      'Liste também as classificações das contas e os meses (no formato Mmm/AA, como vieram) que o texto cita.',
+    ].join('\n'),
+  },
 } as const satisfies Record<string, DefinicaoCasoUsoIA>;

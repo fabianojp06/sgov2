@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CENTROS_CUSTO_EXEMPLO, estruturaFinanceiraFalsa, type NoCentroCusto } from '@/modules/cad/servidor';
 import type { ContextoRequisicao } from '@/shared/authz';
+import type { ServicoIA } from '@/shared/ia';
 import { criarPrisma } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { incluirBem } from './bens';
 import type { DepsOrc } from './deps';
 import { respostaDeArquivo } from '@/modules/ger';
 import { exportarOrcadoRealizado } from './exportar-oxr';
+import { explicarDesvio, NUMERO_INVENTADO } from './ia-desvio';
 import { obterOrcadoRealizado } from './orcado-realizado';
 import { montarArquivoRealizado } from './planilhas-teste';
 import { criarProposta } from './propostas';
@@ -211,5 +213,33 @@ describe('obterOrcadoRealizado (US-086)', () => {
     const semTp = await exportarOrcadoRealizado(c, { proposta: '' }, 'xlsx', comDeps());
     expect(!semTp.ok && semTp.erros[0]!.mensagem).toBe('Selecione um Termo de Parceria para consultar.');
     await expect(exportarOrcadoRealizado(ctx(gfin, [tps.oficial.unidadeId], OXR), { proposta: tps.oficial.id }, 'xlsx', comDeps())).rejects.toThrow();
+  });
+
+  it('IA-09 (US-090): a mensagem traz meses, contas e pendências com os números do sistema; número inventado recusa a resposta; contas citadas fora dos fatos saem', async () => {
+    const mensagens: string[] = [];
+    const ia = (resposta: unknown) =>
+      ({
+        gerarEstruturado: async (_c: unknown, _caso: unknown, m: string) => {
+          mensagens.push(m);
+          return { valor: resposta };
+        },
+        disponivel: async () => true,
+      }) as unknown as ServicoIA;
+    const c = ctx(gfin, [tps.oficial.unidadeId], [...OXR, 'orc.ia_desvio:executar']);
+    const filtros = { proposta: tps.oficial.id, de: '2026-01', ate: '2026-03' };
+    const boa = { texto: 'Em Mar/26 a conta 4.1.1.5.005 passou R$ 150,00 do orçado; em Fev/26 ficou R$ 500,00 abaixo.', contas: ['4.1.1.5.005', '9.9.9.9.999'], meses: ['Mar/26', 'Dez/26'] };
+    const r = await explicarDesvio(c, filtros, { ...comDeps(), ia: ia(boa) });
+    expect(r.ok && [r.valor.contas, r.valor.meses]).toEqual([['4.1.1.5.005'], ['Mar/26']]);
+    expect(mensagens[0]).toContain('- Mar/26: orçado R$ 500,00; realizado R$ 650,00; desvio R$ 150,00.');
+    expect(mensagens[0]).toContain('Pendências do ERP sem conta no SGO: 1, R$ 7,00, fora dos números.');
+    // Sem vePessoal, a conta de pessoal não vai à IA; o objeto do TP também não.
+    expect(mensagens[0]).not.toContain('4.1.1.1.001');
+    expect(mensagens[0]).not.toContain('Objeto TP-X01');
+    const inventada = await explicarDesvio(c, filtros, { ...comDeps(), ia: ia({ ...boa, texto: 'O desvio foi de R$ 999,99 em Mar/26, puxado pela conta 4.1.1.5.005.' }) });
+    expect(!inventada.ok && inventada.erros[0]!.mensagem).toBe(NUMERO_INVENTADO);
+    // Sem a permissão do caso, não chama a IA.
+    const antes = mensagens.length;
+    expect((await explicarDesvio(ctx(gfin, [tps.oficial.unidadeId], OXR), filtros, { ...comDeps(), ia: ia(boa) })).ok).toBe(false);
+    expect(mensagens.length).toBe(antes);
   });
 });

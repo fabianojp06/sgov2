@@ -3,6 +3,7 @@
 import { definirAcao } from '@/shared/authz';
 import { entradaBruta } from './entrada-exercicio';
 import { sugerirJustificativa } from './ia-justificativa';
+import { explicarDesvio } from './ia-desvio';
 import { destacarRiscos } from './ia-previsao';
 import { sugerirRecusa } from './ia-recusa';
 import { sugerirContaCc } from './ia-sugestao-conta';
@@ -18,3 +19,6 @@ export const sugerirRecusaAcao = definirAcao({ funcionalidade: 'orc.ia_recusa', 
 // O destaque das contas em risco na previsão de fechamento (US-091, D-P34-3): a guarda confere o caso; o caso de uso,
 // a permissão do Orçado x Realizado e a RLS (pela previsão).
 export const destacarRiscosAcao = definirAcao({ funcionalidade: 'orc.ia_previsao', acao: 'executar', entrada: entradaBruta }, (e, ctx) => destacarRiscos(ctx, e));
+// A explicação do desvio no Orçado x Realizado (US-090, D-P35-1): a guarda confere o caso; o caso de uso, a permissão
+// do Orçado x Realizado e a RLS (pela tela).
+export const explicarDesvioAcao = definirAcao({ funcionalidade: 'orc.ia_desvio', acao: 'executar', entrada: entradaBruta }, (e, ctx) => explicarDesvio(ctx, e));
