@@ -59,8 +59,9 @@ export function colunasDoPeriodo(de: string, ate: string, anoAtual: number): Col
   return colunas;
 }
 
-type NoOrdem = { no: NoConta; nivel: number; inativa: boolean };
-function nosDaArvore(raizes: readonly NoConta[]): { nos: NoArvore[]; ordem: NoOrdem[] } {
+export type NoOrdem = { no: NoConta; nivel: number; inativa: boolean };
+/** A árvore das despesas em pré-ordem, com o nível e a marca de inativa (herdada do pai). */
+export function nosDaArvore(raizes: readonly NoConta[]): { nos: NoArvore[]; ordem: NoOrdem[] } {
   const nos: NoArvore[] = [];
   const ordem: NoOrdem[] = [];
   const visitar = (n: NoConta, paiId: string | null, nivel: number, inativaAcima: boolean) => {
@@ -71,6 +72,26 @@ function nosDaArvore(raizes: readonly NoConta[]): { nos: NoArvore[]; ordem: NoOr
   };
   for (const r of raizes) visitar(r, null, 0, false);
   return { nos, ordem };
+}
+
+export const analiticasDe = (nos: readonly NoArvore[]) => new Set(nos.filter((n) => n.tipo === 'ANALITICA').map((n) => n.id));
+
+/** Distribui as linhas nas colunas, por conta analítica; o que não é analítica da árvore vai para "fora". */
+export function distribuir(linhas: readonly LinhaRealizado[], colunas: readonly ColunaDespesas[], analiticas: ReadonlySet<string>) {
+  const series = new Map<string, Dinheiro[]>();
+  let fora = { quantidade: 0, valor: Dinheiro.zero() };
+  for (const l of linhas) {
+    const i = colunas.findIndex((c) => c.de <= l.competencia && l.competencia <= c.ate);
+    if (i < 0) continue;
+    if (!analiticas.has(l.conta)) {
+      fora = { quantidade: fora.quantidade + 1, valor: fora.valor.somar(l.valor) };
+      continue;
+    }
+    const serie = series.get(l.conta) ?? colunas.map(() => Dinheiro.zero());
+    serie[i] = serie[i]!.somar(l.valor);
+    series.set(l.conta, serie);
+  }
+  return { series, foraDaArvore: { quantidade: fora.quantidade, valor: fora.valor.paraString() } };
 }
 
 /**
@@ -86,23 +107,8 @@ export function montarDespesas(
   opcoes: { exibirZerados: boolean; anoAtual: number },
 ): Despesas {
   const colunas = colunasDoPeriodo(de, ate, opcoes.anoAtual);
-  const raizes = arvore.filter((n) => n.classificacao === RAIZ_DESPESAS);
-  const { nos, ordem } = nosDaArvore(raizes);
-  const analiticas = new Set(nos.filter((n) => n.tipo === 'ANALITICA').map((n) => n.id));
-  const series = new Map<string, Dinheiro[]>();
-  let fora = { quantidade: 0, valor: Dinheiro.zero() };
-  for (const l of linhas) {
-    const i = colunas.findIndex((c) => c.de <= l.competencia && l.competencia <= c.ate);
-    if (i < 0) continue;
-    if (!analiticas.has(l.conta)) {
-      fora = { quantidade: fora.quantidade + 1, valor: fora.valor.somar(l.valor) };
-      continue;
-    }
-    const serie = series.get(l.conta) ?? colunas.map(() => Dinheiro.zero());
-    serie[i] = serie[i]!.somar(l.valor);
-    series.set(l.conta, serie);
-  }
-  const foraDaArvore = { quantidade: fora.quantidade, valor: fora.valor.paraString() };
+  const { nos, ordem } = nosDaArvore(arvore.filter((n) => n.classificacao === RAIZ_DESPESAS));
+  const { series, foraDaArvore } = distribuir(linhas, colunas, analiticasDe(nos));
   if (colunas.length === 0 || nos.length === 0) return { colunas, linhas: [], totalGeral: { valores: colunas.map(() => '0.00'), total: '0.00' }, foraDaArvore };
 
   const r = totalizarSerie(nos, series, colunas.length);

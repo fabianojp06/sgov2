@@ -22,7 +22,7 @@ export const FUNCIONALIDADE_DESPESAS = 'rel.despesas_tp';
 /** A porta do realizado do orc (US-085, #526): `realizadoPorTp` e a lista dos TPs; injetável nos testes. */
 export type PortaRealizado = {
   tps: (ctx: ContextoRequisicao) => Promise<readonly TpDoRealizado[]>;
-  realizado: (ctx: ContextoRequisicao, filtro: { tp: string; de: string; ate: string }) => Promise<RealizadoDoTp | null>;
+  realizado: (ctx: ContextoRequisicao, filtro: { tp: string; de: string; ate: string; previsto?: boolean }) => Promise<RealizadoDoTp | null>;
 };
 
 export const MENSAGENS_DESPESAS = {
@@ -53,6 +53,36 @@ const mesAtual = (agora: Date) => {
   return `${p.find((x) => x.type === 'year')!.value}-${p.find((x) => x.type === 'month')!.value}`;
 };
 
+type Filtros = TelaDespesas['filtros'];
+/** O que os demonstrativos do TP têm em comum: a permissão do realizado, o TP oficial e o período (RN0234/0294/0385). */
+export async function filtrosDoTp(
+  ctx: ContextoRequisicao,
+  bruto: unknown,
+  porta: PortaRealizado,
+  agora: Date,
+): Promise<{ pronto: false; tps: readonly TpDoRealizado[]; filtros: Filtros; erro: string | null } | { pronto: true; tps: readonly TpDoRealizado[]; filtros: Filtros; tp: TpDoRealizado; anoAtual: number }> {
+  const vazio = { tp: '', de: '', ate: '', exibirZerados: false };
+  // Os dados são do realizado do orc: sem a permissão dele, a mensagem (e não um erro na página).
+  if (!ctx.permissoes.has('orc.realizado:consultar')) return { pronto: false, tps: [], filtros: vazio, erro: MENSAGENS_DESPESAS.SEM_REALIZADO };
+  // Só TP com versão oficial (RN0385).
+  const tps = (await porta.tps(ctx)).filter((t) => t.versaoOficial !== null);
+  // Parâmetro repetido na URL (?tp=a&tp=b) vale o primeiro.
+  const primeiro = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+  const b = (bruto ?? {}) as Record<string, unknown>;
+  const f = FILTROS.safeParse({ tp: primeiro(b.tp), de: primeiro(b.de), ate: primeiro(b.ate), zerados: primeiro(b.zerados) });
+  if (!f.success) return { pronto: false, tps, filtros: vazio, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
+  const filtros = { tp: f.data.tp?.trim() ?? '', de: f.data.de ?? '', ate: f.data.ate ?? '', exibirZerados: f.data.zerados === 'sim' };
+  if (!filtros.tp) return { pronto: false, tps, filtros, erro: null };
+  const tp = tps.find((t) => t.numero === filtros.tp);
+  if (!tp) return { pronto: false, tps, filtros, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
+  // Período padrão: a vigência inteira (RN0294); os meses futuros saem zerados (RN0305).
+  const de = filtros.de || tp.inicio;
+  const ate = filtros.ate || tp.fim;
+  if (!ehCompetencia(de) || !ehCompetencia(ate) || de > ate) return { pronto: false, tps, filtros, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
+  if (de < tp.inicio || ate > tp.fim) return { pronto: false, tps, filtros, erro: MENSAGENS_DESPESAS.FORA_DA_VIGENCIA };
+  return { pronto: true, tps, filtros: { ...filtros, de, ate }, tp, anoAtual: Number(mesAtual(agora).slice(0, 4)) };
+}
+
 export async function obterDespesasTp(
   ctx: ContextoRequisicao,
   bruto: unknown,
@@ -60,34 +90,18 @@ export async function obterDespesasTp(
   deps: { agora?: () => Date; contas?: typeof listarArvoreContas } = {},
 ): Promise<TelaDespesas> {
   exigir(ctx, FUNCIONALIDADE_DESPESAS, 'consultar');
-  const vazio = { tp: '', de: '', ate: '', exibirZerados: false };
-  // Os dados são do realizado do orc: sem a permissão dele, a mensagem (e não um erro na página).
-  if (!ctx.permissoes.has('orc.realizado:consultar')) return { tps: [], filtros: vazio, relatorio: null, erro: MENSAGENS_DESPESAS.SEM_REALIZADO };
-  // Só TP com versão oficial (RN0385).
-  const tps = (await porta.tps(ctx)).filter((t) => t.versaoOficial !== null);
-  // Parâmetro repetido na URL (?tp=a&tp=b) vale o primeiro.
-  const primeiro = (v: unknown) => (Array.isArray(v) ? v[0] : v);
-  const b = (bruto ?? {}) as Record<string, unknown>;
-  const f = FILTROS.safeParse({ tp: primeiro(b.tp), de: primeiro(b.de), ate: primeiro(b.ate), zerados: primeiro(b.zerados) });
-  if (!f.success) return { tps, filtros: vazio, relatorio: null, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
-  const filtros = { tp: f.data.tp?.trim() ?? '', de: f.data.de ?? '', ate: f.data.ate ?? '', exibirZerados: f.data.zerados === 'sim' };
-  if (!filtros.tp) return { tps, filtros, relatorio: null, erro: null };
-  const tp = tps.find((t) => t.numero === filtros.tp);
-  if (!tp) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
-  // Período padrão: a vigência inteira (RN0294); os meses futuros saem zerados (RN0305).
-  const atual = mesAtual((deps.agora ?? (() => new Date()))());
-  const de = filtros.de || tp.inicio;
-  const ate = filtros.ate || tp.fim;
-  if (!ehCompetencia(de) || !ehCompetencia(ate) || de > ate) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
-  if (de < tp.inicio || ate > tp.fim) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.FORA_DA_VIGENCIA };
+  const f = await filtrosDoTp(ctx, bruto, porta, (deps.agora ?? (() => new Date()))());
+  if (!f.pronto) return { tps: f.tps, filtros: f.filtros, relatorio: null, erro: f.erro };
+  const { tps, filtros, tp } = f;
+  const { de, ate } = filtros;
   const [realizado, arvore] = await Promise.all([porta.realizado(ctx, { tp: tp.numero, de, ate }), (deps.contas ?? listarArvoreContas)(prisma, { incluirInativos: true })]);
   // Nulo: o TP sumiu do acesso do usuário (RLS) ou o período foi recusado pela porta.
   if (!realizado) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
   // Com as inativas: conta inativada continua recebendo realizado (RN_OXR_001).
-  const d = montarDespesas(arvore, realizado.linhas, de, ate, { exibirZerados: filtros.exibirZerados, anoAtual: Number(atual.slice(0, 4)) });
+  const d = montarDespesas(arvore, realizado.linhas, de, ate, { exibirZerados: filtros.exibirZerados, anoAtual: f.anoAtual });
   return {
     tps,
-    filtros: { ...filtros, de, ate },
+    filtros,
     relatorio: {
       ...d,
       tp,
@@ -99,8 +113,7 @@ export async function obterDespesasTp(
   };
 }
 
-
-class FalhaGeracao extends Error {
+export class FalhaGeracao extends Error {
   constructor(readonly erros: readonly { campo: string; mensagem: string }[]) {
     super('falha na geração do arquivo');
   }
