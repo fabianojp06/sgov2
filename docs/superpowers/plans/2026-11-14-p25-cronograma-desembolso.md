@@ -33,7 +33,7 @@
   - **Pessoal:** o `totalMes` do motor, ano a ano (D-P20-4). Quem não vê o pessoal recebe o cronograma sem ele, com aviso (D-P23-5).
   - **Bens:** no mês da data do bem.
   - **Rateio:** na competência da célula.
-  - **Viagens [PROVISÓRIO]:** não têm data (GAP-CAD-002). O custo de cada viagem (passagem, diária e transporte) é **distribuído igualmente pelos meses da vigência**, com Half-Even, e o resto dos centavos vai para o último mês, para a soma bater exato (RN_CD_002). A tela avisa que as viagens foram distribuídas por igual.
+  - **Viagens [PROVISÓRIO]:** não têm data (GAP-CAD-002). O custo de cada viagem (passagem, diária e transporte) é **distribuído igualmente pelos meses da vigência**. A parcela é arredondada para baixo, e o resto dos centavos vai para o último mês: a soma bate exato (RN_CD_002) e nenhum mês fica negativo. A tela avisa que as viagens foram distribuídas por igual.
 - **D-P25-3 (exatidão, RN_CD_002 e RNF_CD_003):** a soma dos meses é igual ao total dos Totalizadores (P23), com o mesmo filtro de pessoal. Teste de propriedade com vigências de 1 a 60 meses.
 - **D-P25-4 (descrições, REQ_CD_002):** "Parcela N – MM/AAAA" e, no fechamento, "Total de AAAA". Nenhum campo de texto.
 - **D-P25-5 (% acumulado, RN0252):** acumulado ÷ Valor Global × 100, com 2 casas Half-Even. Com o Valor Global zero, mostra "—".
