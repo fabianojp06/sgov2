@@ -17,8 +17,8 @@
 ## Decisões
 
 - **D-P30-1 (escopo):**
-  - **Entra:** a parte determinística.
-  - **Fica fora:** a ajuda de IA para redigir a recusa. Ela depende da priorização do catálogo de IA (GAP-IA-001) e da avaliação em hml (como a #403). A justificativa continua digitada, com a regra dos 15 caracteres.
+  - **Task 1:** a parte determinística.
+  - **Task 2:** a ajuda de IA para redigir a recusa. O GAP-IA-001 foi liberado pelo PO em 11/11 (P14), e a infraestrutura de IA é a da US-019.
 - **D-P30-2 (base) [PROVISÓRIO]:** a "versão anterior" é a de número imediatamente anterior. Na primeira versão, o resumo diz "Primeira versão: sem comparação".
 - **D-P30-3 (teto e rateio) [PROVISÓRIO]:** a proposta não tem teto global no modelo. O "teto" é a soma dos tetos de viagens por conta sintética (US-071); o "rateio" é a soma das células do Rateio/ISS (US-073).
 - **D-P30-4 (pontos de atenção) [PROVISÓRIO]:**
@@ -40,7 +40,19 @@
 
 ---
 
+- **D-P30-6 (IA na recusa) [PROVISÓRIO]:**
+  - **Caso:** `orc.ia_recusa`, declarado em `ia-casos.ts` e instalado inativo e com teto zero, como os do P14. A funcionalidade fica fora do menu, só com `executar`, para GFIN e DIREX (os aprovadores do WA01).
+  - **Mensagem (minimização, §4.4):** só a descrição da solicitação, os itens do resumo (os mesmos que o aprovador vê) e o rascunho digitado, entre as marcas. Nunca nomes de pessoas.
+  - **Resposta:** um texto de 15 a 1000 caracteres e até 5 pontos.
+  - **IA sugere, não grava:** "Usar este texto" só preenche o campo, que continua editável. Se o texto usado não for alterado, a rejeição vai ao Histórico com `origem = SUGESTAO_IA`.
+  - **Onde aparece:** só no WA01 pendente, para quem decide e tem a permissão do caso. O `apr` recebe a ajuda como um elemento pronto da página, porque não importa o `orc`.
+
 ### Task 1: Comparação e resumo
 
 - [ ] `compararVersoes` com os testes de domínio (Review Focus 3, 4 e 5); o resumo do WA01 com o teste de integração (1 e 2).
-- [ ] PR com `Refs #106` (a história só fecha com a parte de IA) e o comentário 12.12.
+- [ ] PR com `Refs #106` e o comentário 12.12.
+
+### Task 2: Ajuda da IA para redigir a recusa
+
+- [ ] O caso `orc.ia_recusa`, `sugerirRecusa` com teste de integração (com o provedor falso: a mensagem sem nomes, só no WA01 pendente, a permissão), a marca `sugestaoIa` na decisão do apr e o componente da ajuda na Central, com teste de página.
+- [ ] PR com `Closes #106` e o comentário 12.12.
