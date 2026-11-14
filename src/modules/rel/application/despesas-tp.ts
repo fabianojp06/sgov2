@@ -9,7 +9,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { realizadoPorTp, tpsDoRealizado, type RealizadoDoTp, type TpDoRealizado } from '@/modules/orc';
 import { falha, ok, type Resultado } from '@/shared/kernel';
-import { ehCompetencia, montarDespesas, type Despesas } from './despesas-tp-montagem';
+import { ehCompetencia, mesPorExtenso, montarDespesas, type Despesas } from './despesas-tp-montagem';
 
 // Demonstrativo de despesas do TP (US-096 parte 1; UC05.02, 2ª tabela). Só leitura: o realizado vem da porta
 // do orc (US-085), com a permissão e a RLS dela; as contas, do C1. Filtros: o TP (obrigatório, RN0234), o
@@ -30,6 +30,7 @@ export const MENSAGENS_DESPESAS = {
   TP_INEXISTENTE: 'Termo de Parceria não encontrado ou sem versão oficial.',
   PERIODO_INVALIDO: 'Período inválido: use o formato AAAA-MM, com o início antes do fim.',
   FORA_DA_VIGENCIA: 'O período precisa estar dentro da vigência do Termo de Parceria.',
+  SEM_REALIZADO: 'O seu perfil não consulta o realizado dos Termos de Parceria (Orçamento › Realizado). Contate o Administrador.',
 } as const;
 
 const FILTROS = z.object({
@@ -59,25 +60,31 @@ export async function obterDespesasTp(
   deps: { agora?: () => Date; contas?: typeof listarArvoreContas } = {},
 ): Promise<TelaDespesas> {
   exigir(ctx, FUNCIONALIDADE_DESPESAS, 'consultar');
+  const vazio = { tp: '', de: '', ate: '', exibirZerados: false };
+  // Os dados são do realizado do orc: sem a permissão dele, a mensagem (e não um erro na página).
+  if (!ctx.permissoes.has('orc.realizado:consultar')) return { tps: [], filtros: vazio, relatorio: null, erro: MENSAGENS_DESPESAS.SEM_REALIZADO };
   // Só TP com versão oficial (RN0385).
   const tps = (await porta.tps(ctx)).filter((t) => t.versaoOficial !== null);
-  const f = FILTROS.safeParse(bruto);
-  const vazio = { tp: '', de: '', ate: '', exibirZerados: false };
+  // Parâmetro repetido na URL (?tp=a&tp=b) vale o primeiro.
+  const primeiro = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+  const b = (bruto ?? {}) as Record<string, unknown>;
+  const f = FILTROS.safeParse({ tp: primeiro(b.tp), de: primeiro(b.de), ate: primeiro(b.ate), zerados: primeiro(b.zerados) });
   if (!f.success) return { tps, filtros: vazio, relatorio: null, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
   const filtros = { tp: f.data.tp?.trim() ?? '', de: f.data.de ?? '', ate: f.data.ate ?? '', exibirZerados: f.data.zerados === 'sim' };
   if (!filtros.tp) return { tps, filtros, relatorio: null, erro: null };
   const tp = tps.find((t) => t.numero === filtros.tp);
   if (!tp) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
-  // Período padrão: a vigência inteira, até o mês atual (RN0294; o que ainda não aconteceu não tem realizado).
+  // Período padrão: a vigência inteira (RN0294); os meses futuros saem zerados (RN0305).
   const atual = mesAtual((deps.agora ?? (() => new Date()))());
   const de = filtros.de || tp.inicio;
-  const ate = filtros.ate || (tp.fim < atual ? tp.fim : atual);
+  const ate = filtros.ate || tp.fim;
   if (!ehCompetencia(de) || !ehCompetencia(ate) || de > ate) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.PERIODO_INVALIDO };
   if (de < tp.inicio || ate > tp.fim) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.FORA_DA_VIGENCIA };
-  const [realizado, arvore] = await Promise.all([porta.realizado(ctx, { tp: tp.numero, de, ate }), (deps.contas ?? listarArvoreContas)(prisma)]);
+  const [realizado, arvore] = await Promise.all([porta.realizado(ctx, { tp: tp.numero, de, ate }), (deps.contas ?? listarArvoreContas)(prisma, { incluirInativos: true })]);
   // Nulo: o TP sumiu do acesso do usuário (RLS) ou o período foi recusado pela porta.
   if (!realizado) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
-  const d = montarDespesas(arvore, realizado.linhas, de, ate, { exibirZerados: filtros.exibirZerados });
+  // Com as inativas: conta inativada continua recebendo realizado (RN_OXR_001).
+  const d = montarDespesas(arvore, realizado.linhas, de, ate, { exibirZerados: filtros.exibirZerados, anoAtual: Number(atual.slice(0, 4)) });
   return {
     tps,
     filtros: { ...filtros, de, ate },
@@ -111,8 +118,12 @@ export function planilhaDespesas(tela: NonNullable<TelaDespesas['relatorio']>, i
       { titulo: 'Total', tipo: 'dinheiro' },
     ],
     linhas: [
-      ...tela.linhas.map((l) => [l.classificacao, `${recuo(l.nivel)}${l.descricao}`, ...l.valores, l.total]),
+      ...tela.linhas.map((l) => [l.classificacao, `${recuo(l.nivel)}${l.descricao}${l.inativa ? ' (inativa)' : ''}`, ...l.valores, l.total]),
       ['', 'Total Geral Termo de Parceria', ...tela.totalGeral.valores, tela.totalGeral.total],
+      // O que ficou fora (conta sintética ou fora das despesas) também sai no arquivo, para o total não parecer completo.
+      ...(tela.foraDaArvore.quantidade > 0
+        ? [['', `Fora do demonstrativo: ${tela.foraDaArvore.quantidade} lançamento(s) em conta que não é analítica de despesa`, ...tela.colunas.map(() => null), tela.foraDaArvore.valor]]
+        : []),
     ],
     ...(identificacao ? { identificacao } : {}),
   };
@@ -132,7 +143,7 @@ export async function exportarDespesasTp(
   const r = tela.relatorio;
   const filtros = [
     { rotulo: 'Termo de Parceria', valor: `${r.tp.numero} - ${r.tp.objeto}` },
-    { rotulo: 'Período', valor: `${tela.filtros.de} a ${tela.filtros.ate}` },
+    { rotulo: 'Período', valor: `${mesPorExtenso(tela.filtros.de)} a ${mesPorExtenso(tela.filtros.ate)}` },
     { rotulo: 'Exibir zerados', valor: tela.filtros.exibirZerados ? 'Sim' : 'Não' },
   ];
   const identificacao = criarIdentificacao({ titulo: `Demonstrativo de despesas - ${r.tp.objeto}`, filtros, operador: ctx.usuarioRotulo });

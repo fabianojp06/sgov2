@@ -12,10 +12,13 @@ export const TEXTOS_DESPESAS = {
   PENDENCIAS: (n: number, v: string) => `${n} lançamento(s) em conta desconhecida, somando ${v}, ficaram fora do demonstrativo (pendências da carga).`,
   AJUSTES: (n: number) => `${n} ajuste(s) de meses fechados já estão somados nos meses em que foram lançados.`,
   VAZIO: 'Nenhuma despesa realizada no período. Marque "Exibir contas zeradas" para ver o plano inteiro.',
+  FORA: (n: number, v: string) => `${n} lançamento(s) em conta que não é analítica de despesa, somando ${v}, ficaram fora do total.`,
+  INATIVA: '(inativa)',
 } as const;
 
 const dataBrasilia = (d: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 const moeda = (v: string) => Dinheiro.de(v).formatar();
+const DIREITA = { textAlign: 'right' } as const;
 
 export function TabelaDespesas({ relatorio: r }: { relatorio: NonNullable<TelaDespesas['relatorio']> }) {
   return (
@@ -26,6 +29,7 @@ export function TabelaDespesas({ relatorio: r }: { relatorio: NonNullable<TelaDe
       <p>{r.atualizadoEm ? TEXTOS_DESPESAS.ATUALIZADO(dataBrasilia(r.atualizadoEm)) : TEXTOS_DESPESAS.SEM_ATUALIZACAO}</p>
       {r.pendencias.quantidade > 0 && <p role="note">{TEXTOS_DESPESAS.PENDENCIAS(r.pendencias.quantidade, moeda(r.pendencias.valor))}</p>}
       {r.ajustes > 0 && <p role="note">{TEXTOS_DESPESAS.AJUSTES(r.ajustes)}</p>}
+      {r.foraDaArvore.quantidade > 0 && <p role="note">{TEXTOS_DESPESAS.FORA(r.foraDaArvore.quantidade, moeda(r.foraDaArvore.valor))}</p>}
       {r.linhas.length === 0 ? (
         <p>{TEXTOS_DESPESAS.VAZIO}</p>
       ) : (
@@ -36,8 +40,8 @@ export function TabelaDespesas({ relatorio: r }: { relatorio: NonNullable<TelaDe
               <tr>
                 <th scope="col">Conta</th>
                 <th scope="col">Descrição</th>
-                {r.colunas.map((c) => (
-                  <th key={c.rotulo} scope="col">
+                {r.colunas.map((c, i) => (
+                  <th key={i} scope="col">
                     {c.rotulo}
                   </th>
                 ))}
@@ -48,11 +52,16 @@ export function TabelaDespesas({ relatorio: r }: { relatorio: NonNullable<TelaDe
               {r.linhas.map((l) => (
                 <tr key={l.classificacao}>
                   <th scope="row">{l.classificacao}</th>
-                  <td style={{ paddingLeft: `${l.nivel * 1.25}em` }}>{l.analitica ? l.descricao : <strong>{l.descricao}</strong>}</td>
+                  <td style={{ paddingLeft: `${l.nivel * 1.25}em` }}>
+                    {l.analitica ? l.descricao : <strong>{l.descricao}</strong>}
+                    {l.inativa && ` ${TEXTOS_DESPESAS.INATIVA}`}
+                  </td>
                   {l.valores.map((v, i) => (
-                    <td key={i}>{moeda(v)}</td>
+                    <td key={i} style={DIREITA}>
+                      {moeda(v)}
+                    </td>
                   ))}
-                  <td>{moeda(l.total)}</td>
+                  <td style={DIREITA}>{moeda(l.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -62,9 +71,11 @@ export function TabelaDespesas({ relatorio: r }: { relatorio: NonNullable<TelaDe
                   {TEXTOS_DESPESAS.TOTAL_GERAL}
                 </th>
                 {r.totalGeral.valores.map((v, i) => (
-                  <td key={i}>{moeda(v)}</td>
+                  <td key={i} style={DIREITA}>
+                    {moeda(v)}
+                  </td>
                 ))}
-                <td>{moeda(r.totalGeral.total)}</td>
+                <td style={DIREITA}>{moeda(r.totalGeral.total)}</td>
               </tr>
             </tfoot>
           </table>

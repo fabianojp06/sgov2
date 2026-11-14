@@ -17,7 +17,7 @@ let app: PrismaClient;
 let usuarioId = '';
 
 const perm = (a: string) => ['rel.despesas_tp', a].join(':');
-const ctx = (acoes = ['consultar', 'exportar']): ContextoRequisicao => ({ usuarioId, usuarioRotulo: 'gfin', sessaoUid: 's1', ip: null, unidadeId: null, permissoes: new Set(acoes.map(perm)) });
+const ctx = (acoes = ['consultar', 'exportar']): ContextoRequisicao => ({ usuarioId, usuarioRotulo: 'gfin', sessaoUid: 's1', ip: null, unidadeId: null, permissoes: new Set([...acoes.map(perm), 'orc.realizado:consultar']) });
 const TP = { numero: 'TP-3', objeto: 'Apoio à gestão', inicio: '2026-09', fim: '2028-12', versaoOficial: 2 };
 const porta: PortaRealizado = {
   tps: async () => [TP],
@@ -62,7 +62,7 @@ describe('demonstrativo de despesas do TP', () => {
     expect(await exportarDespesasTp(ctx(), {}, 'xlsx', porta, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_DESPESAS.ESCOLHA_TP }] });
     const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'rel.despesas_tp' }, select: { tipoOperacao: true, registroId: true, depois: true } });
     expect(h).toHaveLength(3);
-    expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', registroId: 'TP-3', depois: { formato: 'xlsx', filtros: expect.arrayContaining([{ rotulo: 'Período', valor: '2026-09 a 2027-02' }]) } });
+    expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', registroId: 'TP-3', depois: { formato: 'xlsx', filtros: expect.arrayContaining([{ rotulo: 'Período', valor: 'Setembro/2026 a Dezembro/2028' }]) } });
     await expect(exportarDespesasTp(ctx(['consultar']), { tp: 'TP-3' }, 'xlsx', porta, deps())).rejects.toThrow();
   });
 });
