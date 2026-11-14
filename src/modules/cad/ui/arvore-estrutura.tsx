@@ -1,13 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GradeArvore, type ColunaGrade, type DefinicaoFiltro, type ValoresFiltro } from '@/modules/ger';
 import { nosVisiveis, type NoTela } from '../domain/arvore-tela';
 import { hrefExportacao } from './arvore-contas-logica';
+import { chaveInativos, inativosSalvos, textoInativos } from './inativos-sessao';
 
 // Consulta de estrutura em árvore, só leitura (US-044 e US-046; C27, RN_PLA_001): a estrutura só
 // muda pela importação da planilha, então não há Novo, Alterar nem Excluir. Os inativos ficam de
 // fora até o usuário marcar a caixa, que é só exibição (quem consulta já recebe a árvore inteira).
+// A caixa fica retida na sessão, como os filtros (#245).
 export function ArvoreEstrutura<C extends string>({
   idGrade,
   rotulo,
@@ -33,11 +35,28 @@ export function ArvoreEstrutura<C extends string>({
 }) {
   const [mostrarInativos, setMostrarInativos] = useState(false);
   const [valores, setValores] = useState<ValoresFiltro>({});
+  // Sem sessionStorage (janela privada, bloqueio), segue desmarcada.
+  useEffect(() => {
+    try {
+      if (inativosSalvos(sessionStorage.getItem(chaveInativos(idGrade)), escopoSessao)) setMostrarInativos(true);
+    } catch {
+      // sem armazenamento de sessão
+    }
+  }, [idGrade, escopoSessao]);
+  const mudarInativos = (mostrar: boolean) => {
+    setMostrarInativos(mostrar);
+    if (!escopoSessao) return;
+    try {
+      sessionStorage.setItem(chaveInativos(idGrade), textoInativos(escopoSessao, mostrar));
+    } catch {
+      // sem armazenamento de sessão
+    }
+  };
   const visiveis = useMemo(() => nosVisiveis(nos, mostrarInativos), [nos, mostrarInativos]);
   return (
     <section>
       <label>
-        <input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} /> {rotuloInativos}
+        <input type="checkbox" checked={mostrarInativos} onChange={(e) => mudarInativos(e.target.checked)} /> {rotuloInativos}
       </label>
       {exportar && (
         <p>
