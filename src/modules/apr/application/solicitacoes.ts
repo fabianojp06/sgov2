@@ -53,9 +53,11 @@ export type DadosSolicitacao = {
 
 /**
  * D-P26-4: registra o pedido na transação de quem submete e vincula o aprovador à unidade do alvo, para a RLS
- * deixá-lo ler o alvo e a solicitação [PROVISÓRIO]. O vínculo sobe a versão do usuário (a sessão recarrega as
- * unidades), como o do criador da proposta (D-P17-3). Uma só EM_APROVACAO por alvo: o índice único recusa a
- * segunda (RN_WA01_009).
+ * deixá-lo ler o alvo e a solicitação [PROVISÓRIO]. **Limite de confiança:** `aprovadorId` e `papelAprovador`
+ * vêm sempre do `resolverAprovador` (a alçada), e `unidadeId` da unidade do alvo, nunca da entrada do usuário: o
+ * vínculo dá acesso à unidade inteira pela RLS (revisão 12.12). O vínculo sobe a versão do usuário (a sessão
+ * recarrega as unidades), como o do criador da proposta (D-P17-3). Uma só EM_APROVACAO por alvo: o índice único
+ * recusa a segunda (RN_WA01_009).
  */
 export async function criarSolicitacao(tx: TxCliente, d: DadosSolicitacao, agora: Date): Promise<{ id: string }> {
   const vinculo = await tx.usuarioUnidade.findFirst({ where: { usuarioId: d.aprovadorId, unidadeId: d.unidadeId }, select: { usuarioId: true } });
@@ -86,7 +88,8 @@ export type TarefaTela = {
 
 export type FiltrosTarefas = { situacao?: string | undefined; de?: string | undefined; ate?: string | undefined; tp?: string | undefined };
 
-const dia = (t: string | undefined) => (t && /^\d{4}-\d{2}-\d{2}$/.test(t) ? new Date(`${t}T00:00:00Z`) : null);
+// O dia do filtro é o de Brasília, como a data que a tela mostra (o mesmo do filtro do Histórico, revisão 12.12).
+const dia = (t: string | undefined) => (t && /^\d{4}-\d{2}-\d{2}$/.test(t) ? new Date(`${t}T00:00:00.000-03:00`) : null);
 
 /** RF_APR_REQ_002: as tarefas do usuário como aprovador (pendentes primeiro), com os filtros de situação, período e TP. */
 export async function listarTarefas(ctx: ContextoRequisicao, filtros: FiltrosTarefas = {}, depsParciais: Partial<DepsApr> = {}): Promise<readonly TarefaTela[]> {
