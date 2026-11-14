@@ -17,7 +17,8 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
 const MESES_EXTENSO = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'] as const;
 
 export type LinhaRealizado = { conta: string; competencia: string; valor: Dinheiro };
-export type ColunaDespesas = { rotulo: string; de: string; ate: string };
+/** `agregada`: a coluna de antes ou de depois do ano de referência (pode ter um mês só). */
+export type ColunaDespesas = { rotulo: string; de: string; ate: string; agregada?: boolean };
 export type LinhaDespesa = { classificacao: string; descricao: string; nivel: number; analitica: boolean; inativa: boolean; valores: string[]; total: string };
 export type Despesas = {
   colunas: ColunaDespesas[];
@@ -51,11 +52,11 @@ export function colunasDoPeriodo(de: string, ate: string, anoAtual: number): Col
   const colunas: ColunaDespesas[] = [];
   if (de < inicioAno) {
     const fimAnterior = `${anoRef - 1}-12`;
-    colunas.push({ rotulo: `${rotuloLongo(de)} a ${rotuloLongo(fimAnterior)}`, de, ate: fimAnterior });
+    colunas.push({ rotulo: `${rotuloLongo(de)} a ${rotuloLongo(fimAnterior)}`, de, ate: fimAnterior, agregada: true });
   }
   const ultimoMes = ate < fimAno ? ate : fimAno;
   for (let c = de > inicioAno ? de : inicioAno; c <= ultimoMes; c = proximo(c)) colunas.push({ rotulo: rotuloMes(c), de: c, ate: c });
-  if (ate > fimAno) colunas.push({ rotulo: `${rotuloLongo(`${anoRef + 1}-01`)} a ${rotuloLongo(ate)}`, de: `${anoRef + 1}-01`, ate });
+  if (ate > fimAno) colunas.push({ rotulo: `${rotuloLongo(`${anoRef + 1}-01`)} a ${rotuloLongo(ate)}`, de: `${anoRef + 1}-01`, ate, agregada: true });
   return colunas;
 }
 

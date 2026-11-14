@@ -13,6 +13,7 @@ export const TEXTOS_RECEITAS_DESPESAS = {
   SEM_PESSOAL: 'O custo do pessoal homologado não entra no previsto do seu perfil.',
   PESSOAL_NAO_HOMOLOGADO: 'O lote de pessoal da versão oficial ainda não foi homologado: o pessoal não entra no previsto.',
   FORA_PREVISTO: (n: number, v: string) => `${n} valor(es) do previsto em conta que não é analítica de despesa, somando ${v}, estão só no cronograma.`,
+  SALDO_ANTERIOR: (v: string) => `O saldo inclui o acumulado desde o início do TP até o mês anterior ao período: ${v}.`,
   TERCEIRA_TABELA: 'As parcelas recebidas, os rendimentos e o saldo disponível (3ª tabela) entram com as aplicações financeiras.',
 } as const;
 
@@ -40,6 +41,7 @@ export function TabelaReceitasDespesas({ relatorio: r }: { relatorio: NonNullabl
       </h2>
       <p>{r.versaoPrevisto === null ? TEXTOS_RECEITAS_DESPESAS.SEM_VERSAO : TEXTOS_RECEITAS_DESPESAS.VERSAO(r.versaoPrevisto)}</p>
       <p>{r.atualizadoEm ? TEXTOS_DESPESAS.ATUALIZADO(dataBrasilia(r.atualizadoEm)) : TEXTOS_DESPESAS.SEM_ATUALIZACAO}</p>
+      {!Dinheiro.de(r.saldoAnterior).ehZero() && <p role="note">{TEXTOS_RECEITAS_DESPESAS.SALDO_ANTERIOR(moeda(r.saldoAnterior))}</p>}
       {r.previstoSemPessoal && <p role="note">{TEXTOS_RECEITAS_DESPESAS.SEM_PESSOAL}</p>}
       {r.pessoalNaoHomologado && <p role="note">{TEXTOS_RECEITAS_DESPESAS.PESSOAL_NAO_HOMOLOGADO}</p>}
       {r.pendencias.quantidade > 0 && <p role="note">{TEXTOS_DESPESAS.PENDENCIAS(r.pendencias.quantidade, moeda(r.pendencias.valor))}</p>}
@@ -76,6 +78,11 @@ export function TabelaReceitasDespesas({ relatorio: r }: { relatorio: NonNullabl
       <div role="region" aria-label="Previsto, realizado e saldo por conta" tabIndex={0} style={{ overflowX: 'auto' }}>
         <table>
           <caption>Despesas do Termo de Parceria: previsto, realizado e saldo acumulado</caption>
+          {/* Os grupos de colunas ligam o período (scope="colgroup") às suas três células. */}
+          <colgroup span={2} />
+          {periodos.map((_, i) => (
+            <colgroup key={i} span={3} />
+          ))}
           <thead>
             <tr>
               <th scope="col" rowSpan={2}>

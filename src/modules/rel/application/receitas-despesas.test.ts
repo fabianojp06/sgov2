@@ -6,7 +6,7 @@ import type { ContextoRequisicao } from '@/shared/authz';
 import { Dinheiro } from '@/shared/kernel';
 import { TabelaReceitasDespesas, TEXTOS_RECEITAS_DESPESAS } from '../ui/receitas-despesas';
 import { MENSAGENS_DESPESAS, type PortaRealizado } from './despesas-tp';
-import { COLUNAS_POR_PAGINA_PDF, obterReceitasDespesasTp, planilhasDoFormato, ROTULO_CRONOGRAMA } from './receitas-despesas';
+import { avisosDoArquivo, COLUNAS_POR_PAGINA_PDF, obterReceitasDespesasTp, planilhasDoFormato, ROTULO_CRONOGRAMA } from './receitas-despesas';
 import { montarPrevistoRealizado, saldosAcumulados } from './receitas-despesas-montagem';
 
 vi.mock('server-only', () => ({}));
@@ -39,6 +39,14 @@ describe('montarPrevistoRealizado', () => {
     // O cronograma soma todo o previsto, inclusive o de conta fora da árvore (avisado).
     expect(r.cronograma).toEqual({ valores: ['80.00', '65.00', '50.00'], total: '195.00' });
     expect(r.foraDaArvore).toEqual({ previsto: { quantidade: 1, valor: '5.00' }, realizado: { quantidade: 0, valor: '0.00' } });
+  });
+
+  it('revisão 12.12: a coluna agregada de um mês só também vira "Total AAAA a AAAA" (REQ0246)', () => {
+    expect(montarPrevistoRealizado(CONTAS_EXEMPLO, [], [], '2026-12', '2028-01', op()).colunas.map((c) => c.rotulo)).toEqual([
+      'Total 2026 a 2026',
+      ...['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m) => `${m}/27`),
+      'Total 2028 a 2028',
+    ]);
   });
 
   it('sintéticas ativas sempre (REQ0249); analítica sem valor só com "exibir zerados" (RN0383); inativa só com valor', () => {
@@ -110,8 +118,26 @@ describe('obterReceitasDespesasTp', () => {
     expect(xlsx!.linhas[0]!.slice(0, 5)).toEqual(['', ROTULO_CRONOGRAMA, '80.00', null, null]);
     const pdf = planilhasDoFormato(r, undefined, 'pdf');
     expect(pdf).toHaveLength(Math.ceil(13 / COLUNAS_POR_PAGINA_PDF));
-    expect(pdf.map((p) => p.colunas.length)).toEqual([14, 14, 14, 2 + 2 * 3]);
+    expect(pdf.map((p) => p.colunas.length)).toEqual([11, 11, 11, 11, 2 + 2 * 3]);
     expect(pdf.at(-1)!.colunas.at(-1)!.titulo).toBe('Total Saldo');
     for (const p of pdf) expect(p.linhas.every((x) => x.length === p.colunas.length)).toBe(true);
+    // Revisão 12.12: o que ficou fora sai no arquivo (no grupo Total), e os avisos vão para o cabeçalho.
+    expect(xlsx!.linhas.at(-1)!.slice(-3)).toEqual(['5.00', null, null]);
+    expect(xlsx!.linhas.at(-1)![1]).toMatch(/^Fora do demonstrativo \(previsto\)/);
+    expect(avisosDoArquivo(r).map((a) => a.valor)).toContain('O custo do pessoal homologado não entra no previsto deste perfil');
+  });
+
+  it('revisão 12.12: com o período filtrado, o saldo parte do acumulado desde o início do TP (RN0391/0392)', async () => {
+    const t = await obterReceitasDespesasTp(ctx(), { tp: 'TP-3', de: '2027-01' }, porta(), deps);
+    expect(pedidos.at(-1)).toMatchObject({ de: '2026-09', ate: '2027-02' });
+    const r = t.relatorio!;
+    expect(r.colunas.map((c) => c.rotulo)).toEqual(['Jan/27', 'Fev/27']);
+    expect(r.saldoAnterior).toBe('-20.00');
+    expect(r.totalGeral.valores.map((v) => v.saldo)).toEqual(['-10.00', '40.00']);
+    expect(r.totalGeral.total).toEqual(prs('110.00', '50.00', '40.00'));
+    expect(r.foraDaArvore.previsto.quantidade).toBe(1);
+    const html = renderToStaticMarkup(createElement(TabelaReceitasDespesas, { relatorio: r }));
+    expect(html).toContain(TEXTOS_RECEITAS_DESPESAS.SALDO_ANTERIOR(Dinheiro.de('-20.00').formatar()));
+    expect(html.match(/<colgroup span="3">/g)).toHaveLength(3);
   });
 });

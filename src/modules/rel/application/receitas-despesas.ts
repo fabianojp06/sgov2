@@ -7,7 +7,7 @@ import type { TpDoRealizado } from '@/modules/orc';
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
-import { falha, ok, type Resultado } from '@/shared/kernel';
+import { Dinheiro, falha, ok, type Resultado } from '@/shared/kernel';
 import { mesPorExtenso } from './despesas-tp-montagem';
 import { FalhaGeracao, filtrosDoTp, MENSAGENS_DESPESAS, type PortaRealizado, type TelaDespesas } from './despesas-tp';
 import { montarPrevistoRealizado, type PrevistoRealizado, type Prs } from './receitas-despesas-montagem';
@@ -50,7 +50,8 @@ export async function obterReceitasDespesasTp(
   if (!f.pronto) return { tps: f.tps, filtros: f.filtros, relatorio: null, erro: f.erro };
   const { tps, filtros, tp } = f;
   const [dados, arvore] = await Promise.all([
-    porta.realizado(ctx, { tp: tp.numero, de: filtros.de, ate: filtros.ate, previsto: true }),
+    // Desde o início do TP: o que vem antes do período entra só no saldo anterior (RN0391/0392).
+    porta.realizado(ctx, { tp: tp.numero, de: tp.inicio, ate: filtros.ate, previsto: true }),
     (deps.contas ?? listarArvoreContas)(prisma, { incluirInativos: true }),
   ]);
   if (!dados) return { tps, filtros, relatorio: null, erro: MENSAGENS_DESPESAS.TP_INEXISTENTE };
@@ -73,7 +74,7 @@ export async function obterReceitasDespesasTp(
 }
 
 /** Quantas colunas do período cabem numa página do PDF (cada uma com previsto, realizado e saldo). */
-export const COLUNAS_POR_PAGINA_PDF = 4;
+export const COLUNAS_POR_PAGINA_PDF = 3;
 export const ROTULO_CRONOGRAMA = 'Cronograma de desembolso (previsto)';
 
 /**
@@ -109,9 +110,30 @@ export function planilhaReceitasDespesas(
         ...(comTotal ? tres(l.total) : []),
       ]),
       ['', 'Total Geral Termo de Parceria', ...r.totalGeral.valores.slice(ini, fim).flatMap(tres), ...(comTotal ? tres(r.totalGeral.total) : [])],
+      // O que ficou fora (conta sintética ou fora das despesas) também sai no arquivo, com o valor no Total.
+      ...(comTotal ? linhasFora(r, colunas.length) : []),
     ],
     ...(identificacao ? { identificacao } : {}),
   };
+}
+
+function linhasFora(r: NonNullable<TelaReceitasDespesas['relatorio']>, nColunas: number): (string | null)[][] {
+  const vazio = Array.from({ length: (nColunas - 1) * 3 }, () => null);
+  const { previsto, realizado } = r.foraDaArvore;
+  return [
+    ...(previsto.quantidade > 0 ? [['', `Fora do demonstrativo (previsto): ${previsto.quantidade} valor(es) em conta que não é analítica de despesa`, ...vazio, previsto.valor, null, null]] : []),
+    ...(realizado.quantidade > 0 ? [['', `Fora do demonstrativo (realizado): ${realizado.quantidade} lançamento(s) em conta que não é analítica de despesa`, ...vazio, null, realizado.valor, null]] : []),
+  ];
+}
+
+/** Os avisos da tela que mudam a leitura do número, também no cabeçalho do arquivo. */
+export function avisosDoArquivo(r: NonNullable<TelaReceitasDespesas['relatorio']>): { rotulo: string; valor: string }[] {
+  return [
+    ...(Dinheiro.de(r.saldoAnterior).ehZero() ? [] : [{ rotulo: 'Saldo anterior ao período', valor: Dinheiro.de(r.saldoAnterior).formatar() }]),
+    ...(r.previstoSemPessoal ? [{ rotulo: 'Pessoal', valor: 'O custo do pessoal homologado não entra no previsto deste perfil' }] : []),
+    ...(r.pessoalNaoHomologado ? [{ rotulo: 'Pessoal', valor: 'Lote de pessoal não homologado: fora do previsto' }] : []),
+    ...(r.pendencias.quantidade > 0 ? [{ rotulo: 'Pendências da carga', valor: `${r.pendencias.quantidade} lançamento(s), ${Dinheiro.de(r.pendencias.valor).formatar()}, fora do realizado` }] : []),
+  ];
 }
 
 /** As planilhas do arquivo: uma só no XLSX e no CSV; no PDF, uma por grupo de colunas, para caber na página. */
@@ -144,6 +166,7 @@ export async function exportarReceitasDespesasTp(
     { rotulo: 'Período', valor: `${mesPorExtenso(tela.filtros.de)} a ${mesPorExtenso(tela.filtros.ate)}` },
     { rotulo: 'Previsto', valor: r.versaoPrevisto === null ? 'Sem versão oficializada' : `Versão ${r.versaoPrevisto}` },
     { rotulo: 'Exibir zerados', valor: tela.filtros.exibirZerados ? 'Sim' : 'Não' },
+    ...avisosDoArquivo(r),
   ];
   const identificacao = criarIdentificacao({ titulo: `Demonstrativo de receitas e despesas - ${r.tp.objeto}`, filtros, operador: ctx.usuarioRotulo });
   try {
