@@ -141,6 +141,12 @@ describe('obterOrcadoRealizado (US-086)', () => {
     expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } })).toBe(antes + 2);
   });
 
+  it('o indicador global (seção 5.1): o orçado da vigência inteira e o realizado desde o início do TP, mesmo com o período começando depois', async () => {
+    const t = (await obterOrcadoRealizado(gfinCtx(), { proposta: tps.oficial.id, de: '2026-03', ate: '2026-03' }, comDeps())).tela!;
+    const l = t.grade.linhas.find((x) => x.conta === '4.1.1.5.005')!;
+    expect([l.periodo.realizado.paraString(), l.global?.orcado.paraString(), l.global?.realizado.paraString(), l.global?.uso?.formatar()]).toEqual(['650.00', '2500.00', '2150.00', '86,00%']);
+  });
+
   it('filtro de conta, contas zeradas e período padrão (os primeiros 24 meses da vigência)', async () => {
     const r = await obterOrcadoRealizado(gfinCtx(), { proposta: tps.oficial.id, conta: '4.1.1.5', zeradas: true }, comDeps());
     expect(r.tela!.meses).toHaveLength(24);

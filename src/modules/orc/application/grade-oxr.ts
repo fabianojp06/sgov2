@@ -19,11 +19,21 @@ export type CelulaOxr = {
   estouro: boolean;
 };
 export type TotalOxr = CelulaOxr & { saldo: Dinheiro };
-export type LinhaOxr = { conta: string; descricao: string; nivel: number; analitica: boolean; inativa: boolean; meses: readonly CelulaOxr[]; periodo: TotalOxr };
+export type LinhaOxr = {
+  conta: string;
+  descricao: string;
+  nivel: number;
+  analitica: boolean;
+  inativa: boolean;
+  meses: readonly CelulaOxr[];
+  periodo: TotalOxr;
+  /** Indicador do orçamento total da conta (seção 5.1): realizado acumulado desde o início do TP ÷ orçamento global. */
+  global?: TotalOxr;
+};
 export type GradeOxr = {
   linhas: readonly LinhaOxr[];
   /** O total das contas mostradas (Despesas e as demais raízes, ou a conta do filtro). */
-  total: { meses: readonly CelulaOxr[]; periodo: TotalOxr };
+  total: { meses: readonly CelulaOxr[]; periodo: TotalOxr; global?: TotalOxr };
   /** Valores em conta que não está no plano (não acontece com o realizado, que só grava analítica). */
   foraDoPlano: readonly { conta: string; orcado: Dinheiro; realizado: Dinheiro }[];
 };
@@ -52,6 +62,8 @@ export function montarGradeOxr(
   orcado: ReadonlyMap<string, Dinheiro>,
   realizado: ReadonlyMap<string, Dinheiro>,
   opcoes: { zeradas: boolean; conta?: string | undefined },
+  /** 'conta' → valor: o orçado da vigência inteira e o realizado do início do TP até o fim do período (US-086, parte 3). */
+  global?: { orcado: ReadonlyMap<string, Dinheiro>; realizado: ReadonlyMap<string, Dinheiro> },
 ): GradeOxr {
   const nos: NoArvore[] = [];
   const porConta = new Map<string, NoPlanoOxr>();
@@ -83,6 +95,10 @@ export function montarGradeOxr(
   };
   const o = series(orcado);
   const r = series(realizado);
+  // O global como uma série de um mês só, pelo mesmo totalizar (as sintéticas somam as filhas, RN_OXR_009).
+  const umMes = (valores: ReadonlyMap<string, Dinheiro>) =>
+    totalizarSerie(nos, new Map([...valores].filter(([c, v]) => porConta.get(c)?.tipo === 'ANALITICA' && !v.ehZero()).map(([c, v]) => [c, [v]])), 1);
+  const g = global ? { o: umMes(global.orcado), r: umMes(global.realizado) } : null;
 
   const linhaDe = (n: NoPlanoOxr): LinhaOxr => {
     const om = o.serie.valor(n.classificacao);
@@ -95,6 +111,7 @@ export function montarGradeOxr(
       inativa: n.ativa === false,
       meses: meses.map((_, i) => celulaOxr(om[i]!, rm[i]!)),
       periodo: totalOxr(Dinheiro.somarTodos(om), Dinheiro.somarTodos(rm)),
+      ...(g ? { global: totalOxr(g.o.valor(n.classificacao)[0]!, g.r.valor(n.classificacao)[0]!) } : {}),
     };
   };
   const raiz = opcoes.conta ? porConta.get(opcoes.conta) : undefined;
@@ -116,6 +133,14 @@ export function montarGradeOxr(
     total: {
       meses: totalMeses,
       periodo: totalOxr(Dinheiro.somarTodos(totalMeses.map((c) => c.orcado)), Dinheiro.somarTodos(totalMeses.map((c) => c.realizado))),
+      ...(g
+        ? {
+            global: totalOxr(
+              Dinheiro.somarTodos(raizes.map((n) => g.o.valor(n.classificacao)[0]!)),
+              Dinheiro.somarTodos(raizes.map((n) => g.r.valor(n.classificacao)[0]!)),
+            ),
+          }
+        : {}),
     },
     foraDoPlano: opcoes.conta ? [] : foraContas.map((conta) => ({ conta, orcado: o.fora.get(conta) ?? Dinheiro.zero(), realizado: r.fora.get(conta) ?? Dinheiro.zero() })),
   };

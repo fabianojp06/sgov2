@@ -28,6 +28,7 @@ const dataHora = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao
 const uso = (c: CelulaOxr): string => (c.semOrcamento ? 'Sem orçamento' : c.uso ? c.uso.formatar() : '—');
 const celulas = (c: CelulaOxr) => [c.orcado.paraString(), c.realizado.paraString(), uso(c)];
 const periodo = (t: TotalOxr) => [t.orcado.paraString(), t.realizado.paraString(), t.saldo.paraString(), uso(t)];
+const global = (t: TotalOxr | undefined) => (t ? periodo(t) : [null, null, null, '']);
 
 /** A grade da tela como uma aba (a mesma ordem de colunas da seção 5.1). */
 export function planilhaOxr(t: TelaOxr, identificacao?: PlanilhaExportacao['identificacao']): PlanilhaExportacao {
@@ -46,10 +47,20 @@ export function planilhaOxr(t: TelaOxr, identificacao?: PlanilhaExportacao['iden
       { titulo: 'Realizado período', tipo: 'dinheiro' },
       { titulo: 'Saldo período', tipo: 'dinheiro' },
       { titulo: '% uso período', tipo: 'texto' },
+      { titulo: 'Orçado global', tipo: 'dinheiro' },
+      { titulo: 'Realizado acumulado', tipo: 'dinheiro' },
+      { titulo: 'Saldo global', tipo: 'dinheiro' },
+      { titulo: '% do global', tipo: 'texto' },
     ],
     linhas: [
-      ...t.grade.linhas.map((l) => [l.conta, `${l.descricao}${l.inativa ? ' (inativa)' : ''}`, ...l.meses.flatMap(celulas), ...periodo(l.periodo)]),
-      [t.filtros.conta ? `Total da conta ${t.filtros.conta}` : 'Total período', '', ...t.grade.total.meses.flatMap(celulas), ...periodo(t.grade.total.periodo)],
+      ...t.grade.linhas.map((l) => [l.conta, `${l.descricao}${l.inativa ? ' (inativa)' : ''}`, ...l.meses.flatMap(celulas), ...periodo(l.periodo), ...global(l.global)]),
+      [
+        t.filtros.conta ? `Total da conta ${t.filtros.conta}` : 'Total período',
+        '',
+        ...t.grade.total.meses.flatMap(celulas),
+        ...periodo(t.grade.total.periodo),
+        ...global(t.grade.total.global),
+      ],
       // Como a nota da tela: valores em conta fora do plano não entram no total (REQ_OXR_006, mesmos valores da tela).
       ...t.grade.foraDoPlano.map((f) => [
         f.conta,
@@ -57,6 +68,10 @@ export function planilhaOxr(t: TelaOxr, identificacao?: PlanilhaExportacao['iden
         ...t.meses.flatMap(() => [null, null, '']),
         f.orcado.paraString(),
         f.realizado.paraString(),
+        null,
+        '',
+        null,
+        null,
         null,
         '',
       ]),

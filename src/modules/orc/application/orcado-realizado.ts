@@ -112,13 +112,30 @@ export async function montarOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fi
         depois: { de, ate, conta: conta || 'Todas', zeradas },
       });
       const comPessoal = vePessoal(ctx);
-      const [s, r] = await Promise.all([seriesDaVersao(tx, deps, oficial.id, comPessoal, vigencia), lerRealizado(tx, p.unidadeId, de, ate)]);
+      const [s, r, acumulado] = await Promise.all([
+        seriesDaVersao(tx, deps, oficial.id, comPessoal, vigencia),
+        lerRealizado(tx, p.unidadeId, de, ate),
+        // Seção 5.1: o realizado acumulado desde o início do TP até o fim do período, para o indicador global.
+        lerRealizado(tx, p.unidadeId, vigencia[0]!, ate),
+      ]);
       // D-P33-2 (revisão 12.12): sem ver o pessoal, as contas de pessoal saem dos dois lados. Comparar o orçado sem o
       // pessoal com o realizado com ele daria "Sem orçamento" falso e totais, % e saldo errados nas sintéticas.
       const ePessoal = (c: string) => !comPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => c === raiz || c.startsWith(`${raiz}.`));
       const semAsDePessoal = <T,>(pares: Iterable<[string, T]>) => new Map([...pares].filter(([k]) => !ePessoal(k.split('|')[0]!)));
       const realizado = semAsDePessoal(r.linhas.map((l): [string, Dinheiro] => [`${l.conta}|${l.competencia}`, l.valor]));
-      const grade = montarGradeOxr(arvore as readonly NoPlanoOxr[], meses, semAsDePessoal(s.porContaMes), realizado, { zeradas, conta: conta || undefined });
+      const porConta = (pares: Iterable<[string, Dinheiro]>) => {
+        const m = new Map<string, Dinheiro>();
+        for (const [k, v] of pares) {
+          const c = k.split('|')[0]!;
+          m.set(c, (m.get(c) ?? Dinheiro.zero()).somar(v));
+        }
+        return m;
+      };
+      const global = {
+        orcado: porConta(semAsDePessoal(s.porContaMes)),
+        realizado: porConta(semAsDePessoal(acumulado.linhas.map((l): [string, Dinheiro] => [`${l.conta}|${l.competencia}`, l.valor]))),
+      };
+      const grade = montarGradeOxr(arvore as readonly NoPlanoOxr[], meses, semAsDePessoal(s.porContaMes), realizado, { zeradas, conta: conta || undefined }, global);
       return resposta(
         propostas,
         {
