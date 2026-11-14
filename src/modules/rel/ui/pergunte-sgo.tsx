@@ -34,9 +34,11 @@ export function ConteudoResposta({ estado }: { estado: EstadoPergunta }) {
   const r = estado.resposta;
   return (
     <div>
-      <p>
-        <strong>{TEXTOS_PERGUNTE.SELO}</strong>
-      </p>
+      {r.tipo === 'NUMERO' && (
+        <p>
+          <strong>{TEXTOS_PERGUNTE.SELO}</strong>
+        </p>
+      )}
       <p>{r.texto}</p>
       {r.tipo !== 'NAO_SEI' && r.fonte && (
         <p>
@@ -77,7 +79,7 @@ export function PergunteSgo({ perguntar }: { perguntar: (entrada: { pergunta: st
   };
   return (
     <section aria-labelledby="pergunte-titulo">
-      <h2 id="pergunte-titulo">Pergunte ao SGO</h2>
+      <h2 id="pergunte-titulo">Sua pergunta</h2>
       <form onSubmit={enviar}>
         <p>
           <label htmlFor="pergunte-texto">{TEXTOS_PERGUNTE.ROTULO}</label>
@@ -100,7 +102,8 @@ export function PergunteSgo({ perguntar }: { perguntar: (entrada: { pergunta: st
         </button>
       </form>
       <p role="status" aria-live="polite">
-        {estado.tipo === 'CONSULTANDO' ? TEXTOS_PERGUNTE.CONSULTANDO : estado.tipo === 'PRONTA' ? TEXTOS_PERGUNTE.PRONTA : ''}
+        {/* A região viva anuncia a própria resposta (é curta). */}
+        {estado.tipo === 'CONSULTANDO' ? TEXTOS_PERGUNTE.CONSULTANDO : estado.tipo === 'PRONTA' ? estado.resposta.texto : ''}
       </p>
       {estado.tipo === 'ERRO' && (
         <p role="alert" id="pergunte-erro">
