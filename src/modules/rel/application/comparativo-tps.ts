@@ -33,27 +33,23 @@ const SAIDA = z.object({
 type LerComparativo = (ctx: ContextoRequisicao) => Promise<readonly TpEntrada[]>;
 export type DepsComparativo = { ler: LerComparativo; ia: ServicoIA; sinalIa: () => AbortSignal };
 
-// A porta do orc devolve o mesmo formato do TpEntrada (o rel só copia os campos de que precisa). Os campos
-// de privacidade são opcionais na porta (pedidos na #138): ausentes, o domínio esconde os pesos.
-type ComCamposOpcionais = { pessoalCalculado?: boolean; custosPessoaDistintos?: number; metas: readonly { numero: string; valor: TpEntrada['realizado']; ativa?: boolean }[] };
+// A porta do orc devolve o mesmo formato do TpEntrada (o rel só copia os campos de que precisa), com os
+// campos de privacidade do #518 (opcionais: ausentes, o domínio esconde os pesos).
 const LER_REAL: LerComparativo = async (ctx) =>
-  (await obterComparativoTps(ctx)).map((porta) => {
-    const t = porta as typeof porta & ComCamposOpcionais;
-    return {
-      numero: t.numero,
-      tipo: t.tipo,
-      situacao: t.situacao,
-      oficial: t.oficial,
-      vigencia: t.vigencia,
-      valorGlobal: t.valorGlobal,
-      porCategoria: t.porCategoria,
-      metas: t.metas,
-      realizado: t.realizado,
-      postos: t.postos,
-      pessoalCalculado: t.pessoalCalculado,
-      custosPessoaDistintos: t.custosPessoaDistintos,
-    };
-  });
+  (await obterComparativoTps(ctx)).map((t) => ({
+    numero: t.numero,
+    tipo: t.tipo,
+    situacao: t.situacao,
+    oficial: t.oficial,
+    vigencia: t.vigencia,
+    valorGlobal: t.valorGlobal,
+    porCategoria: t.porCategoria,
+    metas: t.metas,
+    realizado: t.realizado,
+    postos: t.postos,
+    pessoalCalculado: t.pessoalCalculado,
+    custosPessoaDistintos: t.custosPessoaDistintos,
+  }));
 
 // Revisão 12.12 (I3): cada leitura grava a CONSULTA no Histórico e recalcula todos os TPs. O resultado fica
 // guardado por usuário durante JANELA_CACHE_MS: recarregar a página ou pedir os comentários logo depois não
