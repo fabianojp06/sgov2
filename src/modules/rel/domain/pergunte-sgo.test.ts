@@ -17,6 +17,9 @@ describe('Pergunte ao SGO (US-104): pergunta e classificação', () => {
     expect(conferirClassificacao({ consulta: 'ORCADO_CC', ano: null, cc: ' 4.3.2 ', tp: null })).toEqual({ consulta: 'ORCADO_CC', ano: null, cc: '4.3.2', tp: null });
     expect(conferirClassificacao({ consulta: 'ORCADO_CC', ano: null, cc: "4.3'; DROP", tp: null }).consulta).toBe('NAO_SEI');
     expect(conferirClassificacao({ consulta: 'VALOR_GLOBAL_TP', ano: null, cc: null, tp: null }).consulta).toBe('NAO_SEI');
+    // Parte 2: realizado e saldo do TP também exigem o TP.
+    expect(conferirClassificacao({ consulta: 'REALIZADO_TP', ano: 2027, cc: null, tp: null }).consulta).toBe('NAO_SEI');
+    expect(conferirClassificacao({ consulta: 'SALDO_TP', ano: null, cc: null, tp: ' TP-3 ' })).toEqual({ consulta: 'SALDO_TP', ano: null, cc: null, tp: 'TP-3' });
     expect(conferirClassificacao({ consulta: 'VALOR_GLOBAL_TP', ano: null, cc: null, tp: 'TP-001/2027' })).toMatchObject({ consulta: 'VALOR_GLOBAL_TP', tp: 'TP-001/2027' });
   });
 
