@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { obterTarefa } from '@/modules/apr';
-import type { ContextoRequisicao } from '@/shared/authz';
+import { ErroPermissao, type ContextoRequisicao } from '@/shared/authz';
 import { ErroIA } from '@/shared/ia';
 import { falha, ok, type Resultado } from '@/shared/kernel';
 import { semMarcas } from '../domain/texto';
@@ -30,11 +30,16 @@ export const RESPOSTA_RECUSA = z.object({
 
 const erro = (mensagem: string): Resultado<never> => falha([{ campo: '_', mensagem }]);
 
+// O objeto é texto livre de quem enviou (revisão 12.12): vai entre as marcas, como o rascunho, e nunca como item solto.
+const ROTULO_OBJETO = 'Objeto';
+
 export function montarMensagemRecusa(descricao: string, resumo: readonly { rotulo: string; valor: string }[], rascunho: string): string {
+  const objeto = resumo.find((r) => r.rotulo === ROTULO_OBJETO);
   return [
     `Solicitação: ${descricao}`,
+    ...(objeto ? ['Objeto da proposta (texto de quem enviou):', '<<<', semMarcas(objeto.valor), '>>>'] : []),
     'Resumo da proposta:',
-    ...resumo.map((r) => `- ${r.rotulo}: ${r.valor}`),
+    ...resumo.filter((r) => r.rotulo !== ROTULO_OBJETO).map((r) => `- ${r.rotulo}: ${r.valor}`),
     rascunho === '' ? 'O aprovador ainda não escreveu o rascunho.' : 'Rascunho do aprovador:',
     ...(rascunho === '' ? [] : ['<<<', rascunho, '>>>']),
   ].join('\n');
@@ -42,6 +47,8 @@ export function montarMensagemRecusa(descricao: string, resumo: readonly { rotul
 
 export async function sugerirRecusa(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsIaOrc> = {}): Promise<Resultado<SugestaoRecusa>> {
   if (!ctx.permissoes.has(PERMISSAO_IA)) return erro(new ErroIA('ia.sem_permissao').message);
+  // Só quem decide pede ajuda para recusar (D-P30-6; revisão 12.12): a página esconde, e o servidor também barra.
+  if (!ctx.permissoes.has('apr.tarefas:executar')) throw new ErroPermissao('apr.tarefas', 'executar');
   const deps = resolverDepsIa(depsParciais);
   const parse = ENTRADA.safeParse(bruto);
   if (!parse.success) return erro('Dados da tarefa inválidos. Recarregue a tela.');
