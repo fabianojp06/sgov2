@@ -75,6 +75,21 @@ export function nosDaArvore(raizes: readonly NoConta[]): { nos: NoArvore[]; orde
   return { nos, ordem };
 }
 
+/**
+ * As subárvores das classificações pedidas, achadas em qualquer nível, em pré-ordem. Uma classificação abaixo de
+ * outra também pedida não repete: já vem na de cima (US-097, as sintéticas de viagens marcadas pela GFIN).
+ */
+export function subarvores(arvore: readonly NoConta[], classificacoes: readonly string[]): NoConta[] {
+  const pedidas = new Set(classificacoes);
+  const achadas: NoConta[] = [];
+  const visitar = (n: NoConta) => {
+    if (pedidas.has(n.classificacao)) achadas.push(n);
+    else n.filhos.forEach(visitar);
+  };
+  arvore.forEach(visitar);
+  return achadas;
+}
+
 export const analiticasDe = (nos: readonly NoArvore[]) => new Set(nos.filter((n) => n.tipo === 'ANALITICA').map((n) => n.id));
 
 /** Distribui as linhas nas colunas, por conta analítica; o que não é analítica da árvore vai para "fora". */
@@ -105,10 +120,11 @@ export function montarDespesas(
   linhas: readonly LinhaRealizado[],
   de: string,
   ate: string,
-  opcoes: { exibirZerados: boolean; anoAtual: number },
+  opcoes: { exibirZerados: boolean; anoAtual: number; raizes?: readonly string[] },
 ): Despesas {
   const colunas = colunasDoPeriodo(de, ate, opcoes.anoAtual);
-  const { nos, ordem } = nosDaArvore(arvore.filter((n) => n.classificacao === RAIZ_DESPESAS));
+  // Sem `raizes`, a árvore das despesas; com elas, só as subárvores pedidas (o demonstrativo de viagens, US-097).
+  const { nos, ordem } = nosDaArvore(opcoes.raizes ? subarvores(arvore, opcoes.raizes) : arvore.filter((n) => n.classificacao === RAIZ_DESPESAS));
   const { series, foraDaArvore } = distribuir(linhas, colunas, analiticasDe(nos));
   if (colunas.length === 0 || nos.length === 0) return { colunas, linhas: [], totalGeral: { valores: colunas.map(() => '0.00'), total: '0.00' }, foraDaArvore };
 
@@ -136,4 +152,22 @@ export function montarDespesas(
       };
     });
   return { colunas, linhas: resultado, totalGeral: { valores: r.total.map((v) => v.paraString()), total: somar(r.total).paraString() }, foraDaArvore };
+}
+
+const semAcento = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+/**
+ * O filtro de conta ou descrição (US-097; REQ0281/0282): fica a conta cuja classificação começa pelo texto ou cuja
+ * descrição o contém (sem acento nem caixa), com tudo abaixo dela, e as sintéticas acima, para a hierarquia. As
+ * sintéticas passam a somar só o que ficou. Texto vazio: a árvore inteira.
+ */
+export function podarPorTexto(arvore: readonly NoConta[], texto: string): NoConta[] {
+  const t = semAcento(texto);
+  if (!t) return [...arvore];
+  const casa = (n: NoConta) => n.classificacao.startsWith(texto.trim()) || semAcento(n.descricao).includes(t);
+  const podar = (n: NoConta): NoConta | null => {
+    if (casa(n)) return n;
+    const filhos = n.filhos.map(podar).filter((f): f is NoConta => f !== null);
+    return filhos.length > 0 ? { ...n, filhos } : null;
+  };
+  return arvore.map(podar).filter((n): n is NoConta => n !== null);
 }

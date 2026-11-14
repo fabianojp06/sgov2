@@ -9,7 +9,13 @@ import { ENCARGOS, COMPONENTES_COM_CONTA, type ParametrosExercicio } from '../do
 // Parâmetros por exercício e do sistema, sem guarda (plano do P4, R10 e R22): usados pelos casos de
 // uso (com exigir), pelo C2 real e pela seed. Sem @/shared/authz nem next/.
 
-export const CHAVES_PARAMETRO_SISTEMA = ['instituicao.nome_exibicao', 'instituicao.logotipo'] as const;
+// As duas últimas (US-097, decisão do PO no #119): as contas sintéticas que os relatórios usam, por classificação.
+export const CHAVES_PARAMETRO_SISTEMA = [
+  'instituicao.nome_exibicao',
+  'instituicao.logotipo',
+  'relatorio.sinteticas_viagens',
+  'relatorio.sinteticas_imobilizado',
+] as const;
 export type ChaveParametroSistema = (typeof CHAVES_PARAMETRO_SISTEMA)[number];
 
 // A mensagem de conflito do núcleo (US-011), numa fonte só (pendência do #350).

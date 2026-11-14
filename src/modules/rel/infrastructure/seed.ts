@@ -171,6 +171,20 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // US-096 (UC05.01): os mesmos perfis do demonstrativo de despesas. Previsto e realizado passam pela permissão e pela RLS do orc (US-085).
     perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
   },
+  {
+    codigo: 'rel.viagens_tp',
+    modulo: 'RELATORIOS',
+    grupo: 'Prestação de contas',
+    nome: 'Demonstrativo de despesas com viagens do TP',
+    rota: '/rel/viagens-tp',
+    ordem: 3,
+    ajuda:
+      'O realizado das contas de viagens e diárias do Termo de Parceria (as que a GFIN marcou no plano de contas), agrupadas por subcategoria, ' +
+      'do início ao ano anterior numa coluna e mês a mês no ano de referência, com o total geral. Filtre pelo TP, pelo período e pela conta ou descrição.',
+    acoes: ['consultar', 'exportar'],
+    // US-097 (UC05.03): os mesmos perfis dos demonstrativos do TP. O realizado passa pela permissão e pela RLS do orc (US-085).
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
+  },
 ];
 
 export const seedRel: Seed = {

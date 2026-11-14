@@ -9,8 +9,9 @@ import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedRel } from '../infrastructure/seed';
 import { exportarDespesasTp, MENSAGENS_DESPESAS, type PortaRealizado } from './despesas-tp';
 import { exportarReceitasDespesasTp } from './receitas-despesas';
+import { exportarViagensTp } from './viagens-tp';
 
-// Demonstrativos de despesas e de receitas e despesas do TP (US-096 partes 1 e 2) num Postgres real (Testcontainers, D12): a seed e a
+// Demonstrativos de despesas, de receitas e despesas (US-096 partes 1 e 2) e de viagens (US-097) do TP num Postgres real (Testcontainers, D12): a seed e a
 // exportação com a EXPORTACAO no Histórico. A porta do realizado é falsa aqui (a frente A a testa com a carga real).
 let banco: Awaited<ReturnType<typeof iniciarBancoTeste>>;
 let migrator: PrismaClient;
@@ -90,5 +91,29 @@ describe('demonstrativo de receitas e despesas do TP (UC05.01)', () => {
     expect(h).toHaveLength(3);
     expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', depois: { filtros: expect.arrayContaining([{ rotulo: 'Previsto', valor: 'Versão 2' }]) } });
     await expect(exportarReceitasDespesasTp(ctxRd(['consultar']), { tp: 'TP-3' }, 'xlsx', porta, deps())).rejects.toThrow();
+  });
+});
+
+describe('demonstrativo de despesas com viagens do TP (UC05.03)', () => {
+  const permV = (a: string) => ['rel.viagens_tp', a].join(':');
+  const ctxV = (acoes = ['consultar', 'exportar']): ContextoRequisicao => ({ ...ctx([]), permissoes: new Set([...acoes.map(permV), 'orc.realizado:consultar']) });
+  const depsV = () => ({ ...deps(), sinteticas: async () => ['4.1.1.1'] });
+
+  it('seed: em Prestação de contas, depois do de despesas, para GFIN, DIREX e Auditor', async () => {
+    const f = await migrator.funcionalidade.findUniqueOrThrow({ where: { codigo: 'rel.viagens_tp' } });
+    expect(f).toMatchObject({ moduloCodigo: 'RELATORIOS', rota: '/rel/viagens-tp', exibirNoMenu: true, ordem: 3 });
+    const pp = await migrator.perfilPermissao.findMany({ where: { funcionalidadeCodigo: 'rel.viagens_tp', acao: 'exportar' }, select: { perfil: { select: { codigo: true } } } });
+    expect(pp.map((p) => p.perfil.codigo).sort()).toEqual(['AUDITOR', 'DIREX', 'GFIN']);
+  });
+
+  it('exporta XLSX, CSV e PDF, com a EXPORTACAO e o filtro de descrição no Histórico', async () => {
+    for (const formato of ['xlsx', 'csv', 'pdf'] as const) {
+      const r = await exportarViagensTp(ctxV(), { tp: 'TP-3', texto: 'Salários' }, formato, porta, depsV());
+      expect(r).toMatchObject({ ok: true, valor: { nome: `viagens-TP-3.${formato}` } });
+    }
+    const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'rel.viagens_tp' }, select: { tipoOperacao: true, depois: true } });
+    expect(h).toHaveLength(3);
+    expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', depois: { filtros: expect.arrayContaining([{ rotulo: 'Conta ou descrição', valor: 'Salários' }]) } });
+    await expect(exportarViagensTp(ctxV(['consultar']), { tp: 'TP-3' }, 'xlsx', porta, depsV())).rejects.toThrow();
   });
 });
