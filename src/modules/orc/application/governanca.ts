@@ -26,6 +26,10 @@ export const CAMPOS_ORIGEM_BLINDADA = {
   // quantidades são do servidor (RN0242, RN_EMP_007, RN0457). No alterar, a meta também (UC03.22 e UC03.26).
   empregado: ['tipo', 'unidadeId', 'versaoPropostaId', 'ordem', 'salarioMensal', 'custoMensal', 'custoPeriodo'],
   qtde: ['tipo', 'unidadeId', 'versaoPropostaId', 'empregados', 'estagiarios', 'jovensAprendizes'],
+  // Viagens da proposta (US-071, D-P21-2 e D-P21-3): o custo é sempre do servidor (RN_VIA_03 read-only);
+  // no alterar, a meta e as contas de passagem e de diária também (RN_VIA_07). No teto, o consumido e o saldo.
+  viagem: ['tipo', 'unidadeId', 'versaoPropostaId', 'custoEstimado', 'custoPassagem', 'custoDiaria', 'custoTransporte'],
+  tetoViagem: ['tipo', 'unidadeId', 'versaoPropostaId', 'consumido', 'saldo'],
 } as const satisfies Record<string, readonly string[]>;
 
 export async function recusarCamposBlindados(

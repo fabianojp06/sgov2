@@ -213,6 +213,26 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
       DIREX: ['consultar'],
     },
   },
+  {
+    // Viagens da proposta (US-071; plano do P21, D-P21-10) [PROVISÓRIO]: no menu Cadastros › Viagens (spec 7,
+    // Viagens V3). Orçamentista e Operador de Viagens lançam os tetos e as viagens (§11.3: "aba Viagens das
+    // propostas"); GFIN, Auditor e DIREX leem. Cada um vê só os TPs a que está vinculado (RLS).
+    codigo: 'orc.viagens',
+    modulo: 'CADASTROS',
+    grupo: 'Propostas',
+    nome: 'Viagens',
+    rota: '/orc/viagens',
+    ordem: 5,
+    ajuda: 'Planeja as viagens da última versão das propostas, com o teto por conta sintética, o custo de passagens e diárias e o painel de indicadores.',
+    acoes: ['consultar', 'incluir', 'alterar', 'excluir'],
+    perfisPadrao: {
+      ORCAMENTISTA: ['consultar', 'incluir', 'alterar', 'excluir'],
+      OPERADOR_VIAGENS: ['consultar', 'incluir', 'alterar', 'excluir'],
+      GFIN: ['consultar'],
+      AUDITOR: ['consultar'],
+      DIREX: ['consultar'],
+    },
+  },
 ];
 
 export const seedOrc: Seed = {

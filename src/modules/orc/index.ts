@@ -17,6 +17,7 @@ export {
   incluirEmpregadoAcao,
   incluirQtdeAcao,
 } from './application/acoes-empregados';
+export { alterarTetoAcao, alterarViagemAcao, excluirTetoAcao, excluirViagemAcao, incluirTetoAcao, incluirViagemAcao } from './application/acoes-viagens';
 export { criarPropostaAcao, duplicarPropostaAcao, excluirPropostaAcao, novaVersaoPropostaAcao } from './application/acoes-propostas';
 export { alterarReceitaAcao, excluirReceitaAcao, incluirReceitaAcao } from './application/acoes-receitas';
 export { listarTramites } from './application/aprovacao';
@@ -50,6 +51,16 @@ export {
   type OpcaoCargoEmpregado,
 } from './application/empregados';
 export { listarQtdes, type BlocoQtdes, type QtdeTela } from './application/qtde-empregados';
+export {
+  listarViagens,
+  opcoesViagem,
+  type BlocoViagens,
+  type FiltrosViagens,
+  type GrupoViagens,
+  type OpcoesViagem,
+  type TetoTela,
+  type ViagemTela,
+} from './application/viagens';
 export { ccsLivresParaTp, dadosParaDuplicar, listarPropostas, type CcLivreTp, type DadosDuplicar, type PropostaTela } from './application/propostas';
 export { listarReceitas, obterReceita, type ListaReceitas as DadosReceitas } from './application/receitas';
 export { mascararHistoricoOrc, type HistoricoMascaradoOrc } from './domain/mascara-historico';
@@ -61,6 +72,7 @@ export { TelaCorrespondencia } from './ui/tela-correspondencia';
 export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMeta } from './ui/tela-metas';
 export { TelaEmpregados, textoAvisoEmpregado, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
 export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
+export { TelaViagens, textoAvisoViagem, type AcoesViagens, type FormularioViagemAberto } from './ui/tela-viagens';
 export { TelaPropostas, textoAvisoProposta } from './ui/tela-propostas';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';
 export { AcoesCiclo } from './ui/acoes-ciclo';

@@ -205,18 +205,20 @@ model PropostaTp {
 // Versão da proposta (§6.2): nasce a nº 1 em Rascunho, com a data e a hora do servidor (RN_PROP_002).
 // O ciclo de vida (avançar, enviar, aprovar) fica para as histórias seguintes. RLS por unidade_id.
 model VersaoProposta {
-  id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  unidadeId  String                  @map("unidade_id") @db.Uuid
-  unidade    Unidade                 @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
-  propostaId String                  @map("proposta_id") @db.Uuid
-  proposta   PropostaTp              @relation(fields: [propostaId], references: [id], onDelete: Restrict)
-  numero     Int
-  situacao   String                  @default("RASCUNHO")
-  criadoPor  String                  @map("criado_por") @db.Uuid
-  criadoEm   DateTime                @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
-  metas      MetaProposta[]
-  empregados EmpregadoProposta[]
-  qtdes      QtdeEmpregadoProposta[]
+  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId   String                  @map("unidade_id") @db.Uuid
+  unidade     Unidade                 @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  propostaId  String                  @map("proposta_id") @db.Uuid
+  proposta    PropostaTp              @relation(fields: [propostaId], references: [id], onDelete: Restrict)
+  numero      Int
+  situacao    String                  @default("RASCUNHO")
+  criadoPor   String                  @map("criado_por") @db.Uuid
+  criadoEm    DateTime                @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  metas       MetaProposta[]
+  empregados  EmpregadoProposta[]
+  qtdes       QtdeEmpregadoProposta[]
+  tetosViagem TetoViagemProposta[]
+  viagens     ViagemProposta[]
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -242,6 +244,7 @@ model MetaProposta {
   versao           Int                     @default(0)
   empregados       EmpregadoProposta[]
   qtdes            QtdeEmpregadoProposta[]
+  viagens          ViagemProposta[]
 
   @@index([unidadeId])
   @@index([versaoPropostaId])
@@ -301,4 +304,53 @@ model QtdeEmpregadoProposta {
   @@index([versaoPropostaId])
   @@index([metaId])
   @@map("orc_qtde_empregado")
+}
+
+// Teto de viagens por conta sintética (US-071, Camada 1; plano do P21, D-P21-5): informado, maior que zero,
+// um por conta na versão. A conta é a classificação do C1 (R5). CHECKs na migration. RLS por unidade_id.
+model TetoViagemProposta {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  contaSintetica   String         @map("conta_sintetica")
+  valor            Decimal        @db.Decimal(15, 2)
+  criadoPor        String         @map("criado_por") @db.Uuid
+  criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int            @default(0)
+
+  @@unique([versaoPropostaId, contaSintetica], map: "orc_teto_viagem_versao_conta_key")
+  @@index([unidadeId])
+  @@map("orc_teto_viagem")
+}
+
+// Viagem da proposta (US-071, Camada 2; plano do P21, D-P21-2 a D-P21-4): é da versão, com a meta
+// obrigatória na categoria Meta (no caso de uso) e FK RESTRICT. O custo é calculado na leitura (RN_VIA_03).
+// As contas são classificações do C1 (R5). CHECKs na migration. RLS por unidade_id.
+model ViagemProposta {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  metaId           String?        @map("meta_id") @db.Uuid
+  meta             MetaProposta?  @relation(fields: [metaId], references: [id], onDelete: Restrict)
+  localidade       String
+  pessoas          Int
+  dias             Int
+  valorPassagem    Decimal        @map("valor_passagem") @db.Decimal(15, 2)
+  valorDiaria      Decimal        @map("valor_diaria") @db.Decimal(15, 2)
+  valorTransporte  Decimal        @default(0) @map("valor_transporte") @db.Decimal(15, 2)
+  contaPassagem    String         @map("conta_passagem")
+  contaDiaria      String         @map("conta_diaria")
+  contaTransporte  String?        @map("conta_transporte")
+  criadoPor        String         @map("criado_por") @db.Uuid
+  criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int            @default(0)
+
+  @@index([unidadeId])
+  @@index([versaoPropostaId])
+  @@index([metaId])
+  @@map("orc_viagem")
 }

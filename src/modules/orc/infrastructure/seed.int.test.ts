@@ -47,7 +47,7 @@ describe('seedOrc', () => {
   it('proposta de TP no menu Cadastros › Propostas (US-065, D-P17-9)', async () => {
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.propostas' } });
     expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Propostas', rota: '/orc/propostas', exibirNoMenu: true, acoes: ['consultar', 'incluir', 'excluir'] });
-    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(14);
+    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(15);
   });
 
   it('metas da proposta no menu Cadastros › Metas, no grupo Propostas (US-067, D-P19-8)', async () => {
@@ -61,6 +61,11 @@ describe('seedOrc', () => {
       ['orc.empregados', 'CADASTROS', 'Propostas', 'Empregados', '/orc/empregados', 3, ['consultar', 'incluir', 'alterar', 'excluir']],
       ['orc.qtde_empregados', 'CADASTROS', 'Propostas', 'Qtde. Empregados', '/orc/qtde-empregados', 4, ['consultar', 'incluir', 'alterar', 'excluir']],
     ]);
+  });
+
+  it('viagens da proposta no menu Cadastros › Viagens, no grupo Propostas (US-071, D-P21-10)', async () => {
+    const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.viagens' } });
+    expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Viagens', rota: '/orc/viagens', ordem: 5, exibirNoMenu: true, acoes: ['consultar', 'incluir', 'alterar', 'excluir'] });
   });
 
   it('perfis padrão da tabela da Task 1 (D-P6-4, D-P6-6)', async () => {
@@ -77,14 +82,15 @@ describe('seedOrc', () => {
       'orc.propostas:consultar',
       'orc.qtde_empregados:consultar',
       'orc.receitas:alterar', 'orc.receitas:consultar', 'orc.receitas:excluir', 'orc.receitas:incluir',
+      'orc.viagens:consultar',
     ]);
     expect(await permissoes('DIREX')).toEqual([
       'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
-      'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.receitas:consultar',
+      'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.receitas:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
       'orc.aprovacao:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
-      'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.receitas:consultar',
+      'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.receitas:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('GESTOR_DIRETORIA')).toEqual([
       'orc.ia_justificativa:executar', 'orc.ia_sugestao_conta:executar',
@@ -97,15 +103,18 @@ describe('seedOrc', () => {
       'orc.empregados:alterar', 'orc.empregados:consultar', 'orc.empregados:excluir', 'orc.empregados:incluir',
     ];
     const qtdes = ['orc.qtde_empregados:alterar', 'orc.qtde_empregados:consultar', 'orc.qtde_empregados:excluir', 'orc.qtde_empregados:incluir'];
+    const viagens = ['orc.viagens:alterar', 'orc.viagens:consultar', 'orc.viagens:excluir', 'orc.viagens:incluir'];
     expect(await permissoes('ORCAMENTISTA')).toEqual([
       ...pessoal,
       'orc.metas:alterar', 'orc.metas:consultar', 'orc.metas:excluir', 'orc.metas:incluir',
       'orc.propostas:consultar', 'orc.propostas:excluir', 'orc.propostas:incluir',
       ...qtdes,
+      ...viagens,
     ]);
     // D-P20-10: o GRH lança o pessoal da proposta (§11.3), sem a proposta nem as metas.
     expect(await permissoes('ANALISTA_GRH')).toEqual([...pessoal, ...qtdes]);
-    expect(await permissoes('OPERADOR_VIAGENS')).toEqual([]);
+    // D-P21-10: o Operador de Viagens lança os tetos e as viagens da proposta (§11.3).
+    expect(await permissoes('OPERADOR_VIAGENS')).toEqual(viagens);
   });
 
   it('casos de IA: só a sugestão de conta é avaliável (fila ia.avaliar, #403)', async () => {
