@@ -5,7 +5,8 @@ import { CONTAS_EXEMPLO, type NoConta } from '@/modules/cad';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { Dinheiro } from '@/shared/kernel';
 import { TabelaDespesas, TEXTOS_DESPESAS } from '../ui/despesas-tp';
-import { MENSAGENS_DESPESAS, obterDespesasTp, planilhaDespesas, type PortaRealizado } from './despesas-tp';
+import { respostaDeArquivo } from '@/modules/ger';
+import { MENSAGENS_DESPESAS, nomeArquivoTp, obterDespesasTp, planilhaDespesas, type PortaRealizado } from './despesas-tp';
 
 vi.mock('server-only', () => ({}));
 
@@ -81,5 +82,16 @@ describe('obterDespesasTp', () => {
     expect(p.linhas.at(-1)!.slice(0, 5)).toEqual(['', TEXTOS_DESPESAS.TOTAL_GERAL, '100.00', '50.00', '0.00']);
     expect(p.linhas.at(-1)!.at(-1)).toBe('150.00');
     expect(p.linhas[4]![1]).toBe('        Salários');
+  });
+});
+
+describe('nomeArquivoTp', () => {
+  it('número com barra, espaço ou acento vira só letras, dígitos e hífen, e o C3 aceita o nome (achado da frente A, #138)', () => {
+    expect(nomeArquivoTp('despesas', 'TP-X01/2026', 'xlsx')).toBe('despesas-TP-X01-2026.xlsx');
+    expect(nomeArquivoTp('receitas-despesas', ' Nº 7 / ação ', 'pdf')).toBe('receitas-despesas-N-7-a-o.pdf');
+    expect(nomeArquivoTp('despesas', '///', 'csv')).toBe('despesas-tp.csv');
+    for (const nome of [nomeArquivoTp('despesas', 'TP-X01/2026', 'xlsx'), nomeArquivoTp('despesas', 'ção_1', 'csv')]) {
+      expect(() => respostaDeArquivo(nome, 'xlsx', new Uint8Array())).not.toThrow();
+    }
   });
 });

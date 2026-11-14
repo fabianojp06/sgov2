@@ -113,6 +113,13 @@ export async function obterDespesasTp(
   };
 }
 
+/**
+ * O nome do arquivo de um demonstrativo do TP: só letras, dígitos e hífen no número (o `respostaDeArquivo` do C3
+ * aceita só `[a-z0-9.-]`; "TP-X01/2026" vira "TP-X01-2026"). Achado da frente A na #138.
+ */
+export const nomeArquivoTp = (prefixo: string, numeroTp: string, formato: FormatoArquivo) =>
+  `${prefixo}-${numeroTp.replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'tp'}.${formato}`;
+
 export class FalhaGeracao extends Error {
   constructor(readonly erros: readonly { campo: string; mensagem: string }[]) {
     super('falha na geração do arquivo');
@@ -175,7 +182,7 @@ export async function exportarDespesasTp(
       });
       return g.valor;
     });
-    return ok({ nome: `despesas-${r.tp.numero.replace(/[^\w-]+/g, '_')}.${formato}`, tipo: TIPOS_ARQUIVO[formato], bytes });
+    return ok({ nome: nomeArquivoTp('despesas', r.tp.numero, formato), tipo: TIPOS_ARQUIVO[formato], bytes });
   } catch (e) {
     if (e instanceof FalhaGeracao) return falha(e.erros);
     throw e;
