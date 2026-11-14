@@ -9,7 +9,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { prisma } from '@/shared/db';
 import { Dinheiro, falha, ok, type Resultado } from '@/shared/kernel';
 import { mesPorExtenso } from './despesas-tp-montagem';
-import { FalhaGeracao, filtrosDoTp, MENSAGENS_DESPESAS, type PortaRealizado, type TelaDespesas } from './despesas-tp';
+import { FalhaGeracao, filtrosDoTp, nomeArquivoTp, MENSAGENS_DESPESAS, type PortaRealizado, type TelaDespesas } from './despesas-tp';
 import { montarPrevistoRealizado, type PrevistoRealizado, type Prs } from './receitas-despesas-montagem';
 
 // Demonstrativo de receitas e despesas sintético do TP (US-096 parte 2; UC05.01), 1ª e 2ª tabelas. Só leitura:
@@ -184,7 +184,7 @@ export async function exportarReceitasDespesasTp(
       });
       return g.valor;
     });
-    return ok({ nome: `receitas-despesas-${r.tp.numero.replace(/[^\w-]+/g, '_')}.${formato}`, tipo: TIPOS_ARQUIVO[formato], bytes });
+    return ok({ nome: nomeArquivoTp('receitas-despesas', r.tp.numero, formato), tipo: TIPOS_ARQUIVO[formato], bytes });
   } catch (e) {
     if (e instanceof FalhaGeracao) return falha(e.erros);
     throw e;
