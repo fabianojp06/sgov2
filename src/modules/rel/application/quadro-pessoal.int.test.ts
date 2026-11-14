@@ -136,7 +136,7 @@ describe('analisarQuadroPessoal', () => {
     const antes = await chamadas();
     const r = await analisarQuadroPessoal(ctx(), { tipo: 'TERMO_PARCERIA', proposta: ' TP-001 ' }, deps());
     expect(r).toMatchObject({ ok: true, valor: { analise: RESPOSTA, quadro: { total: { propostas: 1, aContratar: 1, custoPeriodoExibido: '48006.00' } } } });
-    expect(filtrosVistos.at(-1)).toEqual({ tipo: 'TERMO_PARCERIA', proposta: 'TP-001' });
+    expect(filtrosVistos.at(-1)).toEqual({ tipo: 'TERMO_PARCERIA', proposta: 'TP-001', maximo: 120 });
     const m = falso.chamadas.at(-1)!.mensagem;
     for (const proibido of [...NOMES, 'Objeto com texto livre', '12000.00', '12001.00', '12003.00']) expect(m).not.toContain(proibido);
     expect(m).toContain('TP-001/2027');
@@ -146,7 +146,7 @@ describe('analisarQuadroPessoal', () => {
   it('o listarEmpregados real do orc, sem propostas: "nenhuma proposta com empregados", sem chamar a IA', async () => {
     const real = ((c: ContextoRequisicao, f: Parameters<typeof listarEmpregados>[1]) => listarEmpregados(c, f, { cliente: app, cargosDecifrados: async () => [] })) as typeof listarEmpregados;
     expect(await analisarQuadroPessoal(ctx(), {}, deps(real))).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.SEM_PESSOAL }] });
-    expect(await obterQuadroPessoal(ctx(), {}, { listarEmpregados: real })).toMatchObject({ ok: true, valor: { propostas: [], propostasOmitidas: 0 } });
+    expect(await obterQuadroPessoal(ctx(), {}, { listarEmpregados: real })).toMatchObject({ ok: true, valor: { propostas: [], limiteAtingido: false } });
     expect(falso.chamadas).toHaveLength(0);
   });
 

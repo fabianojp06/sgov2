@@ -7,6 +7,7 @@ import { falha, ok, type Resultado } from '@/shared/kernel';
 import {
   agregarQuadro,
   conferirAnalise,
+  MAXIMO_LEITURA,
   MAXIMO_ITEM,
   MAXIMO_RESUMO,
   mensagemQuadro,
@@ -68,7 +69,12 @@ export function lerFiltrosQuadro(bruto: unknown): FiltrosQuadro | null {
 /** Os agregados para a tela e para a IA (só os campos de que o domínio precisa saem do orc). */
 export async function obterQuadroPessoal(ctx: ContextoRequisicao, filtros: FiltrosQuadro, deps: Partial<Pick<DepsQuadro, 'listarEmpregados'>> = {}): Promise<Resultado<QuadroPessoal>> {
   if (!ctx.permissoes.has(PERMISSAO_EMPREGADOS)) return erro(MENSAGENS_QUADRO.SEM_EMPREGADOS_ORC);
-  const blocos = await (deps.listarEmpregados ?? listarEmpregados)(ctx, { tipo: filtros.tipo || undefined, proposta: filtros.proposta?.trim() || undefined });
+  // Teto de leitura no orc (#480): o motor de custo roda só para as propostas lidas (revisão 12.12, DoS).
+  const blocos = await (deps.listarEmpregados ?? listarEmpregados)(ctx, {
+    tipo: filtros.tipo || undefined,
+    proposta: filtros.proposta?.trim() || undefined,
+    maximo: MAXIMO_LEITURA,
+  });
   const entrada: PropostaEntrada[] = blocos.map((b) => ({
     numero: b.numero,
     tipo: b.tipo,
@@ -79,7 +85,7 @@ export async function obterQuadroPessoal(ctx: ContextoRequisicao, filtros: Filtr
       empregados: g.empregados.map((e) => ({ categoria: e.categoria, avisos: e.avisos, nome: e.nome, cargo: e.cargo, inicio: e.inicio, fim: e.fim, custoPeriodo: e.custoPeriodo })),
     })),
   }));
-  return ok(agregarQuadro(entrada));
+  return ok(agregarQuadro(entrada, blocos.length >= MAXIMO_LEITURA));
 }
 
 /** O botão da análise aparece? A permissão do caso, a chave geral, o caso ativo e os tetos (sem reservar nem registrar). */
