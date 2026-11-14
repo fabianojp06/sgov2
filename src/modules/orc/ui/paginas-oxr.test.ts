@@ -35,6 +35,7 @@ vi.mock('@/modules/orc', async (original) => {
   const { exigir } = await import('@/shared/authz');
   return {
     ...(await original<typeof import('@/modules/orc')>()),
+    iaLiberada: async () => false,
     obterOrcadoRealizado: async (ctx: ContextoRequisicao, f: { proposta?: string }) => {
       exigir(ctx, 'orc.oxr', 'consultar');
       const propostas = [{ id: PROPOSTA, numero: 'TP-X01/2026', objeto: 'Programa A' }];
@@ -52,6 +53,7 @@ vi.mock('@/modules/orc', async (original) => {
           meses: ['2018-09', '2018-10'],
           grade,
           pendencias: { quantidade: 2, valor: Dinheiro.de('15') },
+          ajustes: [],
           atualizadoEm: null,
           semPessoal: true,
           pessoalNaoHomologado: false,

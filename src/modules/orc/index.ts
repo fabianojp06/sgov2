@@ -5,7 +5,7 @@ export { importarPlanilhaAcao } from './application/acoes-importacao';
 export { carregarRealizadoAcao, fecharCompetenciaAcao, reprocessarPendenciasAcao } from './application/acoes-realizado';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
-export { destacarRiscosAcao, sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
+export { destacarRiscosAcao, explicarDesvioAcao, sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
 export { AjudaRecusaIA } from './ui/ajuda-recusa-ia';

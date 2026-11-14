@@ -10,7 +10,7 @@ import { seriesDaVersao } from './cronograma';
 import { resolverDeps, type DepsOrc } from './deps';
 import { montarGradeOxr, type GradeOxr, type NoPlanoOxr } from './grade-oxr';
 import { uuid } from './pessoal-comum';
-import { lerRealizado } from './realizado';
+import { lerRealizado, type AjusteDoRealizado } from './realizado';
 import { vePessoal } from './totalizadores';
 
 // Orçado x Realizado do TP (US-086, parte 1; OxR V2, seção 5; UC04.07; plano do P33). Só leitura. O orçado do mês é o
@@ -44,6 +44,8 @@ export type TelaOxr = {
   meses: readonly string[];
   grade: GradeOxr;
   pendencias: { quantidade: number; valor: Dinheiro };
+  /** Os ajustes de meses fechados lançados no período (RN_OXR_006), com a mesma regra do pessoal; para a IA-09. */
+  ajustes: readonly AjusteDoRealizado[];
   atualizadoEm: Date | null;
   /** As contas de pessoal ficaram de fora, no orçado e no realizado: só quem lança os empregados as vê (D-P23-5, D-P33-2). */
   semPessoal: boolean;
@@ -149,6 +151,7 @@ export async function montarOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fi
           meses,
           grade,
           pendencias: r.pendencias,
+          ajustes: r.ajustes.filter((a) => !ePessoal(a.conta)),
           atualizadoEm: r.atualizadoEm,
           semPessoal: !comPessoal,
           pessoalNaoHomologado: s.pessoalNaoHomologado,

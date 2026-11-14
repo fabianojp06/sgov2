@@ -106,9 +106,10 @@ afterAll(async () => {
 });
 
 describe('seed', () => {
-  it('os 5 casos de IA do orc nascem instalados, inativos e com teto zero', async () => {
+  it('os 6 casos de IA do orc nascem instalados, inativos e com teto zero', async () => {
     const casos = await migrator.iaCasoUso.findMany({ where: { codigo: { startsWith: 'orc.' } }, orderBy: { codigo: 'asc' } });
     expect(casos.map((c) => [c.codigo, c.funcionalidade])).toEqual([
+      ['orc.ia_desvio', 'orc.ia_desvio'],
       ['orc.ia_justificativa', 'orc.ia_justificativa'],
       ['orc.ia_previsao', 'orc.ia_previsao'],
       ['orc.ia_recusa', 'orc.ia_recusa'],
@@ -132,9 +133,10 @@ describe('iaLiberada (servicoIA.disponivel, #390)', () => {
     expect(falso.chamadas.length).toBe(0);
   });
 
-  it('esforço inicial da declaração (§6.8): médio na justificativa e no revisor, baixo na previsão, na recusa e na sugestão de conta', async () => {
+  it('esforço inicial da declaração (§6.8): médio na justificativa e no revisor, baixo no desvio, na previsão, na recusa e na sugestão de conta', async () => {
     const casos = await migrator.iaCasoUso.findMany({ where: { codigo: { startsWith: 'orc.' } }, orderBy: { codigo: 'asc' } });
     expect(casos.map((c) => [c.codigo, c.esforco])).toEqual([
+      ['orc.ia_desvio', 'low'],
       ['orc.ia_justificativa', 'medium'],
       ['orc.ia_previsao', 'low'],
       ['orc.ia_recusa', 'low'],

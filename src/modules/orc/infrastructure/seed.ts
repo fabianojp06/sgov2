@@ -207,6 +207,20 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { GFIN: ['executar'], DIREX: ['executar'] },
   },
   {
+    // Explicação do desvio pela IA no Orçado x Realizado (US-090; IA-09; plano do P35, D-P35-1) [PROVISÓRIO]: fora do
+    // menu, só executar, na tela do Orçado x Realizado (que pede orc.oxr). Nasce desligada, como as do P14.
+    codigo: 'orc.ia_desvio',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'IA: explicação do desvio orçado x realizado',
+    rota: '/orc/orcado-realizado',
+    ordem: 15,
+    ajuda: 'Pede à IA um texto que explique o desvio do período: os meses que puxaram, as contas que explicam e as que compensaram, e os ajustes de meses fechados. Os números são do sistema; a IA só redige.',
+    exibirNoMenu: false,
+    acoes: ['executar'],
+    perfisPadrao: { GFIN: ['executar'], DIREX: ['executar'] },
+  },
+  {
     // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),
     // com o código no orc (D-P17-1). O Orçamentista escreve; GFIN, Auditor e DIREX leem (§11.3). Cada um
     // vê só as propostas dos TPs a que está vinculado (RLS, US-007).
