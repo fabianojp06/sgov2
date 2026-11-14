@@ -421,7 +421,7 @@ const capaDoTp = (p: { objeto: string; inicio: Date; fim: Date; unidade: { codig
   fim: competenciaParaTexto(p.fim),
   versaoOficial: p.versoes[0]?.numero ?? null,
 });
-const VERSAO_OFICIAL = { where: { snapshot: { isNot: null } }, orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true } } as const;
+export const VERSAO_OFICIAL = { where: { snapshot: { isNot: null } }, orderBy: { numero: 'desc' }, take: 1, select: { id: true, numero: true } } as const;
 
 /** Os TPs que o usuário vê (RLS), para o filtro dos relatórios de execução (RN0234; RN0385 filtra pelo versaoOficial). */
 export async function tpsDoRealizado(ctx: ContextoRequisicao, depsParciais: Partial<DepsOrc> = {}): Promise<readonly TpDoRealizado[]> {
