@@ -145,7 +145,10 @@ describe('agregarQuadro', () => {
     const q = agregarQuadro([proposta('VAZIA', []), ...muitas]);
     expect(q.propostas).toHaveLength(MAXIMO_PROPOSTAS);
     expect(q.propostas[0]!.numero).toBe('TP-0');
-    expect(q.propostasOmitidas).toBe(2);
+    expect(q.limiteAtingido).toBe(true);
+    expect(agregarQuadro(muitas.slice(0, MAXIMO_PROPOSTAS)).limiteAtingido).toBe(false);
+    // O orc parou no máximo pedido: pode haver mais, mesmo com menos de 40 com pessoal.
+    expect(agregarQuadro([proposta('TP', [emp('C1', '1.00')])], true).limiteAtingido).toBe(true);
     const cargos = Array.from({ length: MAXIMO_CARGOS + 1 }, (_, i) => [0, 1, 2].map(() => emp(`Cargo ${String(i).padStart(2, '0')}`, '1.00'))).flat();
     const p = agregarQuadro([proposta('TP', cargos)]).propostas[0]!;
     expect(p.cargos).toHaveLength(MAXIMO_CARGOS + 1);

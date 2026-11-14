@@ -17,7 +17,7 @@ export const TEXTOS_QUADRO = {
   EVOLUCAO: 'Postos ativos por ano (no mês de referência e em algum mês do ano)',
   NO_ANO: 'Ativos no ano',
   CARGOS: 'Postos por cargo',
-  OMITIDAS: (n: number) => `${n} proposta(s) além do limite ficaram fora dos agregados. Use os filtros para analisar menos propostas.`,
+  LIMITE: 'Há mais propostas com pessoal além das analisadas aqui (no máximo 40). Use os filtros para analisar as demais.',
   SEM_CUSTO: {
     SEM_PERMISSAO: 'Não exibido para o seu perfil',
     POUCOS_POSTOS: 'Omitido: menos de 3 postos',
@@ -111,7 +111,7 @@ export function TabelaQuadro({ quadro, prefixo = 'quadro' }: { quadro: QuadroPes
         {TEXTOS_QUADRO.ESTAGIARIOS}: {t.postos.ESTAGIARIO} · {TEXTOS_QUADRO.APRENDIZES}: {t.postos.JOVEM_APRENDIZ} · {TEXTOS_QUADRO.A_CONTRATAR}:{' '}
         {t.aContratar} · {TEXTOS_QUADRO.CUSTO_TOTAL}: {moeda(t.custoPeriodoExibido)}
       </p>
-      {quadro.propostasOmitidas > 0 && <p role="note">{TEXTOS_QUADRO.OMITIDAS(quadro.propostasOmitidas)}</p>}
+      {quadro.limiteAtingido && <p role="note">{TEXTOS_QUADRO.LIMITE}</p>}
       {quadro.propostas.map((p) => (
         <Proposta key={p.numero} p={p} prefixo={prefixo} />
       ))}

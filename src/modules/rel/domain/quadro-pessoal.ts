@@ -14,6 +14,8 @@ import { Dinheiro } from '@/shared/kernel';
 
 export const MINIMO_GRUPO_CUSTO = 3;
 export const MAXIMO_PROPOSTAS = 40;
+/** Quantas propostas o rel pede ao orc (as sem empregado também contam lá): folga para achar as 40 com pessoal. */
+export const MAXIMO_LEITURA = MAXIMO_PROPOSTAS * 3;
 export const MAXIMO_CARGOS = 15;
 export const MAXIMO_RESUMO = 1500;
 export const MAXIMO_ITEM = 400;
@@ -63,7 +65,8 @@ export type PropostaQuadro = {
 };
 export type QuadroPessoal = {
   propostas: PropostaQuadro[];
-  propostasOmitidas: number;
+  /** Há propostas com pessoal além das analisadas (as 40 primeiras, ou o teto de leitura do orc). */
+  limiteAtingido: boolean;
   total: { propostas: number; postos: PostosPorCategoria; aContratar: number; custoPeriodoExibido: string | null };
 };
 
@@ -144,8 +147,11 @@ function agregarProposta(p: PropostaEntrada): PropostaQuadro {
   };
 }
 
-/** Agregados do quadro: só propostas com empregado, até MAXIMO_PROPOSTAS (na ordem recebida). */
-export function agregarQuadro(propostas: readonly PropostaEntrada[]): QuadroPessoal {
+/**
+ * Agregados do quadro: só propostas com empregado, até MAXIMO_PROPOSTAS (na ordem recebida). `leituraTruncada`:
+ * o orc parou no máximo pedido, então pode haver mais propostas.
+ */
+export function agregarQuadro(propostas: readonly PropostaEntrada[], leituraTruncada = false): QuadroPessoal {
   const comPessoal = propostas.filter((p) => p.grupos.some((g) => g.empregados.some((e) => categoriaValida(e.categoria))));
   const incluidas = comPessoal.slice(0, MAXIMO_PROPOSTAS).map(agregarProposta);
   const postos = zerados();
@@ -153,7 +159,7 @@ export function agregarQuadro(propostas: readonly PropostaEntrada[]): QuadroPess
   const custos = incluidas.filter((p) => p.custoPeriodo !== null).map((p) => Dinheiro.de(p.custoPeriodo!));
   return {
     propostas: incluidas,
-    propostasOmitidas: comPessoal.length - incluidas.length,
+    limiteAtingido: leituraTruncada || comPessoal.length > incluidas.length,
     total: {
       propostas: incluidas.length,
       postos,
