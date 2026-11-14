@@ -33,7 +33,7 @@ export const DESCRICAO_CONSULTA: Readonly<Record<Consulta, string>> = {
   VALOR_GLOBAL_TP: 'Valor Global de um Termo de Parceria pelo número (tp)',
   QUANTIDADE_TPS: 'quantos Termos de Parceria existem no consolidado',
   REALIZADO_TP: 'despesa realizada (gasto, executado) de um Termo de Parceria pelo número, no ano dito ou em toda a vigência (tp e ano)',
-  SALDO_TP: 'saldo entre o previsto e o realizado de um Termo de Parceria pelo número, no ano dito ou em toda a vigência (tp e ano)',
+  SALDO_TP: 'saldo acumulado (previsto menos realizado) de um Termo de Parceria pelo número, no ano dito ou em toda a vigência (tp e ano)',
   NAO_SEI: 'nenhuma das anteriores responde à pergunta',
 };
 

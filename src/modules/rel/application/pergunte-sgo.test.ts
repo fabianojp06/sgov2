@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContextoRequisicao } from '@/shared/authz';
+import { Dinheiro } from '@/shared/kernel';
 import type { Classificacao } from '../domain/pergunte-sgo';
 import type { TelaDespesas } from './despesas-tp';
 import { executarConsulta, MENSAGENS_PERGUNTE, periodoDoTp } from './pergunte-sgo';
@@ -21,18 +22,19 @@ const lerDespesas = async (_c: ContextoRequisicao, f: { tp?: string; de?: string
   return {
     tps: [TP],
     filtros: { tp: f.tp, de: f.de!, ate: f.ate!, exibirZerados: false },
-    relatorio: { tp: TP, totalGeral: { valores: [], total: '1234.50' }, atualizadoEm: new Date('2027-02-03T15:00:00Z') } as unknown as TelaDespesas['relatorio'],
+    relatorio: { tp: TP, totalGeral: { valores: [], total: '1234.50' }, atualizadoEm: new Date('2027-02-03T15:00:00Z'), foraDaArvore: { quantidade: 0 }, pendencias: { quantidade: 2 } } as unknown as TelaDespesas['relatorio'],
     erro: null,
   };
 };
 let versaoPrevisto: number | null = 2;
+let saldoAnterior = '0.00';
 const lerReceitasDespesas = async (_c: ContextoRequisicao, f: { tp?: string; de?: string; ate?: string }): Promise<TelaReceitasDespesas> => {
   pedidos.push(f);
   if (!f.tp) return { tps: [TP], filtros: filtrosVazios, relatorio: null, erro: null };
   return {
     tps: [TP],
     filtros: { tp: f.tp, de: f.de!, ate: f.ate!, exibirZerados: false },
-    relatorio: { tp: TP, versaoPrevisto, totalGeral: { valores: [], total: { previsto: '5000.00', realizado: '1234.50', saldo: '3765.50' } } } as unknown as TelaReceitasDespesas['relatorio'],
+    relatorio: { tp: TP, versaoPrevisto, saldoAnterior, previstoSemPessoal: true, pessoalNaoHomologado: false, totalGeral: { valores: [], total: { previsto: '5000.00', realizado: '1234.50', saldo: '3765.50' } } } as unknown as TelaReceitasDespesas['relatorio'],
     erro: null,
   };
 };
@@ -53,6 +55,19 @@ describe('Pergunte ao SGO, parte 2: realizado e saldo do TP', () => {
     expect(r).toMatchObject({ tipo: 'NUMERO', valor: '1234.50', link: '/rel/despesas-tp?tp=TP-3&de=2027-01&ate=2027-12' });
     expect(r.texto).toContain('em 2027');
     expect((r as { fonte: string }).fonte).toContain('atualizado em 03/02/2027');
+    expect((r as { fonte: string }).fonte).toContain('2 lançamento(s) fora do total');
+    // Ano cortado pela vigência: o período efetivo no texto.
+    expect((await executarConsulta(ctx(), c('REALIZADO_TP', 'TP-3', 2026), deps)).texto).toContain('de Setembro/2026 a Dezembro/2026');
+  });
+
+  it('revisão 12.12: com saldo anterior, a frase do saldo fecha a conta (anterior + previsto − realizado)', async () => {
+    saldoAnterior = '-1000.00';
+    const r = await executarConsulta(ctx(), c('SALDO_TP', 'TP-3', 2027), deps);
+    saldoAnterior = '0.00';
+    expect(r.texto).toBe(
+      `O saldo acumulado do TP TP-3 até Dezembro/2027 é ${Dinheiro.de('3765.50').formatar()}: saldo anterior ${Dinheiro.de('-1000.00').formatar()}, mais previsto ${Dinheiro.de('5000.00').formatar()} e menos realizado ${Dinheiro.de('1234.50').formatar()} em 2027.`,
+    );
+    expect((r as { fonte: string }).fonte).toContain('sem o custo do pessoal');
   });
 
   it('saldo: previsto − realizado do demonstrativo de receitas e despesas; sem versão oficializada, sem dado', async () => {
@@ -67,7 +82,9 @@ describe('Pergunte ao SGO, parte 2: realizado e saldo do TP', () => {
   it('permissões: sem a do orc ou sem a do relatório do link, sem dado (e nada é lido); TP fora e ano fora', async () => {
     const antes = pedidos.length;
     expect(await executarConsulta(ctx([perm('rel.despesas_tp')]), c('REALIZADO_TP'), deps)).toMatchObject({ tipo: 'SEM_DADO', texto: MENSAGENS_PERGUNTE.SEM_ACESSO_REALIZADO });
-    expect(await executarConsulta(ctx([perm('orc.realizado'), perm('rel.despesas_tp')]), c('SALDO_TP'), deps)).toMatchObject({ texto: MENSAGENS_PERGUNTE.SEM_ACESSO_REALIZADO });
+    expect(await executarConsulta(ctx([perm('orc.realizado'), perm('rel.despesas_tp')]), c('SALDO_TP'), deps)).toMatchObject({
+      texto: MENSAGENS_PERGUNTE.SEM_ACESSO_RELATORIO('Demonstrativo de receitas e despesas do TP'),
+    });
     expect(pedidos.length).toBe(antes);
     expect(await executarConsulta(ctx(), c('REALIZADO_TP', 'TP-9'), deps)).toMatchObject({ texto: MENSAGENS_PERGUNTE.TP_SEM_REALIZADO('TP-9') });
     expect(await executarConsulta(ctx(), c('REALIZADO_TP', 'TP-3', 2031), deps)).toMatchObject({ texto: MENSAGENS_PERGUNTE.ANO_FORA_DA_VIGENCIA('TP-3', 2031) });

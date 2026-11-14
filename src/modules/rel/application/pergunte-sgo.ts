@@ -30,9 +30,10 @@ const veRealizado = (ctx: ContextoRequisicao, relatorio: string) => ctx.permisso
 
 export const MENSAGENS_PERGUNTE = {
   NAO_SEI:
-    'Ainda não sei responder a essa pergunta. Por enquanto, respondo sobre o orçamento, o pessoal, o teto, o saldo e o resultado da Administração Central, o orçado de um centro de custo, o Valor Global dos Termos de Parceria e o realizado e o saldo (previsto − realizado) de um TP.',
+    'Ainda não sei responder a essa pergunta. Por enquanto, respondo sobre o orçamento, o pessoal, o teto, o saldo e o resultado da Administração Central, o orçado de um centro de custo, o Valor Global dos Termos de Parceria e o realizado e o saldo acumulado (previsto menos realizado) de um TP.',
   SEM_ACESSO: 'O seu perfil não consulta o orçamento da Administração Central, o Consolidado dos TPs nem o realizado dos TPs.',
   SEM_ACESSO_REALIZADO: 'O seu perfil não consulta o realizado dos TPs (Orçamento › Realizado e o demonstrativo em Relatórios).',
+  SEM_ACESSO_RELATORIO: (nome: string) => `O seu perfil não consulta o ${nome}, de onde vem esse número.`,
   TP_SEM_REALIZADO: (tp: string) => `O TP ${tp} não está entre os TPs oficializados que você consulta.`,
   ANO_FORA_DA_VIGENCIA: (tp: string, ano: number) => `O ano ${ano} está fora da vigência do TP ${tp}.`,
   SEM_PREVISTO: (tp: string) => `O TP ${tp} não tem versão oficializada com previsto, então não há saldo.`,
@@ -110,13 +111,18 @@ export function periodoDoTp(tp: { inicio: string; fim: string }, ano: number | n
 /** O realizado ou o saldo de um TP, pelo caso de uso do demonstrativo do link (o mesmo número da tela). */
 async function consultaDoTp(ctx: ContextoRequisicao, c: Classificacao, deps: Pick<DepsPergunte, 'lerDespesas' | 'lerReceitasDespesas'>): Promise<Resposta> {
   const realizado = c.consulta === 'REALIZADO_TP';
-  if (!veRealizado(ctx, realizado ? PERMISSAO_DESPESAS : PERMISSAO_RECEITAS_DESPESAS)) return semDado(MENSAGENS_PERGUNTE.SEM_ACESSO_REALIZADO);
+  if (!ctx.permissoes.has(PERMISSAO_REALIZADO)) return semDado(MENSAGENS_PERGUNTE.SEM_ACESSO_REALIZADO);
+  if (!veRealizado(ctx, realizado ? PERMISSAO_DESPESAS : PERMISSAO_RECEITAS_DESPESAS)) {
+    return semDado(MENSAGENS_PERGUNTE.SEM_ACESSO_RELATORIO(realizado ? 'Demonstrativo de despesas do TP' : 'Demonstrativo de receitas e despesas do TP'));
+  }
   const ler = realizado ? deps.lerDespesas : deps.lerReceitasDespesas;
   const tp = (await ler(ctx, {})).tps.find((t) => mesmoTp(t.numero, c.tp!));
   if (!tp) return semDado(MENSAGENS_PERGUNTE.TP_SEM_REALIZADO(c.tp!));
   const periodo = periodoDoTp(tp, c.ano);
   if (!periodo) return semDado(MENSAGENS_PERGUNTE.ANO_FORA_DA_VIGENCIA(tp.numero, c.ano!));
-  const quando = c.ano === null ? `de ${mesPorExtenso(periodo.de)} a ${mesPorExtenso(periodo.ate)}` : `em ${c.ano}`;
+  // O ano inteiro: "em 2027"; cortado pela vigência ou sem ano: o período efetivo, por extenso.
+  const anoInteiro = c.ano !== null && periodo.de === `${c.ano}-01` && periodo.ate === `${c.ano}-12`;
+  const quando = anoInteiro ? `em ${c.ano}` : `de ${mesPorExtenso(periodo.de)} a ${mesPorExtenso(periodo.ate)}`;
   const link = `${realizado ? '/rel/despesas-tp' : '/rel/receitas-despesas-tp'}?${new URLSearchParams({ tp: tp.numero, ...periodo }).toString()}`;
   if (realizado) {
     const t = await deps.lerDespesas(ctx, { tp: tp.numero, ...periodo });
@@ -124,19 +130,26 @@ async function consultaDoTp(ctx: ContextoRequisicao, c: Classificacao, deps: Pic
     if (!t.relatorio) return semDado(t.erro ?? MENSAGENS_PERGUNTE.TP_SEM_REALIZADO(tp.numero), fonte, link);
     const total = Dinheiro.de(t.relatorio.totalGeral.total);
     const carga = t.relatorio.atualizadoEm ? `realizado atualizado em ${dataBrasilia(t.relatorio.atualizadoEm)}` : 'ainda sem carga do realizado';
-    return { tipo: 'NUMERO', texto: `O realizado do TP ${tp.numero} ${quando} é ${total.formatar()}.`, valor: total.paraString(), fonte: `${fonte}, ${carga}`, link };
+    // As ressalvas que a tela mostra, para o número não parecer completo.
+    const fora = t.relatorio.foraDaArvore.quantidade + t.relatorio.pendencias.quantidade;
+    const ressalva = fora > 0 ? `; ${fora} lançamento(s) fora do total (pendências da carga ou conta fora das despesas), ver a tela` : '';
+    return { tipo: 'NUMERO', texto: `O realizado do TP ${tp.numero} ${quando} é ${total.formatar()}.`, valor: total.paraString(), fonte: `${fonte}, ${carga}${ressalva}`, link };
   }
   const t = await deps.lerReceitasDespesas(ctx, { tp: tp.numero, ...periodo });
   const fonte = 'Demonstrativo de receitas e despesas do TP';
   if (!t.relatorio) return semDado(t.erro ?? MENSAGENS_PERGUNTE.TP_SEM_REALIZADO(tp.numero), fonte, link);
   if (t.relatorio.versaoPrevisto === null) return semDado(MENSAGENS_PERGUNTE.SEM_PREVISTO(tp.numero), fonte, link);
   const { previsto, realizado: r, saldo } = t.relatorio.totalGeral.total;
-  const [p, x, s] = [Dinheiro.de(previsto), Dinheiro.de(r), Dinheiro.de(saldo)];
+  const [p, x, s, anterior] = [Dinheiro.de(previsto), Dinheiro.de(r), Dinheiro.de(saldo), Dinheiro.de(t.relatorio.saldoAnterior)];
+  const semPessoal = t.relatorio.previstoSemPessoal || t.relatorio.pessoalNaoHomologado ? '; o previsto está sem o custo do pessoal, ver a tela' : '';
   return {
     tipo: 'NUMERO',
-    texto: `O saldo do TP ${tp.numero} ${quando} é ${s.formatar()}: previsto ${p.formatar()} e realizado ${x.formatar()}.`,
+    // O saldo é acumulado desde o início do TP (RN0391/0392): com saldo anterior, a frase mostra a parcela.
+    texto: anterior.ehZero()
+      ? `O saldo do TP ${tp.numero} ${quando} é ${s.formatar()}: previsto ${p.formatar()} e realizado ${x.formatar()}.`
+      : `O saldo acumulado do TP ${tp.numero} até ${mesPorExtenso(periodo.ate)} é ${s.formatar()}: saldo anterior ${anterior.formatar()}, mais previsto ${p.formatar()} e menos realizado ${x.formatar()} ${quando}.`,
     valor: s.paraString(),
-    fonte: `${fonte}, previsto da versão oficializada ${t.relatorio.versaoPrevisto}`,
+    fonte: `${fonte}, previsto da versão oficializada ${t.relatorio.versaoPrevisto}${semPessoal}`,
     link,
   };
 }
