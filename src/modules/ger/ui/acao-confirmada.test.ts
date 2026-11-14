@@ -10,6 +10,12 @@ const acao = async () => ({ ok: true as const, valor: undefined });
 const props = { rotulo: 'Aprovar', pergunta: 'Deseja realmente aprovar 2027?', acao, campos: { id: 'e1', versao: '3' } };
 
 describe('AcaoConfirmada (C3)', () => {
+  it('com contexto, o nome acessível é "<rótulo> <contexto>", começando pelo texto visível; sem ele, nada de aria-label', () => {
+    const h = renderToString(createElement(AcaoConfirmada, { ...props, rotulo: 'Desativar', contexto: ' Plano de Contas ' }));
+    expect(h).toMatch(/<button type="button" aria-label="Desativar Plano de Contas">Desativar<\/button>/);
+    expect(renderToString(createElement(AcaoConfirmada, { ...props, contexto: '  ' }))).not.toContain('aria-label');
+  });
+
   it('fechada: só o botão e a região viva vazia, sem a caixa', () => {
     const h = renderToString(createElement(AcaoConfirmada, props));
     expect(h).toMatch(/<button type="button">Aprovar<\/button>/);
