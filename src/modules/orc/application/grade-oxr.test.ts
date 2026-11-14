@@ -84,5 +84,27 @@ describe('montarGradeOxr', () => {
     expect(g.foraDoPlano.map((f) => [f.conta, f.orcado.paraString()])).toEqual([['9.9.9.9.999', '5.00']]);
   });
 
+  it('seção 5.1: o indicador global. Salários até Jun/22, 13.858.710,81 ÷ 21.839.414,00 = 63,46%, saldo 7.980.703,19', () => {
+    // Sem valor no período, a conta só aparece com as zeradas (RN_OXR_013 vale para o período).
+    const g = montarGradeOxr(PLANO, ['2022-06'], new Map(), new Map(), { zeradas: true }, {
+      orcado: new Map([['4.1.1.1.001', d('21839414.00')]]),
+      realizado: new Map([['4.1.1.1.001', d('13858710.81')]]),
+    });
+    const l = g.linhas.find((x) => x.conta === '4.1.1.1.001')!;
+    expect([l.global?.uso?.formatar(), l.global?.saldo.paraString()]).toEqual(['63,46%', '7980703.19']);
+    // A sintética soma as filhas, e o total traz o global também.
+    expect(g.linhas.find((x) => x.conta === '4.1.1.1')!.global?.realizado.paraString()).toBe('13858710.81');
+    expect(g.total.global?.orcado.paraString()).toBe('21839414.00');
+    // Duas filhas somam na sintética; conta fora do plano e sintética no mapa ficam fora, sem quebrar o totalizar.
+    const g2 = montarGradeOxr(PLANO, ['2022-06'], new Map(), new Map(), { zeradas: true }, {
+      orcado: new Map([['4.1.1.1.001', d('100')], ['4.1.1.1.003', d('50')], ['9.9.9.9.999', d('7')], ['4.1.1.1', d('999')]]),
+      realizado: new Map(),
+    });
+    expect(g2.linhas.find((x) => x.conta === '4.1.1.1')!.global?.orcado.paraString()).toBe('150.00');
+    expect(g2.total.global?.orcado.paraString()).toBe('150.00');
+    // Sem o global, a linha não o traz.
+    expect(montarGradeOxr(PLANO, ['2022-06'], new Map(), new Map(), { zeradas: true }).linhas[0]!.global).toBeUndefined();
+  });
+
   it('RN0302: o mês como Mmm/AA', () => expect([mesOxr('2022-06'), mesOxr('2018-10')]).toEqual(['Jun/22', 'Out/18']));
 });

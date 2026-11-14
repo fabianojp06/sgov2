@@ -68,6 +68,7 @@ function Linha({ l }: { l: LinhaOxr }) {
         <Celulas key={i} c={c} />
       ))}
       <Periodo t={l.periodo} />
+      {l.global && <Periodo t={l.global} />}
     </tr>
   );
 }
@@ -76,6 +77,7 @@ export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; po
   const { dados, podeAtualizar, podeVerRealizado, podeExportar } = props;
   const { propostas, tela, erro } = dados;
   const f = tela?.filtros;
+  const temGlobal = tela?.grade.total.global !== undefined;
   return (
     <>
       <form method="get" action="/orc/orcado-realizado" role="search" aria-label="Filtros do Orçado x Realizado" className="sem-impressao">
@@ -158,6 +160,11 @@ export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; po
                   <th scope="col" colSpan={4}>
                     Total do período
                   </th>
+                  {temGlobal && (
+                    <th scope="col" colSpan={4}>
+                      Orçamento global da conta (desde o início do TP)
+                    </th>
+                  )}
                 </tr>
                 <tr>
                   {tela.meses.map((m) => (
@@ -167,6 +174,14 @@ export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; po
                   <th scope="col">Realizado</th>
                   <th scope="col">Saldo</th>
                   <th scope="col">% uso</th>
+                  {temGlobal && (
+                    <>
+                      <th scope="col">Orçado global</th>
+                      <th scope="col">Realizado acumulado</th>
+                      <th scope="col">Saldo global</th>
+                      <th scope="col">% do global</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -181,6 +196,7 @@ export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; po
                     <Celulas key={i} c={c} />
                   ))}
                   <Periodo t={tela.grade.total.periodo} />
+                  {tela.grade.total.global && <Periodo t={tela.grade.total.global} />}
                 </tr>
               </tfoot>
             </table>
