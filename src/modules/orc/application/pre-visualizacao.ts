@@ -2,6 +2,7 @@ import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { Dinheiro } from '@/shared/kernel';
 import { totalizar } from '@/shared/totalizer';
 import { emUnidade } from '@/shared/unidade';
+import { totalDoBem } from '../domain/bem';
 import { CATEGORIAS_EMPREGADO, type CategoriaEmpregado } from '../domain/empregado';
 import type { CategoriaProposta, SituacaoProposta, TipoProposta } from '../domain/proposta';
 import { montarArvore, separarPorPlano, type NoTotal } from '../domain/totalizador';
@@ -36,7 +37,7 @@ export type PreVisualizacao = {
   valorGlobal: Dinheiro;
   metas: readonly { numero: string; nome: string; valor: Dinheiro; ativa: boolean }[];
   /** Os quantitativos por período (UC03.38, primeiro agrupamento), em ordem do início. */
-  quantitativos: readonly { documento: string; inicio: string; fim: string; quantidades: Readonly<Record<CategoriaEmpregado, number>> }[];
+  quantitativos: readonly { id: string; documento: string; meta: string | null; inicio: string; fim: string; quantidades: Readonly<Record<CategoriaEmpregado, number>> }[];
   totaisQuantitativos: Readonly<Record<CategoriaEmpregado, number>>;
   /** O segundo agrupamento: a árvore do plano com os valores da versão. */
   arvore: readonly NoTotal[];
@@ -69,7 +70,7 @@ export async function obterPreVisualizacao(ctx: ContextoRequisicao, propostaId: 
         tx.qtdeEmpregadoProposta.findMany({ where: { versaoPropostaId: v.id }, orderBy: [{ inicio: 'asc' }, { documento: 'asc' }] }),
         tx.empregadoProposta.findMany({ where: { versaoPropostaId: v.id } }),
         tx.viagemProposta.findMany({ where: { versaoPropostaId: v.id } }),
-        tx.bemProposta.findMany({ where: { versaoPropostaId: v.id, ativo: true }, select: { conta: true } }),
+        tx.bemProposta.findMany({ where: { versaoPropostaId: v.id, ativo: true }, select: { conta: true, quantidade: true, valorUnitario: true } }),
         tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: v.id }, valor: { gt: 0 } }, select: { conta: true } }),
       ]);
       const t = await totaisDaVersao(tx, deps, v.id, comPessoal);
@@ -97,13 +98,16 @@ export async function obterPreVisualizacao(ctx: ContextoRequisicao, propostaId: 
         if (!c.diaria.ehZero()) marcar(x.contaDiaria, 'VIAGENS');
         if (!c.transporte.ehZero()) marcar(x.contaTransporte, 'VIAGENS');
       }
-      for (const b of bens) marcar(b.conta, 'BENS');
+      for (const b of bens) if (!totalDoBem({ quantidade: b.quantidade, valorUnitario: Dinheiro.de(b.valorUnitario.toString()) }).ehZero()) marcar(b.conta, 'BENS');
       for (const c of celulas) marcar(c.conta, 'RATEIO');
 
       const { dentro, fora } = separarPorPlano(t.porConta, (c) => indice.contaAnaliticaAtiva(c));
       const r = totalizar(indice.nosContas, dentro);
+      const numeroDaMeta = new Map(metas.map((m) => [m.id, m.numero]));
       const quantitativos = qtdes.map((q) => ({
+        id: q.id,
         documento: q.documento,
+        meta: q.metaId ? (numeroDaMeta.get(q.metaId) ?? null) : null,
         inicio: competencia(q.inicio),
         fim: competencia(q.fim),
         quantidades: contarNoPeriodo(q, empregados.filter((e) => e.metaId === q.metaId)),

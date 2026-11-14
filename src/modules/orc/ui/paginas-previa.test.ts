@@ -35,7 +35,7 @@ const dados = (): PreVisualizacao => ({
   vigencia: { inicio: '2027-01', fim: '2027-12' },
   valorGlobal: Dinheiro.de('5600.00'),
   metas: [{ numero: 'M1', nome: 'Oficinas', valor: Dinheiro.de('5600.00'), ativa: true }],
-  quantitativos: [{ documento: 'AP-1', inicio: '2027-01', fim: '2027-06', quantidades: { EMPREGADO: 2, ESTAGIARIO: 1, JOVEM_APRENDIZ: 0 } }],
+  quantitativos: [{ id: 'q1', documento: 'AP-1', meta: 'M1', inicio: '2027-01', fim: '2027-06', quantidades: { EMPREGADO: 2, ESTAGIARIO: 1, JOVEM_APRENDIZ: 0 } }],
   totaisQuantitativos: { EMPREGADO: 2, ESTAGIARIO: 1, JOVEM_APRENDIZ: 0 },
   arvore: montarArvore(plano, () => Dinheiro.de('5600.00')),
   origens: { '4.1.1.5.005': ['VIAGENS', 'BENS'] },
@@ -91,6 +91,9 @@ describe('página da pré-visualização da proposta', () => {
     expect(h).toContain('M1 – Oficinas');
     expect(h).toContain('Viagens, Bens');
     expect(h).toContain('Total por categoria');
+    expect(h).toContain('(AP-1 · Meta M1)');
+    // O rodapé não é <footer>, que a regra de impressão esconde (revisão 12.12).
+    expect(h).toMatch(/<p class="rodape-relatorio">Relatório de Pré-Visualização do TP/);
     expect(h).toContain('Imprimir');
   });
 

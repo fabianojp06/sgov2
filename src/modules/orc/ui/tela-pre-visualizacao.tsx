@@ -106,8 +106,8 @@ export function TelaPreVisualizacao({ dados, emitidoEm }: { dados: PreVisualizac
             </thead>
             <tbody>
               {dados.quantitativos.map((q) => (
-                <tr key={`${q.documento}-${q.inicio}`}>
-                  <th scope="row">{`${mesAno(q.inicio)} a ${mesAno(q.fim)} (${q.documento})`}</th>
+                <tr key={q.id}>
+                  <th scope="row">{`${mesAno(q.inicio)} a ${mesAno(q.fim)} (${q.documento}${q.meta ? ` · Meta ${q.meta}` : ''})`}</th>
                   {CATEGORIAS_EMPREGADO.map((c) => (
                     <td key={c}>{q.quantidades[c]}</td>
                   ))}
@@ -173,9 +173,8 @@ export function TelaPreVisualizacao({ dados, emitidoEm }: { dados: PreVisualizac
         )}
       </section>
 
-      <footer>
-        <p>{`Relatório de Pré-Visualização do TP · ${dados.numero} · emitido em ${emitidoEm}`}</p>
-      </footer>
+      {/* Não é <footer>: a regra de impressão esconde os footer da barra do sistema, e este rodapé sai impresso. */}
+      <p className="rodape-relatorio">{`Relatório de Pré-Visualização do TP · ${dados.numero} · emitido em ${emitidoEm}`}</p>
     </article>
   );
 }
