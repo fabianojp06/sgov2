@@ -539,7 +539,15 @@
   - O Operador de Viagens pede, só com a versão Oficializada, e as linhas vão num lote (`orc_lote_viagem`, que guarda as viagens que levou). Um gatilho impede ligar a viagem a lote de outra versão.
   - **Cronograma:** só as viagens validadas. A correção de viagem rejeitada é pelo Termo Aditivo, porque a Oficializada não ganha nova versão.
 - [x] #503 (US-068, #90; plano P29 no #502): a pré-visualização da proposta (UC03.38, só o "Corpo"; o resto do texto é cópia do demonstrativo de provisões). O rodapé não pode ser `<footer>`, que a regra de impressão esconde.
-- [x] US-084, parte determinística (#106, IA-13; plano P30 no #504): o resumo do WA01 na Central compara com a versão anterior (o snapshot dela, se houver). A ajuda de IA para redigir a recusa fica para o GAP-IA-001.
+- [x] #506 e #508 (US-084, #106 fechada; plano P30, com a Task 2 no #507): o resumo para o aprovador.
+  - **Parte 1:** o resumo do WA01 compara com a versão anterior (o snapshot dela, se houver), com os pontos de atenção (20% por conta, 10% no total) [PROVISÓRIO].
+  - **Parte 2:** a ajuda da IA para redigir a recusa, com o caso `orc.ia_recusa`, **instalado inativo**, para GFIN e DIREX.
+  - O objeto da proposta (texto livre) e o rascunho vão à IA entre as marcas. A rejeição com o texto aceito sem mudança vai ao Histórico com `origem = SUGESTAO_IA`.
+  - O `apr` recebe a ajuda como elemento pronto da página.
+- [x] #510 (US-101, #123; plano P31 no #509): o Consolidado dos TPs (§6.7).
+  - **Caminho novo `emTodasAsUnidades`** em `src/shared/unidade`: a permissão `orc.consolidado` é fixa, a transação é READ ONLY e a RLS vale com todos os TPs ativos. Um teste falha se outro arquivo usar o caminho.
+  - **Acesso auditado:** a CONSULTA vai ao Histórico antes da leitura.
+  - **Orçado:** é o snapshot oficial, e o realizado é zero até a F5.
 - [ ] **US-082 (#104) parada,** com comentário na issue:
   - o C3 está "Bloqueante para F4" (Adriana);
   - a vigência fica na capa, e o aditivo de Prazo pede a vigência por versão;
@@ -548,6 +556,9 @@
 
   Proposta: fazer em duas partes quando o C3 sair.
 - [ ] **US-076 (#98):** esperando o PO. O UC04.02 só existe no catálogo, e a spec põe Premissas/Reajustes na F5.
+- [ ] **US-077 (#99):** esperando o PO. Recursos (UC04.03) e Contratações Previstas (UC04.04) são cadastros novos da F5, e o UC04.05 foi removido pelo C15.
+- [ ] **US-085 (#107):** a etiqueta `bloqueada-por-gap` (o formato do realizado, GAP-PGD-006/009) foi respeitada. O modelo do OxR V2 já basta para o domínio quando o gap sair.
+- [ ] **US-069 (#91, Could):** a IA só aceita texto, e ler o PDF pede uma biblioteca nova (`package.json`, compartilhado).
 - [x] Lição (14/11): o build do Next falha em worktree com `node_modules` em symlink. Build e E2E só no sgo-p15, com `npx prisma generate` antes, porque o cliente gerado fica em `src/generated` de cada worktree.
 - [x] Lição (14/11): o squash do PR anterior deixa o branch seguinte com commits duplicados. Para rebasear, usar `git rebase --onto origin/main <último commit da história anterior>`.
 - [ ] PO, sobre as histórias desta madrugada:
@@ -561,6 +572,8 @@
   - **D-P29-1 e D-P29-3:** quem pré-visualiza e a "fórmula" como origem do valor;
   - **D-P30-2 a D-P30-4:** a base da comparação, o teto e o rateio, e as faixas de atenção;
   - **produção:** a GFIN precisa cadastrar a alíquota do ISS antes da primeira oficialização.
+  - **D-P30-6:** a IA na recusa (o caso nasce desligado);
+  - **D-P31-1 e D-P31-2:** quem vê o consolidado e o orçado oficial.
 
 **Frente B (03/11)**
 - [ ] PO:
@@ -701,7 +714,7 @@
 | 13/11/2026 (noite) | A | Com a autonomia do PO: plano P20 (#466) e US-070, pessoal da proposta (#467, #92 fechada). O agente revisor voltou a funcionar e achou dois defeitos, corrigidos antes do merge: o cache de benefícios era só por cargo, e a duplicação copiava pessoal incoerente com a capa nova. Um terceiro acerto veio do CI: o índice único foi declarado no schema, para não dar drift |
 | 14/11/2026 (madrugada) | A | Janela autônoma pedida pelo PO até as 13h. Saíram o plano P21 (#470) e a US-071 (#471), com o teto informado por decisão do PO, e o plano P22 (#472) e a US-072 (#475). O revisor de código não achou defeito bloqueante na US-071; o achado menor, a conta de transporte gravada com custo zero, foi corrigido. Pedido para a frente B: a natureza CAPEX da conta no C1 (#138) |
 | 14/11/2026 (madrugada, 2) | A | Saíram o filtro CAPEX (#480), a US-074 (#479), a US-073 (#485), a US-075 (#489) e a US-078 (#487), com os planos P23 a P27. O revisor de código achou e corrigimos antes do merge: a base do rateio vazando para quem não vê o pessoal, um mês negativo no cronograma, o filtro de período em UTC na Central e o Valor Global sem aviso de pessoal. O E2E das propostas passou a ter usuários próprios por causa do limite de login |
-| 14/11/2026 (madrugada, 3) | A | Saíram as US-079 (#492), US-080 (#500) e US-081 (#501): os três fluxos de aprovação das propostas, todos no cronograma. Também a US-068 (#503) e a parte determinística da US-084, com os planos P28 a P30. A frente B lembrou o congelamento das alíquotas (RN_TAX_03), que entrou antes do merge da US-079. A US-082 ficou parada pelo C3 e pela vigência na capa |
+| 14/11/2026 (madrugada, 3) | A | Saíram as US-079 (#492), US-080 (#500) e US-081 (#501): os três fluxos de aprovação das propostas, todos no cronograma. Também a US-068 (#503), a US-084 inteira (#506 e #508, com a IA na recusa) e a US-101 (Consolidado dos TPs, #510), com os planos P28 a P31. A frente B lembrou o congelamento das alíquotas (RN_TAX_03), que entrou antes do merge da US-079. A US-082 ficou parada pelo C3 e pela vigência na capa |
 | 13/11/2026 (tarde) | A | Com a autonomia do PO: plano P19 (#459) e US-067, metas da proposta (#461, #89 fechada). A revisão 12.12 foi feita pela própria sessão, porque o agente revisor parou por erro de autenticação da API; ela corrigiu a trava da capa nas recusas. Também o `semMarcas` linear (#463), achado da frente B na #138 |
 | 13/11/2026 | A | P18 (#443) e US-066 (#445, #88 fechada): duplicar e nova versão da proposta, implementada por agente, com revisão 12.12 independente; o médio (exclusão de V1 Em Elaboração por meio de uma V2) corrigido antes do merge |
 | 12/11/2026 (noite) | A | PO decide o GAP-CC-004 (CC próprio por TP); spec 1.7 (#435); pedido da frente B atendido com a Adm. Central só na raiz 4 (#439); plano P17 (#436) e US-065 (#440, #87 fechada), implementada por agentes (modelo e tela) com revisão 12.12 independente e as correções aplicadas; E2E sobre a seed de TPs da frente B (#438); quadro de atividades da sessão como mod do Claude Code, pedido do PO |
