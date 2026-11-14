@@ -189,7 +189,14 @@ export async function obterTarefa(
 }
 
 const entradaDecisao = z
-  .object({ id: z.string(), versao: z.coerce.number().int().min(0), decisao: z.enum(['APROVAR', 'REJEITAR']), justificativa: z.string().optional() })
+  .object({
+    id: z.string(),
+    versao: z.coerce.number().int().min(0),
+    decisao: z.enum(['APROVAR', 'REJEITAR']),
+    justificativa: z.string().optional(),
+    // A justificativa veio da ajuda da IA e não foi alterada (US-084, D-P30-6): o Histórico marca a origem.
+    sugestaoIa: z.literal('true').optional(),
+  })
   .strict();
 
 /** A recusa do manipulador, levada para fora da transação para desfazê-la. */
@@ -242,6 +249,7 @@ export async function decidirSolicitacao(
           funcionalidade: FUNCIONALIDADE,
           tipo: 'ALTERACAO',
           registroId: id,
+          ...(decisao === 'REJEITAR' && parse.data.sugestaoIa === 'true' ? { origem: 'SUGESTAO_IA' as const } : {}),
           descricao: `Solicitação ${s.fluxo} "${s.descricao}" ${decisao === 'APROVAR' ? 'aprovada' : 'rejeitada'}`,
           antes: { situacao: 'EM_APROVACAO' },
           depois: { situacao, ...(texto ? { justificativa: texto } : {}) },

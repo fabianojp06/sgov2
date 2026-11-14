@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { AcaoConfirmada, ErroDoCampo, Formulario, type AcaoFormulario } from '@/modules/ger';
 import { ROTULO_FLUXO } from '@/modules/adm';
 import type { FiltrosTarefas, ItemResumo, TarefaTela } from '../application/solicitacoes';
@@ -47,7 +48,19 @@ function Filtros({ filtros }: { filtros: FiltrosTarefas }) {
   );
 }
 
-function Aberta({ tarefa, resumo, podeDecidir, decidir }: { tarefa: TarefaTela; resumo: readonly ItemResumo[]; podeDecidir: boolean; decidir: AcaoFormulario }) {
+function Aberta({
+  tarefa,
+  resumo,
+  podeDecidir,
+  decidir,
+  ajudaRecusa,
+}: {
+  tarefa: TarefaTela;
+  resumo: readonly ItemResumo[];
+  podeDecidir: boolean;
+  decidir: AcaoFormulario;
+  ajudaRecusa?: ReactNode;
+}) {
   const pendente = tarefa.situacao === 'EM_APROVACAO';
   return (
     <section aria-labelledby="tarefa-aberta">
@@ -94,6 +107,7 @@ function Aberta({ tarefa, resumo, podeDecidir, decidir }: { tarefa: TarefaTela; 
                 />
                 <ErroDoCampo campo="justificativa" />
               </p>
+              {ajudaRecusa}
             </Formulario>
           </section>
         </>
@@ -112,6 +126,7 @@ export function TelaTarefas({
   podeDecidir,
   decidir,
   aviso,
+  ajudaRecusa,
 }: {
   tarefas: readonly TarefaTela[];
   filtros: FiltrosTarefas;
@@ -119,11 +134,13 @@ export function TelaTarefas({
   podeDecidir: boolean;
   decidir: AcaoFormulario;
   aviso?: string | undefined;
+  /** A ajuda da IA na recusa, pronta (US-084, D-P30-6): vem da página, porque o apr não importa o orc. */
+  ajudaRecusa?: ReactNode;
 }) {
   return (
     <>
       {aviso && <p role="status">{aviso}</p>}
-      {aberta && <Aberta tarefa={aberta.tarefa} resumo={aberta.resumo} podeDecidir={podeDecidir} decidir={decidir} />}
+      {aberta && <Aberta tarefa={aberta.tarefa} resumo={aberta.resumo} podeDecidir={podeDecidir} decidir={decidir} ajudaRecusa={ajudaRecusa} />}
       <Filtros filtros={filtros} />
       {tarefas.length === 0 ? (
         <p>Nenhuma solicitação roteada para você.</p>

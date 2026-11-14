@@ -1,5 +1,5 @@
 import { listarTarefas, obterTarefa, TelaTarefas, textoAvisoTarefa } from '@/modules/apr';
-import { naoEncontradoSeNegado } from '@/modules/orc';
+import { AjudaRecusaIA, iaLiberada, naoEncontradoSeNegado, sugerirRecusaAcao } from '@/modules/orc';
 import { exigirPagina } from '@/shared/authz';
 import { decidirSolicitacaoAcao } from './acoes';
 import { manipuladoresDosFluxos } from './manipuladores';
@@ -16,6 +16,9 @@ export default async function Tarefas({ searchParams }: { searchParams: Promise<
   const tarefas = await listarTarefas(ctx, filtros).catch(naoEncontradoSeNegado(ctx));
   const abrir = um(busca.abrir);
   const aberta = abrir ? await obterTarefa(ctx, abrir, manipuladoresDosFluxos()) : null;
+  // US-084 (D-P30-6): a ajuda da IA na recusa, só no WA01 pendente, para quem decide e tem o caso liberado.
+  const comAjuda =
+    aberta?.tarefa.fluxo === 'WA01' && aberta.tarefa.situacao === 'EM_APROVACAO' && ctx.permissoes.has('apr.tarefas:executar') && (await iaLiberada(ctx, 'recusa'));
   return (
     <div>
       <h1>Central de Tarefas</h1>
@@ -27,6 +30,7 @@ export default async function Tarefas({ searchParams }: { searchParams: Promise<
         podeDecidir={ctx.permissoes.has('apr.tarefas:executar')}
         decidir={decidirSolicitacaoAcao}
         aviso={textoAvisoTarefa(um(busca.aviso), um(busca.d))}
+        ajudaRecusa={comAjuda && aberta ? <AjudaRecusaIA acao={sugerirRecusaAcao} solicitacaoId={aberta.tarefa.id} /> : undefined}
       />
     </div>
   );

@@ -47,7 +47,7 @@ describe('seedOrc', () => {
   it('proposta de TP no menu Cadastros › Propostas (US-065, D-P17-9)', async () => {
     const f = await cliente.funcionalidade.findUniqueOrThrow({ where: { codigo: 'orc.propostas' } });
     expect(f).toMatchObject({ moduloCodigo: 'CADASTROS', grupo: 'Propostas', nome: 'Propostas', rota: '/orc/propostas', exibirNoMenu: true, acoes: ['consultar', 'incluir', 'excluir'] });
-    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(19);
+    expect(await cliente.funcionalidade.count({ where: { codigo: { startsWith: 'orc.' } } })).toBe(20);
   });
 
   it('metas da proposta no menu Cadastros › Metas, no grupo Propostas (US-067, D-P19-8)', async () => {
@@ -80,7 +80,7 @@ describe('seedOrc', () => {
       'orc.cronograma:consultar',
       'orc.empregados:consultar',
       'orc.exercicios:alterar', 'orc.exercicios:consultar', 'orc.exercicios:incluir',
-      'orc.ia_justificativa:executar', 'orc.ia_revisor:executar', 'orc.ia_sugestao_conta:executar',
+      'orc.ia_justificativa:executar', 'orc.ia_recusa:executar', 'orc.ia_revisor:executar', 'orc.ia_sugestao_conta:executar',
       'orc.importacao:consultar', 'orc.importacao:executar',
       'orc.metas:consultar',
       'orc.orcamento:alterar', 'orc.orcamento:consultar',
@@ -93,7 +93,7 @@ describe('seedOrc', () => {
       'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('DIREX')).toEqual([
-      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.rateio:consultar', 'orc.receitas:consultar', 'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
@@ -135,6 +135,7 @@ describe('seedOrc', () => {
     const casos = await cliente.iaCasoUso.findMany({ where: { codigo: { startsWith: 'orc.' } }, select: { codigo: true, avaliavel: true }, orderBy: { codigo: 'asc' } });
     expect(casos).toEqual([
       { codigo: 'orc.ia_justificativa', avaliavel: false },
+      { codigo: 'orc.ia_recusa', avaliavel: false },
       { codigo: 'orc.ia_revisor', avaliavel: false },
       { codigo: 'orc.ia_sugestao_conta', avaliavel: true },
     ]);

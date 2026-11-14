@@ -11,7 +11,7 @@ import { MENSAGENS_APR as M } from '../domain/solicitacao';
 vi.mock('next/server', () => ({ connection: async () => undefined }));
 const T1 = '00000000-0000-4000-8000-0000000000a1';
 const T2 = '00000000-0000-4000-8000-0000000000a2';
-const caso = vi.hoisted(() => ({ filtros: [] as unknown[] }));
+const caso = vi.hoisted(() => ({ filtros: [] as unknown[], iaLiberada: false }));
 
 const tarefa = (extra: Partial<TarefaTela>): TarefaTela => ({
   id: T1,
@@ -43,6 +43,12 @@ vi.mock('@/modules/apr', async (original) => {
   };
 });
 
+// A ajuda da IA na recusa (US-084, D-P30-6): a página decide pelo iaLiberada do orc.
+vi.mock('@/modules/orc', async (original) => ({
+  ...(await original<typeof import('@/modules/orc')>()),
+  iaLiberada: async (ctx: ContextoRequisicao, c: string) => c === 'recusa' && caso.iaLiberada && ctx.permissoes.has('orc.ia_recusa:executar'),
+}));
+
 const { default: Tarefas } = await import('../../../app/(sistema)/apr/tarefas/page');
 
 const ctx = (permissoes: string[]): ContextoRequisicao => ({ usuarioId: 'u1', usuarioRotulo: 'u', sessaoUid: 's1', ip: null, permissoes: new Set(permissoes) });
@@ -51,6 +57,7 @@ let negacoes: EventoAuditoria[];
 
 beforeEach(() => {
   caso.filtros = [];
+  caso.iaLiberada = false;
   negacoes = [];
   limparJanelaNegacoes();
   configurarProvedorContexto({ obter: async () => contexto });
@@ -98,5 +105,19 @@ describe('Central de Tarefas', () => {
     contexto = ctx(['orc.propostas:consultar']);
     expect(await digest(html())).toBe('NEXT_HTTP_ERROR_FALLBACK;404');
     expect(negacoes).toHaveLength(1);
+  });
+
+  it('a ajuda da IA na recusa: só no WA01 pendente, com o caso liberado e a permissão (US-084, D-P30-6)', async () => {
+    contexto = ctx(['apr.tarefas:consultar', 'apr.tarefas:executar', 'orc.ia_recusa:executar']);
+    expect(await html({ abrir: T1 })).not.toContain('Pedir ajuda da IA na justificativa da recusa');
+    caso.iaLiberada = true;
+    const h = await html({ abrir: T1 });
+    expect(h).toContain('Pedir ajuda da IA na justificativa da recusa');
+    // A marca da sugestão nasce desligada: só vai junto depois de "Usar este texto".
+    expect(h).toContain('<input type="hidden" disabled="" name="sugestaoIa" value="true"/>');
+    contexto = ctx(['apr.tarefas:consultar', 'apr.tarefas:executar']);
+    expect(await html({ abrir: T1 })).not.toContain('Pedir ajuda da IA');
+    contexto = ctx(['apr.tarefas:consultar', 'orc.ia_recusa:executar']);
+    expect(await html({ abrir: T1 })).not.toContain('Pedir ajuda da IA');
   });
 });
