@@ -83,6 +83,11 @@ describe('validarViagem (Viagens V3, D-P21-4)', () => {
     expect(r.ok && r.valor.contaTransporte).toBe('3.1.1.1.003');
   });
 
+  it('sem custo de transporte, a conta de transporte não é gravada (D-P21-4)', () => {
+    const r = validarViagem({ ...bom, valorTransporte: '0,00', contaTransporte: '3.1.1.1.003' });
+    expect(r.ok && r.valor.contaTransporte).toBeNull();
+  });
+
   it('recusa o custo que passa do limite de NUMERIC(15,2)', () => {
     const r = validarViagem({
       ...bom,

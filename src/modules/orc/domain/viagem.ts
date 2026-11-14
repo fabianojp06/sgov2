@@ -133,7 +133,8 @@ export function validarViagem(bruto: Readonly<Record<string, unknown>>): Resulta
     localidade: v.localidade,
     contaPassagem: v.contaPassagem,
     contaDiaria: v.contaDiaria,
-    contaTransporte: v.contaTransporte === '' ? null : v.contaTransporte,
+    // D-P21-4: sem custo de transporte, a conta não é gravada (e pode ser escolhida depois, no alterar).
+    contaTransporte: v.contaTransporte === '' || valorTransporte.ehZero() ? null : v.contaTransporte,
   });
 }
 
