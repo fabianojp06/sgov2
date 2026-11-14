@@ -52,6 +52,9 @@
   - **Nova versão e duplicação:** não copiam o lote, e o pessoal nasce Em Elaboração.
 - **D-P27-6 (rejeição, FA-B):** o lote volta a Em Elaboração, com a justificativa no Histórico.
 - **D-P27-7 (Central de Tarefas):** o manipulador do WA05 entra na página da Central. O resumo mostra a quantidade por categoria e o custo total do pessoal; o aprovador homologa o custo, como no WA01.
+- **D-P27-8 (envio do WA01, revisão 12.12) [PROVISÓRIO]:** com empregados na versão, o envio para oficialização exige o lote de pessoal Homologado.
+  - **Motivo:** sem isso, a versão oficial (imutável) ficaria com o pessoal fora do cronograma para sempre, porque a finalização exige versão editável.
+  - **Também da revisão:** os quantitativos ficam só leitura com o lote travado, como os empregados. O botão [Finalizar] dá lugar ao motivo quando não há aprovador ou quando o próprio GRH seria roteado.
 
 ## Review Focus
 
