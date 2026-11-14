@@ -12,8 +12,8 @@ import { montarOrcadoRealizado, type TelaOxr } from './orcado-realizado';
 // Explicação do desvio orçado x realizado (US-090; IA-09 da spec §6.8; plano do P35). Só leitura. O sistema monta os
 // fatos (o total do período, as contas com maior desvio, as que compensaram, os meses que mais pesaram, os ajustes de
 // meses fechados e as pendências) a partir da tela do Orçado x Realizado, com a mesma permissão, RLS e regra do
-// pessoal; a IA só redige. "Números das ferramentas, não da IA" (critério da #112): todo número do texto precisa estar
-// na mensagem que o sistema montou; senão, a resposta é recusada [D-P35-2]. As contas e os meses citados que não
+// pessoal; a IA só redige. "Números das ferramentas, não da IA" (critério da #112): todo número e todo mês do texto
+// precisam estar entre os que o sistema formatou; senão, a resposta é recusada [D-P35-2]. As contas e os meses citados que não
 // estão nos fatos são descartados.
 //
 // Minimização (spec §4.4): o número do TP, o período e os números; nunca o objeto do TP nem nomes de pessoas.
@@ -38,16 +38,51 @@ const erro = (mensagem: string): Resultado<never> => falha([{ campo: '_', mensag
 export const SEM_DESVIO = 'O realizado do período está igual ao orçado: não há desvio a explicar.';
 export const NUMERO_INVENTADO = 'A explicação da IA trouxe um número que não veio do sistema e foi descartada. Peça de novo.';
 
-const uso = (orcado: Dinheiro, realizado: Dinheiro) => {
-  const p = Percentual.razao(realizado, orcado);
-  return p ? p.formatar() : 'sem orçamento';
-};
+const MAXIMO_AJUSTES = 10;
+const MES = /[A-Z][a-z]{2}\/\d{2}/g;
+const NUMERO = /\d+(?:[.,]\d+)*/g;
+
+/**
+ * Os fatos e os tokens que o sistema formatou (D-P35-2; revisão 12.12): só os valores, percentuais, meses, contas e o
+ * número do TP montados aqui valem como "números das ferramentas". A descrição das contas (cadastro) e o filtro digitado
+ * entram no texto, mas nunca na lista do que é aceito.
+ */
+class Fatos {
+  readonly numeros = new Set<string>();
+  readonly meses = new Set<string>();
+  readonly contas = new Set<string>();
+  /** Registra um texto formatado pelo sistema e o devolve, para montar a linha. */
+  n(texto: string): string {
+    for (const t of texto.match(NUMERO) ?? []) this.numeros.add(t);
+    return texto;
+  }
+  mes(c: string): string {
+    const m = mesOxr(c);
+    this.meses.add(m);
+    return m;
+  }
+  conta(c: string): string {
+    this.contas.add(c);
+    return this.n(c);
+  }
+  valor(v: Dinheiro): string {
+    return this.n(valorParaTela(v));
+  }
+  uso(orcado: Dinheiro, realizado: Dinheiro): string {
+    const p = Percentual.razao(realizado, orcado);
+    return p ? this.n(p.formatar()) : 'sem orçamento';
+  }
+}
+
 const desvioDe = (l: LinhaOxr) => l.periodo.realizado.subtrair(l.periodo.orcado);
-const linhaConta = (l: LinhaOxr) =>
-  `- ${l.conta} (${semMarcas(l.descricao).replace(/\s+/g, ' ').trim()}): orçado R$ ${valorParaTela(l.periodo.orcado)}; realizado R$ ${valorParaTela(l.periodo.realizado)}; desvio R$ ${valorParaTela(desvioDe(l))}; uso ${uso(l.periodo.orcado, l.periodo.realizado)}.`;
+const limpo = (t: string) => semMarcas(t).replace(/\s+/g, ' ').trim();
+const naConta = (conta: string, filtro: string) => !filtro || conta === filtro || conta.startsWith(`${filtro}.`);
 
 /** Os fatos da mensagem, só das analíticas: as que mais estouraram, as que compensaram e os meses que mais pesaram. */
-export function montarMensagemDesvio(t: TelaOxr): { mensagem: string; contas: ReadonlySet<string>; meses: ReadonlySet<string> } {
+export function montarMensagemDesvio(t: TelaOxr): { mensagem: string; fatos: Fatos } {
+  const f = new Fatos();
+  const linhaConta = (l: LinhaOxr) =>
+    `- ${f.conta(l.conta)} (${limpo(l.descricao)}): orçado R$ ${f.valor(l.periodo.orcado)}; realizado R$ ${f.valor(l.periodo.realizado)}; desvio R$ ${f.valor(desvioDe(l))}; uso ${f.uso(l.periodo.orcado, l.periodo.realizado)}.`;
   const analiticas = t.grade.linhas.filter((l) => l.analitica && !desvioDe(l).ehZero());
   const acima = analiticas.filter((l) => !desvioDe(l).ehNegativo()).sort((a, b) => desvioDe(b).comparar(desvioDe(a))).slice(0, MAXIMO_CONTAS);
   const abaixo = analiticas.filter((l) => desvioDe(l).ehNegativo()).sort((a, b) => desvioDe(a).comparar(desvioDe(b))).slice(0, MAXIMO_CONTAS);
@@ -57,10 +92,12 @@ export function montarMensagemDesvio(t: TelaOxr): { mensagem: string; contas: Re
     .filter((x) => !x.desvio.ehZero())
     .sort((a, b) => b.desvio.paraDecimal().abs().comparedTo(a.desvio.paraDecimal().abs()))
     .slice(0, MAXIMO_MESES);
+  // Os ajustes só da conta do filtro (a subárvore, como a grade), com teto (revisão 12.12).
+  const ajustes = t.ajustes.filter((a) => naConta(a.conta, t.filtros.conta)).slice(0, MAXIMO_AJUSTES);
   const p = t.grade.total.periodo;
-  const mensagem = [
-    `Termo de Parceria ${t.numero}, de ${mesOxr(t.filtros.de)} a ${mesOxr(t.filtros.ate)}${t.filtros.conta ? `, conta ${t.filtros.conta}` : ''}.`,
-    `Total do período: orçado R$ ${valorParaTela(p.orcado)}; realizado R$ ${valorParaTela(p.realizado)}; saldo R$ ${valorParaTela(p.saldo)}; uso ${uso(p.orcado, p.realizado)}.`,
+  const linhas = [
+    `Termo de Parceria ${f.n(t.numero)}, de ${f.mes(t.filtros.de)} a ${f.mes(t.filtros.ate)}${t.filtros.conta ? `, conta ${limpo(t.filtros.conta)}` : ''}.`,
+    `Total do período: orçado R$ ${f.valor(p.orcado)}; realizado R$ ${f.valor(p.realizado)}; saldo R$ ${f.valor(p.saldo)}; uso ${f.uso(p.orcado, p.realizado)}.`,
     ...(t.semPessoal || t.pessoalNaoHomologado ? ['As contas de pessoal não estão nos números.'] : []),
     'Contas com realizado acima do orçado:',
     ...(acima.length > 0 ? acima.map(linhaConta) : ['- nenhuma.']),
@@ -68,26 +105,27 @@ export function montarMensagemDesvio(t: TelaOxr): { mensagem: string; contas: Re
     ...(abaixo.length > 0 ? abaixo.map(linhaConta) : ['- nenhuma.']),
     'Meses que mais pesaram no desvio:',
     ...(porMes.length > 0
-      ? porMes.map((x) => `- ${mesOxr(x.mes)}: orçado R$ ${valorParaTela(x.c.orcado)}; realizado R$ ${valorParaTela(x.c.realizado)}; desvio R$ ${valorParaTela(x.desvio)}.`)
+      ? porMes.map((x) => `- ${f.mes(x.mes)}: orçado R$ ${f.valor(x.c.orcado)}; realizado R$ ${f.valor(x.c.realizado)}; desvio R$ ${f.valor(x.desvio)}.`)
       : ['- nenhum.']),
     'Ajustes de meses fechados lançados no período:',
-    ...(t.ajustes.length > 0
-      ? t.ajustes.map((a) => `- ${a.conta}: R$ ${valorParaTela(a.valor)}, de ${mesOxr(a.origem)} lançado em ${mesOxr(a.lancamento)}.`)
-      : ['- nenhum.']),
+    ...(ajustes.length > 0 ? ajustes.map((a) => `- ${f.conta(a.conta)}: R$ ${f.valor(a.valor)}, de ${f.mes(a.origem)} lançado em ${f.mes(a.lancamento)}.`) : ['- nenhum.']),
     t.pendencias.quantidade > 0
-      ? `Pendências do ERP sem conta no SGO: ${t.pendencias.quantidade}, R$ ${valorParaTela(t.pendencias.valor)}, fora dos números.`
+      ? `Pendências do ERP sem conta no SGO: ${f.n(String(t.pendencias.quantidade))}, R$ ${f.valor(t.pendencias.valor)}, fora dos números.`
       : 'Sem pendências do ERP.',
-  ].join('\n');
-  return {
-    mensagem,
-    contas: new Set([...acima, ...abaixo].map((l) => l.conta).concat(t.ajustes.map((a) => a.conta))),
-    meses: new Set([...porMes.map((x) => mesOxr(x.mes)), ...t.ajustes.flatMap((a) => [mesOxr(a.origem), mesOxr(a.lancamento)])]),
-  };
+  ];
+  // O valor sem o sinal também vale ("R$ 350,00 abaixo" para o desvio de -350,00).
+  for (const n of [...f.numeros]) f.numeros.add(n.replace(/^-/, ''));
+  return { mensagem: linhas.join('\n'), fatos: f };
 }
 
-/** D-P35-2: cada número do texto (sequência de dígitos com ponto, vírgula ou barra) precisa aparecer na mensagem. */
-export function numerosForaDaMensagem(texto: string, mensagem: string): string[] {
-  return [...new Set(texto.match(/\d+(?:[.,/]\d+)*/g) ?? [])].filter((n) => !mensagem.includes(n));
+/**
+ * D-P35-2 (revisão 12.12): cada mês (Mmm/AA) do texto precisa estar entre os meses dos fatos, e cada número, inteiro,
+ * entre os números que o sistema formatou. Devolve o que não está.
+ */
+export function numerosForaDosFatos(texto: string, fatos: { numeros: ReadonlySet<string>; meses: ReadonlySet<string> }): string[] {
+  const meses = texto.match(MES) ?? [];
+  const resto = texto.replace(MES, ' ');
+  return [...new Set([...meses.filter((m) => !fatos.meses.has(m)), ...(resto.match(NUMERO) ?? []).filter((n) => !fatos.numeros.has(n))])];
 }
 
 export async function explicarDesvio(ctx: ContextoRequisicao, bruto: unknown, depsParciais: Partial<DepsIaOrc> = {}): Promise<Resultado<ExplicacaoDesvio>> {
@@ -98,12 +136,12 @@ export async function explicarDesvio(ctx: ContextoRequisicao, bruto: unknown, de
   // A tela com a permissão (orc.oxr:consultar), a RLS e a regra do pessoal de quem pede, sem outra CONSULTA.
   const r = await montarOrcadoRealizado(ctx, parse.data, deps, false);
   if (!r.tela) return erro(r.erro ?? 'Selecione um Termo de Parceria para consultar.');
-  const fatos = montarMensagemDesvio(r.tela);
+  const { mensagem, fatos } = montarMensagemDesvio(r.tela);
   if (fatos.contas.size === 0) return ok({ texto: SEM_DESVIO, contas: [], meses: [] });
   const sinal = deps.sinalIa();
   try {
-    const { valor } = await deps.ia.gerarEstruturado(ctx, CASO, fatos.mensagem, RESPOSTA_DESVIO, sinal);
-    if (numerosForaDaMensagem(valor.texto, fatos.mensagem).length > 0) return erro(NUMERO_INVENTADO);
+    const { valor } = await deps.ia.gerarEstruturado(ctx, CASO, mensagem, RESPOSTA_DESVIO, sinal);
+    if (numerosForaDosFatos(valor.texto, fatos).length > 0) return erro(NUMERO_INVENTADO);
     return ok({
       texto: valor.texto,
       contas: [...new Set(valor.contas.map((c) => c.trim()))].filter((c) => fatos.contas.has(c)),

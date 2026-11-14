@@ -227,19 +227,33 @@ describe('obterOrcadoRealizado (US-086)', () => {
       }) as unknown as ServicoIA;
     const c = ctx(gfin, [tps.oficial.unidadeId], [...OXR, 'orc.ia_desvio:executar']);
     const filtros = { proposta: tps.oficial.id, de: '2026-01', ate: '2026-03' };
-    const boa = { texto: 'Em Mar/26 a conta 4.1.1.5.005 passou R$ 150,00 do orçado; em Fev/26 ficou R$ 500,00 abaixo.', contas: ['4.1.1.5.005', '9.9.9.9.999'], meses: ['Mar/26', 'Dez/26'] };
+    // Um ajuste de mês fechado lançado em mar (origem jan) na conta do TP, e outro em conta de pessoal (some sem vePessoal).
+    const carga = await migrator.cargaRealizado.findFirstOrThrow({ where: { unidadeId: tps.oficial.unidadeId } });
+    await migrator.ajusteRealizado.createMany({
+      data: [
+        { unidadeId: tps.oficial.unidadeId, conta: '4.1.1.5.005', competenciaOrigem: new Date('2026-01-01'), competenciaLancamento: new Date('2026-03-01'), valor: '12.34', cargaId: carga.id },
+        { unidadeId: tps.oficial.unidadeId, conta: '4.1.1.1.001', competenciaOrigem: new Date('2026-01-01'), competenciaLancamento: new Date('2026-03-01'), valor: '5.00', cargaId: carga.id },
+      ],
+    });
+    const boa = { texto: 'Em Mar/26 a conta 4.1.1.5.005 passou R$ 162,34 do orçado; em Fev/26 ficou R$ 500,00 abaixo.', contas: ['4.1.1.5.005', '9.9.9.9.999'], meses: ['Mar/26', 'Dez/26'] };
     const r = await explicarDesvio(c, filtros, { ...comDeps(), ia: ia(boa) });
     expect(r.ok && [r.valor.contas, r.valor.meses]).toEqual([['4.1.1.5.005'], ['Mar/26']]);
-    expect(mensagens[0]).toContain('- Mar/26: orçado R$ 500,00; realizado R$ 650,00; desvio R$ 150,00.');
+    expect(mensagens[0]).toContain('- Mar/26: orçado R$ 500,00; realizado R$ 662,34; desvio R$ 162,34.');
     expect(mensagens[0]).toContain('Pendências do ERP sem conta no SGO: 1, R$ 7,00, fora dos números.');
+    // Critério da #112: os ajustes de mês fechado, com a origem.
+    expect(mensagens[0]).toContain('- 4.1.1.5.005: R$ 12,34, de Jan/26 lançado em Mar/26.');
     // Sem vePessoal, a conta de pessoal não vai à IA; o objeto do TP também não.
     expect(mensagens[0]).not.toContain('4.1.1.1.001');
     expect(mensagens[0]).not.toContain('Objeto TP-X01');
-    const inventada = await explicarDesvio(c, filtros, { ...comDeps(), ia: ia({ ...boa, texto: 'O desvio foi de R$ 999,99 em Mar/26, puxado pela conta 4.1.1.5.005.' }) });
-    expect(!inventada.ok && inventada.erros[0]!.mensagem).toBe(NUMERO_INVENTADO);
+    // Pedaço de um número dos fatos (62,34 dentro de 162,34) e mês fora dos fatos: recusado (revisão 12.12).
+    for (const texto of ['O desvio foi de R$ 62,34 em Mar/26, puxado pela conta 4.1.1.5.005.', 'Em Dez/26 a conta 4.1.1.5.005 passou R$ 162,34 do orçado.']) {
+      const inventada = await explicarDesvio(c, filtros, { ...comDeps(), ia: ia({ ...boa, texto }) });
+      expect(!inventada.ok && inventada.erros[0]!.mensagem).toBe(NUMERO_INVENTADO);
+    }
     // Sem a permissão do caso, não chama a IA.
     const antes = mensagens.length;
     expect((await explicarDesvio(ctx(gfin, [tps.oficial.unidadeId], OXR), filtros, { ...comDeps(), ia: ia(boa) })).ok).toBe(false);
     expect(mensagens.length).toBe(antes);
+    await migrator.ajusteRealizado.deleteMany({ where: { unidadeId: tps.oficial.unidadeId, competenciaLancamento: new Date('2026-03-01') } });
   });
 });
