@@ -193,6 +193,20 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
   },
   {
+    // Destaque da IA na previsão de fechamento do ano (US-091; IA-10; plano do P34, D-P34-3) [PROVISÓRIO]: fora do menu,
+    // só executar, na tela da previsão (que pede orc.oxr). Nasce desligada, como as do P14.
+    codigo: 'orc.ia_previsao',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'IA: destaque das contas em risco na previsão de fechamento',
+    rota: '/orc/orcado-realizado/previsao',
+    ordem: 14,
+    ajuda: 'Pede à IA um texto que destaque as contas com risco de estouro no ano e o mês do estouro, a partir da projeção do sistema. Os números são do sistema; a IA só redige.',
+    exibirNoMenu: false,
+    acoes: ['executar'],
+    perfisPadrao: { GFIN: ['executar'], DIREX: ['executar'] },
+  },
+  {
     // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),
     // com o código no orc (D-P17-1). O Orçamentista escreve; GFIN, Auditor e DIREX leem (§11.3). Cada um
     // vê só as propostas dos TPs a que está vinculado (RLS, US-007).

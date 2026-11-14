@@ -5,7 +5,7 @@ export { importarPlanilhaAcao } from './application/acoes-importacao';
 export { carregarRealizadoAcao, fecharCompetenciaAcao, reprocessarPendenciasAcao } from './application/acoes-realizado';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
-export { sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
+export { destacarRiscosAcao, sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
 export { CASOS_IA_ORC } from './application/ia-casos';
 export { iaLiberada } from './application/ia-deps';
 export { AjudaRecusaIA } from './ui/ajuda-recusa-ia';
@@ -87,6 +87,7 @@ export {
   type ViagemTela,
 } from './application/viagens';
 export { exportarOrcadoRealizado, FORMATOS_OXR, MENSAGEM_PDF_LONGO, type FormatoOxr } from './application/exportar-oxr';
+export { obterPrevisaoFechamento, type ResultadoPrevisao, type TelaPrevisao as DadosPrevisao } from './application/previsao-fechamento';
 export { obterOrcadoRealizado, type FiltrosOxr, type ResultadoOxr, type TelaOxr as DadosOxr } from './application/orcado-realizado';
 export {
   carregarRealizado,
@@ -121,6 +122,7 @@ export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
 export { TelaCronograma } from './ui/tela-cronograma';
 export { TelaRealizado } from './ui/tela-realizado';
 export { TelaOxr } from './ui/tela-oxr';
+export { TelaPrevisao } from './ui/tela-previsao';
 export { TelaRateio, textoAvisoRateio, type AcoesRateio, type PermissoesRateio } from './ui/tela-rateio';
 export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';

@@ -53,7 +53,7 @@ export type PropostaOxr = { id: string; numero: string; objeto: string };
 export type ResultadoOxr = { propostas: readonly PropostaOxr[]; tela: TelaOxr | null; erro: string | null };
 
 /** Os TPs oficializados que o usuário vê (pré-condição do UC), para o filtro. */
-async function propostasOficiais(ctx: ContextoRequisicao, deps: DepsOrc): Promise<PropostaOxr[]> {
+export async function propostasOficiais(ctx: ContextoRequisicao, deps: DepsOrc): Promise<PropostaOxr[]> {
   const ps = await emUnidade(
     ctx,
     (tx) => tx.propostaTp.findMany({ where: { excluidaEm: null, versoes: { some: { snapshot: { isNot: null } } } }, include: { unidade: { select: { codigo: true } } } }),

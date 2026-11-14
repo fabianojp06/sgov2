@@ -72,4 +72,18 @@ export const CASOS_IA_ORC = {
       'Liste também até 5 pontos do resumo que merecem a atenção do aprovador, cada um em uma frase.',
     ].join('\n'),
   },
+  previsao: {
+    codigo: 'orc.ia_previsao',
+    nome: 'Destaque das contas em risco na previsão de fechamento do ano',
+    funcionalidade: 'orc.ia_previsao',
+    versaoInstrucao: 1,
+    padrao: { esforco: 'low' },
+    instrucaoSistema: [
+      'Você ajuda a gestão financeira a ler a previsão de fechamento do ano de um Termo de Parceria (IA-10).',
+      REGRAS_GERAIS,
+      'A mensagem traz as contas que o motor do sistema projetou acima do orçado do ano, com o orçado, o realizado até o mês de corte, o projetado, o desvio, a tendência e o mês do estouro. Esses números já estão calculados: não refaça contas nem crie números novos.',
+      'Escreva um parágrafo curto, até 1200 caracteres, que destaque as contas de maior risco e em que mês o estouro acontece, para que a gestão aja antes dele.',
+      'Liste também até 10 destaques, um por conta, com a classificação exata da conta como veio na mensagem e o motivo em uma frase.',
+    ].join('\n'),
+  },
 } as const satisfies Record<string, DefinicaoCasoUsoIA>;

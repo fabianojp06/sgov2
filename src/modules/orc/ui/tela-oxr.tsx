@@ -135,6 +135,9 @@ export function TelaOxr(props: { dados: ResultadoOxr; podeAtualizar: boolean; po
           {tela.semPessoal && <p role="note">As contas de pessoal não aparecem para o seu perfil, nem no orçado nem no realizado.</p>}
           {tela.pessoalNaoHomologado && <p role="note">O pessoal da versão oficial ainda não foi homologado e não entra no orçado.</p>}
           <p className="sem-impressao">
+            <a href={`/orc/orcado-realizado/previsao?proposta=${tela.propostaId}`}>Previsão de fechamento do ano</a>
+          </p>
+          <p className="sem-impressao">
             <BotaoImprimirPagina />
             {podeExportar && (
               <>
