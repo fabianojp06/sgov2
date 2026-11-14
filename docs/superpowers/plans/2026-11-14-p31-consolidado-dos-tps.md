@@ -9,7 +9,7 @@
   - exige a funcionalidade com `consultar`;
   - abre a transação **somente leitura** (`SET TRANSACTION READ ONLY`) com `app.unidades` igual a todas as unidades ativas de TP (`unidade.cc` não nulo).
   - A RLS continua valendo: o caminho só amplia a lista, e só para quem tem a permissão.
-- **Caso de uso:** `obterConsolidado(ctx)` em `application/consolidado.ts`. Grava `CONSULTA` no Histórico, com a quantidade de TPs, na mesma transação. O registro é feito antes de devolver os dados, e uma falha no registro aborta a leitura.
+- **Caso de uso:** `obterConsolidado(ctx)` em `application/consolidado.ts`. Grava `CONSULTA` no Histórico **antes** da leitura, numa transação própria, porque a da leitura é somente leitura. Uma falha no registro impede a leitura: sem a trilha, não há dado.
 - **Tela:** a página `/orc/consolidado`, no menu Administração Central, como "Consolidado dos TPs", só leitura.
 - **Sem tabela.** A funcionalidade nova é `orc.consolidado`, só com `consultar`.
 
