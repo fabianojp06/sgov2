@@ -7,6 +7,7 @@ import { criarPrisma, executarSeeds } from '@/shared/db';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedCad } from '../infrastructure/seed';
 import { seedDadosReferenciaCad } from '../infrastructure/seed-referencia';
+import { carregarIndiceEstrutura, listarArvoreContas } from '../infrastructure/estrutura-financeira';
 import { alterarParametroLocal, obterTelaParametrosLocais } from './parametros-locais-conta';
 
 // Parâmetros locais das contas analíticas (US-045), com Postgres real e o papel sgo_app. Os testes
@@ -78,6 +79,22 @@ describe('parâmetros locais das contas (US-045)', () => {
     expect(conta).toMatchObject({ natureza: 'CAPEX', semaforo: { verdeAte: '60', amareloAte: '80,5', laranjaAte: '90' }, versao: 2 });
     const h = (await migrator.query(`SELECT tipo_operacao AS tipo, antes, depois FROM historico_operacao WHERE funcionalidade = 'cad.plano_contas' ORDER BY id DESC LIMIT 1`)).rows[0];
     expect(h).toEqual({ tipo: 'ALTERACAO', antes: { natureza: 'OPEX', semaforo: null }, depois: { natureza: 'CAPEX', semaforo: ['60', '80.5', '90'] } });
+  });
+
+  it('o C1 expõe a natureza: na árvore de contas e no contaAnaliticaCapex do índice (US-072, #138)', async () => {
+    const indice = await carregarIndiceEstrutura(app);
+    expect(indice.contaAnaliticaCapex(analitica.classificacao)).toBe(true);
+    const outra = (await migrator.query(`SELECT classificacao FROM conta_contabil WHERE tipo = 'ANALITICA' AND ativa AND id <> $1 LIMIT 1`, [analitica.id])).rows[0].classificacao;
+    expect(indice.contaAnaliticaCapex(outra)).toBe(false);
+    const achar = (nos: readonly { classificacao: string; natureza?: string | null; filhos: readonly unknown[] }[]): { natureza?: string | null } | undefined => {
+      for (const n of nos) {
+        if (n.classificacao === analitica.classificacao) return n;
+        const f = achar(n.filhos as typeof nos);
+        if (f) return f;
+      }
+      return undefined;
+    };
+    expect(achar(await listarArvoreContas(app))?.natureza).toBe('CAPEX');
   });
 
   it('salvar sem mudança não sobe a versão nem grava Histórico', async () => {
