@@ -11,6 +11,7 @@ import { exportarDespesasTp, MENSAGENS_DESPESAS, type PortaRealizado } from './d
 import { exportarReceitasDespesasTp } from './receitas-despesas';
 import { exportarViagensTp } from './viagens-tp';
 import { exportarPessoalTp, type PortaPessoal } from './pessoal-tp';
+import { exportarAquisicoesTp } from './aquisicoes-tp';
 
 // Demonstrativos de despesas, de receitas e despesas (US-096 partes 1 e 2) e de viagens (US-097) do TP num Postgres real (Testcontainers, D12): a seed e a
 // exportação com a EXPORTACAO no Histórico. A porta do realizado é falsa aqui (a frente A a testa com a carga real).
@@ -159,5 +160,31 @@ describe('relatórios de pessoal do TP (UC05.05 e UC05.06)', () => {
     expect(h).toHaveLength(3);
     expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', depois: { registros: 1, filtros: expect.arrayContaining([{ rotulo: 'Origem', valor: expect.stringContaining('versão oficializada 2') }]) } });
     await expect(exportarPessoalTp(ctxP(['rel.salarios_tp:consultar']), 'salarios', { tp: 'TP-3' }, 'xlsx', portaP, { cliente: app })).rejects.toThrow();
+  });
+});
+
+describe('demonstrativo de aquisições do TP (UC05.04)', () => {
+  const permA = (a: string) => ['rel.aquisicoes_tp', a].join(':');
+  const ctxA = (acoes = ['consultar', 'exportar']): ContextoRequisicao => ({ ...ctx([]), permissoes: new Set([...acoes.map(permA), 'orc.realizado:consultar']) });
+  const depsA = () => ({
+    ...deps(),
+    sinteticas: async () => ['4.1.1.5'],
+    bens: async () => ({ versao: 2, itens: [{ conta: '4.1.1.5.005', descricao: 'Armário', data: '2027-01-10', quantidade: 2, valorUnitario: Dinheiro.de('350.00'), metaNumero: null }] }),
+  });
+
+  it('seed: em Prestação de contas, para GFIN, DIREX e Auditor', async () => {
+    expect(await migrator.funcionalidade.findUniqueOrThrow({ where: { codigo: 'rel.aquisicoes_tp' } })).toMatchObject({ moduloCodigo: 'RELATORIOS', rota: '/rel/aquisicoes-tp', exibirNoMenu: true });
+    const pp = await migrator.perfilPermissao.findMany({ where: { funcionalidadeCodigo: 'rel.aquisicoes_tp', acao: 'exportar' }, select: { perfil: { select: { codigo: true } } } });
+    expect(pp.map((p) => p.perfil.codigo).sort()).toEqual(['AUDITOR', 'DIREX', 'GFIN']);
+  });
+
+  it('exporta XLSX, CSV e PDF, com a EXPORTACAO e a versão dos bens no Histórico', async () => {
+    for (const formato of ['xlsx', 'csv', 'pdf'] as const) {
+      expect(await exportarAquisicoesTp(ctxA(), { tp: 'TP-3' }, formato, porta, depsA())).toMatchObject({ ok: true, valor: { nome: `aquisicoes-TP-3.${formato}` } });
+    }
+    const h = await migrator.historicoOperacao.findMany({ where: { funcionalidade: 'rel.aquisicoes_tp' }, select: { tipoOperacao: true, depois: true } });
+    expect(h).toHaveLength(3);
+    expect(h[0]).toMatchObject({ tipoOperacao: 'EXPORTACAO', depois: { filtros: expect.arrayContaining([{ rotulo: 'Previsto', valor: 'Bens da versão 2' }]) } });
+    await expect(exportarAquisicoesTp(ctxA(['consultar']), { tp: 'TP-3' }, 'xlsx', porta, depsA())).rejects.toThrow();
   });
 });

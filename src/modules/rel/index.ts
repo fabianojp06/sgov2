@@ -78,3 +78,6 @@ export { TabelaViagens } from './ui/viagens-tp';
 export { exportarPessoalTp, obterDistribuicaoTp, obterSalariosTp, PORTA_PESSOAL, type TelaPessoal } from './application/pessoal-tp';
 export { CATEGORIAS_PESSOAL, ROTULO_CATEGORIA } from './application/pessoal-tp-montagem';
 export { TabelaDistribuicao, TabelaSalarios } from './ui/pessoal-tp';
+// Demonstrativo de aquisições do TP (US-097 parte 2, UC05.04): os bens da versão oficializada e o realizado.
+export { exportarAquisicoesTp, obterAquisicoesTp, type TelaAquisicoes } from './application/aquisicoes-tp';
+export { TabelaAquisicoes } from './ui/aquisicoes-tp';
