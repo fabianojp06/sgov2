@@ -4,15 +4,16 @@ import { criarSolicitacao, pendenteDoAlvo, type Manipulador, type SolicitacaoDec
 import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import type { TxCliente } from '@/shared/db';
-import { ConflitoConcorrencia, exigirUmaLinha, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
+import { ConflitoConcorrencia, Dinheiro, exigirUmaLinha, falha, ok, type ErroCampo, type Resultado } from '@/shared/kernel';
 import { emUnidade } from '@/shared/unidade';
 import { competenciaParaTexto } from '../domain/empregado';
+import { comSinal, compararVersoes, type DiferencaConta, type LadoComparacao } from '../domain/comparacao';
 import { MENSAGENS_ORC as M } from '../domain/mensagens';
 import { competenciasDaVigencia } from '../domain/rateio';
 import { contextoAuditoria } from './calculo-linhas';
 import { resolverDeps, type DepsOrc } from './deps';
 import { situacaoDoLote } from './lote-pessoal';
-import { totaisDaVersao } from './totalizadores';
+import { totaisDaVersao, type TotaisDaVersao } from './totalizadores';
 
 // Oficialização da proposta de TP (US-079; UC03.10 e UC6.00, fluxo WA01; plano do P26, Task 2). O orçamentista
 // avança a versão de Rascunho para Em Elaboração e a envia; a varredura junta todas as falhas (D-P26-3); o envio
@@ -194,6 +195,44 @@ async function alvoEmAprovacao(tx: TxCliente, s: SolicitacaoDecidivel) {
 
 const alvoMudou = () => falha([{ campo: '_', mensagem: M.WA01_ALVO_MUDOU }]);
 
+/** O lado da comparação de uma versão (US-084): o snapshot, se oficializada; senão, as somas calculadas agora. */
+async function ladoDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: string, calculado?: TotaisDaVersao): Promise<LadoComparacao> {
+  const [snapshot, celulas, tetos] = await Promise.all([
+    tx.snapshotVersao.findUnique({ where: { versaoPropostaId: versaoId } }),
+    tx.rateioCelulaProposta.findMany({ where: { rateio: { versaoPropostaId: versaoId } }, select: { valor: true } }),
+    tx.tetoViagemProposta.findMany({ where: { versaoPropostaId: versaoId }, select: { valor: true } }),
+  ]);
+  const t = snapshot ? null : (calculado ?? (await totaisDaVersao(tx, deps, versaoId, true)));
+  return {
+    porConta: snapshot ? new Map(Object.entries(snapshot.contas as Record<string, string>).map(([c, v]) => [c, Dinheiro.de(v)])) : t!.porConta,
+    total: snapshot ? Dinheiro.de(snapshot.valorGlobal.toString()) : t!.total,
+    rateio: Dinheiro.somarTodos(celulas.map((c) => Dinheiro.de(c.valor.toString()))),
+    tetos: Dinheiro.somarTodos(tetos.map((x) => Dinheiro.de(x.valor.toString()))),
+  };
+}
+
+/**
+ * IA-13, parte determinística (US-084; plano do P30): o que mudou desde a versão de número anterior (D-P30-2), o
+ * impacto no total, nos tetos de viagens e no rateio (D-P30-3) e os pontos de atenção (D-P30-4).
+ */
+async function comparacaoComAnterior(tx: TxCliente, deps: DepsOrc, v: { id: string; numero: number; propostaId: string }, atual: TotaisDaVersao) {
+  const anterior = await tx.versaoProposta.findFirst({ where: { propostaId: v.propostaId, numero: v.numero - 1 }, select: { id: true, numero: true } });
+  if (!anterior) return [{ rotulo: 'Comparação', valor: 'Primeira versão: sem comparação.' }];
+  const c = compararVersoes(await ladoDaVersao(tx, deps, v.id, atual), await ladoDaVersao(tx, deps, anterior.id));
+  const linha = (d: DiferencaConta) => `${d.antes.formatar()} → ${d.depois.formatar()} (${comSinal(d.diferenca)})`;
+  const nada = c.novas.length + c.retiradas.length + c.alteradas.length === 0 && c.rateio.diferenca.ehZero() && c.tetos.diferenca.ehZero();
+  return [
+    { rotulo: 'Comparação', valor: `Em relação à Versão ${anterior.numero}${nada ? ': nada mudou.' : '.'}` },
+    { rotulo: 'Valor Global (variação)', valor: linha(c.total) },
+    ...(c.rateio.diferenca.ehZero() ? [] : [{ rotulo: 'Rateio/ISS (variação)', valor: `${c.rateio.antes.formatar()} → ${c.rateio.depois.formatar()} (${comSinal(c.rateio.diferenca)})` }]),
+    ...(c.tetos.diferenca.ehZero() ? [] : [{ rotulo: 'Tetos de viagens (variação)', valor: `${c.tetos.antes.formatar()} → ${c.tetos.depois.formatar()} (${comSinal(c.tetos.diferenca)})` }]),
+    ...c.novas.map((d) => ({ rotulo: `Conta ${d.conta} (nova)`, valor: linha(d) })),
+    ...c.retiradas.map((d) => ({ rotulo: `Conta ${d.conta} (retirada)`, valor: linha(d) })),
+    ...c.alteradas.map((d) => ({ rotulo: `Conta ${d.conta} (alterada)`, valor: linha(d) })),
+    ...(c.atencao.length > 0 ? [{ rotulo: 'Pontos de atenção', valor: c.atencao.join(' ') }] : []),
+  ];
+}
+
 /**
  * RN_TAX_01 e RN_TAX_03 (combinado com a frente B na #448): as alíquotas dos impostos que incidem no tipo da
  * proposta, vigentes no mês de início dela, para congelar no snapshot. Imposto sem alíquota nessa competência
@@ -274,6 +313,7 @@ export function manipuladorWa01(depsParciais: Partial<DepsOrc> = {}): Manipulado
         { rotulo: 'Valor Global', valor: t.total.formatar() },
         ...[...t.porConta].sort(([a], [b]) => a.localeCompare(b, 'pt-BR', { numeric: true })).map(([conta, valor]) => ({ rotulo: `Conta ${conta}`, valor: valor.formatar() })),
         ...(t.avisos.length > 0 ? [{ rotulo: 'Avisos', valor: t.avisos.join(' ') }] : []),
+        ...(await comparacaoComAnterior(tx, deps, v, t)),
       ];
     },
   };
