@@ -30,7 +30,7 @@
     - **Notificação ao operador (FA-A):** a Central de Tarefas mostra a decisão. O e-mail fica como no P26.
     - **Expurgo dos relatórios macro (RN_WA02_007):** o consolidado e a execução orçamentária são da R6. Lá, só as viagens validadas entram.
 - **D-P28-2 (quando) [PROVISÓRIO]:** o pedido cabe com a última versão **Oficializada**, a pré-condição do UC6.02.
-  - **Rejeição:** como a versão oficial é imutável (RN_WA01_004), "grids reabilitadas para escrita" vira "as linhas voltam a poder ser enviadas". Para corrigir uma viagem, cria-se nova versão.
+  - **Rejeição:** como a versão oficial é imutável (RN_WA01_004), "grids reabilitadas para escrita" vira "as linhas voltam a poder ser enviadas". Para corrigir uma viagem, usa-se o Termo Aditivo (US-082): a proposta Oficializada não ganha nova versão (D-P18).
 - **D-P28-3 (quais linhas) [PROVISÓRIO]:** todas as viagens da versão que estão Pendentes ou Rejeitadas vão num lote só. A seleção linha a linha do passo 1 fica para quando houver pedido.
 - **D-P28-4 (quem):**
   - **Permissão:** a ação `executar` nova em `orc.viagens`, só para o OPERADOR_VIAGENS (RF_VAL_REQ_001).
@@ -48,7 +48,7 @@
   - **Validar:** o lote vai a Validado e o Histórico registra `HOMOLOGACAO_VIAGENS`.
   - **Rejeitar:** o lote vai a Rejeitado, com a justificativa. As linhas ficam Rejeitadas até o próximo pedido.
   - **Resumo na Central:** a quantidade de viagens e o custo por conta.
-- **D-P28-7 (nova versão):** as viagens copiadas nascem Pendentes, sem lote.
+- **D-P28-7 (nova versão):** não se aplica: a nova versão só sai de versão em Rascunho ou Em Elaboração, que nunca têm lote. A cópia das viagens não leva o lote.
 - **D-P28-8 (selos, RF_VAL_REQ_003):** a grade das viagens mostra o selo da linha: Pendente, Pendente de Validação (amarelo), Validada (verde) ou Rejeitada (vermelho).
 
 ## Review Focus
