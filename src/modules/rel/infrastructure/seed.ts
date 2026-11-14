@@ -215,6 +215,20 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // só para quem lança os empregados. O analista GRH entra quando a porta aceitar a permissão dos empregados (#138).
     perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
   },
+  {
+    codigo: 'rel.aquisicoes_tp',
+    modulo: 'RELATORIOS',
+    grupo: 'Prestação de contas',
+    nome: 'Demonstrativo de aquisições do TP',
+    rota: '/rel/aquisicoes-tp',
+    ordem: 6,
+    ajuda:
+      'Os bens previstos na versão oficializada do Termo de Parceria, por conta do Imobilizado/Intangível (as que a GFIN marcou no plano de ' +
+      'contas) e mês, com data, quantidade, valor unitário e total, e o realizado de cada conta. Filtre pelo TP, período, conta e descrição.',
+    acoes: ['consultar', 'exportar'],
+    // US-097 (UC05.04): os perfis dos demonstrativos do TP. Bens e realizado passam pela permissão e pela RLS do orc (#544, US-085).
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
+  },
 ];
 
 export const seedRel: Seed = {
