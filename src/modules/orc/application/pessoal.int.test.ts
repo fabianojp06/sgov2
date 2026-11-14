@@ -217,6 +217,22 @@ describe('incluirEmpregado (UC03.25)', () => {
 });
 
 describe('listarEmpregados (UC03.24)', () => {
+  it('semCusto não roda o motor e máximo limita as propostas, na ordem do número (pedido da frente B na #138)', async () => {
+    const p1 = await proposta();
+    const m1 = await meta(p1.id);
+    await incluirEmpregado(await ctx(), { propostaId: p1.id, versaoCapa: await versaoCapa(p1.id), metaId: m1.id, ...empregado() }, comDeps());
+    const p2 = await proposta({ cc: '9.2' });
+    const semCusto = await listarEmpregados(await ctx(), { semCusto: true }, comDeps());
+    const b1 = semCusto.find((b) => b.propostaId === p1.id)!;
+    expect(b1.veCusto).toBe(false);
+    expect(b1.grupos[0]!.empregados[0]).toMatchObject({ custoMensal: null, custoPeriodo: null, avisos: [] });
+    expect(b1.totais.EMPREGADO).toBe(1);
+    const um = await listarEmpregados(await ctx(), { maximo: 1 }, comDeps());
+    expect(um).toHaveLength(1);
+    expect([p1.numero, p2.numero].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))[0]).toBe(um[0]!.numero);
+    expect((await listarEmpregados(await ctx(), { maximo: 0 }, comDeps())).length).toBe(1);
+  });
+
   it('custo pelo motor ano a ano (D-P20-4): o primeiro mês e o período; ano sem parâmetros fica de fora, com aviso', async () => {
     const p = await proposta({ fim: '2028-06-30' });
     const m = await meta(p.id);

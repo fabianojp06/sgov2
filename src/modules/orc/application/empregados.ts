@@ -125,16 +125,27 @@ const retrato = (
 });
 
 
+/** Teto de propostas da lista (pedido da frente B na #138, revisão 12.12 da US-107): o custo roda por empregado e ano. */
+export const MAXIMO_PROPOSTAS_EMPREGADOS = 200;
+
+/**
+ * Além dos filtros, quem chama pode pedir `semCusto` (só as contagens, sem rodar o motor; a análise do quadro de
+ * pessoal do rel) e um `maximo` de propostas (de 1 a 200; padrão 200). As propostas além do máximo ficam de fora,
+ * na ordem do número.
+ */
+export type FiltrosEmpregados = FiltrosPessoal & { semCusto?: boolean | undefined; maximo?: number | undefined };
+
 /**
  * UC03.24: os empregados da última versão das propostas do usuário (RLS), em blocos por proposta e grupos
  * por meta (RN0148), com os totais por categoria (RN0147, RN0194). Filtros como nas metas (REQ0024,
  * REQ0030): Tipo, Proposta (número ou objeto) e Meta (número ou nome).
  */
-export async function listarEmpregados(ctx: ContextoRequisicao, filtros: FiltrosPessoal = {}, depsParciais: Partial<DepsOrc> = {}): Promise<readonly BlocoEmpregados[]> {
+export async function listarEmpregados(ctx: ContextoRequisicao, filtros: FiltrosEmpregados = {}, depsParciais: Partial<DepsOrc> = {}): Promise<readonly BlocoEmpregados[]> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE, 'consultar');
   const tipo = tipoDoFiltro(filtros.tipo);
-  const comCusto = veCusto(ctx);
+  const comCusto = veCusto(ctx) && filtros.semCusto !== true;
+  const maximo = Math.min(Math.max(Math.trunc(filtros.maximo ?? MAXIMO_PROPOSTAS_EMPREGADOS), 1), MAXIMO_PROPOSTAS_EMPREGADOS);
   return emUnidade(
     ctx,
     async (tx) => {
@@ -148,7 +159,9 @@ export async function listarEmpregados(ctx: ContextoRequisicao, filtros: Filtros
       const cache = await carregarCargos(tx, deps);
       const anos = cacheAnos(cache);
       const blocos: BlocoEmpregados[] = [];
+      propostas.sort((a, b) => a.unidade.codigo.localeCompare(b.unidade.codigo, 'pt-BR', { numeric: true }));
       for (const p of propostas) {
+        if (blocos.length >= maximo) break;
         const v = p.versoes[0];
         if (!v || !contem(`${p.unidade.codigo} ${p.objeto}`, filtros.proposta)) continue;
         const metas = await metasDaVersao(tx, v.id);

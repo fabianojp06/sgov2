@@ -59,9 +59,8 @@ export type DepsOrc = {
   obterEscopo: typeof obterEscopoCentroCusto;
   semaforo: ProvedorSemaforo | null;
   /**
-   * Bens da proposta (US-072, D-P22-3) [PROVISÓRIO]: a conta do grupo Imobilizado e Intangível (natureza CAPEX
-   * do parâmetro local, C27). O cad ainda não expõe a natureza (pedido na #138); sem ele, vale qualquer
-   * analítica ativa.
+   * Bens da proposta (US-072, D-P22-3): substitui, nos testes, o filtro CAPEX do C1
+   * (`contaAnaliticaCapex`, #473 da frente B).
    */
   contaCapex?: (classificacao: string) => boolean;
 };
