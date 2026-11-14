@@ -219,6 +219,7 @@ model VersaoProposta {
   qtdes       QtdeEmpregadoProposta[]
   tetosViagem TetoViagemProposta[]
   viagens     ViagemProposta[]
+  bens        BemProposta[]
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -245,6 +246,7 @@ model MetaProposta {
   empregados       EmpregadoProposta[]
   qtdes            QtdeEmpregadoProposta[]
   viagens          ViagemProposta[]
+  bens             BemProposta[]
 
   @@index([unidadeId])
   @@index([versaoPropostaId])
@@ -353,4 +355,33 @@ model ViagemProposta {
   @@index([versaoPropostaId])
   @@index([metaId])
   @@map("orc_viagem")
+}
+
+// Bem, serviço ou equipamento (CAPEX) da proposta (US-072; plano do P22, D-P22-2 e D-P22-6): é da versão, com a
+// meta obrigatória na categoria Meta (no caso de uso) e FK RESTRICT. O valor total é calculado na leitura
+// (RN0157). O copiado de versão anterior guarda a origem e, ao sair, é inativado. CHECKs na migration.
+model BemProposta {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  metaId           String?        @map("meta_id") @db.Uuid
+  meta             MetaProposta?  @relation(fields: [metaId], references: [id], onDelete: Restrict)
+  conta            String
+  descricao        String
+  data             DateTime       @db.Date
+  quantidade       Int
+  valorUnitario    Decimal        @map("valor_unitario") @db.Decimal(15, 2)
+  ativo            Boolean        @default(true)
+  inativadoEm      DateTime?      @map("inativado_em") @db.Timestamptz(6)
+  origemId         String?        @map("origem_id") @db.Uuid
+  criadoPor        String         @map("criado_por") @db.Uuid
+  criadoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("criado_em") @db.Timestamptz(6)
+  versao           Int            @default(0)
+
+  @@index([unidadeId])
+  @@index([versaoPropostaId])
+  @@index([metaId])
+  @@map("orc_bem")
 }

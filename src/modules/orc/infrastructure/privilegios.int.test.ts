@@ -39,6 +39,7 @@ const ESPERADO_APP: Record<string, string[]> = {
   orc_qtde_empregado: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P20)
   orc_teto_viagem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P21)
   orc_viagem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P21); a exclusão é física (D-P21-9)
+  orc_bem: ['DELETE', 'INSERT', 'SELECT'], // UPDATE só por coluna (P22); o copiado é inativado (D-P22-6)
 };
 
 async function privilegios(papel: string): Promise<Record<string, string[]>> {
@@ -120,6 +121,8 @@ describe('privilégios do orc', () => {
     // Viagens (P21): no teto, só o valor; na viagem, a meta e as contas de passagem e de diária não mudam (RN_VIA_07).
     expect(await colunas('orc_teto_viagem')).toEqual(['valor', 'versao']);
     expect(await colunas('orc_viagem')).toEqual(['conta_transporte', 'dias', 'localidade', 'pessoas', 'valor_diaria', 'valor_passagem', 'valor_transporte', 'versao']);
+    // Bens (P22): a versão, a unidade e a origem não mudam.
+    expect(await colunas('orc_bem')).toEqual(['ativo', 'conta', 'data', 'descricao', 'inativado_em', 'meta_id', 'quantidade', 'valor_unitario', 'versao']);
     expect(await colunas('unidade')).toEqual(['ativo', 'nome']);
   });
 

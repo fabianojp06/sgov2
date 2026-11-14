@@ -26,6 +26,7 @@ export default async function Propostas({ searchParams }: { searchParams: Promis
     podeVerMetas: ctx.permissoes.has('orc.metas:consultar'),
     podeVerEmpregados: ctx.permissoes.has('orc.empregados:consultar'),
     podeVerViagens: ctx.permissoes.has('orc.viagens:consultar'),
+    podeVerBens: ctx.permissoes.has('orc.bens:consultar'),
   };
   const busca = await searchParams;
   const idDuplicar = permissoes.podeIncluir ? um(busca.duplicar) : undefined;

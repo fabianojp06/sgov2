@@ -70,6 +70,12 @@ function diaCivil(v: string): number | null {
   return ms / DIA_MS;
 }
 
+/** "AAAA-MM-DD" (o input date) em UTC; nulo fora do formato ou em dia inexistente (bens, P22). */
+export function lerDataCivil(v: string): Date | null {
+  const dia = diaCivil(v);
+  return dia === null ? null : new Date(dia * DIA_MS);
+}
+
 export function validarCapa(bruto: Readonly<Record<string, unknown>>): Resultado<CapaValidada> {
   const v = Object.fromEntries([...OBRIGATORIOS, 'parceiro'].map((c) => [c, texto(bruto[c])])) as Record<(typeof OBRIGATORIOS)[number] | 'parceiro', string>;
   const erros: ErroCampo[] = [];

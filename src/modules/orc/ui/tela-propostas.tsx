@@ -48,8 +48,9 @@ export type DuplicacaoAberta = { origem: DadosDuplicar | null };
  * podeVerMetas: orc.metas:consultar, para o link das metas na proposta de categoria Meta (US-067).
  * podeVerEmpregados: orc.empregados:consultar, para o link dos empregados em qualquer proposta (US-070).
  * podeVerViagens: orc.viagens:consultar, para o link das viagens em qualquer proposta (US-071).
+ * podeVerBens: orc.bens:consultar, para o link dos bens em qualquer proposta (US-072).
  */
-export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean; podeVerEmpregados?: boolean; podeVerViagens?: boolean };
+export type PermissoesProposta = { podeIncluir: boolean; podeExcluir: boolean; podeVerMetas?: boolean; podeVerEmpregados?: boolean; podeVerViagens?: boolean; podeVerBens?: boolean };
 
 export function TelaPropostas({
   propostas,
@@ -73,7 +74,8 @@ export function TelaPropostas({
   const verMetas = (p: PropostaTela) => permissoes.podeVerMetas === true && p.categoria === 'META';
   const verEmpregados = permissoes.podeVerEmpregados === true;
   const verViagens = permissoes.podeVerViagens === true;
-  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas) || ((verEmpregados || verViagens) && propostas.length > 0);
+  const verBens = permissoes.podeVerBens === true;
+  const acoesNaLinha = permissoes.podeIncluir || propostas.some(podeExcluir) || propostas.some(verMetas) || ((verEmpregados || verViagens || verBens) && propostas.length > 0);
   const origem = duplicacao?.origem ?? null;
   return (
     <>
@@ -117,6 +119,7 @@ export function TelaPropostas({
                       {verMetas(p) && <a href={`/orc/metas?proposta=${encodeURIComponent(p.numero)}`}>{`Metas da proposta ${p.numero}`}</a>}
                       {verEmpregados && <a href={`/orc/empregados?proposta=${encodeURIComponent(p.numero)}`}>{`Empregados da proposta ${p.numero}`}</a>}
                       {verViagens && <a href={`/orc/viagens?proposta=${encodeURIComponent(p.numero)}`}>{`Viagens da proposta ${p.numero}`}</a>}
+                      {verBens && <a href={`/orc/bens?proposta=${encodeURIComponent(p.numero)}`}>{`Bens da proposta ${p.numero}`}</a>}
                       {podeVersionar(p) && (
                         <AcaoConfirmada
                           rotulo={`Nova versão da proposta ${p.numero}`}
