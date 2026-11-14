@@ -68,3 +68,6 @@ export { PergunteSgo } from './ui/pergunte-sgo';
 // Demonstrativo de despesas do TP (US-096 parte 1, UC05.02): a tela, a exportação e a tabela.
 export { exportarDespesasTp, obterDespesasTp, PORTA_REALIZADO, type TelaDespesas } from './application/despesas-tp';
 export { TabelaDespesas } from './ui/despesas-tp';
+// Demonstrativo de receitas e despesas do TP (US-096 parte 2, UC05.01): previsto, realizado e saldo acumulado.
+export { exportarReceitasDespesasTp, obterReceitasDespesasTp, type TelaReceitasDespesas } from './application/receitas-despesas';
+export { TabelaReceitasDespesas } from './ui/receitas-despesas';
