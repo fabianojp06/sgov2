@@ -189,8 +189,8 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     rota: '/orc/orcado-realizado',
     ordem: 13,
     ajuda: 'Compara, mês a mês, o orçado da versão oficializada do Termo de Parceria com o realizado carregado, com o percentual de uso e o saldo do período. Contas acima de 100% ficam em vermelho e negrito.',
-    acoes: ['consultar'],
-    perfisPadrao: { GFIN: ['consultar'], DIREX: ['consultar'], AUDITOR: ['consultar'] },
+    acoes: ['consultar', 'exportar'],
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
   },
   {
     // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),

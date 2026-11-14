@@ -64,7 +64,13 @@ async function propostasOficiais(ctx: ContextoRequisicao, deps: DepsOrc): Promis
 const resposta = (propostas: readonly PropostaOxr[], tela: TelaOxr | null, erro: string | null): ResultadoOxr => ({ propostas, tela, erro });
 
 /** UC Orçado x Realizado (OxR V2, fluxo principal e E1). Sem TP: só a lista; com filtro inválido: a lista e o erro. */
-export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: FiltrosOxr, depsParciais: Partial<DepsOrc> = {}): Promise<ResultadoOxr> {
+export async function obterOrcadoRealizado(
+  ctx: ContextoRequisicao,
+  filtros: FiltrosOxr,
+  depsParciais: Partial<DepsOrc> = {},
+  // A exportação monta a mesma tela e registra só a EXPORTACAO (não a CONSULTA).
+  opcoes: { registrarConsulta?: boolean } = {},
+): Promise<ResultadoOxr> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE_OXR, 'consultar');
   const propostas = await propostasOficiais(ctx, deps);
@@ -94,7 +100,7 @@ export async function obterOrcadoRealizado(ctx: ContextoRequisicao, filtros: Fil
       const conta = (filtros.conta ?? '').trim();
       const zeradas = filtros.zeradas ?? false;
 
-      await auditar(tx, {
+      if (opcoes.registrarConsulta !== false) await auditar(tx, {
         contexto: { ...contextoAuditoria(ctx), unidadeId: p.unidadeId },
         funcionalidade: FUNCIONALIDADE_OXR,
         tipo: 'CONSULTA',

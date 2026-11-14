@@ -84,7 +84,7 @@ describe('seedOrc', () => {
       'orc.ia_justificativa:executar', 'orc.ia_recusa:executar', 'orc.ia_revisor:executar', 'orc.ia_sugestao_conta:executar',
       'orc.importacao:consultar', 'orc.importacao:executar',
       'orc.metas:consultar',
-      'orc.orcamento:alterar', 'orc.orcamento:consultar', 'orc.oxr:consultar',
+      'orc.orcamento:alterar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.oxr:exportar',
       'orc.pacotes:alterar', 'orc.pacotes:consultar', 'orc.pacotes:excluir', 'orc.pacotes:incluir',
       'orc.posicoes:alterar', 'orc.posicoes:consultar', 'orc.posicoes:excluir', 'orc.posicoes:incluir',
       'orc.propostas:consultar',
@@ -95,11 +95,11 @@ describe('seedOrc', () => {
       'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('DIREX')).toEqual([
-      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.consolidado:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:aprovar', 'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.consolidado:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.ia_recusa:executar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.oxr:exportar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.rateio:consultar', 'orc.realizado:consultar', 'orc.receitas:consultar', 'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('AUDITOR')).toEqual([
-      'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
+      'orc.aprovacao:consultar', 'orc.bens:consultar', 'orc.cronograma:consultar', 'orc.empregados:consultar', 'orc.exercicios:consultar', 'orc.metas:consultar', 'orc.orcamento:consultar', 'orc.oxr:consultar', 'orc.oxr:exportar', 'orc.pacotes:consultar', 'orc.posicoes:consultar',
       'orc.propostas:consultar', 'orc.qtde_empregados:consultar', 'orc.rateio:consultar', 'orc.realizado:consultar', 'orc.receitas:consultar', 'orc.totalizadores:consultar', 'orc.viagens:consultar',
     ]);
     expect(await permissoes('GESTOR_DIRETORIA')).toEqual([

@@ -86,6 +86,7 @@ export {
   type TetoTela,
   type ViagemTela,
 } from './application/viagens';
+export { exportarOrcadoRealizado, FORMATOS_OXR, MENSAGEM_PDF_LONGO, type FormatoOxr } from './application/exportar-oxr';
 export { obterOrcadoRealizado, type FiltrosOxr, type ResultadoOxr, type TelaOxr as DadosOxr } from './application/orcado-realizado';
 export {
   carregarRealizado,
