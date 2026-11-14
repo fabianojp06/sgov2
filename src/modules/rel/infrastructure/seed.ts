@@ -185,6 +185,36 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
     // US-097 (UC05.03): os mesmos perfis dos demonstrativos do TP. O realizado passa pela permissão e pela RLS do orc (US-085).
     perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
   },
+  {
+    codigo: 'rel.salarios_tp',
+    modulo: 'RELATORIOS',
+    grupo: 'Prestação de contas',
+    nome: 'Salários dos empregados do TP',
+    rota: '/rel/salarios-tp',
+    ordem: 4,
+    ajuda:
+      'O custo mensal previsto de cada empregado do Termo de Parceria, pela versão oficializada da proposta (não é a folha de pagamento), ' +
+      'com o total de empregados. Filtre pelo TP (obrigatório), período, cargo, meta e categoria; exporte em XLSX, CSV ou PDF.',
+    acoes: ['consultar', 'exportar'],
+    // US-098 (UC05.05): os perfis dos demonstrativos do TP. A porta é a do realizado do orc (#544): permissão, RLS e o custo
+    // só para quem lança os empregados. O analista GRH entra quando a porta aceitar a permissão dos empregados (#138).
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
+  },
+  {
+    codigo: 'rel.distribuicao_pessoal_tp',
+    modulo: 'RELATORIOS',
+    grupo: 'Prestação de contas',
+    nome: 'Distribuição de pessoal do TP',
+    rota: '/rel/distribuicao-pessoal-tp',
+    ordem: 5,
+    ajuda:
+      'Os empregados do Termo de Parceria agrupados por setor, pela versão oficializada da proposta (não é a folha de pagamento), com o ' +
+      'total de empregados. Filtre pelo TP (obrigatório), período, cargo, meta e categoria; exporte em XLSX, CSV ou PDF.',
+    acoes: ['consultar', 'exportar'],
+    // US-098 (UC05.06): os perfis dos demonstrativos do TP. A porta é a do realizado do orc (#544): permissão, RLS e o custo
+    // só para quem lança os empregados. O analista GRH entra quando a porta aceitar a permissão dos empregados (#138).
+    perfisPadrao: { GFIN: ['consultar', 'exportar'], DIREX: ['consultar', 'exportar'], AUDITOR: ['consultar', 'exportar'] },
+  },
 ];
 
 export const seedRel: Seed = {

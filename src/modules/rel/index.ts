@@ -74,3 +74,7 @@ export { TabelaReceitasDespesas } from './ui/receitas-despesas';
 // Demonstrativo analítico de despesas com viagens do TP (US-097 parte 1, UC05.03).
 export { exportarViagensTp, obterViagensTp, type TelaViagens } from './application/viagens-tp';
 export { TabelaViagens } from './ui/viagens-tp';
+// Relatórios de pessoal do TP (US-098, UC05.05 e UC05.06): o previsto da versão oficializada.
+export { exportarPessoalTp, obterDistribuicaoTp, obterSalariosTp, PORTA_PESSOAL, type TelaPessoal } from './application/pessoal-tp';
+export { CATEGORIAS_PESSOAL, ROTULO_CATEGORIA } from './application/pessoal-tp-montagem';
+export { TabelaDistribuicao, TabelaSalarios } from './ui/pessoal-tp';
