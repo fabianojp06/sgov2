@@ -5,11 +5,17 @@ import { MINIMO_GRUPO_CUSTO } from './quadro-pessoal';
 // Central (US-056, listarPosicoes do orc) agregadas por diretoria, no exercício escolhido e no anterior.
 // As mesmas regras de privacidade da parte 1 (domain/quadro-pessoal): nenhum custo por cargo; o custo da
 // diretoria só com pelo menos MINIMO_GRUPO_CUSTO pessoas (a soma das quantidades), todas as posições com
-// custo calculado (maior que zero) e pelo menos 2 custos por pessoa diferentes (valor anual ÷ quantidade).
+// custo calculado (maior que zero) e pelo menos 2 custos por pessoa-mês diferentes (valor anual ÷
+// (quantidade × meses), para meses diferentes não disfarçarem salários iguais). Revisão 12.12 do #488:
+// o custo sai SÓ no exercício escolhido; o anterior vai só com os postos, porque a diferença entre os
+// custos de dois anos na mesma mensagem daria o custo de quem entrou. Só posições da raiz 4 (C1).
 
 /** O que o rel lê de cada posição (o formato do PosicaoTela do orc, só com o necessário; sem o cargo). */
 export type PosicaoEntrada = { cc: string; quantidade: number; mesInicio: number; mesSaida: number; valorAnual: Dinheiro | null };
 export type ExercicioEntrada = { ano: number; situacao: string; veSalario: boolean; posicoes: readonly PosicaoEntrada[] };
+
+export const RAIZ_ADM_CENTRAL = '4';
+const daAdmCentral = (cc: string) => cc === RAIZ_ADM_CENTRAL || cc.startsWith(`${RAIZ_ADM_CENTRAL}.`);
 
 export type DiretoriaQuadro = {
   /** Classificação do CC de nível 2 (ex.: '4.3'); as posições no próprio CC raiz ficam em '4'. */
@@ -18,7 +24,7 @@ export type DiretoriaQuadro = {
   postos: number;
   postosDezembro: number;
   custoAnual: string | null;
-  semCusto: 'SEM_PERMISSAO' | 'POUCOS_POSTOS' | 'CUSTO_INCOMPLETO' | 'CUSTOS_IGUAIS' | null;
+  semCusto: 'SEM_PERMISSAO' | 'POUCOS_POSTOS' | 'CUSTO_INCOMPLETO' | 'CUSTOS_IGUAIS' | 'SO_POSTOS' | null;
 };
 export type ExercicioQuadro = { ano: number; situacao: string; postos: number; postosDezembro: number; diretorias: DiretoriaQuadro[]; custoAnualExibido: string | null };
 export type QuadroAdmCentral = { exercicios: ExercicioQuadro[] };
@@ -34,14 +40,15 @@ function motivoSemCusto(veSalario: boolean, posicoes: readonly PosicaoEntrada[],
   if (!veSalario) return 'SEM_PERMISSAO';
   if (pessoas < MINIMO_GRUPO_CUSTO) return 'POUCOS_POSTOS';
   if (!posicoes.every((p) => p.quantidade > 0 && positivo(p.valorAnual))) return 'CUSTO_INCOMPLETO';
-  const porPessoa = new Set(posicoes.map((p) => p.valorAnual!.dividir(String(p.quantidade)).paraString()));
+  const meses = (p: PosicaoEntrada) => Math.max(1, Math.min(12, p.mesSaida) - Math.max(1, p.mesInicio) + 1);
+  const porPessoa = new Set(posicoes.map((p) => p.valorAnual!.dividir(String(p.quantidade * meses(p))).paraString()));
   if (porPessoa.size < 2) return 'CUSTOS_IGUAIS';
   return null;
 }
 
-function agregarExercicio(e: ExercicioEntrada, nomeDoCc: (cc: string) => string): ExercicioQuadro {
+function agregarExercicio(e: ExercicioEntrada, nomeDoCc: (cc: string) => string, comCusto: boolean): ExercicioQuadro {
   const porDiretoria = new Map<string, PosicaoEntrada[]>();
-  for (const p of e.posicoes) {
+  for (const p of e.posicoes.filter((x) => daAdmCentral(x.cc))) {
     const d = diretoriaDoCc(p.cc);
     porDiretoria.set(d, [...(porDiretoria.get(d) ?? []), p]);
   }
@@ -49,7 +56,7 @@ function agregarExercicio(e: ExercicioEntrada, nomeDoCc: (cc: string) => string)
     .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
     .map(([diretoria, ps]): DiretoriaQuadro => {
       const postos = ps.reduce((a, p) => a + p.quantidade, 0);
-      const semCusto = motivoSemCusto(e.veSalario, ps, postos);
+      const semCusto = comCusto ? motivoSemCusto(e.veSalario, ps, postos) : 'SO_POSTOS';
       return {
         diretoria,
         nome: nomeDoCc(diretoria),
@@ -70,7 +77,8 @@ function agregarExercicio(e: ExercicioEntrada, nomeDoCc: (cc: string) => string)
   };
 }
 
-/** Os exercícios em ordem de ano (o anterior primeiro, para a comparação), com os nomes das diretorias. */
+/** Os exercícios em ordem de ano (o anterior primeiro, para a comparação); o custo só no último (o escolhido). */
 export function agregarAdmCentral(exercicios: readonly ExercicioEntrada[], nomeDoCc: (cc: string) => string): QuadroAdmCentral {
-  return { exercicios: [...exercicios].sort((a, b) => a.ano - b.ano).map((e) => agregarExercicio(e, nomeDoCc)) };
+  const ordenados = [...exercicios].sort((a, b) => a.ano - b.ano);
+  return { exercicios: ordenados.map((e, i) => agregarExercicio(e, nomeDoCc, i === ordenados.length - 1)) };
 }

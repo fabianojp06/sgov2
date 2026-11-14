@@ -5,6 +5,7 @@ import {
   lerFiltrosQuadro,
   MENSAGENS_QUADRO,
   obterQuadroAdmCentral,
+  PERMISSAO_EMPREGADOS,
   obterQuadroPessoal,
   TabelaAdmCentral,
   TabelaQuadro,
@@ -20,7 +21,7 @@ export default async function QuadroPessoal({ searchParams }: { searchParams: Pr
   const lidos = lerFiltrosQuadro({ tipo, proposta, ano });
   // Filtro inválido: não lê nada (a leitura é a parte cara).
   const [lido, adm, iaLiberada] = await Promise.all([
-    lidos ? obterQuadroPessoal(ctx, lidos) : null,
+    lidos && ctx.permissoes.has(PERMISSAO_EMPREGADOS) ? obterQuadroPessoal(ctx, lidos) : null,
     lidos ? obterQuadroAdmCentral(ctx, lidos.ano ? Number(lidos.ano) : null) : null,
     analiseQuadroLiberada(ctx),
   ]);
@@ -61,7 +62,7 @@ export default async function QuadroPessoal({ searchParams }: { searchParams: Pr
           <button type="submit">Filtrar</button>
         </p>
       </form>
-      {lido === null ? (
+      {lidos === null ? (
         <p role="alert">{MENSAGENS_QUADRO.FILTROS_INVALIDOS}</p>
       ) : (
         <>
@@ -71,11 +72,21 @@ export default async function QuadroPessoal({ searchParams }: { searchParams: Pr
               analisar={analisarQuadroPessoalAcao}
             />
           )}
-          <h2>Propostas e termos de parceria</h2>
-          {!lido.ok ? <p role="alert">{lido.erros.map((e) => e.mensagem).join(' ')}</p> : comPessoal ? <TabelaQuadro quadro={lido.valor} /> : <p>{MENSAGENS_QUADRO.SEM_PESSOAL}</p>}
+          {lido !== null && (
+            <>
+              <h2>Propostas e termos de parceria</h2>
+              {!lido.ok ? <p>{lido.erros.map((e) => e.mensagem).join(' ')}</p> : comPessoal ? <TabelaQuadro quadro={lido.valor} /> : <p>{MENSAGENS_QUADRO.SEM_PESSOAL}</p>}
+            </>
+          )}
+          {lido === null && !adm && <p>{MENSAGENS_QUADRO.SEM_ACESSO}</p>}
           {adm && (
             <>
               <h2>Administração Central</h2>
+              {adm.anoPedidoAusente !== null && (
+                <p role="note">
+                  {MENSAGENS_QUADRO.EXERCICIO_INEXISTENTE(adm.anoPedidoAusente)} Exibindo {adm.ano}.
+                </p>
+              )}
               {comAdm ? <TabelaAdmCentral quadro={adm.quadro} /> : <p>Nenhuma posição orçada no exercício {adm.ano}.</p>}
             </>
           )}

@@ -6,7 +6,7 @@ import { CENTROS_CUSTO_EXEMPLO } from '@/modules/cad';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { criarPrisma, executarSeeds } from '@/shared/db';
 import { criarProvedorIAFalso, criarServicoIA } from '@/shared/ia';
-import { Dinheiro } from '@/shared/kernel';
+import { Dinheiro, ErroDominio } from '@/shared/kernel';
 import { iniciarBancoTeste } from '../../../../tests/integracao/banco';
 import { seedRel } from '../infrastructure/seed';
 import { CASO_QUADRO_PESSOAL } from './ia-casos';
@@ -180,7 +180,7 @@ describe('analisarQuadroPessoal', () => {
       valor: {
         admCentral: {
           exercicios: [
-            { ano: 2027, diretorias: [{ diretoria: '4.3', nome: 'Diretoria Administrativa Financeira', postos: 2, custoAnual: null, semCusto: 'POUCOS_POSTOS' }] },
+            { ano: 2027, diretorias: [{ diretoria: '4.3', nome: 'Diretoria Administrativa Financeira', postos: 2, custoAnual: null, semCusto: 'SO_POSTOS' }] },
             { ano: 2028, diretorias: [{ diretoria: '4.3', postos: 3, custoAnual: '291234.93', semCusto: null }] },
           ],
         },
@@ -195,8 +195,15 @@ describe('analisarQuadroPessoal', () => {
     const r = await analisarQuadroPessoal(ctx([IA, CONSULTA, POSICOES]), {}, deps());
     expect(r).toMatchObject({ ok: true, valor: { quadro: null, admCentral: { exercicios: [{ ano: 2027 }, { ano: 2028 }] } } });
     expect(await obterQuadroAdmCentral(ctx([IA, CONSULTA]), null, { admCentral: admFalsa })).toBeNull();
-    // Exercício pedido que não existe: o mais recente.
-    expect(await obterQuadroAdmCentral(ctx([POSICOES]), 1999, { admCentral: admFalsa })).toMatchObject({ ano: 2028, anos: [2028, 2027] });
+    // Exercício pedido que não existe: a tela mostra o mais recente e avisa; a ação recusa.
+    expect(await obterQuadroAdmCentral(ctx([POSICOES]), 1999, { admCentral: admFalsa })).toMatchObject({ ano: 2028, anos: [2028, 2027], anoPedidoAusente: 1999 });
+    expect(await analisarQuadroPessoal(ctx([IA, CONSULTA, POSICOES]), { ano: '1999' }, deps())).toEqual({
+      ok: false,
+      erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.EXERCICIO_INEXISTENTE(1999) }],
+    });
+    // Erro de domínio da porta do orc (exercício excluído entre as leituras): a seção some, sem derrubar.
+    const quebrada: LeituraAdmCentral = { ...admFalsa, listarPosicoes: async () => Promise.reject(new ErroDominio('orc.exercicio_inexistente', 'x')) };
+    expect(await obterQuadroAdmCentral(ctx([POSICOES]), null, { admCentral: quebrada })).toBeNull();
   });
 
   it('parte 2 com o orc real e o banco sem exercício: a seção some', async () => {
@@ -211,7 +218,7 @@ describe('analisarQuadroPessoal', () => {
   it('sem a permissão do caso, sem consultar os empregados ou com filtro inválido: a mensagem certa, sem ler nem chamar a IA', async () => {
     const n = filtrosVistos.length;
     expect(await analisarQuadroPessoal(ctx([CONSULTA, EMPREGADOS]), {}, deps())).toMatchObject({ ok: false });
-    expect(await analisarQuadroPessoal(ctx([IA, CONSULTA]), {}, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.SEM_EMPREGADOS_ORC }] });
+    expect(await analisarQuadroPessoal(ctx([IA, CONSULTA]), {}, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.SEM_ACESSO }] });
     expect(await analisarQuadroPessoal(ctx(), { tipo: 'OUTRO' }, deps())).toEqual({ ok: false, erros: [{ campo: '_', mensagem: MENSAGENS_QUADRO.FILTROS_INVALIDOS }] });
     expect(await analisarQuadroPessoal(ctx(), { proposta: 'x'.repeat(101) }, deps())).toMatchObject({ ok: false });
     expect(filtrosVistos.length).toBe(n);

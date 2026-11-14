@@ -20,6 +20,7 @@ export const TEXTOS_QUADRO = {
   CARGOS: 'Postos por cargo',
   LIMITE: 'Há mais propostas com pessoal além das analisadas aqui (no máximo 40). Use os filtros para analisar as demais.',
   ADM_CENTRAL: 'Administração Central: posições orçadas por diretoria',
+  ESCOPO: 'só as posições do seu escopo de acesso',
   DIRETORIA: 'Diretoria',
   EM_DEZEMBRO: 'Ativos em dezembro',
   CUSTO_ANUAL: 'Custo anual',
@@ -29,6 +30,7 @@ export const TEXTOS_QUADRO = {
     POUCOS_POSTOS: 'Omitido: menos de 3 postos',
     CUSTO_INCOMPLETO: 'Omitido: custo de algum posto não calculado ou com aviso',
     CUSTOS_IGUAIS: 'Omitido: todos os postos com o mesmo custo',
+    SO_POSTOS: 'Só no exercício escolhido',
   },
 } as const;
 
@@ -135,7 +137,7 @@ export function TabelaAdmCentral({ quadro, prefixo = 'adm' }: { quadro: QuadroAd
         <table key={e.ano} id={`${prefixo}-${e.ano}`}>
           <caption>
             Exercício {e.ano} ({e.situacao}): {e.postos} {TEXTOS_QUADRO.POSTOS.toLowerCase()}, {e.postosDezembro} em dezembro ·{' '}
-            {TEXTOS_QUADRO.CUSTO_ANUAL_TOTAL}: {moeda(e.custoAnualExibido)}
+            {TEXTOS_QUADRO.CUSTO_ANUAL_TOTAL}: {moeda(e.custoAnualExibido)} · {TEXTOS_QUADRO.ESCOPO}
           </caption>
           <thead>
             <tr>

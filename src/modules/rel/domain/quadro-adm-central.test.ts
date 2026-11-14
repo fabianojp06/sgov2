@@ -61,4 +61,30 @@ describe('agregarAdmCentral', () => {
     const sem = agregarAdmCentral([ex(2028, [pos('4.3.0', 2, null), pos('4.3.1', 2, null)], false)], nome);
     expect(sem.exercicios[0]!.diretorias[0]).toMatchObject({ custoAnual: null, semCusto: 'SEM_PERMISSAO' });
   });
+
+  it('revisão 12.12: o custo sai só no exercício escolhido; o anterior vai só com os postos (a diferença daria o custo de quem entrou)', () => {
+    const q = agregarAdmCentral(
+      [
+        ex(2027, [pos('4.3.0', 3, '280000.00'), pos('4.3.1', 1, '90000.00')]),
+        ex(2028, [pos('4.3.0', 3, '280000.00'), pos('4.3.1', 1, '90000.00'), pos('4.3.2', 1, '95000.00')]),
+      ],
+      nome,
+    );
+    expect(q.exercicios.map((e) => [e.ano, e.postos, e.custoAnualExibido, e.diretorias[0]!.semCusto])).toEqual([
+      [2027, 4, null, 'SO_POSTOS'],
+      [2028, 5, '465000.00', null],
+    ]);
+    expect(JSON.stringify(q)).not.toContain('370000');
+  });
+
+  it('salários iguais com meses diferentes: o custo por pessoa-mês é igual, então omitido', () => {
+    // 2 pessoas o ano todo e 1 de janeiro a junho, todas a 10.000 por mês.
+    const q = agregarAdmCentral([ex(2028, [pos('4.3.0', 2, '240000.00'), pos('4.3.1', 1, '60000.00', { mesSaida: 6 })])], nome);
+    expect(q.exercicios[0]!.diretorias[0]).toMatchObject({ postos: 3, custoAnual: null, semCusto: 'CUSTOS_IGUAIS' });
+  });
+
+  it('posição fora da raiz 4 não entra na Administração Central', () => {
+    const q = agregarAdmCentral([ex(2028, [pos('9.1', 5, '1.00'), pos('4', 1, '1.00')])], nome);
+    expect(q.exercicios[0]!.diretorias.map((d) => d.diretoria)).toEqual(['4']);
+  });
 });

@@ -5,7 +5,8 @@ import { listarEmpregados, listarExercicios, listarPosicoes } from '@/modules/or
 import { prisma } from '@/shared/db';
 import type { ContextoRequisicao } from '@/shared/authz';
 import { ErroIA, servicoIA, type ServicoIA } from '@/shared/ia';
-import { falha, ok, type Resultado } from '@/shared/kernel';
+import { ErroPermissao } from '@/shared/authz';
+import { ErroDominio, falha, ok, type Resultado } from '@/shared/kernel';
 import {
   agregarQuadro,
   conferirAnalise,
@@ -36,6 +37,8 @@ export const PERMISSAO_POSICOES = 'orc.posicoes:consultar';
 
 export const MENSAGENS_QUADRO = {
   SEM_EMPREGADOS_ORC: 'O seu perfil não consulta os empregados das propostas (Cadastros › Propostas › Empregados). Contate o Administrador.',
+  SEM_ACESSO: 'O seu perfil não consulta os empregados das propostas nem as posições orçadas da Administração Central. Contate o Administrador.',
+  EXERCICIO_INEXISTENTE: (ano: number) => `Exercício ${ano} não encontrado na Administração Central.`,
   SEM_PESSOAL: 'Nenhuma proposta com empregados lançados para os filtros escolhidos.',
   SEM_DADOS: 'Nada para analisar: nenhuma proposta com empregados nem posição orçada da Administração Central para os filtros escolhidos.',
   FILTROS_INVALIDOS: 'Filtros inválidos. Revise o tipo, o texto da proposta e o exercício.',
@@ -108,7 +111,8 @@ export async function obterQuadroPessoal(ctx: ContextoRequisicao, filtros: Filtr
   return ok(agregarQuadro(entrada, blocos.length >= MAXIMO_LEITURA));
 }
 
-export type TelaAdmCentral = { anos: readonly number[]; ano: number; quadro: QuadroAdmCentral };
+/** `anoPedidoAusente`: o exercício pedido não existe; a tela mostra o mais recente e avisa. */
+export type TelaAdmCentral = { anos: readonly number[]; ano: number; anoPedidoAusente: number | null; quadro: QuadroAdmCentral };
 
 function nomesDosCcs(raizes: readonly NoCentroCusto[]): Map<string, string> {
   const nomes = new Map<string, string>();
@@ -127,26 +131,31 @@ function nomesDosCcs(raizes: readonly NoCentroCusto[]): Map<string, string> {
 export async function obterQuadroAdmCentral(ctx: ContextoRequisicao, ano: number | null, deps: Partial<Pick<DepsQuadro, 'admCentral'>> = {}): Promise<TelaAdmCentral | null> {
   if (!ctx.permissoes.has(PERMISSAO_POSICOES)) return null;
   const leitura = deps.admCentral ?? ADM_CENTRAL_REAL;
-  const exercicios = await leitura.listarExercicios(ctx);
-  const atual = (ano === null ? undefined : exercicios.find((e) => e.ano === ano)) ?? [...exercicios].sort((a, b) => b.ano - a.ano)[0];
-  if (!atual) return null;
-  const anterior = exercicios.find((e) => e.ano === atual.ano - 1);
-  const entrada: ExercicioEntrada[] = [];
-  for (const e of anterior ? [anterior, atual] : [atual]) {
-    const l = await leitura.listarPosicoes(ctx, e.id);
-    entrada.push({
+  try {
+    const exercicios = await leitura.listarExercicios(ctx);
+    const pedido = ano === null ? undefined : exercicios.find((e) => e.ano === ano);
+    const atual = pedido ?? [...exercicios].sort((a, b) => b.ano - a.ano)[0];
+    if (!atual) return null;
+    const anterior = exercicios.find((e) => e.ano === atual.ano - 1);
+    const lidos = await Promise.all((anterior ? [anterior, atual] : [atual]).map(async (e) => ({ e, l: await leitura.listarPosicoes(ctx, e.id) })));
+    const entrada: ExercicioEntrada[] = lidos.map(({ e, l }) => ({
       ano: e.ano,
       situacao: e.rotuloSituacao,
       veSalario: l.veSalario,
       posicoes: l.posicoes.map((p) => ({ cc: p.cc, quantidade: p.quantidade, mesInicio: p.mesInicio, mesSaida: p.mesSaida, valorAnual: p.valorAnual })),
-    });
+    }));
+    const nomes = nomesDosCcs(await leitura.centrosCusto());
+    return {
+      anos: exercicios.map((e) => e.ano).sort((a, b) => b - a),
+      ano: atual.ano,
+      anoPedidoAusente: ano !== null && !pedido ? ano : null,
+      quadro: agregarAdmCentral(entrada, (cc) => nomes.get(cc) ?? cc),
+    };
+  } catch (x) {
+    // Exercício excluído entre as leituras, escopo vazio etc.: a seção some, sem derrubar a página (revisão 12.12).
+    if (x instanceof ErroDominio || x instanceof ErroPermissao) return null;
+    throw x;
   }
-  const nomes = nomesDosCcs(await leitura.centrosCusto());
-  return {
-    anos: exercicios.map((e) => e.ano).sort((a, b) => b - a),
-    ano: atual.ano,
-    quadro: agregarAdmCentral(entrada, (cc) => nomes.get(cc) ?? cc),
-  };
 }
 
 const temPosicoes = (a: TelaAdmCentral | null) => a !== null && a.quadro.exercicios.some((e) => e.postos > 0);
@@ -163,13 +172,15 @@ export async function analisarQuadroPessoal(ctx: ContextoRequisicao, bruto: unkn
   if (!ctx.permissoes.has(PERMISSAO_IA)) return erro(new ErroIA('ia.sem_permissao').message);
   const filtros = lerFiltrosQuadro(bruto);
   if (!filtros) return erro(MENSAGENS_QUADRO.FILTROS_INVALIDOS);
-  if (!ctx.permissoes.has(PERMISSAO_EMPREGADOS) && !ctx.permissoes.has(PERMISSAO_POSICOES)) return erro(MENSAGENS_QUADRO.SEM_EMPREGADOS_ORC);
+  if (!ctx.permissoes.has(PERMISSAO_EMPREGADOS) && !ctx.permissoes.has(PERMISSAO_POSICOES)) return erro(MENSAGENS_QUADRO.SEM_ACESSO);
   const deps = resolver(depsParciais);
   // Caso desligado ou teto estourado: recusa antes da leitura, que é a parte cara (revisão 12.12, DoS).
   if (!(await deps.ia.disponivel(ctx, CASO_QUADRO_PESSOAL))) return erro(new ErroIA('ia.desligada').message);
   const lido = ctx.permissoes.has(PERMISSAO_EMPREGADOS) ? await obterQuadroPessoal(ctx, filtros, deps) : null;
   const quadro = lido?.ok && totalDePostos(lido.valor) > 0 ? lido.valor : null;
   const adm = await obterQuadroAdmCentral(ctx, filtros.ano ? Number(filtros.ano) : null, deps);
+  // Na ação, exercício inexistente é recusado (a tela avisa e mostra o mais recente).
+  if (adm?.anoPedidoAusente) return erro(MENSAGENS_QUADRO.EXERCICIO_INEXISTENTE(adm.anoPedidoAusente));
   const admCentral = temPosicoes(adm) ? adm!.quadro : null;
   if (!quadro && !admCentral) return erro(MENSAGENS_QUADRO.SEM_DADOS);
 
