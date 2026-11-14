@@ -221,6 +221,7 @@ model VersaoProposta {
   viagens     ViagemProposta[]
   bens        BemProposta[]
   rateio      RateioProposta?
+  snapshot    SnapshotVersao?
 
   @@unique([propostaId, numero])
   @@index([unidadeId])
@@ -422,4 +423,23 @@ model RateioCelulaProposta {
   @@unique([rateioId, conta, competencia])
   @@index([unidadeId])
   @@map("orc_rateio_celula")
+}
+
+// Snapshot da versão oficializada (US-079; plano do P26, D-P26-6; RN_WA01_004): o Valor Global e os totais por
+// conta analítica no momento da aprovação, imutáveis. CHECKs e RLS na migration.
+model SnapshotVersao {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String         @map("unidade_id") @db.Uuid
+  unidade          Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  versaoPropostaId String         @unique @map("versao_proposta_id") @db.Uuid
+  versaoProposta   VersaoProposta @relation(fields: [versaoPropostaId], references: [id], onDelete: Restrict)
+  valorGlobal      Decimal        @map("valor_global") @db.Decimal(15, 2)
+  contas           Json
+  /// RN_TAX_03: as alíquotas congeladas na oficialização (id, nome, percentual, desde).
+  impostos         Json           @default("[]")
+  geradoPor        String         @map("gerado_por") @db.Uuid
+  geradoEm         DateTime       @default(dbgenerated("clock_timestamp()")) @map("gerado_em") @db.Timestamptz(6)
+
+  @@index([unidadeId])
+  @@map("orc_snapshot_versao")
 }

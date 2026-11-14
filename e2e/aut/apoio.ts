@@ -62,6 +62,9 @@ export const USUARIOS = {
   // Proposta de TP e abas (e2e/orc/propostas.spec.ts, P17 a P25): o spec entra uma vez por passo, e o limite de
   // login por usuário (20 em 5 minutos) estourava quando ele dividia o orc.menu com os outros specs.
   propostas: { login: 'orc.propostas', nome: 'E2E Orçamentista Propostas', perfil: 'ORCAMENTISTA' },
+  // Aprovador da oficialização das propostas (e2e/orc/propostas.spec.ts, US-079): titular da alçada WA01 que o
+  // spec cria e apaga; próprio, para não dividir o limite de login com o gfin.orc.
+  gfinPropostas: { login: 'gfin.propostas', nome: 'E2E Gestor Financeiro Propostas', perfil: 'GFIN' },
 } as const satisfies Record<string, { login: string; nome: string; perfil: string; ccEscopo?: string }>;
 
 export async function entrar(page: Page, login: string, senha: string): Promise<void> {

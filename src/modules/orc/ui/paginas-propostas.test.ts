@@ -15,11 +15,14 @@ const caso = vi.hoisted(() => ({
   ccsLivres: [] as { classificacao: string; descricao: string }[],
   chamadasCcs: 0,
   chamadasDuplicar: [] as string[],
+  envio: { disponivel: true } as { disponivel: true } | { disponivel: false; motivo: string },
+  situacaoPrimeira: 'RASCUNHO' as string,
 }));
 vi.mock('@/modules/orc', async (original) => {
   const { exigir } = await import('@/shared/authz');
   return {
     ...(await original<typeof import('@/modules/orc')>()),
+    disponibilidadeDoEnvio: async () => caso.envio,
     listarPropostas: async (ctx: ContextoRequisicao) => {
       exigir(ctx, 'orc.propostas', 'consultar');
       return [
@@ -33,7 +36,7 @@ vi.mock('@/modules/orc', async (original) => {
           fim: '2027-12-31',
           categoria: 'CONSOLIDADA',
           cc: '9.1',
-          situacao: 'RASCUNHO',
+          situacao: caso.situacaoPrimeira,
           versaoAtual: 1,
           excluivel: true,
           valorGlobal: Dinheiro.zero(),
@@ -113,7 +116,7 @@ describe('página das propostas de TP', () => {
     contexto = ctx(ORCAMENTISTA);
     const h = await html();
     expect(h).toContain(
-      '<th scope="row">TP-2027/001</th><td>Termo de Parceria</td><td>Apoio à gestão orçamentária</td><td>Consolidada</td><td>01/01/2027 a 31/12/2027</td><td>9.1</td><td>1</td><td><span class="selo">Rascunho</span></td><td>0,00</td>',
+      '<th scope="row">TP-2027/001</th><td>Termo de Parceria</td><td>Apoio à gestão orçamentária</td><td>Consolidada</td><td>01/01/2027 a 31/12/2027</td><td>9.1</td><td>1</td><td><span class="selo" style="border-color:#59636e;color:#59636e">Rascunho</span></td><td>0,00</td>',
     );
     expect(h).toContain('Excluir a proposta TP-2027/001');
     expect(h).toContain('Nova proposta');
@@ -145,7 +148,7 @@ describe('página das propostas de TP', () => {
     contexto = ctx(ORCAMENTISTA);
     const h = await html();
     expect(h).toContain('<th scope="col">Versão</th>');
-    expect(h).toMatch(/<th scope="row">TP-2027\/002<\/th>(<td>[^<]*<\/td>){5}<td>2<\/td><td><span class="selo">Oficializado<\/span>/);
+    expect(h).toMatch(/<th scope="row">TP-2027\/002<\/th>(<td>[^<]*<\/td>){5}<td>2<\/td><td><span class="selo" style="border-color:#1a7f37;color:#1a7f37">Oficializado<\/span>/);
     expect(h).toContain('Nova versão da proposta TP-2027/001');
     expect(h).not.toContain('Nova versão da proposta TP-2027/002');
     expect(h).not.toContain('Excluir a proposta TP-2027/002');
@@ -254,6 +257,26 @@ describe('página das propostas de TP', () => {
     expect(await html()).toContain('>Totalizadores da proposta TP-2027/001</a>');
     contexto = ctx(['orc.propostas:consultar']);
     expect(await html()).not.toContain('Totalizadores da proposta');
+  });
+
+  it('avançar no Rascunho e enviar em Elaboração, com o badge colorido; sem aprovador, o motivo no lugar do botão (US-079)', async () => {
+    contexto = ctx(['orc.propostas:consultar', 'orc.propostas:incluir']);
+    caso.situacaoPrimeira = 'RASCUNHO';
+    caso.envio = { disponivel: true };
+    const r = await html();
+    expect(r).toContain('Avançar a proposta TP-2027/001 para Em Elaboração');
+    expect(r).not.toContain('Enviar a proposta TP-2027/001 para aprovação');
+    expect(r).toContain('color:#1a7f37');
+    caso.situacaoPrimeira = 'EM_ELABORACAO';
+    const e = await html();
+    expect(e).toContain('Enviar a proposta TP-2027/001 para aprovação');
+    expect(e).toContain('color:#0969da');
+    caso.envio = { disponivel: false, motivo: 'Operação indisponível: sem aprovador.' };
+    const s = await html();
+    expect(s).not.toContain('Enviar a proposta TP-2027/001 para aprovação');
+    expect(s).toContain('Operação indisponível: sem aprovador.');
+    caso.situacaoPrimeira = 'RASCUNHO';
+    caso.envio = { disponivel: true };
   });
 
   it('com orc.rateio:consultar, o link para o Rateio/ISS em toda proposta (US-073)', async () => {

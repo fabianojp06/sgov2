@@ -29,6 +29,9 @@ const CC = '9.1';
 const NUMERO_COPIA = 'TP-E2E-002';
 const CC_COPIA = '9.2';
 const usuario = USUARIOS.propostas;
+// A seed traz o ISS sem alíquota, e a oficialização exige a alíquota vigente no início da proposta (RN_TAX_03):
+// o passo 3i cadastra uma, em competência própria deste spec, e o afterAll a apaga.
+const COMPETENCIA_ISS = '2026-12-01';
 const linhaDa = (page: Page, numero = NUMERO) => page.getByRole('row', { name: new RegExp(`^${numero} `) });
 // Colunas de dados da linha (o número é o cabeçalho da linha): Tipo, Objeto, Categoria, Vigência, CC, Versão.
 const versaoDa = (page: Page, numero = NUMERO) => linhaDa(page, numero).getByRole('cell').nth(5);
@@ -43,6 +46,10 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query('BEGIN');
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
+      await cliente.query(`DELETE FROM apr_solicitacao WHERE unidade_id IN ${unidade}`);
+      await cliente.query(`DELETE FROM orc_snapshot_versao WHERE unidade_id IN ${unidade}`);
+      await cliente.query(`DELETE FROM aliquota_imposto WHERE competencia = '${COMPETENCIA_ISS}' AND imposto_id = (SELECT id FROM imposto WHERE nome = 'ISS')`);
+      await cliente.query(`DELETE FROM adm_alcada_aprovacao WHERE titular_id = (SELECT id FROM usuario WHERE login = '${USUARIOS.gfinPropostas.login}')`);
       await cliente.query(`DELETE FROM orc_rateio WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_bem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_viagem WHERE unidade_id IN ${unidade}`);
@@ -304,6 +311,69 @@ test.describe.serial('proposta de TP', () => {
     const tabela = page.getByRole('table', { name: new RegExp(`^Cronograma de desembolso da proposta ${NUMERO_COPIA}`) });
     await expect(tabela.getByRole('row', { name: /^Parcela 12 – 12\/2027 / })).toContainText('100,00%');
     await expect(tabela.getByRole('row', { name: /^Total de 2027 / })).toBeVisible();
+  });
+
+  test('3i. avançar, enviar, rejeitar na Central de Tarefas, reenviar e oficializar (WA01)', async ({ page }) => {
+    // A alçada WA01 do spec: o GFIN próprio de titular e a DIREX de substituta (o afterAll a apaga).
+    const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
+    await cliente.connect();
+    try {
+      await cliente.query(
+        `INSERT INTO adm_alcada_aprovacao (fluxo, titular_id, substituto_id, criada_em)
+         SELECT 'WA01', t.id, s.id, now() FROM usuario t, usuario s WHERE t.login = $1 AND s.login = $2`,
+        [USUARIOS.gfinPropostas.login, USUARIOS.direx.login],
+      );
+      await cliente.query(
+        `INSERT INTO aliquota_imposto (imposto_id, competencia, percentual) SELECT id, $1::date, 5 FROM imposto WHERE nome = 'ISS' ON CONFLICT DO NOTHING`,
+        [COMPETENCIA_ISS],
+      );
+    } finally {
+      await cliente.end();
+    }
+
+    await entrarNaTelaPrincipal(page, usuario.login);
+    // O envio exige todas as competências do rateio declaradas (RN_WA01_002): o passo 3g declarou só janeiro.
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Rateio/ISS da proposta ${NUMERO_COPIA}` }).click();
+    await page.getByRole('button', { name: 'Replicar o primeiro mês da conta 4.1.1.5.015' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(page.getByText('Primeiro mês da conta 4.1.1.5.015 replicado para os meses seguintes.')).toBeVisible();
+    await page.goto('/orc/propostas');
+    const enviar = async () => {
+      await page.getByRole('button', { name: `Enviar a proposta ${NUMERO_COPIA} para aprovação` }).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+      await expect(page.getByText(`Proposta do TP ${NUMERO_COPIA} enviada para oficialização.`)).toBeVisible();
+    };
+    await page.getByRole('button', { name: `Avançar a proposta ${NUMERO_COPIA} para Em Elaboração` }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(page.getByText(`Proposta do TP ${NUMERO_COPIA} em Elaboração.`)).toBeVisible();
+    await enviar();
+    await expect(linhaDa(page, NUMERO_COPIA)).toContainText('Em Aprovação');
+
+    const gfin = await page.context().browser()!.newContext();
+    const pg2 = await gfin.newPage();
+    await entrarNaTelaPrincipal(pg2, USUARIOS.gfinPropostas.login);
+    await pg2.goto('/apr/tarefas');
+    await pg2.getByRole('link', { name: new RegExp(`^TP ${NUMERO_COPIA} · Versão`) }).click();
+    await pg2.getByLabel(/Justificativa da recusa/).fill('Falta declarar todos os meses do rateio.');
+    await pg2.getByRole('button', { name: 'Confirmar rejeição' }).click();
+    await expect(pg2.getByText(new RegExp(`Solicitação "TP ${NUMERO_COPIA} · Versão \\d+" rejeitada.`))).toBeVisible();
+
+    await page.goto('/orc/propostas');
+    await expect(linhaDa(page, NUMERO_COPIA)).toContainText('Em Elaboração');
+    await enviar();
+
+    await pg2.goto('/apr/tarefas?situacao=EM_APROVACAO');
+    await pg2.getByRole('link', { name: new RegExp(`^TP ${NUMERO_COPIA} · Versão`) }).click();
+    await expect(pg2.getByText('Valor Global')).toBeVisible();
+    await pg2.getByRole('button', { name: new RegExp(`^Aprovar: TP ${NUMERO_COPIA}`) }).click();
+    await pg2.getByRole('alertdialog').getByRole('button', { name: 'Sim' }).click();
+    await expect(pg2.getByText(new RegExp(`Solicitação "TP ${NUMERO_COPIA} · Versão \\d+" aprovada.`))).toBeVisible();
+    await gfin.close();
+
+    await page.goto('/orc/propostas');
+    await expect(linhaDa(page, NUMERO_COPIA)).toContainText('Oficializado');
+    await expect(page.getByRole('button', { name: `Enviar a proposta ${NUMERO_COPIA} para aprovação` })).toHaveCount(0);
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
