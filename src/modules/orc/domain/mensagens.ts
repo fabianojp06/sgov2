@@ -300,6 +300,7 @@ export const MENSAGENS_ORC = {
   // Totalizadores da proposta (US-074; UC03.02; plano do P23).
   TOTALIZADOR_SEM_DESPESA: 'Nenhuma despesa localizada para esta versão do projeto.',
   TOTALIZADOR_SEM_PESSOAL: 'O total não inclui o custo do pessoal, que é visível só para quem lança os empregados.',
+  TOTALIZADOR_REALIZADO_FORA: (contas: readonly string[]) => `Há realizado em conta fora do plano ativo, que não entra na árvore: ${contas.join(', ')}.`,
   // Rateio e ISS da proposta (US-073; UC03.03; plano do P24).
   RATEIO_SINTETICA_OBRIGATORIA: 'Escolha a conta sintética mandante, que dá a base do rateio.',
   RATEIO_SINTETICA_INVALIDA: 'Escolha uma conta sintética ativa do plano de contas.',

@@ -10,6 +10,8 @@ import type { DepsOrc } from './deps';
 import { incluirEmpregado } from './empregados';
 import { listarMetas } from './metas';
 import { criarProposta, listarPropostas, novaVersaoProposta } from './propostas';
+import { montarArquivoRealizado } from './planilhas-teste';
+import { carregarRealizado } from './realizado';
 import { obterTotalizadores, propostasParaTotalizar } from './totalizadores';
 import { incluirTeto, incluirViagem } from './viagens';
 
@@ -209,5 +211,36 @@ describe('obterTotalizadores (UC03.02)', () => {
     expect(await obterTotalizadores(await ctx(), '00000000-0000-4000-8000-000000000000', comDeps())).toBeNull();
     expect((await propostasParaTotalizar(await ctx(), comDeps())).map((x) => x.id)).toContain(p.id);
     await expect(obterTotalizadores(await ctx(['orc.propostas:consultar']), p.id, comDeps())).rejects.toThrow();
+  });
+
+  it('o realizado carregado (US-085, D-P33-5) entra por conta, com saldo e semáforo; sem ver o pessoal, as contas de pessoal ficam fora', async () => {
+    const p = await proposta();
+    await lancarTudo(p.id);
+    const carga = await carregarRealizado(
+      await ctx([...TODAS, 'orc.realizado:executar']),
+      { propostaId: p.id, arquivo: await montarArquivoRealizado([['4.1.1.5.005', '2027-05', 1900], ['4.1.1.1.001', '2027-03', 500], ['4.1.1.1.003', '2027-04', 70]]) },
+      comDeps(),
+    );
+    exigirOk(carga);
+    const folha = (t: Awaited<ReturnType<typeof obterTotalizadores>>, conta: string) => {
+      const achar = (nos: readonly NonNullable<typeof t>['arvore'][number][]): NonNullable<typeof t>['arvore'][number] | undefined =>
+        nos.map((n) => (n.classificacao === conta ? n : achar(n.filhos))).find(Boolean);
+      return achar(t!.arvore);
+    };
+    const t = await obterTotalizadores(await ctx(), p.id, comDeps());
+    const bens = folha(t, '4.1.1.5.005')!;
+    expect([bens.orcado.paraString(), bens.realizado.paraString(), bens.saldo.paraString(), bens.semaforo]).toEqual(['5500.00', '1900.00', '3600.00', 'VERDE']);
+    expect(folha(t, '4.1.1.1.001')!.realizado.paraString()).toBe('500.00');
+    // Conta só com realizado (sem orçado) também aparece, em vermelho (RN_TOT_04).
+    const ferias = folha(t, '4.1.1.1.003');
+    expect([ferias?.realizado.paraString(), ferias?.semaforo]).toEqual(['70.00', 'VERMELHO']);
+    const semPessoal = await obterTotalizadores(await ctx(CONSULTA), p.id, comDeps());
+    expect(folha(semPessoal, '4.1.1.1.001')).toBeUndefined();
+    // O transporte da viagem cai em 4.1.1.2.001 (encargos, raiz de pessoal): sem ver o pessoal, a conta sai da árvore nos
+    // dois lados, sem linha com orçado de um lado só (revisão 12.12); o total (Valor Global) não muda.
+    expect(folha(semPessoal, '4.1.1.2.001')).toBeUndefined();
+    expect(folha(t, '4.1.1.2.001')).toBeDefined();
+    expect(semPessoal!.total.paraString()).toBe('5600.00');
+    expect(folha(semPessoal, '4.1.1.5.005')!.realizado.paraString()).toBe('1900.00');
   });
 });
