@@ -37,6 +37,7 @@ vi.mock('@/modules/orc', async (original) => {
           versaoAtual: 1,
           excluivel: true,
           valorGlobal: Dinheiro.zero(),
+          valorGlobalSemPessoal: false,
           versao: 3,
         },
         {
@@ -53,6 +54,7 @@ vi.mock('@/modules/orc', async (original) => {
           versaoAtual: 2,
           excluivel: false,
           valorGlobal: Dinheiro.zero(),
+          valorGlobalSemPessoal: true,
           versao: 5,
         },
       ];
@@ -239,6 +241,12 @@ describe('página das propostas de TP', () => {
     expect(await html()).toContain('<a href="/orc/bens?proposta=TP-2027%2F001">Bens da proposta TP-2027/001</a>');
     contexto = ctx(['orc.propostas:consultar']);
     expect(await html()).not.toContain('Bens da proposta');
+  });
+
+  it('o Valor Global sem o pessoal vem com o aviso (D-P23-5, revisão 12.12)', async () => {
+    contexto = ctx(['orc.propostas:consultar']);
+    const h = await html();
+    expect(h.split('sem o custo do pessoal, visível só para quem lança os empregados').length - 1).toBe(1);
   });
 
   it('com orc.totalizadores:consultar, o link para os totalizadores em toda proposta (US-074)', async () => {

@@ -186,8 +186,10 @@ describe('obterTotalizadores (UC03.02)', () => {
     expect(t.total.paraString()).toBe('5600.00');
     const lista = await listarPropostas(consulta, comDeps());
     expect(lista.find((x) => x.id === p.id)?.valorGlobal.paraString()).toBe('5600.00');
+    expect(lista.find((x) => x.id === p.id)?.valorGlobalSemPessoal).toBe(true);
     const completa = await listarPropostas(await ctx(), comDeps());
     expect(completa.find((x) => x.id === p.id)?.valorGlobal.paraString()).toBe('80600.00');
+    expect(completa.find((x) => x.id === p.id)?.valorGlobalSemPessoal).toBe(false);
   });
 
   it('o Valor Global aparece também nas metas (D-P23-6)', async () => {

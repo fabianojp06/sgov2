@@ -50,6 +50,8 @@ export type BlocoMetas = {
   versaoCapa: number;
   /** Sempre calculado (§6.2): zero até existirem lançamentos (US-070 a 072). */
   valorGlobal: Dinheiro;
+  /** O Valor Global saiu sem o custo do pessoal, que quem pede não vê (D-P23-5). */
+  valorGlobalSemPessoal: boolean;
   /** Soma das metas ativas (RN0149). */
   totalMetas: Dinheiro;
   /** Valor Global − total das metas (RN0142, D-P19-4) [PROVISÓRIO]. */
@@ -132,7 +134,7 @@ export async function listarMetas(ctx: ContextoRequisicao, filtros: FiltrosMetas
     const metas = todas.filter((m) => contem(`${m.numero} ${m.nome}`, filtros.meta));
     if (filtros.meta?.trim() && metas.length === 0) continue;
     const totalMetas = Dinheiro.somarTodos(v.metas.map(daMeta).filter((m) => m.ativa).map((m) => m.valor));
-    const valorGlobal = globais.get(p.id) ?? Dinheiro.zero();
+    const valorGlobal = globais.get(p.id)?.valor ?? Dinheiro.zero();
     blocos.push({
       propostaId: p.id,
       numero: p.unidade.codigo,
@@ -144,6 +146,7 @@ export async function listarMetas(ctx: ContextoRequisicao, filtros: FiltrosMetas
       editavel: p.categoria === 'META' && SITUACOES_EDITAVEIS.includes(v.situacao),
       versaoCapa: p.versao,
       valorGlobal,
+      valorGlobalSemPessoal: globais.get(p.id)?.semPessoal ?? false,
       totalMetas,
       saldo: valorGlobal.subtrair(totalMetas),
       metas,

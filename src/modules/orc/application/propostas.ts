@@ -58,6 +58,8 @@ export type PropostaTela = {
   excluivel: boolean;
   /** Sempre calculado (§6.2, RN_TP_003): zero até existirem lançamentos (R4 seguinte). */
   valorGlobal: Dinheiro;
+  /** O Valor Global saiu sem o custo do pessoal, que quem pede não vê (D-P23-5). */
+  valorGlobalSemPessoal: boolean;
   /** Versão de concorrência da capa (para a exclusão). */
   versao: number;
 };
@@ -451,7 +453,8 @@ export async function listarPropostas(ctx: ContextoRequisicao, depsParciais: Par
         situacao: (p.versoes[0]?.situacao ?? 'RASCUNHO') as SituacaoProposta,
         versaoAtual: p.versoes[0]?.numero ?? 1,
         excluivel: todasEmRascunho(p.versoes),
-        valorGlobal: globais.get(p.id) ?? Dinheiro.zero(),
+        valorGlobal: globais.get(p.id)?.valor ?? Dinheiro.zero(),
+        valorGlobalSemPessoal: globais.get(p.id)?.semPessoal ?? false,
         versao: p.versao,
       }),
     )

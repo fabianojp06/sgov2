@@ -115,7 +115,10 @@ export function TelaPropostas({
                   <td>
                     <span className="selo">{ROTULO_SITUACAO_PROPOSTA[p.situacao]}</span>
                   </td>
-                  <td>{valorParaTela(p.valorGlobal)}</td>
+                  <td>
+                    {valorParaTela(p.valorGlobal)}
+                    {p.valorGlobalSemPessoal && <small role="note">{` ${MENSAGENS_ORC.VALOR_GLOBAL_SEM_PESSOAL}`}</small>}
+                  </td>
                   {acoesNaLinha && (
                     <td>
                       {verMetas(p) && <a href={`/orc/metas?proposta=${encodeURIComponent(p.numero)}`}>{`Metas da proposta ${p.numero}`}</a>}

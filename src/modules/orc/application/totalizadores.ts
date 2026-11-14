@@ -70,10 +70,21 @@ export async function totaisDaVersao(tx: TxCliente, deps: DepsOrc, versaoId: str
   return { porConta, total: Dinheiro.somarTodos([...porConta.values()]), avisos: [...avisos], semPessoal: !comPessoal && empregados.length > 0 };
 }
 
-/** O Valor Global da última versão de cada proposta (RN_TP_003, D-P23-6), na transação de quem chama. */
-export async function valoresGlobais(tx: TxCliente, deps: DepsOrc, versoes: ReadonlyMap<string, string>, comPessoal: boolean): Promise<Map<string, Dinheiro>> {
-  const r = new Map<string, Dinheiro>();
-  for (const [propostaId, versaoId] of versoes) r.set(propostaId, (await totaisDaVersao(tx, deps, versaoId, comPessoal)).total);
+/**
+ * O Valor Global da última versão de cada proposta (RN_TP_003, D-P23-6), na transação de quem chama. `semPessoal`
+ * diz quando o valor saiu sem o custo do pessoal, que quem pede não vê (D-P23-5): a tela avisa (revisão 12.12).
+ */
+export async function valoresGlobais(
+  tx: TxCliente,
+  deps: DepsOrc,
+  versoes: ReadonlyMap<string, string>,
+  comPessoal: boolean,
+): Promise<Map<string, { valor: Dinheiro; semPessoal: boolean }>> {
+  const r = new Map<string, { valor: Dinheiro; semPessoal: boolean }>();
+  for (const [propostaId, versaoId] of versoes) {
+    const t = await totaisDaVersao(tx, deps, versaoId, comPessoal);
+    r.set(propostaId, { valor: t.total, semPessoal: t.semPessoal });
+  }
   return r;
 }
 
