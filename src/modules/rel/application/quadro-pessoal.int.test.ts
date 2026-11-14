@@ -45,6 +45,7 @@ const empregado = (i: number, extra: Partial<EmpregadoTela> = {}): EmpregadoTela
   nome: NOMES[i] ?? null,
   cargoId: 'c1',
   cargo: 'C001 – Analista de orçamento',
+  vinculoFuncional: 'Setor de Orçamento',
   inicio: '2027-01',
   fim: '2027-12',
   dependentes: 0,
