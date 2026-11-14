@@ -106,6 +106,8 @@ export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';
 export { obterPreVisualizacao, type PreVisualizacao } from './application/pre-visualizacao';
 export { TelaPreVisualizacao } from './ui/tela-pre-visualizacao';
+export { obterConsolidado, type Consolidado } from './application/consolidado';
+export { TelaConsolidado } from './ui/tela-consolidado';
 export { TelaViagens, textoAvisoViagem, type AcoesViagens, type FormularioViagemAberto, type ValidacaoViagens } from './ui/tela-viagens';
 export { TelaPropostas, textoAvisoProposta } from './ui/tela-propostas';
 export { TelaPosicoes, textoAvisoPosicao } from './ui/tela-posicoes';

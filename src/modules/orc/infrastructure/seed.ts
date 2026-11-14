@@ -153,6 +153,19 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { GFIN: ['executar'] },
   },
   {
+    // Consolidado dos TPs (US-101; spec §6.7; plano do P31, D-P31-1) [PROVISÓRIO]: o único lugar com vários TPs
+    // juntos, só leitura, com a permissão própria e o acesso no Histórico. DIREX (§11.3) e GFIN.
+    codigo: 'orc.consolidado',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'Consolidado dos TPs',
+    rota: '/orc/consolidado',
+    ordem: 11,
+    ajuda: 'Mostra todos os Termos de Parceria juntos, com o Valor Global oficial, o realizado e o percentual de realização. Só leitura; cada consulta fica no Histórico.',
+    acoes: ['consultar'],
+    perfisPadrao: { DIREX: ['consultar'], GFIN: ['consultar'] },
+  },
+  {
     // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),
     // com o código no orc (D-P17-1). O Orçamentista escreve; GFIN, Auditor e DIREX leem (§11.3). Cada um
     // vê só as propostas dos TPs a que está vinculado (RLS, US-007).

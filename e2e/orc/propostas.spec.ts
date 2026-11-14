@@ -495,6 +495,15 @@ test.describe.serial('proposta de TP', () => {
     await expect(page.getByText(`Relatório de Pré-Visualização do TP · ${NUMERO_COPIA}`)).toBeVisible();
   });
 
+  test('3m. a DIREX, sem vínculo com o TP, vê a cópia oficializada no Consolidado dos TPs (US-101)', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, USUARIOS.direx.login);
+    await page.goto('/orc/consolidado');
+    const linha = page.getByRole('row', { name: new RegExp(`^${NUMERO_COPIA} – `) });
+    await expect(linha).toContainText('Oficializado');
+    await expect(linha).toContainText(/Versão \d+/);
+    await expect(page.getByRole('row', { name: /^Total dos \d+ TP\(s\) oficializado\(s\)/ })).toBeVisible();
+  });
+
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {
     await entrarNaTelaPrincipal(page, usuario.login);
     await page.goto('/orc/propostas');
