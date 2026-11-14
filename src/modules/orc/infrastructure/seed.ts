@@ -166,6 +166,19 @@ export const FUNCIONALIDADES_ORC: readonly DeclaracaoFuncionalidade[] = [
     perfisPadrao: { DIREX: ['consultar'], GFIN: ['consultar'] },
   },
   {
+    // Realizado por arquivo (US-085, parte 1; OxR V2; plano do P32, D-P32-7) [PROVISÓRIO]: a GFIN carrega o arquivo do
+    // TP (executar) e fecha a competência (aprovar, D-P32-4); DIREX e Auditor consultam.
+    codigo: 'orc.realizado',
+    modulo: 'ADM_CENTRAL',
+    grupo: GRUPO,
+    nome: 'Realizado',
+    rota: '/orc/realizado',
+    ordem: 12,
+    ajuda: 'Carrega o realizado do Termo de Parceria por arquivo (conta, competência e valor). Mês aberto é substituído; mês fechado não muda, e a diferença vira ajuste no mês aberto seguinte. Conta desconhecida fica como pendência.',
+    acoes: ['consultar', 'executar', 'aprovar'],
+    perfisPadrao: { GFIN: ['consultar', 'executar', 'aprovar'], DIREX: ['consultar'], AUDITOR: ['consultar'] },
+  },
+  {
     // Proposta de TP (US-065; plano do P17, D-P17-9) [PROVISÓRIO]: no menu Cadastros › Propostas (§6.7),
     // com o código no orc (D-P17-1). O Orçamentista escreve; GFIN, Auditor e DIREX leem (§11.3). Cada um
     // vê só as propostas dos TPs a que está vinculado (RLS, US-007).

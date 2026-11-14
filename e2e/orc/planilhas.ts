@@ -111,3 +111,13 @@ export async function montarPlanilha(abas: { pessoal?: readonly Linha[]; pacotes
   const buffer = Buffer.from(await wb.xlsx.writeBuffer());
   return { name: nome, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer };
 }
+
+/** Arquivo do realizado no layout PROVISÓRIO da US-085 (D-P32-1): aba Realizado com Conta, Competência e Valor. */
+export async function montarArquivoRealizado(linhas: readonly (readonly (string | number)[])[], nome = 'realizado.xlsx') {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Realizado');
+  ws.addRow(['Conta', 'Competência', 'Valor']);
+  for (const l of linhas) ws.addRow([...l]);
+  const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+  return { name: nome, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer };
+}

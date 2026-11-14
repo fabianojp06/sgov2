@@ -484,3 +484,86 @@ model LoteViagem {
   @@index([versaoPropostaId])
   @@map("orc_lote_viagem")
 }
+
+// Carga do realizado por arquivo (US-085, parte 1; plano do P32, D-P32-1 a D-P32-6; OxR V2, RN_OXR_005 e 007): uma por
+// arquivo aceito, com os totais. Só inserção. CHECKs e RLS na migration.
+model CargaRealizado {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId        String               @map("unidade_id") @db.Uuid
+  unidade          Unidade              @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  arquivo          String
+  linhas           Int
+  total            Decimal              @db.Decimal(15, 2)
+  pendencias       Int
+  ajustes          Int
+  competencias     String[]
+  carregadoPor     String               @map("carregado_por") @db.Uuid
+  carregadoEm      DateTime             @default(dbgenerated("clock_timestamp()")) @map("carregado_em") @db.Timestamptz(6)
+  realizados       RealizadoContaMes[]
+  ajustesFeitos    AjusteRealizado[]
+  pendenciasFeitas PendenciaRealizado[]
+
+  @@index([unidadeId, carregadoEm])
+  @@map("orc_realizado_carga")
+}
+
+// Realizado da conta analítica no mês (OxR V2, RealizadoContaMes; RN_OXR_003): a conta é a classificação do C1 (R5).
+// Mês aberto: a carga apaga e regrava (RN_OXR_005). RLS por unidade_id.
+model RealizadoContaMes {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId   String         @map("unidade_id") @db.Uuid
+  unidade     Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  conta       String
+  competencia DateTime       @db.Date
+  valor       Decimal        @db.Decimal(15, 2)
+  cargaId     String         @map("carga_id") @db.Uuid
+  carga       CargaRealizado @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+
+  @@unique([unidadeId, conta, competencia])
+  @@index([cargaId])
+  @@map("orc_realizado")
+}
+
+// Diferença enviada para um mês fechado, lançada no mês aberto seguinte com a origem (RN_OXR_006, AC07). Só inserção.
+model AjusteRealizado {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId             String         @map("unidade_id") @db.Uuid
+  unidade               Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  conta                 String
+  competenciaOrigem     DateTime       @map("competencia_origem") @db.Date
+  competenciaLancamento DateTime       @map("competencia_lancamento") @db.Date
+  valor                 Decimal        @db.Decimal(15, 2)
+  cargaId               String         @map("carga_id") @db.Uuid
+  carga                 CargaRealizado @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+
+  @@index([unidadeId, conta, competenciaOrigem])
+  @@index([cargaId])
+  @@map("orc_realizado_ajuste")
+}
+
+// Valor do arquivo sem conta analítica correspondente (RN_OXR_004, AC06; D-P32-6). A carga seguinte das mesmas
+// competências a substitui (D-P32-3).
+model PendenciaRealizado {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unidadeId   String         @map("unidade_id") @db.Uuid
+  unidade     Unidade        @relation(fields: [unidadeId], references: [id], onDelete: Restrict)
+  contaErp    String         @map("conta_erp")
+  competencia DateTime       @db.Date
+  valor       Decimal        @db.Decimal(15, 2)
+  motivo      String
+  cargaId     String         @map("carga_id") @db.Uuid
+  carga       CargaRealizado @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+
+  @@index([unidadeId, competencia])
+  @@index([cargaId])
+  @@map("orc_realizado_pendencia")
+}
+
+// Competência fechada para o realizado (RN_OXR_006; D-P32-4) [PROVISÓRIO]: vale para todos os TPs; sem reabertura.
+model CompetenciaFechada {
+  competencia DateTime @id @db.Date
+  fechadaPor  String   @map("fechada_por") @db.Uuid
+  fechadaEm   DateTime @default(dbgenerated("clock_timestamp()")) @map("fechada_em") @db.Timestamptz(6)
+
+  @@map("orc_competencia_fechada")
+}

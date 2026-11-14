@@ -2,6 +2,7 @@
 export { avancar, criar } from './application/acoes-exercicios';
 export { aprovarAcao, enviarAcao, pedirRevisaoAcao, rejeitarAcao } from './application/acoes-aprovacao';
 export { importarPlanilhaAcao } from './application/acoes-importacao';
+export { carregarRealizadoAcao, fecharCompetenciaAcao } from './application/acoes-realizado';
 export { definirTetoAcao, recalcularAcao } from './application/acoes-orcamento';
 export { alterarPacoteAcao, excluirPacoteAcao, incluirPacoteAcao } from './application/acoes-pacotes';
 export { sugerirContaCcAcao, sugerirJustificativaAcao, sugerirRecusaAcao } from './application/acoes-ia';
@@ -85,6 +86,17 @@ export {
   type TetoTela,
   type ViagemTela,
 } from './application/viagens';
+export {
+  carregarRealizado,
+  fecharCompetencia,
+  obterTelaRealizado,
+  propostasParaRealizado,
+  realizadoPorTp,
+  type AjusteDoRealizado,
+  type LinhaRealizado,
+  type RealizadoDoTp,
+  type ResumoCarga,
+} from './application/realizado';
 export { obterCronograma, propostasParaCronograma, type CronogramaTela, type FiltrosCronograma, type PropostaParaCronograma } from './application/cronograma';
 export { obterRateio, propostasParaRateio, type LinhaRateio, type PropostaParaRateio, type RateioTela } from './application/rateio';
 export { obterTotalizadores, propostasParaTotalizar, type PropostaParaTotalizar, type TotalizadoresTela } from './application/totalizadores';
@@ -101,6 +113,7 @@ export { TelaMetas, textoAvisoMeta, type FormularioMetaAberto, type PermissoesMe
 export { TelaEmpregados, textoAvisoEmpregado, type FinalizacaoPessoal, type FormularioPessoalAberto, type PermissoesPessoal } from './ui/tela-empregados';
 export { TelaQtdeEmpregados, textoAvisoQtde } from './ui/tela-qtde-empregados';
 export { TelaCronograma } from './ui/tela-cronograma';
+export { TelaRealizado } from './ui/tela-realizado';
 export { TelaRateio, textoAvisoRateio, type AcoesRateio, type PermissoesRateio } from './ui/tela-rateio';
 export { TelaTotalizadores } from './ui/tela-totalizadores';
 export { TelaBens, textoAvisoBem, type FormularioBemAberto } from './ui/tela-bens';

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoio';
+import { montarArquivoRealizado } from './planilhas';
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
 // do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
@@ -47,6 +48,9 @@ test.describe.serial('proposta de TP', () => {
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
       await cliente.query(`DELETE FROM apr_solicitacao WHERE unidade_id IN ${unidade}`);
+      for (const t of ['orc_realizado', 'orc_realizado_ajuste', 'orc_realizado_pendencia', 'orc_realizado_carga']) {
+        await cliente.query(`DELETE FROM ${t} WHERE unidade_id IN ${unidade}`);
+      }
       await cliente.query(`DELETE FROM orc_snapshot_versao WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM aliquota_imposto WHERE competencia = '${COMPETENCIA_ISS}' AND imposto_id = (SELECT id FROM imposto WHERE nome = 'ISS')`);
       await cliente.query(`DELETE FROM orc_lote_pessoal WHERE unidade_id IN ${unidade}`);
@@ -502,6 +506,36 @@ test.describe.serial('proposta de TP', () => {
     await expect(linha).toContainText('Oficializado');
     await expect(linha).toContainText(/Versão \d+/);
     await expect(page.getByRole('row', { name: /^Total dos \d+ TP\(s\) oficializado\(s\)/ })).toBeVisible();
+  });
+
+  test('3n. o GFIN carrega o realizado da cópia por arquivo; a conta desconhecida fica pendente e o Consolidado mostra o valor (US-085)', async ({ browser }) => {
+    // O vínculo do GFIN com o TP (o afterAll o apaga). Nenhuma competência é fechada aqui: o fechamento vale para todos.
+    const cliente = new pg.Client({ connectionString: urlMigratorDoTeste() });
+    await cliente.connect();
+    try {
+      await cliente.query(
+        `INSERT INTO usuario_unidade (usuario_id, unidade_id) SELECT u.id, d.id FROM usuario u, unidade d WHERE u.login = $1 AND d.codigo = $2 ON CONFLICT DO NOTHING`,
+        [USUARIOS.gfinPropostas.login, NUMERO_COPIA],
+      );
+    } finally {
+      await cliente.end();
+    }
+    const c = await browser.newContext();
+    const p = await c.newPage();
+    await entrarNaTelaPrincipal(p, USUARIOS.gfinPropostas.login);
+    await p.goto('/orc/realizado');
+    await p.getByRole('link', { name: new RegExp(`^Realizado do TP ${NUMERO_COPIA} – `) }).click();
+    await expect(p.getByText('O realizado deste TP ainda não foi carregado.')).toBeVisible();
+    await p.getByLabel(/^Arquivo do realizado/).setInputFiles(await montarArquivoRealizado([['4.1.1.7.003', '2027-01', 1500.25], ['9.9.9.9.999', '2027-01', 10]]));
+    await p.getByRole('button', { name: 'Carregar realizado' }).click();
+    await expect(p.getByRole('status')).toContainText(`Realizado do TP ${NUMERO_COPIA} carregado: 2 linha(s), total R$ 1.510,25.`);
+    await expect(p.getByRole('status')).toContainText('1 valor(es) sem conta correspondente no SGO (R$ 10,00) ficaram como pendência.');
+    await p.reload();
+    await expect(p.getByRole('table', { name: 'Realizado por competência' }).getByRole('row', { name: /^01\/2027 / })).toContainText('1.500,25');
+    await expect(p.getByText('Existem 1 valores do ERP sem conta correspondente no SGO (R$ 10,00).')).toBeVisible();
+    await p.goto('/orc/consolidado');
+    await expect(p.getByRole('row', { name: new RegExp(`^${NUMERO_COPIA} – `) })).toContainText('1.500,25');
+    await c.close();
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {

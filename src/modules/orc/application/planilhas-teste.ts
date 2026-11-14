@@ -75,3 +75,13 @@ export const linhaReceita = (tp: string, extra: Linha = {}): Linha => ({
   ...Object.fromEntries(MESES.map((m) => [m, 1000])),
   ...extra,
 });
+
+/** Arquivo do realizado no layout PROVISÓRIO (US-085, D-P32-1): aba Realizado, cabeçalho na linha 1. */
+export async function montarArquivoRealizado(linhas: readonly (readonly (string | number | null)[])[], nome = 'realizado.xlsx'): Promise<{ nome: string; conteudo: Uint8Array }> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Realizado');
+  ws.addRow(['Conta', 'Competência', 'Valor']);
+  for (const l of linhas) ws.addRow([...l]);
+  const buffer = await wb.xlsx.writeBuffer();
+  return { nome, conteudo: new Uint8Array(buffer as ArrayBuffer) };
+}

@@ -10,6 +10,7 @@ import { contextoAuditoria } from './calculo-linhas';
 import { cacheAnos, custoDoEmpregado } from './custo-empregado';
 import { carregarCargos } from './custo-posicao';
 import { resolverDeps, type DepsOrc } from './deps';
+import { realizadoPorUnidade } from './realizado';
 
 // Consolidado dos TPs (US-101; spec §6.7; plano do P31). O único lugar com vários TPs juntos: para quem tem
 // orc.consolidado, todos os TPs ativos, mesmo os que a pessoa não opera, pelo caminho emTodasAsUnidades
@@ -51,12 +52,14 @@ export async function obterConsolidado(ctx: ContextoRequisicao, depsParciais: Pa
           versoes: { orderBy: { numero: 'desc' }, select: { numero: true, situacao: true, snapshot: { select: { valorGlobal: true } } } },
         },
       });
+      // D-P32-8: o realizado carregado (US-085), carga + ajustes de todas as competências.
+      const realizados = await realizadoPorUnidade(tx, propostas.map((p) => p.unidadeId));
       const linhas = propostas
         .map((p): LinhaConsolidado => {
           const ultima = p.versoes[0];
           const oficial = p.versoes.find((v) => v.snapshot !== null);
           const orcado = oficial?.snapshot ? Dinheiro.de(oficial.snapshot.valorGlobal.toString()) : null;
-          const realizado = Dinheiro.zero();
+          const realizado = realizados.get(p.unidadeId) ?? Dinheiro.zero();
           return {
             numero: p.unidade.codigo,
             objeto: p.objeto,
@@ -100,7 +103,7 @@ export type ComparativoTp = {
   /** true se todo empregado tem custo calculado (> 0, sem aviso nem erro do motor). */
   pessoalCalculado?: boolean;
   metas: readonly { numero: string; valor: Dinheiro; ativa?: boolean }[];
-  /** Zero até a execução (F5), como no consolidado. */
+  /** O realizado carregado (US-085): carga + ajustes de todas as competências, como no consolidado. */
   realizado: Dinheiro;
 };
 
@@ -166,6 +169,7 @@ export async function obterComparativoTps(ctx: ContextoRequisicao, depsParciais:
         },
       });
       const anos = cacheAnos(await carregarCargos(tx, deps));
+      const realizados = await realizadoPorUnidade(tx, propostas.map((p) => p.unidadeId));
       const linhas: ComparativoTp[] = [];
       for (const p of propostas) {
         const v = p.versoes.find((x) => x.snapshot !== null) ?? p.versoes[0];
@@ -188,7 +192,7 @@ export async function obterComparativoTps(ctx: ContextoRequisicao, depsParciais:
           custosPessoaDistintos: somas.custosPessoaDistintos,
           pessoalCalculado: somas.pessoalCalculado,
           metas: metas.map((m) => ({ numero: m.numero, valor: Dinheiro.de(m.valor.toString()), ativa: m.status === 'ATIVO' })).sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true })),
-          realizado: Dinheiro.zero(),
+          realizado: realizados.get(p.unidadeId) ?? Dinheiro.zero(),
         });
       }
       return linhas.sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
