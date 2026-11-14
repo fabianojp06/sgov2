@@ -1,12 +1,12 @@
 import { instalarFuncionalidades, type DeclaracaoFuncionalidade } from '@/modules/adm/servidor';
 import type { Seed } from '@/shared/db';
 import { instalarCasosUsoIA } from '@/shared/ia';
-import { CASO_AJUDA_MANUAL } from '../application/ia-casos';
+import { CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL } from '../application/ia-casos';
 
 // Funcionalidades do rel (contrato C6), no menu Relatórios. A primeira é a conferência da carga
 // inicial (plano do P7, Task 2; US-115), que a GFIN confere contra as planilhas de origem. A segunda,
 // as exportações em segundo plano de cada pessoa (US-024). A terceira, fora do menu, é a permissão da
-// ajuda da IA no manual (US-108).
+// ajuda da IA no manual (US-108). A quarta, a análise do quadro de pessoal pela IA (US-107).
 // Sem @/shared/authz nem next/: o prisma/seed.ts importa pelo servidor.ts.
 export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
   {
@@ -68,6 +68,21 @@ export const FUNCIONALIDADES_REL: readonly DeclaracaoFuncionalidade[] = [
       ORCAMENTISTA: ['executar'],
     },
   },
+  {
+    codigo: 'rel.ia_quadro_pessoal',
+    modulo: 'RELATORIOS',
+    grupo: 'Análises com IA',
+    nome: 'Análise do quadro de pessoal',
+    rota: '/rel/quadro-pessoal',
+    ordem: 4,
+    ajuda:
+      'Agregados do pessoal lançado nas propostas (postos por categoria, vagas "A CONTRATAR", evolução por ano e postos por cargo) e, com a IA ' +
+      'ligada, uma análise redigida a partir só desses agregados, sem nomes nem salários individuais. Exige também consultar os Empregados das propostas.',
+    acoes: ['consultar', 'executar'],
+    // US-107 (IA-07): Analista GRH (o ator da história) e a diretoria; a GFIN lê. Todos já consultam orc.empregados.
+    // Quem vê o custo continua decidido pelo orc (D-P20-5). O caso nasce desligado e com teto zero (/int/ia).
+    perfisPadrao: { ANALISTA_GRH: ['consultar', 'executar'], DIREX: ['consultar', 'executar'], GFIN: ['consultar', 'executar'] },
+  },
 ];
 
 export const seedRel: Seed = {
@@ -75,6 +90,6 @@ export const seedRel: Seed = {
   async executar(tx) {
     await instalarFuncionalidades(tx, FUNCIONALIDADES_REL);
     // Depois do catálogo: o caso exige a funcionalidade com a ação executar.
-    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL]);
+    await instalarCasosUsoIA(tx, [CASO_AJUDA_MANUAL, CASO_QUADRO_PESSOAL]);
   },
 };
