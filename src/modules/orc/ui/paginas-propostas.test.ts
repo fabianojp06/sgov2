@@ -225,6 +225,15 @@ describe('página das propostas de TP', () => {
     expect(await html()).not.toContain('Empregados da proposta');
   });
 
+  it('com orc.viagens:consultar, o link para as viagens em toda proposta (US-071)', async () => {
+    contexto = ctx(['orc.propostas:consultar', 'orc.viagens:consultar']);
+    const h = await html();
+    expect(h).toContain('<a href="/orc/viagens?proposta=TP-2027%2F001">Viagens da proposta TP-2027/001</a>');
+    expect(h).toContain('<a href="/orc/viagens?proposta=TP-2027%2F002">Viagens da proposta TP-2027/002</a>');
+    contexto = ctx(['orc.propostas:consultar']);
+    expect(await html()).not.toContain('Viagens da proposta');
+  });
+
   it('sem orc.propostas:consultar: 404 com a negação auditada', async () => {
     contexto = ctx(['orc.posicoes:consultar']);
     expect(await digest(Propostas({ searchParams: Promise.resolve({}) }))).toBe('NEXT_HTTP_ERROR_FALLBACK;404');

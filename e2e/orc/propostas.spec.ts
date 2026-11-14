@@ -3,8 +3,8 @@ import pg from 'pg';
 import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoio';
 
 // Proposta de TP pela tela (US-065; plano do P17, Task 2, Step 3), com nova versão e duplicar (US-066; plano
-// do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3) e o pessoal (US-070; plano do P20,
-// Task 2, Step 3).
+// do P18, Task 2, Step 3), as metas (US-067; plano do P19, Task 2, Step 3), o pessoal (US-070; plano do P20,
+// Task 2, Step 3) e as viagens (US-071; plano do P21, Task 2, Step 3).
 //
 // Usa a estrutura sintética de CCs de TP da seed de referência da frente B (raiz 9, analíticos 9.1 a 9.3,
 // #438).
@@ -13,8 +13,9 @@ import { entrarNaTelaPrincipal, urlMigratorDoTeste, USUARIOS } from '../aut/apoi
 // global 0,00; o seletor de unidade da tela principal passa a mostrar o TP (o criador é vinculado na
 // criação, D-P17-3); o Orçamentista cria a Versão 2 e duplica a proposta para o TP-E2E-002, com o CC 9.2;
 // a cópia passa à categoria Meta, e o Orçamentista inclui, altera e exclui metas nela, com a nova versão
-// copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
-// livre (D-P17-10). O afterAll apaga o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
+// copiando as metas; na versão nova, uma vaga "A CONTRATAR" e um quantitativo que a conta; os tetos de passagens
+// e de diárias, uma viagem e a cópia dela recusada pelo teto; a proposta é excluída pela confirmação do UC 3.07; e o CC 9.1 volta ao seletor de CC
+// livre (D-P17-10). O afterAll apaga as viagens, o pessoal, as metas, as capas, as versões, os vínculos e as unidades dos dois TPs
 // (o Histórico fica).
 //
 // Usuário: o Orçamentista E2E de e2e/aut/apoio.ts (orc.menu), que outros specs também usam. O vínculo
@@ -41,6 +42,8 @@ test.describe.serial('proposta de TP', () => {
       await cliente.query('BEGIN');
       const codigos = `('${NUMERO}', '${NUMERO_COPIA}')`;
       const unidade = `(SELECT id FROM unidade WHERE codigo IN ${codigos})`;
+      await cliente.query(`DELETE FROM orc_viagem WHERE unidade_id IN ${unidade}`);
+      await cliente.query(`DELETE FROM orc_teto_viagem WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_qtde_empregado WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_empregado WHERE unidade_id IN ${unidade}`);
       await cliente.query(`DELETE FROM orc_meta WHERE unidade_id IN ${unidade}`);
@@ -198,6 +201,47 @@ test.describe.serial('proposta de TP', () => {
     await page.getByRole('button', { name: 'Incluir quantitativo' }).click();
     await expect(page.getByText('Quantitativo do documento AP-E2E incluído.')).toBeVisible();
     await expect(page.getByRole('row', { name: /^AP-E2E / })).toHaveText(/AP-E2E\s*01\/2027\s*12\/2027\s*1\s*0\s*0/);
+  });
+
+  test('3d. os tetos de passagens e de diárias, uma viagem no painel e a cópia recusada pelo teto', async ({ page }) => {
+    await entrarNaTelaPrincipal(page, usuario.login);
+    await page.goto('/orc/propostas');
+    await page.getByRole('link', { name: `Viagens da proposta ${NUMERO_COPIA}` }).click();
+    await expect(page).toHaveURL(/\/orc\/viagens\?proposta=/);
+    // O plano oficial separa DESPESA DE VIAGEM (4.1.1.3) e DESPESA DE DIÁRIA (4.1.1.4): um teto para cada.
+    for (const [conta, valor] of [
+      ['4.1.1.3', '5.000,00'],
+      ['4.1.1.4', '2.000,00'],
+    ] as const) {
+      await page.getByRole('link', { name: `Novo teto de viagens na proposta ${NUMERO_COPIA}` }).click();
+      await page.locator('#novo-teto-conta').selectOption(conta);
+      await page.getByLabel('Teto da conta (R$)').fill(valor);
+      await page.getByRole('button', { name: 'Incluir teto' }).click();
+      await expect(page.getByText(`Teto da conta ${conta} incluído.`)).toBeVisible();
+    }
+
+    await page.getByRole('link', { name: `Nova viagem na proposta ${NUMERO_COPIA}` }).click();
+    await page.locator('#incluir-viagem-meta').selectOption({ label: 'M2 – Atendimento' });
+    await page.getByLabel('Localidade (país)').fill('Brasil');
+    await page.getByLabel('Quantidade de pessoas').fill('2');
+    await page.getByLabel('Média de dias').fill('3');
+    await page.getByLabel('Custo unitário de passagem, ida e volta (R$)').fill('1.000,00');
+    await page.getByLabel('Custo de diária por pessoa (R$)').fill('250,00');
+    await page.locator('#incluir-viagem-contaPassagem').selectOption('4.1.1.3.001');
+    await page.locator('#incluir-viagem-contaDiaria').selectOption('4.1.1.4.007');
+    await page.getByRole('button', { name: 'Incluir viagem' }).click();
+    await expect(page.getByText('Viagem para Brasil incluída.')).toBeVisible();
+    const grupo = page.getByRole('region', { name: /^Meta M2 – Atendimento/ });
+    await expect(grupo.getByRole('row', { name: /^Brasil / })).toHaveText(/Brasil\s*2\s*3\s*1\.000,00\s*250,00\s*0,00\s*3\.500,00/);
+    await expect(page.getByRole('row', { name: /^4\.1\.1\.4 / })).toHaveText(/2\.000,00\s*1\.500,00\s*500,00/);
+    await expect(page.getByRole('region', { name: `Painel das viagens da proposta ${NUMERO_COPIA}` })).toContainText(/Custo total estimado\s*R\$\s*3\.500,00/);
+
+    // Copiar com 3 pessoas: as diárias somariam 3.750,00 contra o teto de 2.000,00 (E3).
+    await grupo.getByRole('link', { name: 'Copiar a viagem para Brasil' }).click();
+    await expect(page.getByLabel('Localidade (país)')).toHaveValue('Brasil');
+    await page.getByLabel('Quantidade de pessoas').fill('3');
+    await page.getByRole('button', { name: 'Incluir viagem' }).click();
+    await expect(page.getByText('Operação Rejeitada: O somatório das viagens operacionais excede o teto orçamentário disponível na Conta Sintética selecionada (4.1.1.4).')).toBeVisible();
   });
 
   test('4. a proposta é excluída pela confirmação e o CC volta a ficar livre', async ({ page }) => {

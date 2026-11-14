@@ -3,7 +3,18 @@ import { ROTULO_TIPO_PROPOSTA, TIPOS_PROPOSTA } from '../domain/proposta';
 
 // Filtros das telas de pessoal da proposta (US-070; plano do P20, Task 2): Tipo, Proposta e Meta, juntos ou
 // sozinhos (REQ0024) e por parte do texto (REQ0030), num formulário GET, como na tela de metas.
-export function FiltrosPessoalProposta({ rota, rotulo, prefixo, filtros }: { rota: string; rotulo: string; prefixo: string; filtros: FiltrosPessoal }) {
+// A tela de viagens acrescenta a Localidade (REQ_VIA_001; plano do P21).
+export function FiltrosPessoalProposta({
+  rota,
+  rotulo,
+  prefixo,
+  filtros,
+}: {
+  rota: string;
+  rotulo: string;
+  prefixo: string;
+  filtros: FiltrosPessoal & { localidade?: string | undefined };
+}) {
   const id = (campo: string) => `${prefixo}-filtro-${campo}`;
   return (
     <form method="get" action={rota} role="search" aria-label={rotulo}>
@@ -19,7 +30,14 @@ export function FiltrosPessoalProposta({ rota, rotulo, prefixo, filtros }: { rot
       <label htmlFor={id('proposta')}>Proposta</label>
       <input id={id('proposta')} name="proposta" defaultValue={filtros.proposta ?? ''} />{' '}
       <label htmlFor={id('meta')}>Meta</label>
-      <input id={id('meta')} name="meta" defaultValue={filtros.meta ?? ''} /> <button type="submit">Pesquisar</button>
+      <input id={id('meta')} name="meta" defaultValue={filtros.meta ?? ''} />{' '}
+      {'localidade' in filtros && (
+        <>
+          <label htmlFor={id('localidade')}>Localidade</label>
+          <input id={id('localidade')} name="localidade" defaultValue={filtros.localidade ?? ''} />{' '}
+        </>
+      )}
+      <button type="submit">Pesquisar</button>
     </form>
   );
 }
