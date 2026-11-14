@@ -120,6 +120,7 @@ Telas com exportação: o plano de contas, a conferência da carga e o Históric
 | G6 | DIREX ou GFIN | Administração Central › Comparativo entre TPs; ligar o caso "Comentários do comparativo" (G2) e pedir os comentários | A tabela mostra os pesos só das versões oficiais, com o motivo quando omitidos, e marca "acima/abaixo da curva" em texto; os comentários trazem o selo | US-106 | não |
 | G7 | GFIN | Relatórios › Relatório executivo mensal: gerar o rascunho do mês, revisar os textos, salvar e aprovar; baixar o PDF antes e depois | O rascunho sai marcado "RASCUNHO - não distribuir" (também no PDF); "Aprovar" só aparece com os textos salvos; depois de aprovado, nada muda e a DIREX passa a ver e baixar | US-103 | não |
 | G8 | GFIN | Relatórios › Apresentação para reunião de diretoria: escrever um tema, montar o roteiro e baixar os slides | Slides em PDF 16:9 com gráficos do sistema e o rodapé "Roteiro com apoio de IA, de responsabilidade de <usuário> - revisar" | US-105 | não |
+| G9 | DIREX, GFIN e Gestor de Diretoria | Relatórios › Pergunte ao SGO: "qual o orçamento da Administração Central?", "quanto orçou o CC 4.3.2?", "qual o Valor Global do TP-3?" e uma pergunta sobre o salário de alguém | Cada número vem com a fonte e o link da tela; o Gestor recebe "(do seu escopo)" e não recebe teto; a pergunta sobre salário recebe "ainda não sei responder" | US-104 | não |
 
 ## F. Encerramento
 
