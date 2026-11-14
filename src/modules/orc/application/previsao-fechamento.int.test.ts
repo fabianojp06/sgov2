@@ -129,6 +129,26 @@ describe('obterPrevisaoFechamento (US-091)', () => {
   });
 });
 
+describe('revisão 12.12', () => {
+  it('um ajuste de mês fechado lançado depois da última carga não move o corte; RLS: quem não opera o TP não o vê', async () => {
+    // Um ajuste lançado em jun/2026 (origem fev, fechado), depois da última carga (mar).
+    const carga = await migrator.cargaRealizado.findFirstOrThrow({ where: { unidadeId: tp.unidadeId } });
+    await migrator.ajusteRealizado.create({
+      data: { unidadeId: tp.unidadeId, conta: '4.1.1.5.005', competenciaOrigem: new Date('2026-02-01'), competenciaLancamento: new Date('2026-06-01'), valor: '10.00', cargaId: carga.id },
+    });
+    try {
+      const t = (await obterPrevisaoFechamento(gfinCtx(), { proposta: tp.id }, comDeps())).tela!;
+      expect(t.mesCorte).toBe('2026-03');
+      // Depois do corte, vale orçado × tendência (D-P34-1): o ajuste de jun não muda a tendência nem a projeção.
+      expect([t.contas[0]!.tendencia?.formatar(), t.contas[0]!.projetadoAno.paraString()]).toEqual(['126,00%', '3150.00']);
+    } finally {
+      await migrator.ajusteRealizado.deleteMany({ where: { unidadeId: tp.unidadeId, competenciaLancamento: new Date('2026-06-01') } });
+    }
+    const outro = await obterPrevisaoFechamento(ctx(gfin, [], ['orc.oxr:consultar']), { proposta: tp.id }, comDeps());
+    expect([outro.propostas, outro.tela, outro.erro]).toEqual([[], null, 'Selecione um Termo de Parceria para consultar.']);
+  });
+});
+
 describe('destacarRiscos (IA-10)', () => {
   it('a IA recebe só os números do motor e o mês; o destaque usa o mês e o desvio do motor; conta inventada é descartada', async () => {
     const chamadas: string[] = [];
@@ -147,6 +167,10 @@ describe('destacarRiscos (IA-10)', () => {
     expect(chamadas[0]).toContain('- 4.1.1.5.005 (Material de escritório): orçado do ano R$ 2.500,00;');
     expect(chamadas[0]).toContain('estouro em Mar/26.');
     expect(chamadas[0]).not.toContain('Objeto do TP');
+    // O pedido à IA não grava outra CONSULTA (revisão 12.12).
+    const consultas = await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } });
+    exigirOk(await destacarRiscos(gfinCtx(['orc.ia_previsao:executar']), { proposta: tp.id }, { ...comDeps(), ia }));
+    expect(await migrator.historicoOperacao.count({ where: { funcionalidade: 'orc.oxr', tipoOperacao: 'CONSULTA' } })).toBe(consultas);
   });
 
   it('sem a permissão do caso: erro sem chamar a IA; sem conta em risco: a resposta pronta, sem chamar a IA', async () => {

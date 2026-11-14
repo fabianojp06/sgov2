@@ -60,6 +60,10 @@ export function TelaPrevisao({ dados, ia }: { dados: ResultadoPrevisao; ia: Acao
               : `Ainda não há realizado em ${tela.ano}: a projeção é o orçado da versão oficial ${tela.versaoOficial}.`}
           </p>
           {tela.semPessoal && <p role="note">As contas de pessoal não aparecem para o seu perfil.</p>}
+          {tela.pessoalNaoHomologado && <p role="note">O pessoal da versão oficial ainda não foi homologado: as contas de pessoal ficam fora da previsão.</p>}
+          {tela.pendencias.quantidade > 0 && (
+            <p role="note">{`Há ${tela.pendencias.quantidade} valor(es) do ERP sem conta correspondente no SGO (R$ ${valorParaTela(tela.pendencias.valor)}), fora da projeção.`}</p>
+          )}
           <p role="status">{emRisco === 0 ? 'Nenhuma conta com risco de estouro no ano.' : `${emRisco} conta(s) com risco de estouro no ano.`}</p>
           {ia && emRisco > 0 && <AjudaPrevisaoIA acao={ia} proposta={tela.propostaId} ano={String(tela.ano)} />}
           <div role="region" aria-labelledby="previsao-caption" tabIndex={0} style={{ overflowX: 'auto' }}>

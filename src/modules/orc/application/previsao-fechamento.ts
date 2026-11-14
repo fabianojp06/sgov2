@@ -2,6 +2,7 @@ import { auditar } from '@/shared/audit';
 import { exigir, type ContextoRequisicao } from '@/shared/authz';
 import { Dinheiro } from '@/shared/kernel';
 import { emUnidade } from '@/shared/unidade';
+import { competenciaParaTexto } from '../domain/empregado';
 import { RAIZES_CONTAS_PESSOAL } from '../domain/planilha';
 import { preverConta, type PrevisaoConta } from '../domain/previsao';
 import { competenciasDaVigencia } from '../domain/rateio';
@@ -33,6 +34,10 @@ export type TelaPrevisao = {
   contas: readonly ContaPrevista[];
   total: PrevisaoConta;
   semPessoal: boolean;
+  /** Há empregados na versão oficial sem o lote homologado: o pessoal fica fora dos dois lados (revisão 12.12). */
+  pessoalNaoHomologado: boolean;
+  /** As pendências do realizado no ano (RN_OXR_004): o projetado não as conta. */
+  pendencias: { quantidade: number; valor: Dinheiro };
 };
 export type ResultadoPrevisao = { propostas: readonly PropostaOxr[]; tela: TelaPrevisao | null; erro: string | null };
 
@@ -40,11 +45,14 @@ export const MENSAGEM_ANO_FORA = 'Escolha um ano dentro da vigência do Termo de
 
 const anoBrasilia = (d: Date) => Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(d));
 
-export async function obterPrevisaoFechamento(
-  ctx: ContextoRequisicao,
-  filtros: { proposta?: string | undefined; ano?: string | undefined },
-  depsParciais: Partial<DepsOrc> = {},
-): Promise<ResultadoPrevisao> {
+export type FiltrosPrevisao = { proposta?: string | undefined; ano?: string | undefined };
+
+export async function obterPrevisaoFechamento(ctx: ContextoRequisicao, filtros: FiltrosPrevisao, depsParciais: Partial<DepsOrc> = {}): Promise<ResultadoPrevisao> {
+  return montarPrevisao(ctx, filtros, depsParciais, true);
+}
+
+/** A previsão para o destaque da IA (ia-previsao.ts), sem uma segunda CONSULTA no Histórico. Fora do index.ts. */
+export async function montarPrevisao(ctx: ContextoRequisicao, filtros: FiltrosPrevisao, depsParciais: Partial<DepsOrc>, registrarConsulta: boolean): Promise<ResultadoPrevisao> {
   const deps = resolverDeps(depsParciais);
   exigir(ctx, FUNCIONALIDADE_OXR, 'consultar');
   const propostas = await propostasOficiais(ctx, deps);
@@ -73,7 +81,7 @@ export async function obterPrevisaoFechamento(
       if (!anos.includes(ano)) return resposta(null, MENSAGEM_ANO_FORA);
       const meses = Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, '0')}`);
 
-      await auditar(tx, {
+      if (registrarConsulta) await auditar(tx, {
         contexto: { ...contextoAuditoria(ctx), unidadeId: p.unidadeId },
         funcionalidade: FUNCIONALIDADE_OXR,
         tipo: 'CONSULTA',
@@ -82,8 +90,22 @@ export async function obterPrevisaoFechamento(
         depois: { ano },
       });
       const comPessoal = vePessoal(ctx);
-      const ePessoal = (c: string) => !comPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => c === raiz || c.startsWith(`${raiz}.`));
-      const [s, r] = await Promise.all([seriesDaVersao(tx, deps, oficial.id, comPessoal, vigencia), lerRealizado(tx, p.unidadeId, meses[0], meses[11])]);
+      const naVigencia = new Set(vigencia);
+      const [s, r, ultimaCarga] = await Promise.all([
+        seriesDaVersao(tx, deps, oficial.id, comPessoal, vigencia),
+        lerRealizado(tx, p.unidadeId, meses[0], meses[11]),
+        // D-P34-2 (revisão 12.12): o corte vem das cargas, não dos ajustes. Um ajuste de mês fechado lançado depois da
+        // última carga não pode empurrar o corte e zerar o mês para as outras contas.
+        tx.realizadoContaMes.findFirst({
+          where: { unidadeId: p.unidadeId, competencia: { gte: new Date(`${meses[0]}-01T00:00:00Z`), lte: new Date(`${meses[11]}-01T00:00:00Z`) } },
+          orderBy: { competencia: 'desc' },
+          select: { competencia: true },
+        }),
+      ]);
+      // Sem ver o pessoal (D-P23-5) ou com o lote ainda não homologado (o orçado não o tem), as contas de pessoal saem dos
+      // dois lados: senão viram estouro falso e vão à IA (revisão 12.12).
+      const semPessoal = !comPessoal || s.pessoalNaoHomologado;
+      const ePessoal = (c: string) => semPessoal && RAIZES_CONTAS_PESSOAL.some((raiz) => c === raiz || c.startsWith(`${raiz}.`));
       const series = new Map<string, { orcado: Dinheiro[]; realizado: Dinheiro[] }>();
       const serie = (conta: string) => {
         const atual = series.get(conta) ?? { orcado: meses.map(() => Dinheiro.zero()), realizado: meses.map(() => Dinheiro.zero()) };
@@ -95,13 +117,16 @@ export async function obterPrevisaoFechamento(
         const i = meses.indexOf(mes);
         if (i >= 0 && !ePessoal(conta)) serie(conta).orcado[i] = serie(conta).orcado[i]!.somar(v);
       }
-      let corte = -1;
+      // Só os meses da vigência, como no Orçado x Realizado (um ajuste lançado depois do fim do TP fica de fora).
       for (const l of r.linhas) {
         const i = meses.indexOf(l.competencia);
-        if (i < 0 || ePessoal(l.conta)) continue;
+        if (i < 0 || !naVigencia.has(l.competencia) || ePessoal(l.conta)) continue;
         serie(l.conta).realizado[i] = serie(l.conta).realizado[i]!.somar(l.valor);
-        if (!l.valor.ehZero()) corte = Math.max(corte, i);
       }
+      const mesCarga = ultimaCarga ? competenciaParaTexto(ultimaCarga.competencia) : null;
+      // A carga depois do fim da vigência não estende o corte: vale o último mês vigente até ela.
+      const ultimoMes = mesCarga ? meses.filter((c) => c <= mesCarga && naVigencia.has(c)).at(-1) : undefined;
+      const corte = ultimoMes ? meses.indexOf(ultimoMes) : -1;
       const contas = [...series.entries()]
         .map(([conta, x]) => ({ ...preverConta(meses, corte, { conta, ...x }), descricao: descricoes.get(conta) ?? 'Conta fora do plano' }))
         .sort((a, b) => Number(b.risco) - Number(a.risco) || b.desvio.comparar(a.desvio) || a.conta.localeCompare(b.conta, 'pt-BR', { numeric: true }));
@@ -119,6 +144,8 @@ export async function obterPrevisaoFechamento(
           contas,
           total: preverConta(meses, corte, { conta: 'Total', orcado: soma('orcado'), realizado: soma('realizado') }),
           semPessoal: !comPessoal,
+          pessoalNaoHomologado: comPessoal && s.pessoalNaoHomologado,
+          pendencias: r.pendencias,
         },
         null,
       );

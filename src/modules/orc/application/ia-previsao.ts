@@ -7,7 +7,7 @@ import { valorParaTela } from '../domain/valor-tela';
 import { CASOS_IA_ORC } from './ia-casos';
 import { mensagemErroIA, resolverDepsIa, type DepsIaOrc } from './ia-deps';
 import { mesOxr } from './grade-oxr';
-import { obterPrevisaoFechamento, type ContaPrevista, type TelaPrevisao } from './previsao-fechamento';
+import { montarPrevisao, type ContaPrevista, type TelaPrevisao } from './previsao-fechamento';
 
 // Destaque da IA na previsão de fechamento (US-091; IA-10 da spec §6.8; plano do P34, D-P34-3). Só leitura: o motor
 // calcula (domain/previsao.ts) e a IA só redige o destaque das contas em risco. O mês do estouro e os valores de cada
@@ -34,7 +34,8 @@ export const SEM_RISCO = 'Nenhuma conta tem risco de estouro no ano pela projeç
 
 const linhaConta = (c: ContaPrevista) =>
   [
-    `- ${c.conta} (${semMarcas(c.descricao)}):`,
+    // A descrição é do cadastro do plano: sem as marcas e sem quebra de linha, para não forjar linhas na mensagem.
+    `- ${c.conta} (${semMarcas(c.descricao).replace(/\s+/g, ' ').trim()}):`,
     `orçado do ano R$ ${valorParaTela(c.orcadoAno)};`,
     `realizado até o corte R$ ${valorParaTela(c.realizadoAteCorte)};`,
     `projetado R$ ${valorParaTela(c.projetadoAno)};`,
@@ -48,7 +49,7 @@ export function montarMensagemPrevisao(t: TelaPrevisao, emRisco: readonly ContaP
     `Termo de Parceria ${t.numero}, ano ${t.ano}.`,
     t.mesCorte ? `Realizado carregado até ${mesOxr(t.mesCorte)}.` : 'Ainda não há realizado no ano: a projeção é o orçado.',
     `Total do ano: orçado R$ ${valorParaTela(t.total.orcadoAno)}; projetado R$ ${valorParaTela(t.total.projetadoAno)}.`,
-    ...(t.semPessoal ? ['As contas de pessoal não estão na lista.'] : []),
+    ...(t.semPessoal || t.pessoalNaoHomologado ? ['As contas de pessoal não estão na lista.'] : []),
     'Contas com risco de estouro, da maior para a menor:',
     ...emRisco.map(linhaConta),
   ].join('\n');
@@ -60,7 +61,7 @@ export async function destacarRiscos(ctx: ContextoRequisicao, bruto: unknown, de
   const parse = ENTRADA.safeParse(bruto);
   if (!parse.success) return erro('Dados da previsão inválidos. Recarregue a tela.');
   // A previsão com a permissão e a RLS de quem pede (orc.oxr:consultar).
-  const r = await obterPrevisaoFechamento(ctx, parse.data, deps);
+  const r = await montarPrevisao(ctx, parse.data, deps, false);
   if (!r.tela) return erro(r.erro ?? 'Selecione um Termo de Parceria para consultar.');
   const emRisco = r.tela.contas.filter((c) => c.risco).slice(0, MAXIMO_CONTAS);
   if (emRisco.length === 0) return ok({ texto: SEM_RISCO, destaques: [] });

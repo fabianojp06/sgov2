@@ -41,6 +41,8 @@ vi.mock('@/modules/orc', async (original) => {
           contas: [risco, ok],
           total: preverConta(MESES, 5, { conta: 'Total', orcado: serie('1100'), realizado: serie('1300', 6) }),
           semPessoal: true,
+          pessoalNaoHomologado: false,
+          pendencias: { quantidade: 2, valor: Dinheiro.de('15') },
         },
       };
     },
@@ -73,6 +75,7 @@ describe('página da previsão de fechamento', () => {
     expect(h).toContain('<th scope="row">4.1.1.5.005 Material</th><td>12.000,00</td><td>7.200,00</td><td>120,00%</td><td>14.400,00</td><td style="color:#cf222e;font-weight:bold">2.400,00</td><td style="color:#cf222e;font-weight:bold">11/2026</td>');
     expect(h).toContain('<td>0,00</td><td>Não</td>');
     expect(h).toContain('As contas de pessoal não aparecem para o seu perfil.');
+    expect(h).toContain('Há 2 valor(es) do ERP sem conta correspondente no SGO (R$ 15,00), fora da projeção.');
     expect(h).not.toContain('Pedir à IA');
   });
 
