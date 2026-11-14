@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { lerMapaFrentes, verificarFrentes, type MapaFrentes } from './verificar';
@@ -106,4 +110,35 @@ describe('verificarFrentes', () => {
       verificarFrentes({ arquivos: ['src/modules/cad/infrastructure/repo.int.test.ts'], labels: [], frente: 'B', mapa }),
     ).toEqual([]);
   });
+});
+
+// #150 (revisão do PR #149): a leitura do mapa com campo inválido ou ausente e a CLI com os códigos de saída.
+describe('lerMapaFrentes', () => {
+  const comMapa = (yaml: string) => {
+    const dir = mkdtempSync(join(tmpdir(), 'frentes-'));
+    const caminho = join(dir, 'frentes.yml');
+    writeFileSync(caminho, yaml);
+    return caminho;
+  };
+
+  it('campo ausente vira lista vazia; campo que não é lista de texto é recusado com o nome do campo', () => {
+    expect(lerMapaFrentes(comMapa('frentes:\n  A: ["src/a/**"]\n'))).toEqual({ frentes: { A: ['src/a/**'], B: [] }, compartilhados: [], livres: [], migrations: [] });
+    expect(() => lerMapaFrentes(comMapa('frentes:\n  A: "src/a/**"\n'))).toThrow('o campo "frentes.A" deve ser uma lista de globs');
+    expect(() => lerMapaFrentes(comMapa('compartilhados: [1, 2]\n'))).toThrow('o campo "compartilhados"');
+  });
+});
+
+describe('CLI do verificador', () => {
+  const cli = fileURLToPath(new URL('./verificar.ts', import.meta.url));
+  const rodar = (args: string[], arquivos: string[]) =>
+    spawnSync(process.execPath, ['--import', 'tsx', cli, ...args], { input: arquivos.join('\n'), encoding: 'utf8', cwd: fileURLToPath(new URL('../..', import.meta.url)) });
+
+  it('sai com 0 sem violação, 1 com violação (listada) e 2 sem a frente', () => {
+    const ok = rodar(['--frente', 'A', '--labels', 'frente:A'], ['src/modules/orc/x.ts']);
+    expect([ok.status, ok.stdout]).toEqual([0, expect.stringContaining('nenhuma violação (1 arquivo(s), frente A)')]);
+    const violou = rodar(['--frente', 'B'], ['src/modules/orc/x.ts']);
+    expect(violou.status).toBe(1);
+    expect(violou.stderr).toContain('arquivo da outra frente sem a label "toca-outra-frente": src/modules/orc/x.ts');
+    expect(rodar([], []).status).toBe(2);
+  }, 30_000);
 });

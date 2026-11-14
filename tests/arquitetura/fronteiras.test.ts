@@ -49,6 +49,11 @@ describe('fronteiras de módulo', () => {
     ['src/modules/orc/domain/a.ts', "import { readFile } from 'fs/promises';", true],
     ['src/modules/orc/domain/a.ts', "import { headers } from 'next/headers';", true],
     ['src/modules/orc/infrastructure/a.ts', "import { PrismaClient } from '@prisma/client';", false],
+    // Import relativo (#150): com caminho real, o resolvedor acha o arquivo, e a fronteira vale como no alias.
+    ['src/modules/orc/domain/a.ts', "import { x } from '../../cad/infrastructure/seed';", true],
+    ['src/modules/orc/application/a.ts', "import { x } from '../../cad/domain/impostos';", true],
+    ['src/modules/orc/application/a.ts', "import { x } from '../../cad';", false],
+    ['src/modules/orc/application/a.ts', "import { x } from '../domain/proposta';", false],
   ])('%s importando (%s) → erro=%s', async (arquivo, codigo, deveFalhar) => {
     const [r] = await eslint.lintText(codigo, { filePath: arquivo });
     expect(r).toBeDefined();
